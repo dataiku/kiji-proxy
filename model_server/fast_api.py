@@ -367,21 +367,21 @@ class PIIModelManager:
 
             elif current_entity is not None:  # "O" label or entity ended
                 # Save previous entity if exists
-                    entity_text = text[current_start:current_end]
-                    # Calculate average confidence for the entity
-                    avg_confidence = torch.mean(torch.stack(current_confidence_scores)).item()
-                    entities.append(
-                        PIIEntity(
-                            text=entity_text,
-                            label=current_label,
-                            start_pos=current_start,
-                            end_pos=current_end,
-                            confidence=avg_confidence,
-                        )
+                entity_text = text[current_start:current_end]
+                # Calculate average confidence for the entity
+                avg_confidence = torch.mean(torch.stack(current_confidence_scores)).item()
+                entities.append(
+                    PIIEntity(
+                        text=entity_text,
+                        label=current_label,
+                        start_pos=current_start,
+                        end_pos=current_end,
+                        confidence=avg_confidence,
                     )
-                    current_entity = None
-                    current_label = None
-                    current_confidence_scores = []
+                )
+                current_entity = None
+                current_label = None
+                current_confidence_scores = []
 
         # Don't forget the last entity
         if current_entity is not None:
