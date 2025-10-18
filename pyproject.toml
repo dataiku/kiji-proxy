@@ -182,6 +182,10 @@ ignore = [
     "PLR0915", # too many statements
     "PLR2004", # magic value used in comparison
     "TRY003", # avoid specifying long messages outside the exception class
+    # project specific rules
+    "PLC0415", # import should be at top-level - intentionally in try blocks for optional dependencies (Google Colab, wandb)
+    "TRY300", # consider moving statement to else block - acceptable pattern for early returns in try/except
+    "PLR0911", # too many return statements - acceptable for CLI main functions with multiple exit points
 ]
 
 # Allow fix for all enabled rules (when `--fix`) is provided.
