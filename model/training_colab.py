@@ -50,7 +50,7 @@ from transformers import (
 )
 
 # Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -700,11 +700,19 @@ class PIITrainer:
 
         # Remove ignored index (special tokens)
         true_predictions = [
-            [self.id2label[p] for (p, label_id) in zip(prediction, label, strict=True) if label_id != -100]
+            [
+                self.id2label[p]
+                for (p, label_id) in zip(prediction, label, strict=True)
+                if label_id != -100
+            ]
             for prediction, label in zip(predictions, labels, strict=True)
         ]
         true_labels = [
-            [self.id2label[label_id] for (p, label_id) in zip(prediction, label, strict=True) if label_id != -100]
+            [
+                self.id2label[label_id]
+                for (p, label_id) in zip(prediction, label, strict=True)
+                if label_id != -100
+            ]
             for prediction, label in zip(predictions, labels, strict=True)
         ]
 

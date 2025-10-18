@@ -46,7 +46,7 @@ from datetime import datetime
 from pathlib import Path
 
 # Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 try:
@@ -240,6 +240,7 @@ class ColabDriveManager:
         """Check if running in Google Colab."""
         try:
             import google.colab  # noqa: F401
+
             return True
         except ImportError:
             return False
@@ -283,9 +284,7 @@ class ColabDriveManager:
             return None
 
         # List all directories
-        model_dirs = [
-            d.name for d in Path(drive_path).iterdir() if d.is_dir()
-        ]
+        model_dirs = [d.name for d in Path(drive_path).iterdir() if d.is_dir()]
 
         if not model_dirs:
             logger.error(f"❌ No models found in {drive_path}")
@@ -391,7 +390,9 @@ def verify_model(model_path: str) -> bool:
 
     # Check for model weights (safetensors or pytorch_model.bin)
     model_path_obj = Path(model_path)
-    has_weights = (model_path_obj / "model.safetensors").exists() or (model_path_obj / "pytorch_model.bin").exists()
+    has_weights = (model_path_obj / "model.safetensors").exists() or (
+        model_path_obj / "pytorch_model.bin"
+    ).exists()
 
     if not has_weights:
         logger.error("❌ Model weights not found (model.safetensors or pytorch_model.bin)")

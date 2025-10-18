@@ -85,9 +85,7 @@ class GoogleDriveManager:
             return None
 
         # List all directories in the folder
-        model_dirs = [
-            d for d in drive_path.iterdir() if d.is_dir()
-        ]
+        model_dirs = [d for d in drive_path.iterdir() if d.is_dir()]
 
         if not model_dirs:
             logger.error(f"❌ No models found in {drive_path}")
@@ -219,7 +217,9 @@ class PIIModelLoader:
         current_start = None
         current_end = None
 
-        for _idx, (token, label, offset) in enumerate(zip(tokens, predicted_labels, offset_mapping, strict=True)):
+        for _idx, (token, label, offset) in enumerate(
+            zip(tokens, predicted_labels, offset_mapping, strict=True)
+        ):
             # Skip special tokens
             if token in [
                 self.tokenizer.cls_token,
