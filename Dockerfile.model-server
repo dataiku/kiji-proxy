@@ -1,0 +1,98 @@
+# PII Detection Model Server - Multi-stage Dockerfile
+#
+# Production build:
+#   docker build -f Dockerfile.model-server -t yaak-model-server .
+#   docker run -p 8000:8000 -v ./pii_model:/app/pii_model yaak-model-server
+#
+# Development build:
+#   docker build -f Dockerfile.model-server --target development -t yaak-model-server:dev .
+#
+# Or use docker-compose:
+#   docker-compose up model-server                                    # Production
+#   docker-compose -f docker-compose.yml -f docker-compose.dev.yml up # Development
+
+# =============================================================================
+# Base Stage - Common dependencies
+# =============================================================================
+FROM python:3.11-slim AS base
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements first for better caching
+COPY requirements.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV MODEL_PATH=/app/pii_model
+
+# =============================================================================
+# Development Stage - With hot-reloading
+# =============================================================================
+FROM base AS development
+
+# Install additional dev dependencies
+RUN pip install --no-cache-dir \
+    ipython \
+    jupyter \
+    pytest
+
+# Copy application code (will be overridden by volume mount)
+COPY model_server/ ./model_server/
+COPY model/ ./model/
+
+# Create directory for model
+RUN mkdir -p /app/pii_model
+
+# Expose port
+EXPOSE 8000
+
+# Run with auto-reload for development
+CMD ["uvicorn", "model_server.fast_api:app", \
+     "--host", "0.0.0.0", \
+     "--port", "8000", \
+     "--reload", \
+     "--log-level", "debug"]
+
+# =============================================================================
+# Production Stage - Optimized
+# =============================================================================
+FROM base AS production
+
+# Copy application code
+COPY model_server/ ./model_server/
+COPY model/ ./model/
+
+# Create directory for model (will be mounted as volume)
+RUN mkdir -p /app/pii_model
+
+# Create non-root user for security
+RUN useradd -m -u 1000 appuser && \
+    chown -R appuser:appuser /app
+USER appuser
+
+# Expose port
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD curl -f http://localhost:8000/health || exit 1
+
+# Run the server with multiple workers for production
+CMD ["uvicorn", "model_server.fast_api:app", \
+     "--host", "0.0.0.0", \
+     "--port", "8000", \
+     "--workers", "4", \
+     "--log-level", "info"]
+
+# Default to production
+FROM production
+

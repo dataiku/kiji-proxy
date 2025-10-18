@@ -1,0 +1,58 @@
+package config
+
+// LoggingConfig holds logging configuration options
+type LoggingConfig struct {
+	LogRequests   bool // Log request content
+	LogResponses  bool // Log response content
+	LogPIIChanges bool // Log PII detection and restoration
+	LogVerbose    bool // Log detailed PII changes (original vs restored)
+}
+
+// DatabaseConfig holds database configuration
+type DatabaseConfig struct {
+	Enabled      bool   // Whether to use database storage
+	Host         string // Database host
+	Port         int    // Database port
+	Database     string // Database name
+	Username     string // Database username
+	Password     string // Database password
+	SSLMode      string // SSL mode (disable, require, etc.)
+	MaxOpenConns int    // Maximum open connections
+	MaxIdleConns int    // Maximum idle connections
+	MaxLifetime  int    // Connection max lifetime in seconds
+	UseCache     bool   // Whether to use in-memory cache
+	CleanupHours int    // Hours after which to cleanup old mappings
+}
+
+// Config holds all configuration for the PII proxy service
+type Config struct {
+	OpenAIBaseURL string
+	ProxyPort     string
+	DetectorName  string
+	ModelBaseURL  string
+}
+
+// DefaultConfig returns the default configuration
+func DefaultConfig() *Config {
+	return &Config{
+		OpenAIBaseURL: "https://api.openai.com/v1",
+		ProxyPort:     ":8080",
+		DetectorName:  "regex_detector",
+		ModelBaseURL:  "http://localhost:8000",
+	}
+}
+
+// GetLogPIIChanges returns whether to log PII changes
+func (lc LoggingConfig) GetLogPIIChanges() bool {
+	return lc.LogPIIChanges
+}
+
+// GetLogVerbose returns whether to log verbose PII details
+func (lc LoggingConfig) GetLogVerbose() bool {
+	return lc.LogVerbose
+}
+
+// GetLogResponses returns whether to log response content
+func (lc LoggingConfig) GetLogResponses() bool {
+	return lc.LogResponses
+}

@@ -1,0 +1,218 @@
+[project]
+name = "yaak-proxy"
+version = "0.1.0"
+description = "PII Detection and Masking Proxy"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "Yaak Team"},
+]
+keywords = ["proxy", "pii", "detection", "privacy", "openai", "api"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    # Core ML/NLP dependencies
+    "torch>=1.9.0",
+    "transformers>=4.20.0",
+    "datasets>=2.0.0",
+    "numpy>=1.21.0",
+    "scikit-learn>=1.0.0",
+    "accelerate>=0.26.0",
+
+    # Training and monitoring
+    "wandb>=0.12.0",
+    "tqdm>=4.64.0",
+    "psutil>=5.8.0",
+
+    # FastAPI server dependencies
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "pydantic>=2.0.0",
+    "python-multipart>=0.0.6",
+
+    # HTTP client for testing
+    "requests>=2.28.0",
+
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.0",
+    "ruff>=0.1.0",
+    "ipython>=8.0",
+    "jupyter>=1.0",
+]
+
+server = [
+    # Additional server-only dependencies (if core deps not needed)
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "pydantic>=2.0.0",
+    "python-multipart>=0.0.6",
+    "requests>=2.28.0",
+]
+
+training = [
+    # Training-only dependencies
+    "wandb>=0.12.0",
+    "datasets>=2.0.0",
+    "accelerate>=0.26.0",
+]
+
+all = [
+    # All optional dependencies
+    "pytest>=6.0",
+    "ruff>=0.1.0",
+]
+
+[project.scripts]
+# CLI entry points (can be added later)
+yaak-server = "model_server.fast_api:main"
+
+[project.urls]
+Homepage = "https://github.com/yaak/pii-detection"
+Repository = "https://github.com/yaak/pii-detection"
+Documentation = "https://github.com/yaak/pii-detection/blob/main/README.md"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["model", "model_server"]
+exclude = [
+    "model/__pycache__",
+    "model_server/__pycache__",
+    "*.pyc",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=6.0",
+    "ruff>=0.1.0",
+    "ipython>=8.0",
+    "jupyter>=1.0",
+]
+
+[tool.uv.sources]
+# Use PyPI for all packages (default)
+
+[tool.ruff]
+# Exclude a variety of commonly ignored directories.
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "pii_model",
+    "output",
+]
+
+# Same as Black.
+line-length = 100
+indent-width = 4
+
+# Assume Python 3.11+
+target-version = "py311"
+
+[tool.ruff.lint]
+# Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`)  codes by default.
+# Unlike Flake8, Ruff doesn't enable pycodestyle warnings (`W`) or
+# McCabe complexity (`C901`) by default.
+select = [
+    "E4",   # pycodestyle errors
+    "E7",   # pycodestyle errors
+    "E9",   # pycodestyle errors
+    "F",    # pyflakes
+    "I",    # isort
+    "N",    # pep8-naming
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "PIE",  # flake8-pie
+    "T20",  # flake8-print
+    "SIM",  # flake8-simplify
+    "TCH",  # flake8-type-checking
+    "ARG",  # flake8-unused-arguments
+    "PTH",  # flake8-use-pathlib
+    "ERA",  # eradicate
+    "PD",   # pandas-vet
+    "PGH",  # pygrep-hooks
+    "PL",   # pylint
+    "TRY",  # tryceratops
+    "FLY",  # flynt
+    "NPY",  # numpy
+    "AIR",  # airflow
+    "PERF", # perflint
+    "FURB", # refurb
+    "RUF",  # ruff-specific rules
+]
+
+ignore = [
+    "E501",  # line too long, handled by black
+    "B008",  # do not perform function calls in argument defaults
+    "B006",  # do not use mutable data structures for argument defaults
+    "PLR0913", # too many arguments to function call
+    "PLR0912", # too many branches
+    "PLR0915", # too many statements
+    "PLR2004", # magic value used in comparison
+    "TRY003", # avoid specifying long messages outside the exception class
+]
+
+# Allow fix for all enabled rules (when `--fix`) is provided.
+fixable = ["ALL"]
+unfixable = []
+
+# Allow unused variables when underscore-prefixed.
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.lint.isort]
+known-first-party = ["model", "model_server", "pii"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.format]
+# Like Black, use double quotes for strings.
+quote-style = "double"
+
+# Like Black, indent with spaces, rather than tabs.
+indent-style = "space"
+
+# Like Black, respect magic trailing commas.
+skip-magic-trailing-comma = false
+
+# Like Black, automatically detect the appropriate line ending.
+line-ending = "auto"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
