@@ -28,10 +28,12 @@ API Endpoints:
 """
 
 import json
+import logging
 import os
 import time
 from contextlib import asynccontextmanager
-from typing import Dict, List, Optional
+from pathlib import Path
+from typing import ClassVar
 
 import torch
 from fastapi import FastAPI, HTTPException, status
@@ -39,6 +41,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, validator
 from transformers import AutoModelForTokenClassification, AutoTokenizer
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 # =============================================================================
@@ -57,9 +63,9 @@ class ServerConfig:
     MAX_BATCH_SIZE = 50  # Maximum texts in batch request
 
     # CORS settings
-    ALLOW_ORIGINS = ["*"]  # Update for production
-    ALLOW_METHODS = ["*"]
-    ALLOW_HEADERS = ["*"]
+    ALLOW_ORIGINS: ClassVar[list[str]] = ["*"]  # Update for production
+    ALLOW_METHODS: ClassVar[list[str]] = ["*"]
+    ALLOW_HEADERS: ClassVar[list[str]] = ["*"]
 
 
 # =============================================================================
@@ -77,7 +83,7 @@ class PIIEntity(BaseModel):
     confidence: float = Field(..., description="Confidence score for the detected entity")
 
     class Config:
-        json_schema_extra = {
+        json_schema_extra: ClassVar[dict] = {
             "example": {
                 "text": "john.doe@email.com",
                 "label": "EMAIL",
@@ -95,7 +101,7 @@ class DetectionRequest(BaseModel):
     include_timing: bool = Field(default=True, description="Include inference timing in response")
 
     @validator("text")
-    def validate_text_length(cls, v):
+    def validate_text_length(self, v):
         if len(v) > ServerConfig.MAX_TEXT_LENGTH:
             raise ValueError(
                 f"Text exceeds maximum length of {ServerConfig.MAX_TEXT_LENGTH} characters"
@@ -103,7 +109,7 @@ class DetectionRequest(BaseModel):
         return v
 
     class Config:
-        json_schema_extra = {
+        json_schema_extra: ClassVar[dict] = {
             "example": {
                 "text": "My email is john.doe@email.com and phone is 555-123-4567",
                 "include_timing": True,
@@ -114,11 +120,11 @@ class DetectionRequest(BaseModel):
 class BatchDetectionRequest(BaseModel):
     """Request for batch PII detection."""
 
-    texts: List[str] = Field(..., description="List of texts to analyze", min_items=1)
+    texts: list[str] = Field(..., description="List of texts to analyze", min_items=1)
     include_timing: bool = Field(default=True, description="Include timing metrics")
 
     @validator("texts")
-    def validate_batch_size(cls, v):
+    def validate_batch_size(self, v):
         if len(v) > ServerConfig.MAX_BATCH_SIZE:
             raise ValueError(f"Batch size exceeds maximum of {ServerConfig.MAX_BATCH_SIZE} texts")
         for text in v:
@@ -129,7 +135,7 @@ class BatchDetectionRequest(BaseModel):
         return v
 
     class Config:
-        json_schema_extra = {
+        json_schema_extra: ClassVar[dict] = {
             "example": {
                 "texts": ["Contact me at alice@example.com", "My SSN is 123-45-6789"],
                 "include_timing": True,
@@ -141,12 +147,12 @@ class DetectionResponse(BaseModel):
     """Response from PII detection."""
 
     text: str = Field(..., description="Original input text")
-    entities: List[PIIEntity] = Field(..., description="Detected PII entities")
+    entities: list[PIIEntity] = Field(..., description="Detected PII entities")
     entity_count: int = Field(..., description="Number of entities detected")
-    inference_time_ms: Optional[float] = Field(None, description="Inference time in milliseconds")
+    inference_time_ms: float | None = Field(None, description="Inference time in milliseconds")
 
     class Config:
-        json_schema_extra = {
+        json_schema_extra: ClassVar[dict] = {
             "example": {
                 "text": "My email is john.doe@email.com",
                 "entities": [
@@ -166,12 +172,12 @@ class DetectionResponse(BaseModel):
 class BatchDetectionResponse(BaseModel):
     """Response from batch PII detection."""
 
-    results: List[DetectionResponse] = Field(..., description="Detection results for each text")
+    results: list[DetectionResponse] = Field(..., description="Detection results for each text")
     total_entities: int = Field(..., description="Total entities detected across all texts")
-    total_inference_time_ms: Optional[float] = Field(
+    total_inference_time_ms: float | None = Field(
         None, description="Total inference time in milliseconds"
     )
-    average_inference_time_ms: Optional[float] = Field(
+    average_inference_time_ms: float | None = Field(
         None, description="Average inference time per text"
     )
 
@@ -191,16 +197,16 @@ class ModelInfo(BaseModel):
     model_path: str = Field(..., description="Path to loaded model")
     model_type: str = Field(..., description="Model architecture type")
     device: str = Field(..., description="Computing device")
-    labels: List[str] = Field(..., description="Supported PII labels")
+    labels: list[str] = Field(..., description="Supported PII labels")
     num_labels: int = Field(..., description="Number of PII labels")
-    vocab_size: Optional[int] = Field(None, description="Tokenizer vocabulary size")
+    vocab_size: int | None = Field(None, description="Tokenizer vocabulary size")
 
 
 class ErrorResponse(BaseModel):
     """Error response."""
 
     error: str = Field(..., description="Error message")
-    detail: Optional[str] = Field(None, description="Detailed error information")
+    detail: str | None = Field(None, description="Detailed error information")
 
 
 # =============================================================================
@@ -231,36 +237,36 @@ class PIIModelManager:
             FileNotFoundError: If model path doesn't exist
             Exception: If model loading fails
         """
-        if not os.path.exists(model_path):
+        if not Path(model_path).exists():
             raise FileNotFoundError(f"Model path not found: {model_path}")
 
         self.model_path = model_path
-        print(f"📥 Loading model from: {model_path}")
+        logger.info(f"📥 Loading model from: {model_path}")
 
         # Determine device
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        print(f"🖥️  Using device: {self.device}")
+        logger.info(f"🖥️  Using device: {self.device}")
 
         # Load label mappings
-        mappings_path = os.path.join(model_path, "label_mappings.json")
-        if os.path.exists(mappings_path):
-            with open(mappings_path, "r") as f:
+        mappings_path = Path(model_path) / "label_mappings.json"
+        if mappings_path.exists():
+            with mappings_path.open() as f:
                 mappings = json.load(f)
             self.label2id = mappings["label2id"]
             self.id2label = {int(k): v for k, v in mappings["id2label"].items()}
-            print(f"✅ Loaded {len(self.label2id)} label mappings")
+            logger.info(f"✅ Loaded {len(self.label2id)} label mappings")
         else:
-            print("⚠️  Label mappings not found, will use model's default labels")
+            logger.warning("⚠️  Label mappings not found, will use model's default labels")
 
         # Load tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(model_path)
-        print("✅ Loaded tokenizer")
+        logger.info("✅ Loaded tokenizer")
 
         # Load model
         self.model = AutoModelForTokenClassification.from_pretrained(model_path)
         self.model.to(self.device)
         self.model.eval()
-        print("✅ Model loaded and ready")
+        logger.info("✅ Model loaded and ready")
 
         # If label mappings weren't loaded, get them from the model
         if self.id2label is None:
@@ -320,7 +326,7 @@ class PIIModelManager:
         current_confidence_scores = []
 
         for idx, (token, label, offset, confidence) in enumerate(
-            zip(tokens, predicted_labels, offset_mapping, confidence_scores)
+            zip(tokens, predicted_labels, offset_mapping, confidence_scores, strict=True)
         ):
             # Skip special tokens
             if token in [
@@ -359,9 +365,8 @@ class PIIModelManager:
                 current_end = offset[1].item()
                 current_confidence_scores.append(confidence[predictions[idx]])
 
-            else:  # "O" label or entity ended
+            elif current_entity is not None:  # "O" label or entity ended
                 # Save previous entity if exists
-                if current_entity is not None:
                     entity_text = text[current_start:current_end]
                     # Calculate average confidence for the entity
                     avg_confidence = torch.mean(torch.stack(current_confidence_scores)).item()
@@ -407,7 +412,7 @@ class PIIModelManager:
         )
 
     def predict_batch(
-        self, texts: List[str], include_timing: bool = True
+        self, texts: list[str], include_timing: bool = True
     ) -> BatchDetectionResponse:
         """
         Run inference on multiple texts.
@@ -457,7 +462,7 @@ class PIIModelManager:
         # Get unique labels (remove B- and I- prefixes)
         unique_labels = set()
         for label in self.id2label.values():
-            if label.startswith("B-") or label.startswith("I-"):
+            if label.startswith(("B-", "I-")):
                 unique_labels.add(label[2:])
             elif label != "O":
                 unique_labels.add(label)
@@ -466,7 +471,7 @@ class PIIModelManager:
             model_path=self.model_path,
             model_type=self.model.config.model_type,
             device=str(self.device),
-            labels=sorted(list(unique_labels)),
+            labels=sorted(unique_labels),
             num_labels=len(unique_labels),
             vocab_size=self.tokenizer.vocab_size if hasattr(self.tokenizer, "vocab_size") else None,
         )
@@ -481,29 +486,29 @@ model_manager = PIIModelManager()
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(_app: FastAPI):
     """
     Lifecycle manager for FastAPI app.
     Loads model on startup and cleans up on shutdown.
     """
     # Startup
-    print("\n" + "=" * 80)
-    print("🚀 Starting PII Detection Model Server")
-    print("=" * 80)
+    logger.info("\n" + "=" * 80)
+    logger.info("🚀 Starting PII Detection Model Server")
+    logger.info("=" * 80)
 
     try:
         model_manager.load_model(ServerConfig.MODEL_PATH)
-        print("✅ Model server ready")
-    except Exception as e:
-        print(f"❌ Failed to load model: {e}")
-        print("⚠️  Server starting without model - health checks will fail")
+        logger.info("✅ Model server ready")
+    except Exception:
+        logger.exception("❌ Failed to load model")
+        logger.warning("⚠️  Server starting without model - health checks will fail")
 
-    print("=" * 80 + "\n")
+    logger.info("=" * 80 + "\n")
 
     yield
 
     # Shutdown
-    print("\n🛑 Shutting down PII Detection Model Server")
+    logger.info("\n🛑 Shutting down PII Detection Model Server")
 
 
 # Create FastAPI app
@@ -531,7 +536,7 @@ app.add_middleware(
 # =============================================================================
 
 
-@app.get("/", summary="Welcome endpoint", response_model=Dict[str, str], tags=["General"])
+@app.get("/", summary="Welcome endpoint", response_model=dict[str, str], tags=["General"])
 async def root():
     """Welcome message and API information."""
     return {
@@ -569,7 +574,7 @@ async def get_model_info():
     try:
         return model_manager.get_model_info()
     except RuntimeError as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)) from e
 
 
 @app.post(
@@ -605,12 +610,13 @@ async def detect_pii(request: DetectionRequest):
 
     try:
         result = model_manager.predict(text=request.text, include_timing=request.include_timing)
-        return result
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Inference failed: {str(e)}",
-        )
+            detail=f"Inference failed: {e!s}",
+        ) from e
+    else:
+        return result
 
 
 @app.post(
@@ -639,12 +645,13 @@ async def detect_pii_batch(request: BatchDetectionRequest):
         result = model_manager.predict_batch(
             texts=request.texts, include_timing=request.include_timing
         )
-        return result
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Batch inference failed: {str(e)}",
-        )
+            detail=f"Batch inference failed: {e!s}",
+        ) from e
+    else:
+        return result
 
 
 # =============================================================================
@@ -653,13 +660,13 @@ async def detect_pii_batch(request: BatchDetectionRequest):
 
 
 @app.exception_handler(HTTPException)
-async def http_exception_handler(request, exc):
+async def http_exception_handler(_request, exc):
     """Custom HTTP exception handler."""
     return JSONResponse(status_code=exc.status_code, content={"error": exc.detail, "detail": None})
 
 
 @app.exception_handler(Exception)
-async def general_exception_handler(request, exc):
+async def general_exception_handler(_request, exc):
     """General exception handler for unexpected errors."""
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -677,12 +684,12 @@ async def general_exception_handler(request, exc):
 if __name__ == "__main__":
     import uvicorn
 
-    print("\n" + "=" * 80)
-    print("Starting PII Detection Model Server")
-    print("=" * 80)
-    print(f"Model Path: {ServerConfig.MODEL_PATH}")
-    print(f"Max Text Length: {ServerConfig.MAX_TEXT_LENGTH}")
-    print(f"Max Batch Size: {ServerConfig.MAX_BATCH_SIZE}")
-    print("=" * 80 + "\n")
+    logger.info("\n" + "=" * 80)
+    logger.info("Starting PII Detection Model Server")
+    logger.info("=" * 80)
+    logger.info(f"Model Path: {ServerConfig.MODEL_PATH}")
+    logger.info(f"Max Text Length: {ServerConfig.MAX_TEXT_LENGTH}")
+    logger.info(f"Max Batch Size: {ServerConfig.MAX_BATCH_SIZE}")
+    logger.info("=" * 80 + "\n")
 
     uvicorn.run("fast_api:app", host="0.0.0.0", port=8000, reload=True, log_level="info")

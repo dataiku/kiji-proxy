@@ -20,14 +20,18 @@ Usage:
 
 import argparse
 import json
-import os
+import logging
 import re
 import time
 from datetime import datetime
-from typing import List, Optional, Tuple
+from pathlib import Path
 
 import torch
 from transformers import AutoModelForTokenClassification, AutoTokenizer
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 # =============================================================================
@@ -53,17 +57,18 @@ class GoogleDriveManager:
             from google.colab import drive
 
             drive.mount(mount_point)
-            print(f"✅ Google Drive mounted at {mount_point}")
-            return True
+            logger.info(f"✅ Google Drive mounted at {mount_point}")
         except ImportError:
-            print("⚠️  Not running in Google Colab - skipping Drive mount")
+            logger.warning("⚠️  Not running in Google Colab - skipping Drive mount")
             return False
-        except Exception as e:
-            print(f"❌ Failed to mount Google Drive: {e}")
+        except Exception:
+            logger.exception("❌ Failed to mount Google Drive")
             return False
+        else:
+            return True
 
     @staticmethod
-    def find_latest_model(drive_folder: str = "MyDrive/pii_models") -> Optional[str]:
+    def find_latest_model(drive_folder: str = "MyDrive/pii_models") -> str | None:
         """
         Find the most recent model in Google Drive folder.
 
@@ -73,48 +78,48 @@ class GoogleDriveManager:
         Returns:
             Path to the most recent model, or None if not found
         """
-        drive_path = f"/content/drive/{drive_folder}"
+        drive_path = Path(f"/content/drive/{drive_folder}")
 
-        if not os.path.exists(drive_path):
-            print(f"❌ Google Drive folder not found: {drive_path}")
+        if not drive_path.exists():
+            logger.error(f"❌ Google Drive folder not found: {drive_path}")
             return None
 
         # List all directories in the folder
         model_dirs = [
-            d for d in os.listdir(drive_path) if os.path.isdir(os.path.join(drive_path, d))
+            d for d in drive_path.iterdir() if d.is_dir()
         ]
 
         if not model_dirs:
-            print(f"❌ No models found in {drive_path}")
+            logger.error(f"❌ No models found in {drive_path}")
             return None
 
         # Parse timestamps and find the most recent
         model_timestamps = []
         for model_dir in model_dirs:
             # Extract timestamp (format: modelname_YYYYMMDD_HHMMSS)
-            match = re.search(r"_(\d{8}_\d{6})$", model_dir)
+            match = re.search(r"_(\d{8}_\d{6})$", model_dir.name)
             if match:
                 timestamp_str = match.group(1)
                 try:
                     timestamp = datetime.strptime(timestamp_str, "%Y%m%d_%H%M%S")
-                    model_timestamps.append((timestamp, model_dir))
+                    model_timestamps.append((timestamp, model_dir.name))
                 except ValueError:
                     continue
 
         if not model_timestamps:
             # If no timestamps found, use the first model
-            print(f"⚠️  No timestamped models found, using: {model_dirs[0]}")
-            return os.path.join(drive_path, model_dirs[0])
+            logger.warning(f"⚠️  No timestamped models found, using: {model_dirs[0].name}")
+            return str(drive_path / model_dirs[0].name)
 
         # Sort by timestamp and get the most recent
         model_timestamps.sort(reverse=True)
         latest_model = model_timestamps[0][1]
-        latest_path = os.path.join(drive_path, latest_model)
+        latest_path = drive_path / latest_model
 
-        print(f"✅ Found latest model: {latest_model}")
-        print(f"   Path: {latest_path}")
+        logger.info(f"✅ Found latest model: {latest_model}")
+        logger.info(f"   Path: {latest_path}")
 
-        return latest_path
+        return str(latest_path)
 
 
 # =============================================================================
@@ -141,35 +146,35 @@ class PIIModelLoader:
 
     def load_model(self):
         """Load model, tokenizer, and label mappings."""
-        print(f"\n📥 Loading model from: {self.model_path}")
+        logger.info(f"\n📥 Loading model from: {self.model_path}")
 
         # Load label mappings
-        mappings_path = os.path.join(self.model_path, "label_mappings.json")
-        if os.path.exists(mappings_path):
-            with open(mappings_path, "r") as f:
+        mappings_path = Path(self.model_path) / "label_mappings.json"
+        if mappings_path.exists():
+            with mappings_path.open() as f:
                 mappings = json.load(f)
             self.label2id = mappings["label2id"]
             self.id2label = {int(k): v for k, v in mappings["id2label"].items()}
-            print(f"✅ Loaded {len(self.label2id)} label mappings")
+            logger.info(f"✅ Loaded {len(self.label2id)} label mappings")
         else:
-            print("⚠️  Label mappings not found, will use model's default labels")
+            logger.warning("⚠️  Label mappings not found, will use model's default labels")
 
         # Load tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_path)
-        print("✅ Loaded tokenizer")
+        logger.info("✅ Loaded tokenizer")
 
         # Load model
         self.model = AutoModelForTokenClassification.from_pretrained(self.model_path)
         self.model.to(self.device)
         self.model.eval()
-        print(f"✅ Loaded model on device: {self.device}")
+        logger.info(f"✅ Loaded model on device: {self.device}")
 
         # If label mappings weren't loaded, get them from the model
         if self.id2label is None:
             self.id2label = self.model.config.id2label
             self.label2id = self.model.config.label2id
 
-    def predict(self, text: str) -> Tuple[List[Tuple[str, str, int, int]], float]:
+    def predict(self, text: str) -> tuple[list[tuple[str, str, int, int]], float]:
         """
         Run inference on input text and measure inference time.
 
@@ -212,8 +217,9 @@ class PIIModelLoader:
         current_entity = None
         current_label = None
         current_start = None
+        current_end = None
 
-        for idx, (token, label, offset) in enumerate(zip(tokens, predicted_labels, offset_mapping)):
+        for _idx, (token, label, offset) in enumerate(zip(tokens, predicted_labels, offset_mapping, strict=True)):
             # Skip special tokens
             if token in [
                 self.tokenizer.cls_token,
@@ -239,13 +245,12 @@ class PIIModelLoader:
                 # Continue current entity
                 current_end = offset[1].item()
 
-            else:  # "O" label or entity ended
+            elif current_entity is not None:  # "O" label or entity ended
                 # Save previous entity if exists
-                if current_entity is not None:
-                    entity_text = text[current_start:current_end]
-                    entities.append((entity_text, current_label, current_start, current_end))
-                    current_entity = None
-                    current_label = None
+                entity_text = text[current_start:current_end]
+                entities.append((entity_text, current_label, current_start, current_end))
+                current_entity = None
+                current_label = None
 
         # Don't forget the last entity
         if current_entity is not None:
@@ -283,7 +288,7 @@ TEST_CASES = [
 
 def print_results(
     text: str,
-    entities: List[Tuple[str, str, int, int]],
+    entities: list[tuple[str, str, int, int]],
     case_num: int,
     inference_time_ms: float,
 ):
@@ -296,18 +301,18 @@ def print_results(
         case_num: Test case number
         inference_time_ms: Inference time in milliseconds
     """
-    print(f"\n{'=' * 80}")
-    print(f"Test Case {case_num}")
-    print(f"{'=' * 80}")
-    print(f"Text: {text}")
-    print(f"Inference Time: {inference_time_ms:.2f} ms")
-    print("\nDetected PII Entities:")
+    logger.info(f"\n{'=' * 80}")
+    logger.info(f"Test Case {case_num}")
+    logger.info(f"{'=' * 80}")
+    logger.info(f"Text: {text}")
+    logger.info(f"Inference Time: {inference_time_ms:.2f} ms")
+    logger.info("\nDetected PII Entities:")
 
     if entities:
         for entity_text, label, start, end in entities:
-            print(f"  • [{label}] '{entity_text}' (position {start}-{end})")
+            logger.info(f"  • [{label}] '{entity_text}' (position {start}-{end})")
     else:
-        print("  (No PII entities detected)")
+        logger.info("  (No PII entities detected)")
 
 
 def main():
@@ -334,9 +339,9 @@ def main():
 
     args = parser.parse_args()
 
-    print("=" * 80)
-    print("PII Detection Model Evaluation")
-    print("=" * 80)
+    logger.info("=" * 80)
+    logger.info("PII Detection Model Evaluation")
+    logger.info("=" * 80)
 
     # Determine model path
     model_path = None
@@ -344,35 +349,35 @@ def main():
     if args.local_model:
         # Use local model
         model_path = args.local_model
-        print(f"\n📁 Using local model: {model_path}")
+        logger.info(f"\n📁 Using local model: {model_path}")
     else:
         # Mount Google Drive and find latest model
-        print("\n1️⃣  Mounting Google Drive...")
+        logger.info("\n1️⃣  Mounting Google Drive...")
         if GoogleDriveManager.mount_drive():
-            print("\n2️⃣  Finding latest model...")
+            logger.info("\n2️⃣  Finding latest model...")
             model_path = GoogleDriveManager.find_latest_model(args.drive_folder)
         else:
-            print("\n⚠️  Google Drive not available. Trying local fallback...")
+            logger.warning("\n⚠️  Google Drive not available. Trying local fallback...")
             # Try local fallback
             local_paths = ["./pii_model", "../pii_model", "../../pii_model"]
             for path in local_paths:
-                if os.path.exists(path):
+                if Path(path).exists():
                     model_path = path
-                    print(f"✅ Found local model: {model_path}")
+                    logger.info(f"✅ Found local model: {model_path}")
                     break
 
-    if model_path is None or not os.path.exists(model_path):
-        print("\n❌ No model found! Please specify a valid model path.")
-        print("   Use --local-model <path> to specify a local model")
+    if model_path is None or not Path(model_path).exists():
+        logger.error("\n❌ No model found! Please specify a valid model path.")
+        logger.error("   Use --local-model <path> to specify a local model")
         return
 
     # Load model
-    print("\n3️⃣  Loading model...")
+    logger.info("\n3️⃣  Loading model...")
     loader = PIIModelLoader(model_path)
     loader.load_model()
 
     # Run inference on test cases
-    print(f"\n4️⃣  Running inference on {min(args.num_tests, len(TEST_CASES))} test cases...")
+    logger.info(f"\n4️⃣  Running inference on {min(args.num_tests, len(TEST_CASES))} test cases...")
 
     inference_times = []
     total_entities = 0
@@ -390,22 +395,22 @@ def main():
     total_time = sum(inference_times)
 
     # Summary
-    print(f"\n{'=' * 80}")
-    print("✅ Evaluation Complete!")
-    print(f"{'=' * 80}")
-    print(f"Model: {model_path}")
-    print(f"Device: {loader.device}")
-    print(f"Test cases processed: {min(args.num_tests, len(TEST_CASES))}")
-    print("\n📊 Inference Time Statistics:")
-    print(f"  Total time: {total_time:.2f} ms ({total_time / 1000:.3f} seconds)")
-    print(f"  Average time per test: {avg_time:.2f} ms")
-    print(f"  Min time: {min_time:.2f} ms")
-    print(f"  Max time: {max_time:.2f} ms")
-    print(f"  Throughput: {1000 / avg_time:.2f} texts/second")
-    print("\n📈 Detection Statistics:")
-    print(f"  Total PII entities detected: {total_entities}")
-    print(f"  Average entities per test: {total_entities / len(inference_times):.1f}")
-    print(f"{'=' * 80}\n")
+    logger.info(f"\n{'=' * 80}")
+    logger.info("✅ Evaluation Complete!")
+    logger.info(f"{'=' * 80}")
+    logger.info(f"Model: {model_path}")
+    logger.info(f"Device: {loader.device}")
+    logger.info(f"Test cases processed: {min(args.num_tests, len(TEST_CASES))}")
+    logger.info("\n📊 Inference Time Statistics:")
+    logger.info(f"  Total time: {total_time:.2f} ms ({total_time / 1000:.3f} seconds)")
+    logger.info(f"  Average time per test: {avg_time:.2f} ms")
+    logger.info(f"  Min time: {min_time:.2f} ms")
+    logger.info(f"  Max time: {max_time:.2f} ms")
+    logger.info(f"  Throughput: {1000 / avg_time:.2f} texts/second")
+    logger.info("\n📈 Detection Statistics:")
+    logger.info(f"  Total PII entities detected: {total_entities}")
+    logger.info(f"  Average entities per test: {total_entities / len(inference_times):.1f}")
+    logger.info(f"{'=' * 80}\n")
 
 
 if __name__ == "__main__":

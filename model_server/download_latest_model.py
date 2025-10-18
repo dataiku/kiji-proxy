@@ -37,20 +37,24 @@ After downloading, test with curl:
 """
 
 import argparse
-import os
+import logging
 import re
 import shutil
 import sys
 import zipfile
 from datetime import datetime
-from typing import Optional
+from pathlib import Path
+
+# Set up logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 try:
     import requests
     from tqdm import tqdm
 except ImportError:
-    print("❌ Required packages not found. Install with:")
-    print("   pip install requests tqdm")
+    logger.exception("❌ Required packages not found. Install with:")
+    logger.info("   pip install requests tqdm")
     sys.exit(1)
 
 
@@ -66,7 +70,7 @@ class GoogleDriveDownloader:
     DRIVE_DOWNLOAD_URL = "https://drive.google.com/uc?export=download"
     DRIVE_API_URL = "https://www.googleapis.com/drive/v3/files"
 
-    def __init__(self, credentials_path: Optional[str] = None):
+    def __init__(self, credentials_path: str | None = None):
         """
         Initialize downloader.
 
@@ -76,14 +80,14 @@ class GoogleDriveDownloader:
         self.credentials_path = credentials_path
         self.access_token = None
 
-        if credentials_path and os.path.exists(credentials_path):
+        if credentials_path and Path(credentials_path).exists():
             self._authenticate()
 
     def _authenticate(self):
         """Authenticate using service account credentials."""
         try:
-            from google.oauth2 import service_account
             from google.auth.transport.requests import Request
+            from google.oauth2 import service_account
 
             credentials = service_account.Credentials.from_service_account_file(
                 self.credentials_path,
@@ -91,13 +95,13 @@ class GoogleDriveDownloader:
             )
             credentials.refresh(Request())
             self.access_token = credentials.token
-            print("✅ Authenticated with service account")
+            logger.info("✅ Authenticated with service account")
         except ImportError:
-            print("⚠️  google-auth not installed. Using public download method.")
-            print("   Install with: pip install google-auth")
+            logger.warning("⚠️  google-auth not installed. Using public download method.")
+            logger.info("   Install with: pip install google-auth")
         except Exception as e:
-            print(f"⚠️  Authentication failed: {e}")
-            print("   Falling back to public download method")
+            logger.warning(f"⚠️  Authentication failed: {e}")
+            logger.info("   Falling back to public download method")
 
     def download_file(self, file_id: str, output_path: str, chunk_size: int = 32768) -> bool:
         """
@@ -111,13 +115,13 @@ class GoogleDriveDownloader:
         Returns:
             True if successful, False otherwise
         """
-        print("\n📥 Downloading file from Google Drive...")
-        print(f"   File ID: {file_id}")
-        print(f"   Output: {output_path}")
+        logger.info("\n📥 Downloading file from Google Drive...")
+        logger.info(f"   File ID: {file_id}")
+        logger.info(f"   Output: {output_path}")
 
         try:
             # Create output directory
-            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+            Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
             # Start download session
             session = requests.Session()
@@ -135,7 +139,7 @@ class GoogleDriveDownloader:
             file_size = int(response.headers.get("content-length", 0))
 
             # Download with progress bar
-            with open(output_path, "wb") as f:
+            with Path(output_path).open("wb") as f:
                 if file_size > 0:
                     with tqdm(total=file_size, unit="B", unit_scale=True) as pbar:
                         for chunk in response.iter_content(chunk_size):
@@ -148,11 +152,11 @@ class GoogleDriveDownloader:
                         if chunk:
                             f.write(chunk)
 
-            print(f"✅ Download complete: {output_path}")
+            logger.info(f"✅ Download complete: {output_path}")
             return True
 
-        except Exception as e:
-            print(f"❌ Download failed: {e}")
+        except Exception:
+            logger.exception("❌ Download failed")
             return False
 
     @staticmethod
@@ -176,13 +180,13 @@ class GoogleDriveDownloader:
             True if successful, False otherwise
         """
         if not self.access_token:
-            print("❌ Folder download requires authentication")
-            print("   Provide credentials file with --credentials")
+            logger.error("❌ Folder download requires authentication")
+            logger.info("   Provide credentials file with --credentials")
             return False
 
-        print("\n📂 Downloading folder from Google Drive...")
-        print(f"   Folder ID: {folder_id}")
-        print(f"   Output: {output_dir}")
+        logger.info("\n📂 Downloading folder from Google Drive...")
+        logger.info(f"   Folder ID: {folder_id}")
+        logger.info(f"   Output: {output_dir}")
 
         try:
             # List files in folder
@@ -199,11 +203,11 @@ class GoogleDriveDownloader:
             files = response.json().get("files", [])
 
             if not files:
-                print("⚠️  No files found in folder")
+                logger.warning("⚠️  No files found in folder")
                 return False
 
             # Create output directory
-            os.makedirs(output_dir, exist_ok=True)
+            Path(output_dir).mkdir(parents=True, exist_ok=True)
 
             # Download each file
             for file_info in files:
@@ -213,18 +217,18 @@ class GoogleDriveDownloader:
 
                 if "folder" in mime_type and recursive:
                     # Recursive folder download
-                    subfolder_path = os.path.join(output_dir, file_name)
+                    subfolder_path = Path(output_dir) / file_name
                     self.download_folder(file_id, subfolder_path, recursive=True)
                 else:
                     # Download file
-                    file_path = os.path.join(output_dir, file_name)
+                    file_path = Path(output_dir) / file_name
                     self.download_file(file_id, file_path)
 
-            print("✅ Folder download complete")
+            logger.info("✅ Folder download complete")
             return True
 
-        except Exception as e:
-            print(f"❌ Folder download failed: {e}")
+        except Exception:
+            logger.exception("❌ Folder download failed")
             return False
 
 
@@ -235,8 +239,7 @@ class ColabDriveManager:
     def is_colab() -> bool:
         """Check if running in Google Colab."""
         try:
-            import google.colab
-
+            import google.colab  # noqa: F401
             return True
         except ImportError:
             return False
@@ -256,14 +259,14 @@ class ColabDriveManager:
             from google.colab import drive
 
             drive.mount(mount_point)
-            print(f"✅ Google Drive mounted at {mount_point}")
+            logger.info(f"✅ Google Drive mounted at {mount_point}")
             return True
-        except Exception as e:
-            print(f"❌ Failed to mount Drive: {e}")
+        except Exception:
+            logger.exception("❌ Failed to mount Drive")
             return False
 
     @staticmethod
-    def find_latest_model(drive_folder: str = "MyDrive/pii_models") -> Optional[str]:
+    def find_latest_model(drive_folder: str = "MyDrive/pii_models") -> str | None:
         """
         Find the most recent model in Google Drive folder.
 
@@ -275,17 +278,17 @@ class ColabDriveManager:
         """
         drive_path = f"/content/drive/{drive_folder}"
 
-        if not os.path.exists(drive_path):
-            print(f"❌ Folder not found: {drive_path}")
+        if not Path(drive_path).exists():
+            logger.error(f"❌ Folder not found: {drive_path}")
             return None
 
         # List all directories
         model_dirs = [
-            d for d in os.listdir(drive_path) if os.path.isdir(os.path.join(drive_path, d))
+            d.name for d in Path(drive_path).iterdir() if d.is_dir()
         ]
 
         if not model_dirs:
-            print(f"❌ No models found in {drive_path}")
+            logger.error(f"❌ No models found in {drive_path}")
             return None
 
         # Parse timestamps
@@ -301,15 +304,15 @@ class ColabDriveManager:
                     continue
 
         if not model_timestamps:
-            print(f"⚠️  No timestamped models, using first: {model_dirs[0]}")
-            return os.path.join(drive_path, model_dirs[0])
+            logger.warning(f"⚠️  No timestamped models, using first: {model_dirs[0]}")
+            return str(Path(drive_path) / model_dirs[0])
 
         # Get most recent
         model_timestamps.sort(reverse=True)
         latest_model = model_timestamps[0][1]
-        latest_path = os.path.join(drive_path, latest_model)
+        latest_path = str(Path(drive_path) / latest_model)
 
-        print(f"✅ Found latest model: {latest_model}")
+        logger.info(f"✅ Found latest model: {latest_model}")
         return latest_path
 
     @staticmethod
@@ -325,20 +328,20 @@ class ColabDriveManager:
             True if successful
         """
         try:
-            print("\n📋 Copying model...")
-            print(f"   From: {source_path}")
-            print(f"   To: {dest_path}")
+            logger.info("\n📋 Copying model...")
+            logger.info(f"   From: {source_path}")
+            logger.info(f"   To: {dest_path}")
 
-            if os.path.exists(dest_path):
-                print(f"⚠️  Destination exists, removing: {dest_path}")
+            if Path(dest_path).exists():
+                logger.warning(f"⚠️  Destination exists, removing: {dest_path}")
                 shutil.rmtree(dest_path)
 
             shutil.copytree(source_path, dest_path)
-            print("✅ Model copied successfully")
+            logger.info("✅ Model copied successfully")
             return True
 
-        except Exception as e:
-            print(f"❌ Copy failed: {e}")
+        except Exception:
+            logger.exception("❌ Copy failed")
             return False
 
 
@@ -359,18 +362,18 @@ def extract_zip(zip_path: str, extract_to: str) -> bool:
         True if successful
     """
     try:
-        print("\n📦 Extracting ZIP file...")
-        print(f"   From: {zip_path}")
-        print(f"   To: {extract_to}")
+        logger.info("\n📦 Extracting ZIP file...")
+        logger.info(f"   From: {zip_path}")
+        logger.info(f"   To: {extract_to}")
 
         with zipfile.ZipFile(zip_path, "r") as zip_ref:
             zip_ref.extractall(extract_to)
 
-        print("✅ Extraction complete")
+        logger.info("✅ Extraction complete")
         return True
 
-    except Exception as e:
-        print(f"❌ Extraction failed: {e}")
+    except Exception:
+        logger.exception("❌ Extraction failed")
         return False
 
 
@@ -387,25 +390,21 @@ def verify_model(model_path: str) -> bool:
     required_files = ["config.json", "tokenizer_config.json", "vocab.txt"]
 
     # Check for model weights (safetensors or pytorch_model.bin)
-    has_weights = os.path.exists(os.path.join(model_path, "model.safetensors")) or os.path.exists(
-        os.path.join(model_path, "pytorch_model.bin")
-    )
+    model_path_obj = Path(model_path)
+    has_weights = (model_path_obj / "model.safetensors").exists() or (model_path_obj / "pytorch_model.bin").exists()
 
     if not has_weights:
-        print("❌ Model weights not found (model.safetensors or pytorch_model.bin)")
+        logger.error("❌ Model weights not found (model.safetensors or pytorch_model.bin)")
         return False
 
     # Check required files
-    missing = []
-    for file in required_files:
-        if not os.path.exists(os.path.join(model_path, file)):
-            missing.append(file)
+    missing = [file for file in required_files if not (model_path_obj / file).exists()]
 
     if missing:
-        print(f"❌ Missing required files: {', '.join(missing)}")
+        logger.error(f"❌ Missing required files: {', '.join(missing)}")
         return False
 
-    print("✅ Model verification passed")
+    logger.info("✅ Model verification passed")
     return True
 
 
@@ -465,34 +464,34 @@ def main():
 
     args = parser.parse_args()
 
-    print("=" * 80)
-    print("PII Detection Model - Download Latest Version")
-    print("=" * 80)
+    logger.info("=" * 80)
+    logger.info("PII Detection Model - Download Latest Version")
+    logger.info("=" * 80)
 
     # Check if running in Colab
     is_colab = ColabDriveManager.is_colab()
 
     if is_colab:
-        print("\n🔍 Detected Google Colab environment")
+        logger.info("\n🔍 Detected Google Colab environment")
 
         # Mount Drive
         if not ColabDriveManager.mount_drive():
-            print("❌ Failed to mount Google Drive")
+            logger.error("❌ Failed to mount Google Drive")
             return 1
 
         # Find latest model
         source_path = ColabDriveManager.find_latest_model(args.drive_folder)
         if not source_path:
-            print("❌ No model found in Drive")
+            logger.error("❌ No model found in Drive")
             return 1
 
         # Copy to local
         if not ColabDriveManager.copy_model(source_path, args.output):
-            print("❌ Failed to copy model")
+            logger.error("❌ Failed to copy model")
             return 1
 
     elif args.file_id:
-        print("\n🔍 Direct file download mode")
+        logger.info("\n🔍 Direct file download mode")
 
         # Initialize downloader
         downloader = GoogleDriveDownloader(args.credentials)
@@ -507,14 +506,13 @@ def main():
                 return 1
 
             # Clean up ZIP
-            os.remove(temp_zip)
-        else:
-            # Download directly to output
-            if not downloader.download_file(args.file_id, args.output):
-                return 1
+            Path(temp_zip).unlink()
+        # Download directly to output
+        elif not downloader.download_file(args.file_id, args.output):
+            return 1
 
     elif args.folder_id:
-        print("\n🔍 Folder download mode")
+        logger.info("\n🔍 Folder download mode")
 
         # Initialize downloader with auth
         downloader = GoogleDriveDownloader(args.credentials)
@@ -523,11 +521,11 @@ def main():
             return 1
 
     elif args.folder:
-        print("\n🔍 Local folder mode")
+        logger.info("\n🔍 Local folder mode")
 
         # Find latest in local folder
-        if not os.path.exists(args.folder):
-            print(f"❌ Folder not found: {args.folder}")
+        if not Path(args.folder).exists():
+            logger.error(f"❌ Folder not found: {args.folder}")
             return 1
 
         # Copy the folder
@@ -535,33 +533,33 @@ def main():
             return 1
 
     else:
-        print("\n❌ No download method specified!")
-        print("\nPlease provide one of:")
-        print("  --file-id FILE_ID        Direct file download")
-        print("  --folder-id FOLDER_ID    Download entire folder")
-        print("  --folder PATH            Copy from local/mounted folder")
-        print("\nIn Colab, Drive will be mounted automatically")
-        print("\nFor more info: python download_latest_model.py --help")
+        logger.error("\n❌ No download method specified!")
+        logger.info("\nPlease provide one of:")
+        logger.info("  --file-id FILE_ID        Direct file download")
+        logger.info("  --folder-id FOLDER_ID    Download entire folder")
+        logger.info("  --folder PATH            Copy from local/mounted folder")
+        logger.info("\nIn Colab, Drive will be mounted automatically")
+        logger.info("\nFor more info: python download_latest_model.py --help")
         return 1
 
     # Verify model
     if args.verify:
-        print("\n🔍 Verifying model...")
+        logger.info("\n🔍 Verifying model...")
         if not verify_model(args.output):
-            print("⚠️  Model verification failed, but files were downloaded")
-            print("   The model may still work depending on the error")
+            logger.warning("⚠️  Model verification failed, but files were downloaded")
+            logger.info("   The model may still work depending on the error")
 
     # Success
-    print("\n" + "=" * 80)
-    print("✅ Download Complete!")
-    print("=" * 80)
-    print(f"Model location: {os.path.abspath(args.output)}")
-    print("\nNext steps:")
-    print("  1. Start the FastAPI server:")
-    print(f"     cd model_server && MODEL_PATH={args.output} ./start_server.sh")
-    print("  2. Or run evaluation:")
-    print(f"     python model/eval_model.py --local-model {args.output}")
-    print("=" * 80 + "\n")
+    logger.info("\n" + "=" * 80)
+    logger.info("✅ Download Complete!")
+    logger.info("=" * 80)
+    logger.info(f"Model location: {Path(args.output).resolve()}")
+    logger.info("\nNext steps:")
+    logger.info("  1. Start the FastAPI server:")
+    logger.info(f"     cd model_server && MODEL_PATH={args.output} ./start_server.sh")
+    logger.info("  2. Or run evaluation:")
+    logger.info(f"     python model/eval_model.py --local-model {args.output}")
+    logger.info("=" * 80 + "\n")
 
     return 0
 

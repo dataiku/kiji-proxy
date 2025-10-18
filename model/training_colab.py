@@ -23,6 +23,7 @@ Usage:
 """
 
 import json
+import logging
 import os
 import re
 import shutil
@@ -31,14 +32,15 @@ import sys
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
+from pathlib import Path
+from typing import ClassVar
 
 import numpy as np
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
 from datasets import Dataset, load_dataset
 from sklearn.metrics import f1_score
+from torch import nn
+from torch.nn import functional
 from transformers import (
     AutoModelForTokenClassification,
     AutoTokenizer,
@@ -46,6 +48,10 @@ from transformers import (
     Trainer,
     TrainingArguments,
 )
+
+# Set up logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 
 # =============================================================================
@@ -78,7 +84,7 @@ class TrainingConfig:
     output_dir: str = "./pii_model"
     use_wandb: bool = False
     use_custom_loss: bool = True
-    class_weights: Dict[int, float] = field(default_factory=dict)
+    class_weights: dict[int, float] = field(default_factory=dict)
 
     # Dataset settings
     eval_size_ratio: float = 0.05  # Validation set size as ratio of training
@@ -86,18 +92,18 @@ class TrainingConfig:
 
     def __post_init__(self):
         """Create output directory after initialization."""
-        os.makedirs(self.output_dir, exist_ok=True)
+        Path(self.output_dir).mkdir(parents=True, exist_ok=True)
 
     def print_summary(self):
         """Print configuration summary."""
-        print("\n📋 Training Configuration:")
-        print(f"  Model: {self.model_name}")
-        print(f"  Epochs: {self.num_epochs}")
-        print(f"  Batch Size: {self.batch_size}")
-        print(f"  Learning Rate: {self.learning_rate}")
-        print(f"  Max Samples: {self.max_samples}")
-        print(f"  Output Dir: {self.output_dir}")
-        print(f"  Custom Loss: {self.use_custom_loss}")
+        logger.info("\n📋 Training Configuration:")
+        logger.info(f"  Model: {self.model_name}")
+        logger.info(f"  Epochs: {self.num_epochs}")
+        logger.info(f"  Batch Size: {self.batch_size}")
+        logger.info(f"  Learning Rate: {self.learning_rate}")
+        logger.info(f"  Max Samples: {self.max_samples}")
+        logger.info(f"  Output Dir: {self.output_dir}")
+        logger.info(f"  Custom Loss: {self.use_custom_loss}")
 
 
 # =============================================================================
@@ -120,13 +126,13 @@ class EnvironmentSetup:
             from google.colab import drive
 
             drive.mount(mount_point)
-            print(f"✅ Google Drive mounted at {mount_point}")
+            logger.info(f"✅ Google Drive mounted at {mount_point}")
             return True
         except ImportError:
-            print("⚠️  Not running in Google Colab - skipping Drive mount")
+            logger.warning("⚠️  Not running in Google Colab - skipping Drive mount")
             return False
-        except Exception as e:
-            print(f"❌ Failed to mount Google Drive: {e}")
+        except Exception:
+            logger.exception("❌ Failed to mount Google Drive")
             return False
 
     @staticmethod
@@ -136,10 +142,10 @@ class EnvironmentSetup:
         os.environ["WANDB_MODE"] = "disabled"
         os.environ["WANDB_PROJECT"] = ""
         os.environ["WANDB_ENTITY"] = ""
-        print("✅ Weights & Biases (wandb) disabled")
+        logger.info("✅ Weights & Biases (wandb) disabled")
 
     @staticmethod
-    def install_package(package_list: List[str], index_url: Optional[str] = None):
+    def install_package(package_list: list[str], index_url: str | None = None):
         """Install packages with optional index URL."""
         cmd = [sys.executable, "-m", "pip", "install", "-q"]
         if index_url:
@@ -148,40 +154,34 @@ class EnvironmentSetup:
 
         try:
             subprocess.check_call(cmd)
-            print(f"✅ Successfully installed: {', '.join(package_list)}")
+            logger.info(f"✅ Successfully installed: {', '.join(package_list)}")
         except subprocess.CalledProcessError:
-            print(f"❌ Failed to install: {', '.join(package_list)}")
+            logger.exception(f"❌ Failed to install: {', '.join(package_list)}")
             if index_url:
-                print("Trying fallback installation...")
-                cmd_fallback = [
-                    sys.executable,
-                    "-m",
-                    "pip",
-                    "install",
-                    "-q",
-                ] + package_list
+                logger.info("Trying fallback installation...")
+                cmd_fallback = [sys.executable, "-m", "pip", "install", "-q", *package_list]
                 subprocess.check_call(cmd_fallback)
-                print("✅ Fallback installation successful")
+                logger.info("✅ Fallback installation successful")
             else:
                 raise
 
     @staticmethod
     def setup_pytorch():
         """Install PyTorch with CUDA support if available."""
-        print("Installing PyTorch...")
+        logger.info("Installing PyTorch...")
         try:
             EnvironmentSetup.install_package(
                 ["torch", "torchvision", "torchaudio"],
                 index_url="https://download.pytorch.org/whl/cu118",
             )
         except Exception:
-            print("CUDA installation failed, installing CPU version...")
+            logger.warning("CUDA installation failed, installing CPU version...")
             EnvironmentSetup.install_package(["torch", "torchvision", "torchaudio"])
 
     @staticmethod
     def setup_dependencies():
         """Install all required dependencies."""
-        print("Installing required packages...")
+        logger.info("Installing required packages...")
         packages = [
             "transformers",
             "datasets",
@@ -195,10 +195,10 @@ class EnvironmentSetup:
     @staticmethod
     def check_gpu():
         """Check and print GPU availability."""
-        print(f"\nCUDA available: {torch.cuda.is_available()}")
+        logger.info(f"\nCUDA available: {torch.cuda.is_available()}")
         if torch.cuda.is_available():
-            print(f"GPU: {torch.cuda.get_device_name(0)}")
-            print(
+            logger.info(f"GPU: {torch.cuda.get_device_name(0)}")
+            logger.info(
                 f"GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f} GB"
             )
 
@@ -219,8 +219,8 @@ class MaskedSparseCategoricalCrossEntropy(nn.Module):
     def __init__(
         self,
         pad_label: int = -100,
-        class_weights: Optional[Dict[int, float]] = None,
-        num_classes: Optional[int] = None,
+        class_weights: dict[int, float] | None = None,
+        num_classes: int | None = None,
         reduction: str = "mean",
     ):
         """
@@ -267,7 +267,7 @@ class MaskedSparseCategoricalCrossEntropy(nn.Module):
         y_true_safe = torch.where(mask, y_true, torch.zeros_like(y_true))
 
         # Compute cross-entropy loss
-        loss = F.cross_entropy(
+        loss = functional.cross_entropy(
             y_pred.view(-1, y_pred.size(-1)), y_true_safe.view(-1), reduction="none"
         )
 
@@ -303,7 +303,7 @@ class PIILabels:
     """Manages PII label definitions and mappings."""
 
     # Standard PII labels
-    LABELS = [
+    LABELS: ClassVar[list[str]] = [
         "USERNAME",
         "DATEOFBIRTH",
         "STREET",
@@ -323,7 +323,7 @@ class PIILabels:
     ]
 
     @classmethod
-    def create_label_mappings(cls) -> Tuple[Dict[str, int], Dict[int, str], set]:
+    def create_label_mappings(cls) -> tuple[dict[str, int], dict[int, str], set]:
         """
         Create label to ID and ID to label mappings.
 
@@ -346,17 +346,17 @@ class PIILabels:
         return label2id, id2label, label_set
 
     @classmethod
-    def save_mappings(cls, label2id: Dict[str, int], id2label: Dict[int, str], filepath: str):
+    def save_mappings(cls, label2id: dict[str, int], id2label: dict[int, str], filepath: str):
         """Save label mappings to JSON file."""
         mappings = {"label2id": label2id, "id2label": id2label}
-        with open(filepath, "w") as f:
+        with Path(filepath).open("w") as f:
             json.dump(mappings, f, indent=2)
-        print(f"✅ Label mappings saved to {filepath}")
+        logger.info(f"✅ Label mappings saved to {filepath}")
 
     @classmethod
-    def load_mappings(cls, filepath: str) -> Tuple[Dict[str, int], Dict[int, str]]:
+    def load_mappings(cls, filepath: str) -> tuple[dict[str, int], dict[int, str]]:
         """Load label mappings from JSON file."""
-        with open(filepath, "r") as f:
+        with Path(filepath).open() as f:
             mappings = json.load(f)
         label2id = mappings["label2id"]
         id2label = {int(k): v for k, v in mappings["id2label"].items()}
@@ -376,7 +376,7 @@ class WordBasedPreprocessor:
     which differs from character offset-based preprocessing.
     """
 
-    def __init__(self, tokenizer: AutoTokenizer, label_set: set, label2id: Dict[str, int]):
+    def __init__(self, tokenizer: AutoTokenizer, label_set: set, label2id: dict[str, int]):
         """
         Initialize the preprocessor.
 
@@ -390,7 +390,7 @@ class WordBasedPreprocessor:
         self.label2id = label2id
         self.error_count = 0
 
-    def generate_sequence_labels(self, text: str, privacy_mask: List[Dict]) -> List[str]:
+    def generate_sequence_labels(self, text: str, privacy_mask: list[dict]) -> list[str]:
         """
         Generate sequence labels by replacing sensitive text with label placeholders.
 
@@ -432,7 +432,7 @@ class WordBasedPreprocessor:
 
         return labels
 
-    def tokenize_and_align_labels(self, examples: Dict) -> Dict:
+    def tokenize_and_align_labels(self, examples: dict) -> dict:
         """
         Tokenize text and align labels using word-based approach.
 
@@ -453,7 +453,7 @@ class WordBasedPreprocessor:
         # Generate sequence labels
         source_labels = [
             self.generate_sequence_labels(text, mask)
-            for text, mask in zip(examples["source_text"], examples["privacy_mask"])
+            for text, mask in zip(examples["source_text"], examples["privacy_mask"], strict=True)
         ]
 
         # Align labels with tokens
@@ -479,7 +479,7 @@ class WordBasedPreprocessor:
                     previous_label = label[word_idx]
 
                 # Truncate and add final padding
-                label_ids = label_ids[:511] + [-100]
+                label_ids = [*label_ids[:511], -100]
                 labels.append(label_ids)
 
             except Exception:
@@ -511,7 +511,7 @@ class DatasetProcessor:
         self.label2id, self.id2label, self.label_set = PIILabels.create_label_mappings()
         self.preprocessor = WordBasedPreprocessor(self.tokenizer, self.label_set, self.label2id)
 
-    def process_dataset(self, split: str = "train", max_samples: Optional[int] = None) -> Dataset:
+    def process_dataset(self, split: str = "train", max_samples: int | None = None) -> Dataset:
         """
         Process dataset using word-based preprocessing.
 
@@ -522,13 +522,13 @@ class DatasetProcessor:
         Returns:
             Processed dataset
         """
-        print(f"\n📥 Loading {split} dataset...")
+        logger.info(f"\n📥 Loading {split} dataset...")
         dataset = load_dataset("ai4privacy/pii-masking-400k", split=split)
 
         if max_samples:
             dataset = dataset.select(range(min(max_samples, len(dataset))))
 
-        print(f"Processing {len(dataset)} samples...")
+        logger.info(f"Processing {len(dataset)} samples...")
 
         # Reset error count
         self.preprocessor.error_count = 0
@@ -541,13 +541,13 @@ class DatasetProcessor:
             remove_columns=dataset.column_names,
         )
 
-        print(f"✅ Successfully processed {len(processed_dataset)} samples")
+        logger.info(f"✅ Successfully processed {len(processed_dataset)} samples")
         if self.preprocessor.error_count > 0:
-            print(f"⚠️  Warning: {self.preprocessor.error_count} samples had errors")
+            logger.warning(f"⚠️  Warning: {self.preprocessor.error_count} samples had errors")
 
         return processed_dataset
 
-    def prepare_datasets(self) -> Tuple[Dataset, Dataset]:
+    def prepare_datasets(self) -> tuple[Dataset, Dataset]:
         """
         Prepare training and validation datasets.
 
@@ -562,13 +562,13 @@ class DatasetProcessor:
         val_dataset = self.process_dataset("validation", eval_size)
 
         # Save label mappings
-        mappings_path = os.path.join(self.config.output_dir, "label_mappings.json")
+        mappings_path = Path(self.config.output_dir) / "label_mappings.json"
         PIILabels.save_mappings(self.label2id, self.id2label, mappings_path)
 
-        print("\n📊 Dataset Summary:")
-        print(f"  Training samples: {len(train_dataset)}")
-        print(f"  Validation samples: {len(val_dataset)}")
-        print(f"  Number of labels: {len(self.label2id)}")
+        logger.info("\n📊 Dataset Summary:")
+        logger.info(f"  Training samples: {len(train_dataset)}")
+        logger.info(f"  Validation samples: {len(val_dataset)}")
+        logger.info(f"  Number of labels: {len(self.label2id)}")
 
         return train_dataset, val_dataset
 
@@ -581,7 +581,7 @@ class DatasetProcessor:
 class CustomPIITrainer(Trainer):
     """Custom Trainer that uses the masked loss function."""
 
-    def __init__(self, custom_loss_fn: Optional[nn.Module] = None, **kwargs):
+    def __init__(self, custom_loss_fn: nn.Module | None = None, **kwargs):
         """
         Initialize custom trainer.
 
@@ -597,7 +597,6 @@ class CustomPIITrainer(Trainer):
         model,
         inputs,
         return_outputs: bool = False,
-        num_items_in_batch: Optional[int] = None,
     ):
         """
         Override the default loss computation to use custom masked loss.
@@ -654,13 +653,13 @@ class PIITrainer:
                     name=f"bert-{config.model_name.split('/')[-1]}",
                 )
             except Exception as e:
-                print(f"Warning: wandb not available ({e})")
+                logger.warning(f"Warning: wandb not available ({e})")
                 self.config.use_wandb = False
 
     def load_label_mappings(self, mappings_path: str):
         """Load label mappings from JSON file."""
         self.label2id, self.id2label = PIILabels.load_mappings(mappings_path)
-        print(f"✅ Loaded {len(self.label2id)} label mappings")
+        logger.info(f"✅ Loaded {len(self.label2id)} label mappings")
 
     def initialize_model(self):
         """Initialize the model for token classification."""
@@ -682,11 +681,11 @@ class PIITrainer:
                 num_classes=len(self.label2id),
                 reduction="mean",
             )
-            print(f"✅ Initialized custom masked loss with {len(self.label2id)} classes")
+            logger.info(f"✅ Initialized custom masked loss with {len(self.label2id)} classes")
 
-        print(f"✅ Model initialized with {len(self.label2id)} labels")
+        logger.info(f"✅ Model initialized with {len(self.label2id)} labels")
 
-    def compute_metrics(self, eval_pred) -> Dict[str, float]:
+    def compute_metrics(self, eval_pred) -> dict[str, float]:
         """
         Compute evaluation metrics.
 
@@ -701,12 +700,12 @@ class PIITrainer:
 
         # Remove ignored index (special tokens)
         true_predictions = [
-            [self.id2label[p] for (p, l) in zip(prediction, label) if l != -100]
-            for prediction, label in zip(predictions, labels)
+            [self.id2label[p] for (p, label_id) in zip(prediction, label, strict=True) if label_id != -100]
+            for prediction, label in zip(predictions, labels, strict=True)
         ]
         true_labels = [
-            [self.id2label[l] for (p, l) in zip(prediction, label) if l != -100]
-            for prediction, label in zip(predictions, labels)
+            [self.id2label[label_id] for (p, label_id) in zip(prediction, label, strict=True) if label_id != -100]
+            for prediction, label in zip(predictions, labels, strict=True)
         ]
 
         # Flatten and calculate F1 score
@@ -770,7 +769,7 @@ class PIITrainer:
                 compute_metrics=self.compute_metrics,
                 custom_loss_fn=self.custom_loss_fn,
             )
-            print("✅ Using CustomPIITrainer with masked loss")
+            logger.info("✅ Using CustomPIITrainer with masked loss")
         else:
             trainer = Trainer(
                 model=self.model,
@@ -780,21 +779,21 @@ class PIITrainer:
                 data_collator=data_collator,
                 compute_metrics=self.compute_metrics,
             )
-            print("✅ Using standard Trainer")
+            logger.info("✅ Using standard Trainer")
 
         # Train
-        print("\n🏋️  Starting training...")
-        print("=" * 60)
+        logger.info("\n🏋️  Starting training...")
+        logger.info("=" * 60)
         trainer.train()
 
         # Save
         trainer.save_model()
         self.tokenizer.save_pretrained(self.config.output_dir)
-        print(f"\n✅ Training completed. Model saved to {self.config.output_dir}")
+        logger.info(f"\n✅ Training completed. Model saved to {self.config.output_dir}")
 
         return trainer
 
-    def evaluate(self, test_dataset: Dataset, trainer: Optional[Trainer] = None) -> Dict:
+    def evaluate(self, test_dataset: Dataset, trainer: Trainer | None = None) -> dict:
         """
         Evaluate the model on test dataset.
 
@@ -829,9 +828,9 @@ class PIITrainer:
 
         results = trainer.evaluate()
 
-        print("\n📊 Evaluation Results:")
+        logger.info("\n📊 Evaluation Results:")
         for key, value in results.items():
-            print(f"  {key}: {value:.4f}")
+            logger.info(f"  {key}: {value:.4f}")
 
         return results
 
@@ -849,20 +848,20 @@ class PIITrainer:
         drive_path = f"/content/drive/{drive_folder}"
 
         # Create target directory if it doesn't exist
-        os.makedirs(drive_path, exist_ok=True)
+        Path(drive_path).mkdir(parents=True, exist_ok=True)
 
         # Create model name with timestamp
-        model_name = os.path.basename(self.config.output_dir)
+        model_name = Path(self.config.output_dir).name
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         model_name_with_timestamp = f"{model_name}_{timestamp}"
-        target_path = os.path.join(drive_path, model_name_with_timestamp)
+        target_path = Path(drive_path) / model_name_with_timestamp
 
-        print("\n💾 Copying model to Google Drive...")
-        print(f"   Source: {self.config.output_dir}")
-        print(f"   Target: {target_path}")
+        logger.info("\n💾 Copying model to Google Drive...")
+        logger.info(f"   Source: {self.config.output_dir}")
+        logger.info(f"   Target: {target_path}")
 
         shutil.copytree(self.config.output_dir, target_path)
-        print(f"✅ Model successfully saved to Google Drive at {target_path}")
+        logger.info(f"✅ Model successfully saved to Google Drive at {target_path}")
 
         return target_path
 
@@ -880,12 +879,12 @@ def main(use_google_drive: bool = True, drive_folder: str = "MyDrive/pii_models"
         use_google_drive: Whether to save model to Google Drive (Colab only)
         drive_folder: Target folder in Google Drive for saving the model
     """
-    print("=" * 60)
-    print("PII Detection Model Training - Word-based Preprocessing")
-    print("=" * 60)
+    logger.info("=" * 60)
+    logger.info("PII Detection Model Training - Word-based Preprocessing")
+    logger.info("=" * 60)
 
     # Setup environment
-    print("\n1️⃣  Setting up environment...")
+    logger.info("\n1️⃣  Setting up environment...")
     EnvironmentSetup.disable_wandb()
 
     # Mount Google Drive if requested
@@ -893,58 +892,55 @@ def main(use_google_drive: bool = True, drive_folder: str = "MyDrive/pii_models"
     if use_google_drive:
         drive_mounted = EnvironmentSetup.mount_google_drive()
 
-    # Uncomment if packages need to be installed:
-    # EnvironmentSetup.setup_pytorch()
-    # EnvironmentSetup.setup_dependencies()
     EnvironmentSetup.check_gpu()
 
     # Load configuration
-    print("\n2️⃣  Loading configuration...")
+    logger.info("\n2️⃣  Loading configuration...")
     config = TrainingConfig()
     config.print_summary()
 
     # Prepare datasets
-    print("\n3️⃣  Preparing datasets...")
+    logger.info("\n3️⃣  Preparing datasets...")
     dataset_processor = DatasetProcessor(config)
     train_dataset, val_dataset = dataset_processor.prepare_datasets()
 
     # Initialize trainer
-    print("\n4️⃣  Initializing trainer...")
+    logger.info("\n4️⃣  Initializing trainer...")
     trainer = PIITrainer(config)
-    mappings_path = os.path.join(config.output_dir, "label_mappings.json")
+    mappings_path = Path(config.output_dir) / "label_mappings.json"
     trainer.load_label_mappings(mappings_path)
     trainer.initialize_model()
 
     # Train model
-    print("\n5️⃣  Training model...")
+    logger.info("\n5️⃣  Training model...")
     start_time = time.time()
     trained_trainer = trainer.train(train_dataset, val_dataset)
     training_time = time.time() - start_time
-    print(f"\n⏱️  Training completed in {training_time / 60:.1f} minutes")
+    logger.info(f"\n⏱️  Training completed in {training_time / 60:.1f} minutes")
 
     # Evaluate model
-    print("\n6️⃣  Evaluating model...")
+    logger.info("\n6️⃣  Evaluating model...")
     results = trainer.evaluate(val_dataset, trained_trainer)
 
     # Save to Google Drive if mounted
     drive_path = None
     if use_google_drive and drive_mounted:
-        print("\n7️⃣  Saving to Google Drive...")
+        logger.info("\n7️⃣  Saving to Google Drive...")
         try:
             drive_path = trainer.save_to_google_drive(drive_folder)
         except Exception as e:
-            print(f"⚠️  Failed to save to Google Drive: {e}")
-            print(f"   Model is still available locally at: {config.output_dir}")
+            logger.warning(f"⚠️  Failed to save to Google Drive: {e}")
+            logger.info(f"   Model is still available locally at: {config.output_dir}")
 
     # Final summary
-    print("\n" + "=" * 60)
-    print("🎉 TRAINING COMPLETE!")
-    print("=" * 60)
-    print(f"F1 Score: {results.get('eval_f1', 'N/A'):.4f}")
-    print(f"Model saved locally to: {config.output_dir}")
+    logger.info("\n" + "=" * 60)
+    logger.info("🎉 TRAINING COMPLETE!")
+    logger.info("=" * 60)
+    logger.info(f"F1 Score: {results.get('eval_f1', 'N/A'):.4f}")
+    logger.info(f"Model saved locally to: {config.output_dir}")
     if drive_path:
-        print(f"Model saved to Google Drive: {drive_path}")
-    print("=" * 60)
+        logger.info(f"Model saved to Google Drive: {drive_path}")
+    logger.info("=" * 60)
 
 
 if __name__ == "__main__":
