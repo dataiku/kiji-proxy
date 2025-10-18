@@ -3,7 +3,7 @@
 # Yaak Proxy Service
 
 <div align="center">
-  <img src="static/yaak.png" alt="Yaak Mascot" width="200" height="200">
+  <img src="static/yaak.png" alt="Yaak Mascot">
 </div>
 
 A secure HTTP proxy service that intercepts requests to the OpenAI API, detects and redacts Personally Identifiable Information (PII), and restores original PII in responses. Built with Go and featuring PostgreSQL database support for persistent PII mapping storage.
