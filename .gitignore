@@ -30,3 +30,13 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# project specific
+
+# any file in pii_model directory
+pii_model/*
+!pii_model/README.md
+.venv/
+__pycache__/
+*.pyc
+.ruff_cache/

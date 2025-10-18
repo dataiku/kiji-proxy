@@ -1,0 +1,110 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: yaak-proxy-db
+    environment:
+      POSTGRES_DB: pii_proxy
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/setup_database.sql:/docker-entrypoint-initdb.d/01-setup.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d pii_proxy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - yaak-proxy-network
+
+  # Yaak Proxy Application
+  yaak-proxy:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: yaak-proxy-app
+    environment:
+      # Database configuration
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: pii_proxy
+      DB_USER: postgres
+      DB_PASSWORD: postgres123
+      DB_SSL_MODE: disable
+
+      # Application configuration
+      PROXY_PORT: ":8080"
+      OPENAI_BASE_URL: "https://api.openai.com/v1"
+
+      # PII Detector configuration
+      DETECTOR_NAME: "regex_detector"  # or "model_detector"
+      MODEL_BASE_URL: "http://model-server:8000"
+
+      # Logging configuration
+      LOG_PII_CHANGES: "true"
+      LOG_VERBOSE: "true"
+      LOG_REQUESTS: "true"
+      LOG_RESPONSES: "true"
+
+      # Enable database storage
+      DB_ENABLED: "true"
+      DB_USE_CACHE: "true"
+      DB_CLEANUP_HOURS: "24"
+    ports:
+      - "8080:8080"
+    # volumes:
+    #   # Mount PII detector configuration (if using config file)
+    #   - ./config/pii_detector_config.json:/app/config/pii_detector_config.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      model-server:
+        condition: service_healthy
+    networks:
+      - yaak-proxy-network
+    restart: unless-stopped
+
+  # PII Detection Model Server (FastAPI)
+  model-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.model-server
+    container_name: yaak-model-server
+    environment:
+      # Model configuration
+      MODEL_PATH: /app/pii_model
+
+      # Server configuration
+      MAX_TEXT_LENGTH: "5000"
+      MAX_BATCH_SIZE: "50"
+
+      # CORS settings (configure for production)
+      ALLOW_ORIGINS: "*"
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount model files (make sure ./pii_model exists)
+      - ./pii_model:/app/pii_model:ro
+      # Optional: Mount for development
+      # - ./model_server:/app/model_server
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - yaak-proxy-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  yaak-proxy-network:
+    driver: bridge
