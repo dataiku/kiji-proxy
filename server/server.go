@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/hannes/yaak-private/config"
 	"github.com/hannes/yaak-private/proxy"
@@ -55,14 +56,25 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/health", s.healthCheck)
 	mux.Handle("/", s.handler)
 
-	return http.ListenAndServe(s.config.ProxyPort, mux)
+	// Create server with timeout configuration
+	server := &http.Server{
+		Addr:         s.config.ProxyPort,
+		Handler:      mux,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
+
+	return server.ListenAndServe()
 }
 
 // healthCheck provides a simple health check endpoint
 func (s *Server) healthCheck(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"status":"healthy","service":"Yaak Proxy Service"}`))
+	if _, err := w.Write([]byte(`{"status":"healthy","service":"Yaak Proxy Service"}`)); err != nil {
+		log.Printf("Failed to write health check response: %v", err)
+	}
 }
 
 // StartWithErrorHandling starts the server with proper error handling

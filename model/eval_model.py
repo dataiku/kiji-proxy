@@ -106,7 +106,9 @@ class GoogleDriveManager:
 
         if not model_timestamps:
             # If no timestamps found, use the first model
-            logger.warning(f"⚠️  No timestamped models found, using: {model_dirs[0].name}")
+            logger.warning(
+                f"⚠️  No timestamped models found, using: {model_dirs[0].name}"
+            )
             return str(drive_path / model_dirs[0].name)
 
         # Sort by timestamp and get the most recent
@@ -155,7 +157,9 @@ class PIIModelLoader:
             self.id2label = {int(k): v for k, v in mappings["id2label"].items()}
             logger.info(f"✅ Loaded {len(self.label2id)} label mappings")
         else:
-            logger.warning("⚠️  Label mappings not found, will use model's default labels")
+            logger.warning(
+                "⚠️  Label mappings not found, will use model's default labels"
+            )
 
         # Load tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_path)
@@ -233,7 +237,9 @@ class PIIModelLoader:
                 # Save previous entity if exists
                 if current_entity is not None:
                     entity_text = text[current_start:current_end]
-                    entities.append((entity_text, current_label, current_start, current_end))
+                    entities.append(
+                        (entity_text, current_label, current_start, current_end)
+                    )
 
                 # Start new entity
                 current_label = label[2:]  # Remove "B-" prefix
@@ -248,7 +254,9 @@ class PIIModelLoader:
             elif current_entity is not None:  # "O" label or entity ended
                 # Save previous entity if exists
                 entity_text = text[current_start:current_end]
-                entities.append((entity_text, current_label, current_start, current_end))
+                entities.append(
+                    (entity_text, current_label, current_start, current_end)
+                )
                 current_entity = None
                 current_label = None
 
@@ -377,7 +385,9 @@ def main():
     loader.load_model()
 
     # Run inference on test cases
-    logger.info(f"\n4️⃣  Running inference on {min(args.num_tests, len(TEST_CASES))} test cases...")
+    logger.info(
+        f"\n4️⃣  Running inference on {min(args.num_tests, len(TEST_CASES))} test cases..."
+    )
 
     inference_times = []
     total_entities = 0
@@ -409,7 +419,9 @@ def main():
     logger.info(f"  Throughput: {1000 / avg_time:.2f} texts/second")
     logger.info("\n📈 Detection Statistics:")
     logger.info(f"  Total PII entities detected: {total_entities}")
-    logger.info(f"  Average entities per test: {total_entities / len(inference_times):.1f}")
+    logger.info(
+        f"  Average entities per test: {total_entities / len(inference_times):.1f}"
+    )
     logger.info(f"{'=' * 80}\n")
 
 

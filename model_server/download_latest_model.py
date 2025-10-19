@@ -46,7 +46,9 @@ from datetime import datetime
 from pathlib import Path
 
 # Set up logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 try:
@@ -97,13 +99,17 @@ class GoogleDriveDownloader:
             self.access_token = credentials.token
             logger.info("✅ Authenticated with service account")
         except ImportError:
-            logger.warning("⚠️  google-auth not installed. Using public download method.")
+            logger.warning(
+                "⚠️  google-auth not installed. Using public download method."
+            )
             logger.info("   Install with: pip install google-auth")
         except Exception as e:
             logger.warning(f"⚠️  Authentication failed: {e}")
             logger.info("   Falling back to public download method")
 
-    def download_file(self, file_id: str, output_path: str, chunk_size: int = 32768) -> bool:
+    def download_file(
+        self, file_id: str, output_path: str, chunk_size: int = 32768
+    ) -> bool:
         """
         Download a file from Google Drive.
 
@@ -127,13 +133,17 @@ class GoogleDriveDownloader:
             session = requests.Session()
 
             # Initial request
-            response = session.get(self.DRIVE_DOWNLOAD_URL, params={"id": file_id}, stream=True)
+            response = session.get(
+                self.DRIVE_DOWNLOAD_URL, params={"id": file_id}, stream=True
+            )
 
             # Check for download warning (large files)
             token = self._get_confirm_token(response)
             if token:
                 params = {"id": file_id, "confirm": token}
-                response = session.get(self.DRIVE_DOWNLOAD_URL, params=params, stream=True)
+                response = session.get(
+                    self.DRIVE_DOWNLOAD_URL, params=params, stream=True
+                )
 
             # Get file size if available
             file_size = int(response.headers.get("content-length", 0))
@@ -167,7 +177,9 @@ class GoogleDriveDownloader:
                 return value
         return None
 
-    def download_folder(self, folder_id: str, output_dir: str, recursive: bool = False) -> bool:
+    def download_folder(
+        self, folder_id: str, output_dir: str, recursive: bool = False
+    ) -> bool:
         """
         Download all files from a Google Drive folder.
 
@@ -395,7 +407,9 @@ def verify_model(model_path: str) -> bool:
     ).exists()
 
     if not has_weights:
-        logger.error("❌ Model weights not found (model.safetensors or pytorch_model.bin)")
+        logger.error(
+            "❌ Model weights not found (model.safetensors or pytorch_model.bin)"
+        )
         return False
 
     # Check required files
@@ -421,7 +435,9 @@ def main():
     )
 
     # Download methods
-    parser.add_argument("--file-id", type=str, help="Google Drive file ID for direct download")
+    parser.add_argument(
+        "--file-id", type=str, help="Google Drive file ID for direct download"
+    )
     parser.add_argument(
         "--folder-id", type=str, help="Google Drive folder ID to download all files"
     )

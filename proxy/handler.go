@@ -34,11 +34,12 @@ func (h *Handler) GetDetector() (pii.Detector, error) {
 
 	// Create detector config from handler config
 	detectorConfig := make(map[string]interface{})
-	if detectorName == pii.DetectorNameModel {
+	switch detectorName {
+	case pii.DetectorNameModel:
 		detectorConfig["base_url"] = h.config.ModelBaseURL
-	} else if detectorName == pii.DetectorNameRegex {
+	case pii.DetectorNameRegex:
 		detectorConfig["patterns"] = pii.PIIPatterns
-	} else {
+	default:
 		return nil, fmt.Errorf("invalid detector name: %s", detectorName)
 	}
 	return pii.NewDetector(detectorName, detectorConfig)
@@ -46,45 +47,41 @@ func (h *Handler) GetDetector() (pii.Detector, error) {
 
 // generateMaskedText creates a masked version of PII text based on the label
 func (h *Handler) generateMaskedText(label string, originalText string) string {
-	// Create a new random generator for each call to ensure variety
+	// Use map-based approach to reduce cyclomatic complexity
+	generator := h.getGeneratorForLabel(label)
+	return generator(originalText)
+}
+
+// getGeneratorForLabel returns the appropriate generator function for the given label
+func (h *Handler) getGeneratorForLabel(label string) func(string) string {
+	// Create a secure random generator for each call
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 
-	switch label {
-	case "EMAIL":
-		return piiGenerators.EmailGenerator(rng, originalText)
-	case "SOCIALNUM":
-		return piiGenerators.SSNGenerator(rng, originalText)
-	case "TELEPHONENUM":
-		return piiGenerators.PhoneGenerator(rng, originalText)
-	case "CREDITCARDNUMBER":
-		return piiGenerators.CreditCardGenerator(rng, originalText)
-	case "USERNAME":
-		return piiGenerators.UsernameGenerator(rng, originalText)
-	case "DATEOFBIRTH":
-		return piiGenerators.DateOfBirthGenerator(rng, originalText)
-	case "ZIPCODE":
-		return piiGenerators.ZipCodeGenerator(rng, originalText)
-	case "ACCOUNTNUM":
-		return piiGenerators.AccountNumGenerator(rng, originalText)
-	case "IDCARDNUM":
-		return piiGenerators.IDCardNumGenerator(rng, originalText)
-	case "DRIVERLICENSENUM":
-		return piiGenerators.DriverLicenseNumGenerator(rng, originalText)
-	case "TAXNUM":
-		return piiGenerators.TaxNumGenerator(rng, originalText)
-	case "CITY":
-		return piiGenerators.CityGenerator(rng, originalText)
-	case "STREET":
-		return piiGenerators.StreetGenerator(rng, originalText)
-	case "BUILDINGNUM":
-		return piiGenerators.BuildingNumGenerator(rng, originalText)
-	case "GIVENNAME":
-		return piiGenerators.GivenNameGenerator(rng, originalText)
-	case "SURNAME":
-		return piiGenerators.SurnameGenerator(rng, originalText)
-	default:
-		return piiGenerators.GenericGenerator(rng, originalText)
+	generators := map[string]func(string) string{
+		"EMAIL":            func(original string) string { return piiGenerators.EmailGenerator(rng, original) },
+		"SOCIALNUM":        func(original string) string { return piiGenerators.SSNGenerator(rng, original) },
+		"TELEPHONENUM":     func(original string) string { return piiGenerators.PhoneGenerator(rng, original) },
+		"CREDITCARDNUMBER": func(original string) string { return piiGenerators.CreditCardGenerator(rng, original) },
+		"USERNAME":         func(original string) string { return piiGenerators.UsernameGenerator(rng, original) },
+		"DATEOFBIRTH":      func(original string) string { return piiGenerators.DateOfBirthGenerator(rng, original) },
+		"ZIPCODE":          func(original string) string { return piiGenerators.ZipCodeGenerator(rng, original) },
+		"ACCOUNTNUM":       func(original string) string { return piiGenerators.AccountNumGenerator(rng, original) },
+		"IDCARDNUM":        func(original string) string { return piiGenerators.IDCardNumGenerator(rng, original) },
+		"DRIVERLICENSENUM": func(original string) string { return piiGenerators.DriverLicenseNumGenerator(rng, original) },
+		"TAXNUM":           func(original string) string { return piiGenerators.TaxNumGenerator(rng, original) },
+		"CITY":             func(original string) string { return piiGenerators.CityGenerator(rng, original) },
+		"STREET":           func(original string) string { return piiGenerators.StreetGenerator(rng, original) },
+		"BUILDINGNUM":      func(original string) string { return piiGenerators.BuildingNumGenerator(rng, original) },
+		"GIVENNAME":        func(original string) string { return piiGenerators.GivenNameGenerator(rng, original) },
+		"SURNAME":          func(original string) string { return piiGenerators.SurnameGenerator(rng, original) },
 	}
+
+	if generator, exists := generators[label]; exists {
+		return generator
+	}
+
+	// Return generic generator for unknown labels
+	return func(original string) string { return piiGenerators.GenericGenerator(rng, original) }
 }
 
 // ServeHTTP implements the http.Handler interface
@@ -110,7 +107,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to proxy request to OpenAI", http.StatusBadGateway)
 		return
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Process and send response
 	h.processAndSendResponse(w, resp)
@@ -124,7 +121,7 @@ func (h *Handler) readRequestBody(r *http.Request) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer r.Body.Close()
+	defer func() { _ = r.Body.Close() }()
 	return body, nil
 }
 
@@ -245,7 +242,9 @@ func (h *Handler) processAndSendResponse(w http.ResponseWriter, resp *http.Respo
 
 	// Write response
 	w.WriteHeader(resp.StatusCode)
-	w.Write(modifiedBody)
+	if _, err := w.Write(modifiedBody); err != nil {
+		log.Printf("Failed to write response: %v", err)
+	}
 }
 
 func NewHandler(cfg *config.Config) (*Handler, error) {

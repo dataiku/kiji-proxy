@@ -22,7 +22,7 @@ func NewRegexDetector(patterns map[string]string) *RegexDetector {
 
 // GetName returns the name of this detector
 func (r *RegexDetector) GetName() string {
-	return "regex_detector"
+	return DetectorNameRegex
 }
 
 // Detect processes the input and returns detected entities

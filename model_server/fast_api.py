@@ -39,7 +39,7 @@ import torch
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from transformers import AutoModelForTokenClassification, AutoTokenizer
 
 # Set up logging
@@ -80,7 +80,9 @@ class PIIEntity(BaseModel):
     label: str = Field(..., description="PII type (e.g., EMAIL, PHONE, SSN)")
     start_pos: int = Field(..., description="Start position in original text")
     end_pos: int = Field(..., description="End position in original text")
-    confidence: float = Field(..., description="Confidence score for the detected entity")
+    confidence: float = Field(
+        ..., description="Confidence score for the detected entity"
+    )
 
     class Config:
         json_schema_extra: ClassVar[dict] = {
@@ -98,10 +100,13 @@ class DetectionRequest(BaseModel):
     """Request for PII detection."""
 
     text: str = Field(..., description="Text to analyze for PII", min_length=1)
-    include_timing: bool = Field(default=True, description="Include inference timing in response")
+    include_timing: bool = Field(
+        default=True, description="Include inference timing in response"
+    )
 
-    @validator("text")
-    def validate_text_length(self, v):
+    @field_validator("text")
+    @classmethod
+    def validate_text_length(cls, v):
         if len(v) > ServerConfig.MAX_TEXT_LENGTH:
             raise ValueError(
                 f"Text exceeds maximum length of {ServerConfig.MAX_TEXT_LENGTH} characters"
@@ -123,10 +128,13 @@ class BatchDetectionRequest(BaseModel):
     texts: list[str] = Field(..., description="List of texts to analyze", min_items=1)
     include_timing: bool = Field(default=True, description="Include timing metrics")
 
-    @validator("texts")
-    def validate_batch_size(self, v):
+    @field_validator("texts")
+    @classmethod
+    def validate_batch_size(cls, v):
         if len(v) > ServerConfig.MAX_BATCH_SIZE:
-            raise ValueError(f"Batch size exceeds maximum of {ServerConfig.MAX_BATCH_SIZE} texts")
+            raise ValueError(
+                f"Batch size exceeds maximum of {ServerConfig.MAX_BATCH_SIZE} texts"
+            )
         for text in v:
             if len(text) > ServerConfig.MAX_TEXT_LENGTH:
                 raise ValueError(
@@ -149,7 +157,9 @@ class DetectionResponse(BaseModel):
     text: str = Field(..., description="Original input text")
     entities: list[PIIEntity] = Field(..., description="Detected PII entities")
     entity_count: int = Field(..., description="Number of entities detected")
-    inference_time_ms: float | None = Field(None, description="Inference time in milliseconds")
+    inference_time_ms: float | None = Field(
+        None, description="Inference time in milliseconds"
+    )
 
     class Config:
         json_schema_extra: ClassVar[dict] = {
@@ -172,8 +182,12 @@ class DetectionResponse(BaseModel):
 class BatchDetectionResponse(BaseModel):
     """Response from batch PII detection."""
 
-    results: list[DetectionResponse] = Field(..., description="Detection results for each text")
-    total_entities: int = Field(..., description="Total entities detected across all texts")
+    results: list[DetectionResponse] = Field(
+        ..., description="Detection results for each text"
+    )
+    total_entities: int = Field(
+        ..., description="Total entities detected across all texts"
+    )
     total_inference_time_ms: float | None = Field(
         None, description="Total inference time in milliseconds"
     )
@@ -256,7 +270,9 @@ class PIIModelManager:
             self.id2label = {int(k): v for k, v in mappings["id2label"].items()}
             logger.info(f"✅ Loaded {len(self.label2id)} label mappings")
         else:
-            logger.warning("⚠️  Label mappings not found, will use model's default labels")
+            logger.warning(
+                "⚠️  Label mappings not found, will use model's default labels"
+            )
 
         # Load tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(model_path)
@@ -326,7 +342,9 @@ class PIIModelManager:
         current_confidence_scores = []
 
         for idx, (token, label, offset, confidence) in enumerate(
-            zip(tokens, predicted_labels, offset_mapping, confidence_scores, strict=True)
+            zip(
+                tokens, predicted_labels, offset_mapping, confidence_scores, strict=True
+            )
         ):
             # Skip special tokens
             if token in [
@@ -342,7 +360,9 @@ class PIIModelManager:
                 if current_entity is not None:
                     entity_text = text[current_start:current_end]
                     # Calculate average confidence for the entity
-                    avg_confidence = torch.mean(torch.stack(current_confidence_scores)).item()
+                    avg_confidence = torch.mean(
+                        torch.stack(current_confidence_scores)
+                    ).item()
                     entities.append(
                         PIIEntity(
                             text=entity_text,
@@ -369,7 +389,9 @@ class PIIModelManager:
                 # Save previous entity if exists
                 entity_text = text[current_start:current_end]
                 # Calculate average confidence for the entity
-                avg_confidence = torch.mean(torch.stack(current_confidence_scores)).item()
+                avg_confidence = torch.mean(
+                    torch.stack(current_confidence_scores)
+                ).item()
                 entities.append(
                     PIIEntity(
                         text=entity_text,
@@ -473,7 +495,9 @@ class PIIModelManager:
             device=str(self.device),
             labels=sorted(unique_labels),
             num_labels=len(unique_labels),
-            vocab_size=self.tokenizer.vocab_size if hasattr(self.tokenizer, "vocab_size") else None,
+            vocab_size=self.tokenizer.vocab_size
+            if hasattr(self.tokenizer, "vocab_size")
+            else None,
         )
 
 
@@ -536,7 +560,9 @@ app.add_middleware(
 # =============================================================================
 
 
-@app.get("/", summary="Welcome endpoint", response_model=dict[str, str], tags=["General"])
+@app.get(
+    "/", summary="Welcome endpoint", response_model=dict[str, str], tags=["General"]
+)
 async def root():
     """Welcome message and API information."""
     return {
@@ -547,7 +573,9 @@ async def root():
     }
 
 
-@app.get("/health", summary="Health check", response_model=HealthResponse, tags=["General"])
+@app.get(
+    "/health", summary="Health check", response_model=HealthResponse, tags=["General"]
+)
 async def health_check():
     """
     Check if the service and model are healthy and ready to serve requests.
@@ -574,7 +602,9 @@ async def get_model_info():
     try:
         return model_manager.get_model_info()
     except RuntimeError as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)) from e
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+        ) from e
 
 
 @app.post(
@@ -609,7 +639,9 @@ async def detect_pii(request: DetectionRequest):
         )
 
     try:
-        result = model_manager.predict(text=request.text, include_timing=request.include_timing)
+        result = model_manager.predict(
+            text=request.text, include_timing=request.include_timing
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -662,7 +694,9 @@ async def detect_pii_batch(request: BatchDetectionRequest):
 @app.exception_handler(HTTPException)
 async def http_exception_handler(_request, exc):
     """Custom HTTP exception handler."""
-    return JSONResponse(status_code=exc.status_code, content={"error": exc.detail, "detail": None})
+    return JSONResponse(
+        status_code=exc.status_code, content={"error": exc.detail, "detail": None}
+    )
 
 
 @app.exception_handler(Exception)
@@ -692,4 +726,6 @@ if __name__ == "__main__":
     logger.info(f"Max Batch Size: {ServerConfig.MAX_BATCH_SIZE}")
     logger.info("=" * 80 + "\n")
 
-    uvicorn.run("fast_api:app", host="0.0.0.0", port=8000, reload=True, log_level="info")
+    uvicorn.run(
+        "fast_api:app", host="0.0.0.0", port=8000, reload=True, log_level="info"
+    )
