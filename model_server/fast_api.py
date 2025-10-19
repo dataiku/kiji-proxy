@@ -39,7 +39,7 @@ import torch
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from transformers import AutoModelForTokenClassification, AutoTokenizer
 
 # Set up logging
@@ -100,8 +100,9 @@ class DetectionRequest(BaseModel):
     text: str = Field(..., description="Text to analyze for PII", min_length=1)
     include_timing: bool = Field(default=True, description="Include inference timing in response")
 
-    @validator("text")
-    def validate_text_length(self, v):
+    @field_validator("text")
+    @classmethod
+    def validate_text_length(cls, v):
         if len(v) > ServerConfig.MAX_TEXT_LENGTH:
             raise ValueError(
                 f"Text exceeds maximum length of {ServerConfig.MAX_TEXT_LENGTH} characters"
@@ -123,8 +124,9 @@ class BatchDetectionRequest(BaseModel):
     texts: list[str] = Field(..., description="List of texts to analyze", min_items=1)
     include_timing: bool = Field(default=True, description="Include timing metrics")
 
-    @validator("texts")
-    def validate_batch_size(self, v):
+    @field_validator("texts")
+    @classmethod
+    def validate_batch_size(cls, v):
         if len(v) > ServerConfig.MAX_BATCH_SIZE:
             raise ValueError(f"Batch size exceeds maximum of {ServerConfig.MAX_BATCH_SIZE} texts")
         for text in v:

@@ -1,4 +1,4 @@
-# PII Detection Model Server - Multi-stage Dockerfile
+# PII Detection Model Server - Optimized Multi-stage Dockerfile with uv
 #
 # Production build:
 #   docker build -f Dockerfile.model-server -t yaak-model-server .
@@ -10,11 +10,46 @@
 # Or use docker-compose:
 #   docker-compose up model-server                                    # Production
 #   docker-compose -f docker-compose.yml -f docker-compose.dev.yml up # Development
+#
+# Note: This Dockerfile uses uv for fast Python package management and pyproject.toml for dependencies
+# Optimized for smaller production images by removing dev dependencies and using multi-stage builds
 
 # =============================================================================
-# Base Stage - Common dependencies
+# Build Stage - Install dependencies and build
 # =============================================================================
-FROM python:3.11-slim AS base
+FROM python:3.11-slim AS builder
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies for building
+RUN apt-get update && apt-get install -y \
+    curl \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
+
+# Copy pyproject.toml and README.md (no lock file for minimal deps)
+COPY pyproject.toml README.md ./
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV UV_CACHE_DIR=/tmp/uv-cache
+
+# Install dependencies with uv (production only, no dev dependencies)
+RUN mkdir -p /tmp/uv-cache && \
+    if [ -f uv.lock ]; then \
+        uv sync --frozen --no-dev --cache-dir /tmp/uv-cache; \
+    else \
+        uv sync --no-dev --cache-dir /tmp/uv-cache; \
+    fi
+
+# =============================================================================
+# Development Stage - With hot-reloading
+# =============================================================================
+FROM python:3.11-slim AS development
 
 # Set working directory
 WORKDIR /app
@@ -24,26 +59,24 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for better caching
-COPY requirements.txt .
+# Install uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy pyproject.toml and README.md (no lock file for minimal deps)
+COPY pyproject.toml README.md ./
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV MODEL_PATH=/app/pii_model
+ENV UV_CACHE_DIR=/app/.uv-cache
 
-# =============================================================================
-# Development Stage - With hot-reloading
-# =============================================================================
-FROM base AS development
-
-# Install additional dev dependencies
-RUN pip install --no-cache-dir \
-    ipython \
-    jupyter \
-    pytest
+# Install dependencies with uv (including dev dependencies)
+RUN mkdir -p /app/.uv-cache && \
+    if [ -f uv.lock ]; then \
+        uv sync --frozen --no-dev --cache-dir /app/.uv-cache; \
+    else \
+        uv sync --no-dev --cache-dir /app/.uv-cache; \
+    fi
 
 # Copy application code (will be overridden by volume mount)
 COPY model_server/ ./model_server/
@@ -56,16 +89,28 @@ RUN mkdir -p /app/pii_model
 EXPOSE 8000
 
 # Run with auto-reload for development
-CMD ["uvicorn", "model_server.fast_api:app", \
+CMD ["uv", "run", "uvicorn", "model_server.fast_api:app", \
      "--host", "0.0.0.0", \
      "--port", "8000", \
      "--reload", \
      "--log-level", "debug"]
 
 # =============================================================================
-# Production Stage - Optimized
+# Production Stage - Optimized runtime
 # =============================================================================
-FROM base AS production
+FROM python:3.11-slim AS production
+
+# Set working directory
+WORKDIR /app
+
+# Install only runtime dependencies (no build tools)
+RUN apt-get update && apt-get install -y \
+    curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Copy virtual environment from builder stage
+COPY --from=builder /app/.venv /app/.venv
 
 # Copy application code
 COPY model_server/ ./model_server/
@@ -78,6 +123,11 @@ RUN mkdir -p /app/pii_model
 RUN useradd -m -u 1000 appuser && \
     chown -R appuser:appuser /app
 USER appuser
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV MODEL_PATH=/app/pii_model
+ENV PATH="/app/.venv/bin:$PATH"
 
 # Expose port
 EXPOSE 8000
@@ -95,4 +145,3 @@ CMD ["uvicorn", "model_server.fast_api:app", \
 
 # Default to production
 FROM production
-

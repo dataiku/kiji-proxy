@@ -41,7 +41,7 @@ services:
       OPENAI_BASE_URL: "https://api.openai.com/v1"
 
       # PII Detector configuration
-      DETECTOR_NAME: "regex_detector"  # or "model_detector"
+      DETECTOR_NAME: "model_detector"  # or "model_detector"
       MODEL_BASE_URL: "http://model-server:8000"
 
       # Logging configuration
