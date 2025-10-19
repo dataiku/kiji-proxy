@@ -30,6 +30,8 @@ type Config struct {
 	ProxyPort     string
 	DetectorName  string
 	ModelBaseURL  string
+	Database      DatabaseConfig
+	Logging       LoggingConfig
 }
 
 // DefaultConfig returns the default configuration
@@ -37,8 +39,28 @@ func DefaultConfig() *Config {
 	return &Config{
 		OpenAIBaseURL: "https://api.openai.com/v1",
 		ProxyPort:     ":8080",
-		DetectorName:  "regex_detector",
+		DetectorName:  "model_detector",
 		ModelBaseURL:  "http://localhost:8000",
+		Database: DatabaseConfig{
+			Enabled:      false,
+			Host:         "localhost",
+			Port:         5432,
+			Database:     "yaak",
+			Username:     "postgres",
+			Password:     "",
+			SSLMode:      "disable",
+			MaxOpenConns: 25,
+			MaxIdleConns: 25,
+			MaxLifetime:  300,
+			UseCache:     true,
+			CleanupHours: 24,
+		},
+		Logging: LoggingConfig{
+			LogRequests:   true,
+			LogResponses:  true,
+			LogPIIChanges: true,
+			LogVerbose:    true,
+		},
 	}
 }
 
