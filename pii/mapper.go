@@ -55,23 +55,40 @@ func (m *PIIMapping) AddMapping(original, dummy, piiType string, confidence floa
 	}
 }
 
-// GetDummy returns the dummy value for an original PII
-func (m *PIIMapping) GetDummy(original string) (string, bool) {
+// getValue retrieves a value using cache-first strategy with database fallback
+func (m *PIIMapping) getValue(key string, isOriginalToDummy bool) (string, bool) {
 	// Check cache first if enabled
 	if m.useCache {
 		m.mutex.RLock()
-		if dummy, exists := m.OriginalToDummy[original]; exists {
-			m.mutex.RUnlock()
-			return dummy, true
+		var value string
+		var exists bool
+
+		if isOriginalToDummy {
+			value, exists = m.OriginalToDummy[key]
+		} else {
+			value, exists = m.DummyToOriginal[key]
 		}
+
 		m.mutex.RUnlock()
+		if exists {
+			return value, true
+		}
 	}
 
 	// Check database
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	dummy, exists, err := m.db.GetDummy(ctx, original)
+	var value string
+	var exists bool
+	var err error
+
+	if isOriginalToDummy {
+		value, exists, err = m.db.GetDummy(ctx, key)
+	} else {
+		value, exists, err = m.db.GetOriginal(ctx, key)
+	}
+
 	if err != nil {
 		// Log error but return false
 		return "", false
@@ -80,45 +97,27 @@ func (m *PIIMapping) GetDummy(original string) (string, bool) {
 	// Update cache if enabled and found in database
 	if exists && m.useCache {
 		m.mutex.Lock()
-		m.OriginalToDummy[original] = dummy
-		m.DummyToOriginal[dummy] = original
+		if isOriginalToDummy {
+			m.OriginalToDummy[key] = value
+			m.DummyToOriginal[value] = key
+		} else {
+			m.DummyToOriginal[key] = value
+			m.OriginalToDummy[value] = key
+		}
 		m.mutex.Unlock()
 	}
 
-	return dummy, exists
+	return value, exists
+}
+
+// GetDummy returns the dummy value for an original PII
+func (m *PIIMapping) GetDummy(original string) (string, bool) {
+	return m.getValue(original, true)
 }
 
 // GetOriginal returns the original value for a dummy PII
 func (m *PIIMapping) GetOriginal(dummy string) (string, bool) {
-	// Check cache first if enabled
-	if m.useCache {
-		m.mutex.RLock()
-		if original, exists := m.DummyToOriginal[dummy]; exists {
-			m.mutex.RUnlock()
-			return original, true
-		}
-		m.mutex.RUnlock()
-	}
-
-	// Check database
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	original, exists, err := m.db.GetOriginal(ctx, dummy)
-	if err != nil {
-		// Log error but return false
-		return "", false
-	}
-
-	// Update cache if enabled and found in database
-	if exists && m.useCache {
-		m.mutex.Lock()
-		m.OriginalToDummy[original] = dummy
-		m.DummyToOriginal[dummy] = original
-		m.mutex.Unlock()
-	}
-
-	return original, exists
+	return m.getValue(dummy, false)
 }
 
 // Clear removes all mappings from cache (database mappings remain)
