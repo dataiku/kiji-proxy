@@ -203,6 +203,16 @@ docker-up-logs: ## Start Docker Compose services with logs
 	@echo "$(BLUE)Starting Docker services with logs...$(NC)"
 	docker compose up
 
+docker-up-force: ## Start Docker Compose services with force rebuild (no cache)
+	@echo "$(BLUE)Force rebuilding and starting Docker services...$(NC)"
+	docker compose build --no-cache
+	docker compose up -d
+
+docker-up-logs-force: ## Start Docker Compose services with force rebuild and logs
+	@echo "$(BLUE)Force rebuilding and starting Docker services with logs...$(NC)"
+	docker compose build --no-cache
+	docker compose up
+
 docker-up-model: ## Start only model server
 	@echo "$(BLUE)Starting model server...$(NC)"
 	docker compose up -d model-server
@@ -239,6 +249,12 @@ docker-clean: ## Remove all containers and volumes
 	@echo "$(BLUE)Cleaning Docker resources...$(NC)"
 	docker compose down -v
 	@echo "$(GREEN)✅ Docker cleanup complete$(NC)"
+
+docker-clean-all: ## Remove all containers, volumes, and images (nuclear option)
+	@echo "$(BLUE)Cleaning all Docker resources...$(NC)"
+	docker compose down -v --rmi all
+	docker system prune -af
+	@echo "$(GREEN)✅ Complete Docker cleanup done$(NC)"
 
 ##@ Utilities
 

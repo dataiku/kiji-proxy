@@ -17,7 +17,9 @@ import logging
 import requests
 
 # Set up logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 
@@ -143,7 +145,9 @@ def example_batch_detection(client: PIIDetectionClient):
 
     if result.get("total_inference_time_ms"):
         logger.info(f"Total time: {result['total_inference_time_ms']:.2f} ms")
-        logger.info(f"Average time: {result['average_inference_time_ms']:.2f} ms per text")
+        logger.info(
+            f"Average time: {result['average_inference_time_ms']:.2f} ms per text"
+        )
 
     for i, res in enumerate(result["results"], 1):
         logger.info(f"\n--- Text {i} ---")
@@ -165,9 +169,13 @@ def example_redaction(client: PIIDetectionClient):
     # Redact PII (replace with [REDACTED])
     redacted = text
     # Sort entities by start position in reverse to maintain positions
-    for entity in sorted(result["entities"], key=lambda e: e["start_pos"], reverse=True):
+    for entity in sorted(
+        result["entities"], key=lambda e: e["start_pos"], reverse=True
+    ):
         redacted = (
-            redacted[: entity["start_pos"]] + f"[{entity['label']}]" + redacted[entity["end_pos"] :]
+            redacted[: entity["start_pos"]]
+            + f"[{entity['label']}]"
+            + redacted[entity["end_pos"] :]
         )
 
     logger.info(f"Redacted: {redacted}")
@@ -198,10 +206,14 @@ def example_anonymization(client: PIIDetectionClient):
 
     # Anonymize PII
     anonymized = text
-    for entity in sorted(result["entities"], key=lambda e: e["start_pos"], reverse=True):
+    for entity in sorted(
+        result["entities"], key=lambda e: e["start_pos"], reverse=True
+    ):
         replacement = replacements.get(entity["label"], "[ANONYMIZED]")
         anonymized = (
-            anonymized[: entity["start_pos"]] + replacement + anonymized[entity["end_pos"] :]
+            anonymized[: entity["start_pos"]]
+            + replacement
+            + anonymized[entity["end_pos"] :]
         )
 
     logger.info(f"Anonymized: {anonymized}")
@@ -213,7 +225,9 @@ def example_filtering(client: PIIDetectionClient):
     logger.info("Example 5: Filter by PII Type")
     logger.info("=" * 80)
 
-    text = "Contact: john.doe@email.com, Phone: 555-1234, SSN: 123-45-6789, Username: jdoe"
+    text = (
+        "Contact: john.doe@email.com, Phone: 555-1234, SSN: 123-45-6789, Username: jdoe"
+    )
 
     result = client.detect_pii(text, include_timing=False)
 
@@ -232,7 +246,9 @@ def example_filtering(client: PIIDetectionClient):
 
     # Filter only sensitive PII (e.g., SSN, Credit Card)
     sensitive_types = {"SSN", "CREDIT_CARD", "PASSWORD"}
-    sensitive_entities = [e for e in result["entities"] if e["label"] in sensitive_types]
+    sensitive_entities = [
+        e for e in result["entities"] if e["label"] in sensitive_types
+    ]
 
     logger.info(f"\nSensitive PII found: {len(sensitive_entities)}")
     for entity in sensitive_entities:

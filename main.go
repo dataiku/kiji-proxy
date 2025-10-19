@@ -9,6 +9,8 @@ import (
 	"github.com/hannes/yaak-private/server"
 )
 
+const TRUE = "true"
+
 func main() {
 	// Load configuration
 	cfg := config.DefaultConfig()
@@ -36,9 +38,16 @@ func main() {
 
 // loadConfigFromEnv loads configuration from environment variables
 func loadConfigFromEnv(cfg *config.Config) {
-	// Database configuration
+	loadDatabaseConfig(cfg)
+	loadApplicationConfig(cfg)
+	loadPIIDetectorConfig(cfg)
+	loadLoggingConfig(cfg)
+}
+
+// loadDatabaseConfig loads database configuration from environment variables
+func loadDatabaseConfig(cfg *config.Config) {
 	if dbEnabled := os.Getenv("DB_ENABLED"); dbEnabled != "" {
-		cfg.Database.Enabled = dbEnabled == "true"
+		cfg.Database.Enabled = dbEnabled == TRUE
 	}
 
 	if host := os.Getenv("DB_HOST"); host != "" {
@@ -68,7 +77,7 @@ func loadConfigFromEnv(cfg *config.Config) {
 	}
 
 	if useCache := os.Getenv("DB_USE_CACHE"); useCache != "" {
-		cfg.Database.UseCache = useCache == "true"
+		cfg.Database.UseCache = useCache == TRUE
 	}
 
 	if cleanupHours := os.Getenv("DB_CLEANUP_HOURS"); cleanupHours != "" {
@@ -76,8 +85,10 @@ func loadConfigFromEnv(cfg *config.Config) {
 			cfg.Database.CleanupHours = hours
 		}
 	}
+}
 
-	// Application configuration
+// loadApplicationConfig loads application configuration from environment variables
+func loadApplicationConfig(cfg *config.Config) {
 	if proxyPort := os.Getenv("PROXY_PORT"); proxyPort != "" {
 		cfg.ProxyPort = proxyPort
 	}
@@ -85,8 +96,10 @@ func loadConfigFromEnv(cfg *config.Config) {
 	if openAIURL := os.Getenv("OPENAI_BASE_URL"); openAIURL != "" {
 		cfg.OpenAIBaseURL = openAIURL
 	}
+}
 
-	// PII Detector configuration
+// loadPIIDetectorConfig loads PII detector configuration from environment variables
+func loadPIIDetectorConfig(cfg *config.Config) {
 	if detectorName := os.Getenv("DETECTOR_NAME"); detectorName != "" {
 		cfg.DetectorName = detectorName
 	}
@@ -94,21 +107,23 @@ func loadConfigFromEnv(cfg *config.Config) {
 	if modelBaseURL := os.Getenv("MODEL_BASE_URL"); modelBaseURL != "" {
 		cfg.ModelBaseURL = modelBaseURL
 	}
+}
 
-	// Logging configuration
+// loadLoggingConfig loads logging configuration from environment variables
+func loadLoggingConfig(cfg *config.Config) {
 	if logPIIChanges := os.Getenv("LOG_PII_CHANGES"); logPIIChanges != "" {
-		cfg.Logging.LogPIIChanges = logPIIChanges == "true"
+		cfg.Logging.LogPIIChanges = logPIIChanges == TRUE
 	}
 
 	if logVerbose := os.Getenv("LOG_VERBOSE"); logVerbose != "" {
-		cfg.Logging.LogVerbose = logVerbose == "true"
+		cfg.Logging.LogVerbose = logVerbose == TRUE
 	}
 
 	if logRequests := os.Getenv("LOG_REQUESTS"); logRequests != "" {
-		cfg.Logging.LogRequests = logRequests == "true"
+		cfg.Logging.LogRequests = logRequests == TRUE
 	}
 
 	if logResponses := os.Getenv("LOG_RESPONSES"); logResponses != "" {
-		cfg.Logging.LogResponses = logResponses == "true"
+		cfg.Logging.LogResponses = logResponses == TRUE
 	}
 }

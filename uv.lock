@@ -3618,20 +3618,14 @@ name = "yaak-proxy"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
-    { name = "accelerate" },
-    { name = "datasets" },
     { name = "fastapi" },
     { name = "numpy" },
-    { name = "psutil" },
     { name = "pydantic" },
     { name = "python-multipart" },
     { name = "requests" },
-    { name = "scikit-learn" },
     { name = "torch" },
-    { name = "tqdm" },
     { name = "transformers" },
     { name = "uvicorn", extra = ["standard"] },
-    { name = "wandb" },
 ]
 
 [package.optional-dependencies]
@@ -3645,67 +3639,48 @@ dev = [
     { name = "pytest" },
     { name = "ruff" },
 ]
-server = [
-    { name = "fastapi" },
-    { name = "pydantic" },
-    { name = "python-multipart" },
-    { name = "requests" },
-    { name = "uvicorn", extra = ["standard"] },
-]
 training = [
     { name = "accelerate" },
     { name = "datasets" },
+    { name = "pandas" },
+    { name = "psutil" },
+    { name = "pyarrow" },
+    { name = "scikit-learn" },
+    { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "scipy", version = "1.16.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "sympy" },
+    { name = "tqdm" },
     { name = "wandb" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "ipython" },
-    { name = "jupyter" },
-    { name = "pytest" },
-    { name = "ruff" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "accelerate", specifier = ">=0.26.0" },
     { name = "accelerate", marker = "extra == 'training'", specifier = ">=0.26.0" },
-    { name = "datasets", specifier = ">=2.0.0" },
     { name = "datasets", marker = "extra == 'training'", specifier = ">=2.0.0" },
     { name = "fastapi", specifier = ">=0.104.0" },
-    { name = "fastapi", marker = "extra == 'server'", specifier = ">=0.104.0" },
     { name = "ipython", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "jupyter", marker = "extra == 'dev'", specifier = ">=1.0" },
     { name = "numpy", specifier = ">=1.21.0" },
-    { name = "psutil", specifier = ">=5.8.0" },
+    { name = "pandas", marker = "extra == 'training'", specifier = ">=1.0.0" },
+    { name = "psutil", marker = "extra == 'training'", specifier = ">=5.8.0" },
+    { name = "pyarrow", marker = "extra == 'training'", specifier = ">=1.0.0" },
     { name = "pydantic", specifier = ">=2.0.0" },
-    { name = "pydantic", marker = "extra == 'server'", specifier = ">=2.0.0" },
     { name = "pytest", marker = "extra == 'all'", specifier = ">=6.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=6.0" },
     { name = "python-multipart", specifier = ">=0.0.6" },
-    { name = "python-multipart", marker = "extra == 'server'", specifier = ">=0.0.6" },
     { name = "requests", specifier = ">=2.28.0" },
-    { name = "requests", marker = "extra == 'server'", specifier = ">=2.28.0" },
     { name = "ruff", marker = "extra == 'all'", specifier = ">=0.1.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.1.0" },
-    { name = "scikit-learn", specifier = ">=1.0.0" },
+    { name = "scikit-learn", marker = "extra == 'training'", specifier = ">=1.0.0" },
+    { name = "scipy", marker = "extra == 'training'", specifier = ">=1.0.0" },
+    { name = "sympy", marker = "extra == 'training'", specifier = ">=1.0.0" },
     { name = "torch", specifier = ">=1.9.0" },
-    { name = "tqdm", specifier = ">=4.64.0" },
+    { name = "tqdm", marker = "extra == 'training'", specifier = ">=4.64.0" },
     { name = "transformers", specifier = ">=4.20.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.24.0" },
-    { name = "uvicorn", extras = ["standard"], marker = "extra == 'server'", specifier = ">=0.24.0" },
-    { name = "wandb", specifier = ">=0.12.0" },
     { name = "wandb", marker = "extra == 'training'", specifier = ">=0.12.0" },
 ]
-provides-extras = ["dev", "server", "training", "all"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "ipython", specifier = ">=8.0" },
-    { name = "jupyter", specifier = ">=1.0" },
-    { name = "pytest", specifier = ">=6.0" },
-    { name = "ruff", specifier = ">=0.1.0" },
-]
+provides-extras = ["dev", "training", "all"]
 
 [[package]]
 name = "yarl"
