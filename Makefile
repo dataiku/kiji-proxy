@@ -192,7 +192,11 @@ docker-build-model: ## Build model server Docker image
 	fi
 	docker build -f Dockerfile.model-server -t yaak-model-server .
 
-docker-build-all: docker-build docker-build-model ## Build all Docker images
+docker-build-ui: ## Build UI Docker image
+	@echo "$(BLUE)Building UI Docker image...$(NC)"
+	docker build -f Dockerfile.ui -t yaak-proxy-ui .
+
+docker-build-all: docker-build docker-build-model docker-build-ui ## Build all Docker images
 	@echo "$(GREEN)✅ All Docker images built$(NC)"
 
 docker-up: ## Start Docker Compose services in background
@@ -216,6 +220,10 @@ docker-up-logs-force: ## Start Docker Compose services with force rebuild and lo
 docker-up-model: ## Start only model server
 	@echo "$(BLUE)Starting model server...$(NC)"
 	docker compose up -d model-server
+
+docker-up-ui: ## Start only UI service
+	@echo "$(BLUE)Starting UI service...$(NC)"
+	docker compose up -d privacy-proxy-ui
 
 docker-dev: ## Start services in development mode (with hot-reload)
 	@echo "$(BLUE)Starting services in development mode...$(NC)"
@@ -241,6 +249,9 @@ docker-logs-model: ## View model server logs
 
 docker-logs-proxy: ## View proxy logs
 	docker compose logs -f yaak-proxy
+
+docker-logs-ui: ## View UI logs
+	docker compose logs -f privacy-proxy-ui
 
 docker-ps: ## Show running containers
 	docker compose ps

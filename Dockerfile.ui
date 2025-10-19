@@ -1,0 +1,53 @@
+# Build stage
+FROM node:18-alpine AS builder
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY ui/package.json ./
+
+# Install dependencies (including dev dependencies for build)
+RUN npm install
+
+# Copy source code
+COPY ui/ ./
+
+# Build the application
+RUN npm run build
+
+# Production stage
+FROM node:18-alpine
+
+# Set working directory
+WORKDIR /app
+
+# Create package.json for production dependencies
+RUN echo '{"name":"privacy-proxy-ui","version":"1.0.0","dependencies":{"express":"^4.18.0"}}' > package.json
+
+# Install express for serving the built files
+RUN npm install --only=production
+
+# Copy built files from builder stage
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/server.js ./
+
+# Create non-root user
+RUN addgroup -g 1001 -S appgroup && \
+    adduser -u 1001 -S appuser -G appgroup
+
+# Change ownership to non-root user
+RUN chown -R appuser:appgroup /app
+
+# Switch to non-root user
+USER appuser
+
+# Expose port
+EXPOSE 3000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:3000 || exit 1
+
+# Start the server
+CMD ["node", "server.js"]

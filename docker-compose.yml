@@ -101,6 +101,28 @@ services:
       - yaak-proxy-network
     restart: unless-stopped
 
+  # Privacy Proxy UI (React)
+  privacy-proxy-ui:
+    build:
+      context: .
+      dockerfile: Dockerfile.ui
+    container_name: yaak-proxy-ui
+    environment:
+      # UI configuration
+      PORT: "3000"
+      NODE_ENV: "production"
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - yaak-proxy-network
+    restart: unless-stopped
+
 volumes:
   postgres_data:
     driver: local
