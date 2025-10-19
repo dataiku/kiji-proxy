@@ -38,7 +38,7 @@ func (m *ModelDetector) Detect(input DetectorInput) (DetectorOutput, error) {
 	if err != nil {
 		return DetectorOutput{}, err
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 
 	// convert the response body to Entities
 	entities, err = convertResponseToEntities(response)

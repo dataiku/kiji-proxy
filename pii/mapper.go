@@ -2,6 +2,7 @@ package pii
 
 import (
 	"context"
+	"log"
 	"sync"
 	"time"
 )
@@ -44,6 +45,7 @@ func (m *PIIMapping) AddMapping(original, dummy, piiType string, confidence floa
 	if err := m.db.StoreMapping(ctx, original, dummy, piiType, confidence); err != nil {
 		// Log error but continue with cache
 		// In production, you might want to use a proper logger
+		log.Printf("Error storing mapping: %v", err)
 	}
 
 	// Update cache if enabled

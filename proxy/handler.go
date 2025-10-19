@@ -34,11 +34,12 @@ func (h *Handler) GetDetector() (pii.Detector, error) {
 
 	// Create detector config from handler config
 	detectorConfig := make(map[string]interface{})
-	if detectorName == pii.DetectorNameModel {
+	switch detectorName {
+	case pii.DetectorNameModel:
 		detectorConfig["base_url"] = h.config.ModelBaseURL
-	} else if detectorName == pii.DetectorNameRegex {
+	case pii.DetectorNameRegex:
 		detectorConfig["patterns"] = pii.PIIPatterns
-	} else {
+	default:
 		return nil, fmt.Errorf("invalid detector name: %s", detectorName)
 	}
 	return pii.NewDetector(detectorName, detectorConfig)
@@ -106,7 +107,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to proxy request to OpenAI", http.StatusBadGateway)
 		return
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Process and send response
 	h.processAndSendResponse(w, resp)
@@ -120,7 +121,7 @@ func (h *Handler) readRequestBody(r *http.Request) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer r.Body.Close()
+	defer func() { _ = r.Body.Close() }()
 	return body, nil
 }
 
