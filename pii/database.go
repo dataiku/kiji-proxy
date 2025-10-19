@@ -142,7 +142,10 @@ func (p *PostgresPIIMappingDB) GetDummy(ctx context.Context, original string) (s
 	SET last_accessed_at = NOW(), access_count = access_count + 1
 	WHERE original_pii = $1
 	`
-	p.db.ExecContext(ctx, updateQuery, original) // Don't fail if this fails
+	if _, err := p.db.ExecContext(ctx, updateQuery, original); err != nil {
+		// Log error but don't fail the operation
+		fmt.Printf("Warning: failed to update access statistics: %v\n", err)
+	}
 
 	return dummy, true, nil
 }
@@ -169,7 +172,10 @@ func (p *PostgresPIIMappingDB) GetOriginal(ctx context.Context, dummy string) (s
 	SET last_accessed_at = NOW(), access_count = access_count + 1
 	WHERE dummy_pii = $1
 	`
-	p.db.ExecContext(ctx, updateQuery, dummy) // Don't fail if this fails
+	if _, err := p.db.ExecContext(ctx, updateQuery, dummy); err != nil {
+		// Log error but don't fail the operation
+		fmt.Printf("Warning: failed to update access statistics: %v\n", err)
+	}
 
 	return original, true, nil
 }

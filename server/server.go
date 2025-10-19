@@ -62,7 +62,9 @@ func (s *Server) Start() error {
 func (s *Server) healthCheck(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"status":"healthy","service":"Yaak Proxy Service"}`))
+	if _, err := w.Write([]byte(`{"status":"healthy","service":"Yaak Proxy Service"}`)); err != nil {
+		log.Printf("Failed to write health check response: %v", err)
+	}
 }
 
 // StartWithErrorHandling starts the server with proper error handling
