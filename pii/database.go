@@ -120,15 +120,35 @@ func (p *PostgresPIIMappingDB) StoreMapping(ctx context.Context, original, dummy
 	return err
 }
 
-// GetDummy retrieves dummy data for original PII
-func (p *PostgresPIIMappingDB) GetDummy(ctx context.Context, original string) (string, bool, error) {
-	query := `
-	SELECT dummy_pii FROM pii_mappings
-	WHERE original_pii = $1
-	`
+// getValue retrieves a value from the database with access statistics update
+func (p *PostgresPIIMappingDB) getValue(ctx context.Context, key string, isOriginalToDummy bool) (string, bool, error) {
+	var query string
+	var updateQuery string
 
-	var dummy string
-	err := p.db.QueryRowContext(ctx, query, original).Scan(&dummy)
+	if isOriginalToDummy {
+		query = `
+		SELECT dummy_pii FROM pii_mappings
+		WHERE original_pii = $1
+		`
+		updateQuery = `
+		UPDATE pii_mappings
+		SET last_accessed_at = NOW(), access_count = access_count + 1
+		WHERE original_pii = $1
+		`
+	} else {
+		query = `
+		SELECT original_pii FROM pii_mappings
+		WHERE dummy_pii = $1
+		`
+		updateQuery = `
+		UPDATE pii_mappings
+		SET last_accessed_at = NOW(), access_count = access_count + 1
+		WHERE dummy_pii = $1
+		`
+	}
+
+	var value string
+	err := p.db.QueryRowContext(ctx, query, key).Scan(&value)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return "", false, nil
@@ -137,47 +157,22 @@ func (p *PostgresPIIMappingDB) GetDummy(ctx context.Context, original string) (s
 	}
 
 	// Update access statistics
-	updateQuery := `
-	UPDATE pii_mappings
-	SET last_accessed_at = NOW(), access_count = access_count + 1
-	WHERE original_pii = $1
-	`
-	if _, err := p.db.ExecContext(ctx, updateQuery, original); err != nil {
+	if _, err := p.db.ExecContext(ctx, updateQuery, key); err != nil {
 		// Log error but don't fail the operation
 		fmt.Printf("Warning: failed to update access statistics: %v\n", err)
 	}
 
-	return dummy, true, nil
+	return value, true, nil
+}
+
+// GetDummy retrieves dummy data for original PII
+func (p *PostgresPIIMappingDB) GetDummy(ctx context.Context, original string) (string, bool, error) {
+	return p.getValue(ctx, original, true)
 }
 
 // GetOriginal retrieves original PII for dummy data
 func (p *PostgresPIIMappingDB) GetOriginal(ctx context.Context, dummy string) (string, bool, error) {
-	query := `
-	SELECT original_pii FROM pii_mappings
-	WHERE dummy_pii = $1
-	`
-
-	var original string
-	err := p.db.QueryRowContext(ctx, query, dummy).Scan(&original)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return "", false, nil
-		}
-		return "", false, err
-	}
-
-	// Update access statistics
-	updateQuery := `
-	UPDATE pii_mappings
-	SET last_accessed_at = NOW(), access_count = access_count + 1
-	WHERE dummy_pii = $1
-	`
-	if _, err := p.db.ExecContext(ctx, updateQuery, dummy); err != nil {
-		// Log error but don't fail the operation
-		fmt.Printf("Warning: failed to update access statistics: %v\n", err)
-	}
-
-	return original, true, nil
+	return p.getValue(ctx, dummy, false)
 }
 
 // DeleteMapping removes a mapping from the database

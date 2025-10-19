@@ -46,33 +46,33 @@ func (h *Handler) GetDetector() (pii.Detector, error) {
 
 // generateMaskedText creates a masked version of PII text based on the label
 func (h *Handler) generateMaskedText(label string, originalText string) string {
-	// Create a new random generator for each call to ensure variety
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-
 	// Use map-based approach to reduce cyclomatic complexity
 	generator := h.getGeneratorForLabel(label)
-	return generator(rng, originalText)
+	return generator(originalText)
 }
 
 // getGeneratorForLabel returns the appropriate generator function for the given label
-func (h *Handler) getGeneratorForLabel(label string) func(*rand.Rand, string) string {
-	generators := map[string]func(*rand.Rand, string) string{
-		"EMAIL":            piiGenerators.EmailGenerator,
-		"SOCIALNUM":        piiGenerators.SSNGenerator,
-		"TELEPHONENUM":     piiGenerators.PhoneGenerator,
-		"CREDITCARDNUMBER": piiGenerators.CreditCardGenerator,
-		"USERNAME":         piiGenerators.UsernameGenerator,
-		"DATEOFBIRTH":      piiGenerators.DateOfBirthGenerator,
-		"ZIPCODE":          piiGenerators.ZipCodeGenerator,
-		"ACCOUNTNUM":       piiGenerators.AccountNumGenerator,
-		"IDCARDNUM":        piiGenerators.IDCardNumGenerator,
-		"DRIVERLICENSENUM": piiGenerators.DriverLicenseNumGenerator,
-		"TAXNUM":           piiGenerators.TaxNumGenerator,
-		"CITY":             piiGenerators.CityGenerator,
-		"STREET":           piiGenerators.StreetGenerator,
-		"BUILDINGNUM":      piiGenerators.BuildingNumGenerator,
-		"GIVENNAME":        piiGenerators.GivenNameGenerator,
-		"SURNAME":          piiGenerators.SurnameGenerator,
+func (h *Handler) getGeneratorForLabel(label string) func(string) string {
+	// Create a secure random generator for each call
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	generators := map[string]func(string) string{
+		"EMAIL":            func(original string) string { return piiGenerators.EmailGenerator(rng, original) },
+		"SOCIALNUM":        func(original string) string { return piiGenerators.SSNGenerator(rng, original) },
+		"TELEPHONENUM":     func(original string) string { return piiGenerators.PhoneGenerator(rng, original) },
+		"CREDITCARDNUMBER": func(original string) string { return piiGenerators.CreditCardGenerator(rng, original) },
+		"USERNAME":         func(original string) string { return piiGenerators.UsernameGenerator(rng, original) },
+		"DATEOFBIRTH":      func(original string) string { return piiGenerators.DateOfBirthGenerator(rng, original) },
+		"ZIPCODE":          func(original string) string { return piiGenerators.ZipCodeGenerator(rng, original) },
+		"ACCOUNTNUM":       func(original string) string { return piiGenerators.AccountNumGenerator(rng, original) },
+		"IDCARDNUM":        func(original string) string { return piiGenerators.IDCardNumGenerator(rng, original) },
+		"DRIVERLICENSENUM": func(original string) string { return piiGenerators.DriverLicenseNumGenerator(rng, original) },
+		"TAXNUM":           func(original string) string { return piiGenerators.TaxNumGenerator(rng, original) },
+		"CITY":             func(original string) string { return piiGenerators.CityGenerator(rng, original) },
+		"STREET":           func(original string) string { return piiGenerators.StreetGenerator(rng, original) },
+		"BUILDINGNUM":      func(original string) string { return piiGenerators.BuildingNumGenerator(rng, original) },
+		"GIVENNAME":        func(original string) string { return piiGenerators.GivenNameGenerator(rng, original) },
+		"SURNAME":          func(original string) string { return piiGenerators.SurnameGenerator(rng, original) },
 	}
 
 	if generator, exists := generators[label]; exists {
@@ -80,7 +80,7 @@ func (h *Handler) getGeneratorForLabel(label string) func(*rand.Rand, string) st
 	}
 
 	// Return generic generator for unknown labels
-	return piiGenerators.GenericGenerator
+	return func(original string) string { return piiGenerators.GenericGenerator(rng, original) }
 }
 
 // ServeHTTP implements the http.Handler interface
