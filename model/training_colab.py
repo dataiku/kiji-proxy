@@ -50,7 +50,9 @@ from transformers import (
 )
 
 # Set up logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 
@@ -159,7 +161,14 @@ class EnvironmentSetup:
             logger.exception(f"❌ Failed to install: {', '.join(package_list)}")
             if index_url:
                 logger.info("Trying fallback installation...")
-                cmd_fallback = [sys.executable, "-m", "pip", "install", "-q", *package_list]
+                cmd_fallback = [
+                    sys.executable,
+                    "-m",
+                    "pip",
+                    "install",
+                    "-q",
+                    *package_list,
+                ]
                 subprocess.check_call(cmd_fallback)
                 logger.info("✅ Fallback installation successful")
             else:
@@ -346,7 +355,9 @@ class PIILabels:
         return label2id, id2label, label_set
 
     @classmethod
-    def save_mappings(cls, label2id: dict[str, int], id2label: dict[int, str], filepath: str):
+    def save_mappings(
+        cls, label2id: dict[str, int], id2label: dict[int, str], filepath: str
+    ):
         """Save label mappings to JSON file."""
         mappings = {"label2id": label2id, "id2label": id2label}
         with Path(filepath).open("w") as f:
@@ -376,7 +387,9 @@ class WordBasedPreprocessor:
     which differs from character offset-based preprocessing.
     """
 
-    def __init__(self, tokenizer: AutoTokenizer, label_set: set, label2id: dict[str, int]):
+    def __init__(
+        self, tokenizer: AutoTokenizer, label_set: set, label2id: dict[str, int]
+    ):
         """
         Initialize the preprocessor.
 
@@ -390,7 +403,9 @@ class WordBasedPreprocessor:
         self.label2id = label2id
         self.error_count = 0
 
-    def generate_sequence_labels(self, text: str, privacy_mask: list[dict]) -> list[str]:
+    def generate_sequence_labels(
+        self, text: str, privacy_mask: list[dict]
+    ) -> list[str]:
         """
         Generate sequence labels by replacing sensitive text with label placeholders.
 
@@ -453,7 +468,9 @@ class WordBasedPreprocessor:
         # Generate sequence labels
         source_labels = [
             self.generate_sequence_labels(text, mask)
-            for text, mask in zip(examples["source_text"], examples["privacy_mask"], strict=True)
+            for text, mask in zip(
+                examples["source_text"], examples["privacy_mask"], strict=True
+            )
         ]
 
         # Align labels with tokens
@@ -509,9 +526,13 @@ class DatasetProcessor:
         self.config = config
         self.tokenizer = AutoTokenizer.from_pretrained(config.model_name)
         self.label2id, self.id2label, self.label_set = PIILabels.create_label_mappings()
-        self.preprocessor = WordBasedPreprocessor(self.tokenizer, self.label_set, self.label2id)
+        self.preprocessor = WordBasedPreprocessor(
+            self.tokenizer, self.label_set, self.label2id
+        )
 
-    def process_dataset(self, split: str = "train", max_samples: int | None = None) -> Dataset:
+    def process_dataset(
+        self, split: str = "train", max_samples: int | None = None
+    ) -> Dataset:
         """
         Process dataset using word-based preprocessing.
 
@@ -543,7 +564,9 @@ class DatasetProcessor:
 
         logger.info(f"✅ Successfully processed {len(processed_dataset)} samples")
         if self.preprocessor.error_count > 0:
-            logger.warning(f"⚠️  Warning: {self.preprocessor.error_count} samples had errors")
+            logger.warning(
+                f"⚠️  Warning: {self.preprocessor.error_count} samples had errors"
+            )
 
         return processed_dataset
 
@@ -681,7 +704,9 @@ class PIITrainer:
                 num_classes=len(self.label2id),
                 reduction="mean",
             )
-            logger.info(f"✅ Initialized custom masked loss with {len(self.label2id)} classes")
+            logger.info(
+                f"✅ Initialized custom masked loss with {len(self.label2id)} classes"
+            )
 
         logger.info(f"✅ Model initialized with {len(self.label2id)} labels")
 
@@ -739,7 +764,9 @@ class PIITrainer:
             raise ValueError("Model must be initialized first")
 
         # Data collator
-        data_collator = DataCollatorForTokenClassification(tokenizer=self.tokenizer, padding=True)
+        data_collator = DataCollatorForTokenClassification(
+            tokenizer=self.tokenizer, padding=True
+        )
 
         # Training arguments
         training_args = TrainingArguments(
@@ -814,7 +841,9 @@ class PIITrainer:
         """
         if trainer is None:
             # Load the trained model
-            self.model = AutoModelForTokenClassification.from_pretrained(self.config.output_dir)
+            self.model = AutoModelForTokenClassification.from_pretrained(
+                self.config.output_dir
+            )
 
             data_collator = DataCollatorForTokenClassification(
                 tokenizer=self.tokenizer, padding=True
