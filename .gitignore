@@ -44,3 +44,7 @@ __pycache__/
 # Node.js dependencies
 node_modules/
 ui/node_modules/
+tokenizers/
+pii_onnx_model/
+dist/
+build/

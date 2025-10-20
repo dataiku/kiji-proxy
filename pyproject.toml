@@ -48,6 +48,13 @@ training = [
     "sympy>=1.0.0",
 ]
 
+# ONNX quantization dependencies
+quantization = [
+    "optimum[onnxruntime]>=1.15.0",
+    "onnx>=1.15.0",
+    "onnxruntime>=1.16.0",
+]
+
 all = [
     "pytest>=6.0",
     "ruff>=0.1.0",
