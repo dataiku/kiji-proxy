@@ -493,9 +493,16 @@ func (h *Handler) extractTextFromResponse(responseData map[string]interface{}) (
 // createMaskedRequest creates a masked version of the request by replacing text in messages
 func (h *Handler) createMaskedRequest(originalRequest map[string]interface{}, originalText, maskedText string) map[string]interface{} {
 	// Deep copy the request
-	requestBytes, _ := json.Marshal(originalRequest)
+	requestBytes, err := json.Marshal(originalRequest)
+	if err != nil {
+		log.Printf("Failed to marshal original request: %v", err)
+		return originalRequest
+	}
 	var maskedRequest map[string]interface{}
-	json.Unmarshal(requestBytes, &maskedRequest)
+	if err := json.Unmarshal(requestBytes, &maskedRequest); err != nil {
+		log.Printf("Failed to unmarshal request bytes: %v", err)
+		return originalRequest
+	}
 
 	// Replace text in messages
 	if messages, ok := maskedRequest["messages"].([]interface{}); ok {
