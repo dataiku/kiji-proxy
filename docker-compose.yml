@@ -39,6 +39,8 @@ services:
       # Application configuration
       PROXY_PORT: ":8080"
       OPENAI_BASE_URL: "https://api.openai.com/v1"
+      # Add your OpenAI API key here
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
 
       # PII Detector configuration
       DETECTOR_NAME: "model_detector"  # or "model_detector"

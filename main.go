@@ -96,6 +96,9 @@ func loadApplicationConfig(cfg *config.Config) {
 	if openAIURL := os.Getenv("OPENAI_BASE_URL"); openAIURL != "" {
 		cfg.OpenAIBaseURL = openAIURL
 	}
+	if apiKey := os.Getenv("OPENAI_API_KEY"); apiKey != "" {
+		cfg.OpenAIAPIKey = apiKey
+	}
 }
 
 // loadPIIDetectorConfig loads PII detector configuration from environment variables

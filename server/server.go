@@ -54,6 +54,7 @@ func (s *Server) Start() error {
 	// Add health check endpoint
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", s.healthCheck)
+	mux.HandleFunc("/details", s.detailsHandler)
 	mux.Handle("/", s.handler)
 
 	// Create server with timeout configuration
@@ -75,6 +76,19 @@ func (s *Server) healthCheck(w http.ResponseWriter, r *http.Request) {
 	if _, err := w.Write([]byte(`{"status":"healthy","service":"Yaak Proxy Service"}`)); err != nil {
 		log.Printf("Failed to write health check response: %v", err)
 	}
+}
+
+// detailsHandler provides the details endpoint for PII analysis
+func (s *Server) detailsHandler(w http.ResponseWriter, r *http.Request) {
+	log.Println("--- in detailsHandler ---")
+	// Only allow POST requests
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Delegate to the handler's HandleDetails method
+	s.handler.HandleDetails(w, r)
 }
 
 // StartWithErrorHandling starts the server with proper error handling

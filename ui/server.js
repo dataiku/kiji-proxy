@@ -1,8 +1,18 @@
 const express = require('express');
 const path = require('path');
+const { createProxyMiddleware } = require('http-proxy-middleware');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Proxy /details requests to the Go proxy server
+app.use('/details', createProxyMiddleware({
+  target: 'http://yaak-proxy:8080',
+  changeOrigin: true,
+  pathRewrite: {
+    '^/details': '/details'
+  }
+}));
 
 // Serve static files from the dist directory
 app.use(express.static(path.join(__dirname, 'dist')));

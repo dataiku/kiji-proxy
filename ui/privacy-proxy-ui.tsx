@@ -12,106 +12,62 @@ export default function PrivacyProxyUI() {
   const [copiedStage, setCopiedStage] = useState(null);
   const [showConfidence, setShowConfidence] = useState(true);
 
-  // Simulate the privacy proxy flow
+  // Call the real /details endpoint
   const handleSubmit = async () => {
     if (!inputData.trim()) return;
-    
+
     setIsProcessing(true);
-    
-    // Simulate scanning and masking (A -> A')
-    await new Promise(resolve => setTimeout(resolve, 500));
-    const { masked, entities } = simulateMasking(inputData);
-    setMaskedInput(masked);
-    setDetectedEntities(entities);
-    
-    // Simulate Claude processing (A' -> B')
-    await new Promise(resolve => setTimeout(resolve, 800));
-    const claudeResponse = simulateClaudeResponse(masked);
-    setMaskedOutput(claudeResponse);
-    
-    // Simulate demasking (B' -> B)
-    await new Promise(resolve => setTimeout(resolve, 500));
-    const final = simulateDemasking(claudeResponse, entities);
-    setFinalOutput(final);
-    
-    setIsProcessing(false);
+
+    try {
+      // Create OpenAI chat completion request format
+      const requestBody = {
+        model: "gpt-3.5-turbo",
+        messages: [
+          {
+            role: "user",
+            content: inputData
+          }
+        ],
+        max_tokens: 1000
+      };
+
+      // Call the /details endpoint (proxied to Go server)
+      const response = await fetch('/details', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      // Update state with real data from the API
+      setMaskedInput(data.masked_request);
+      setMaskedOutput(data.masked_response);
+      setFinalOutput(data.unmasked_response);
+
+      // Transform PII entities to match UI format
+      const transformedEntities = data.pii_entities.map(entity => ({
+        type: entity.label.toLowerCase(),
+        original: entity.text,
+        token: entity.masked_text,
+        confidence: entity.confidence
+      }));
+      setDetectedEntities(transformedEntities);
+
+    } catch (error) {
+      console.error('Error calling /details endpoint:', error);
+      alert(`Error: ${error.message}`);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
-  // Simple masking simulation
-  const simulateMasking = (text) => {
-    const entities = [];
-    let masked = text;
-    
-    // Email detection
-    const emailRegex = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g;
-    const emails = text.match(emailRegex) || [];
-    emails.forEach((email, i) => {
-      const token = `[EMAIL_${i}]`;
-      masked = masked.replace(email, token);
-      entities.push({ 
-        type: 'email', 
-        original: email, 
-        token,
-        confidence: 0.95 + Math.random() * 0.05 // 95-100%
-      });
-    });
-    
-    // Phone detection
-    const phoneRegex = /\b\d{3}[-.]?\d{3}[-.]?\d{4}\b/g;
-    const phones = text.match(phoneRegex) || [];
-    phones.forEach((phone, i) => {
-      const token = `[PHONE_${i}]`;
-      masked = masked.replace(phone, token);
-      entities.push({ 
-        type: 'phone', 
-        original: phone, 
-        token,
-        confidence: 0.90 + Math.random() * 0.09 // 90-99%
-      });
-    });
-    
-    // SSN detection
-    const ssnRegex = /\b\d{3}-\d{2}-\d{4}\b/g;
-    const ssns = text.match(ssnRegex) || [];
-    ssns.forEach((ssn, i) => {
-      const token = `[SSN_${i}]`;
-      masked = masked.replace(ssn, token);
-      entities.push({ 
-        type: 'ssn', 
-        original: ssn, 
-        token,
-        confidence: 0.98 + Math.random() * 0.02 // 98-100%
-      });
-    });
-    
-    // Name detection (simple - looks for capitalized words)
-    const nameRegex = /\b[A-Z][a-z]+ [A-Z][a-z]+\b/g;
-    const names = text.match(nameRegex) || [];
-    names.forEach((name, i) => {
-      const token = `[NAME_${i}]`;
-      masked = masked.replace(name, token);
-      entities.push({ 
-        type: 'name', 
-        original: name, 
-        token,
-        confidence: 0.75 + Math.random() * 0.20 // 75-95% (less certain)
-      });
-    });
-    
-    return { masked, entities };
-  };
-
-  const simulateClaudeResponse = (masked) => {
-    return `Thank you for your message. I've reviewed the information you provided.\n\nI can confirm that I'll process your request using the contact details you shared: ${masked.includes('[EMAIL_0]') ? '[EMAIL_0]' : 'your email'} and ${masked.includes('[PHONE_0]') ? '[PHONE_0]' : 'your phone number'}.\n\nIf you need any additional assistance, please don't hesitate to reach out.\n\nBest regards`;
-  };
-
-  const simulateDemasking = (masked, entities) => {
-    let demasked = masked;
-    entities.forEach(entity => {
-      demasked = demasked.replace(entity.token, entity.original);
-    });
-    return demasked;
-  };
 
   const handleReset = () => {
     setInputData('');
@@ -145,6 +101,7 @@ export default function PrivacyProxyUI() {
   const highlightDifferences = (original, modified, entities) => {
     let result = modified;
     entities.forEach(entity => {
+      // Highlight the masked text in the modified version
       result = result.replace(
         entity.token,
         `<mark class="bg-yellow-200 px-1 rounded">${entity.token}</mark>`
@@ -215,7 +172,7 @@ export default function PrivacyProxyUI() {
           <textarea
             value={inputData}
             onChange={(e) => setInputData(e.target.value)}
-            placeholder="Enter your message with sensitive information...&#10;&#10;Example: Hi, my name is John Smith and my email is john.smith@email.com. My phone is 555-123-4567."
+            placeholder="Enter your message with sensitive information...&#10;&#10;Example: Hi, my name is John Smith and my email is john.smith@email.com. My phone is 555-123-4567.&#10;&#10;This will be processed through the real PII detection and masking pipeline."
             className="w-full h-32 p-4 border-2 border-slate-200 rounded-lg focus:border-blue-500 focus:outline-none resize-none font-mono text-sm"
           />
           <div className="flex gap-3 mt-4">
@@ -322,7 +279,7 @@ export default function PrivacyProxyUI() {
             <div className="flex justify-center">
               <div className="flex items-center gap-2 text-slate-400">
                 <ArrowRight className="w-6 h-6" />
-                <span className="text-sm font-medium">Sent to Claude API</span>
+                <span className="text-sm font-medium">Sent to OpenAI API</span>
                 <ArrowRight className="w-6 h-6" />
               </div>
             </div>
@@ -336,7 +293,7 @@ export default function PrivacyProxyUI() {
                 </h2>
                 <div className="flex items-center gap-2">
                   <span className="text-sm px-3 py-1 bg-purple-100 text-purple-700 rounded-full font-medium">
-                    From Claude
+                    From OpenAI
                   </span>
                   <button
                     onClick={() => copyToClipboard(maskedOutput, 'B')}
@@ -512,12 +469,12 @@ export default function PrivacyProxyUI() {
                   </div>
                   <div className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap">
                     {inputData.split('').map((char, idx) => {
-                      const isPartOfEntity = detectedEntities.some(e => 
-                        inputData.indexOf(e.original) <= idx && 
+                      const isPartOfEntity = detectedEntities.some(e =>
+                        inputData.indexOf(e.original) <= idx &&
                         idx < inputData.indexOf(e.original) + e.original.length
                       );
                       return (
-                        <span 
+                        <span
                           key={idx}
                           className={isPartOfEntity ? 'bg-red-200 text-red-900' : ''}
                         >
@@ -533,17 +490,16 @@ export default function PrivacyProxyUI() {
                     <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded">PII Protected</span>
                   </div>
                   <div className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap">
-                    {maskedInput.split(/(\[.*?\])/).map((part, idx) => {
-                      const isToken = /\[.*?\]/.test(part);
-                      return (
-                        <span 
-                          key={idx}
-                          className={isToken ? 'bg-green-200 text-green-900 font-bold' : ''}
-                        >
-                          {part}
-                        </span>
-                      );
-                    })}
+                    {(() => {
+                      let highlighted = maskedInput;
+                      detectedEntities.forEach(entity => {
+                        highlighted = highlighted.replace(
+                          entity.token,
+                          `<mark class="bg-green-200 text-green-900 font-bold">${entity.token}</mark>`
+                        );
+                      });
+                      return <div dangerouslySetInnerHTML={{ __html: highlighted }} />;
+                    })()}
                   </div>
                 </div>
               </div>
@@ -564,20 +520,19 @@ export default function PrivacyProxyUI() {
                 <div>
                   <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
                     <span>Masked Output (B')</span>
-                    <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded">From Claude</span>
+                    <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded">From OpenAI</span>
                   </div>
                   <div className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap">
-                    {maskedOutput.split(/(\[.*?\])/).map((part, idx) => {
-                      const isToken = /\[.*?\]/.test(part);
-                      return (
-                        <span 
-                          key={idx}
-                          className={isToken ? 'bg-purple-200 text-purple-900 font-bold' : ''}
-                        >
-                          {part}
-                        </span>
-                      );
-                    })}
+                    {(() => {
+                      let highlighted = maskedOutput;
+                      detectedEntities.forEach(entity => {
+                        highlighted = highlighted.replace(
+                          entity.token,
+                          `<mark class="bg-purple-200 text-purple-900 font-bold">${entity.token}</mark>`
+                        );
+                      });
+                      return <div dangerouslySetInnerHTML={{ __html: highlighted }} />;
+                    })()}
                   </div>
                 </div>
                 <div>
@@ -589,23 +544,12 @@ export default function PrivacyProxyUI() {
                     {(() => {
                       let highlighted = finalOutput;
                       detectedEntities.forEach(entity => {
-                        const parts = highlighted.split(entity.original);
-                        highlighted = parts.join(`<HIGHLIGHT>${entity.original}<ENDHIGHLIGHT>`);
-                      });
-                      return highlighted.split(/(<HIGHLIGHT>|<ENDHIGHLIGHT>)/).map((part, idx) => {
-                        if (part === '<HIGHLIGHT>') return null;
-                        if (part === '<ENDHIGHLIGHT>') return null;
-                        const prevPart = highlighted.split(/(<HIGHLIGHT>|<ENDHIGHLIGHT>)/)[idx - 1];
-                        const isHighlighted = prevPart === '<HIGHLIGHT>';
-                        return (
-                          <span 
-                            key={idx}
-                            className={isHighlighted ? 'bg-blue-200 text-blue-900 font-bold' : ''}
-                          >
-                            {part}
-                          </span>
+                        highlighted = highlighted.replace(
+                          entity.original,
+                          `<mark class="bg-blue-200 text-blue-900 font-bold">${entity.original}</mark>`
                         );
                       });
+                      return <div dangerouslySetInnerHTML={{ __html: highlighted }} />;
                     })()}
                   </div>
                 </div>
@@ -631,7 +575,7 @@ export default function PrivacyProxyUI() {
                 </div>
                 <div className="bg-white rounded-lg p-4 border-l-4 border-blue-500">
                   <div className="text-2xl font-bold text-slate-800">
-                    {detectedEntities.length > 0 
+                    {detectedEntities.length > 0
                       ? ((detectedEntities.reduce((sum, e) => sum + e.confidence, 0) / detectedEntities.length) * 100).toFixed(1)
                       : 0}%
                   </div>
@@ -644,7 +588,7 @@ export default function PrivacyProxyUI() {
 
         {/* Info Footer */}
         <div className="mt-8 text-center text-sm text-slate-500">
-          <p>Demo UI for Privacy Proxy Service. Connect to your backend API for production use.</p>
+          <p>Privacy Proxy Service UI - Connected to real PII detection and masking pipeline.</p>
         </div>
       </div>
     </div>
