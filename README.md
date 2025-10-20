@@ -8,6 +8,12 @@
 
 A secure HTTP proxy service that intercepts requests to the OpenAI API, detects and redacts Personally Identifiable Information (PII), and restores original PII in responses. Built with Go and featuring PostgreSQL database support for persistent PII mapping storage.
 
+## 🖥️ UI Screenshot
+
+<div align="center">
+  <img src="static/ui-screenshot.png" alt="Privacy Proxy Service UI" height="600">
+</div>
+
 ## 🏗️ Architecture
 
 ```
