@@ -27,6 +27,7 @@ type DatabaseConfig struct {
 // Config holds all configuration for the PII proxy service
 type Config struct {
 	OpenAIBaseURL string
+	OpenAIAPIKey  string
 	ProxyPort     string
 	DetectorName  string
 	ModelBaseURL  string

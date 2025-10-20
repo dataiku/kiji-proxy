@@ -16,6 +16,9 @@ RUN go mod download
 # Copy source code
 COPY . .
 
+RUN cat /app/server/server.go
+RUN cat /app/proxy/handler.go
+
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main .
 

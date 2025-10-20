@@ -40,3 +40,7 @@ pii_model/*
 __pycache__/
 *.pyc
 .ruff_cache/
+
+# Node.js dependencies
+node_modules/
+ui/node_modules/
