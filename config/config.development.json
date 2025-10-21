@@ -1,0 +1,17 @@
+{
+  "ProxyPort": ":8080",
+  "DetectorName": "onnx_model_detector",
+  "ModelBaseURL": "http://localhost:8000",
+  "Database": {
+    "Enabled": false
+  },
+  "Logging": {
+    "LogRequests": true,
+    "LogResponses": true,
+    "LogPIIChanges": true,
+    "LogVerbose": false
+  },
+  "ONNXModelPath": "pii_onnx_model/model_quantized.onnx",
+  "TokenizerPath": "pii_onnx_model/tokenizer.json",
+  "UIPath": "./ui/dist"
+}

@@ -43,8 +43,11 @@ func DefaultConfig() *Config {
 	return &Config{
 		OpenAIBaseURL: "https://api.openai.com/v1",
 		ProxyPort:     ":8080",
-		DetectorName:  "model_detector",
+		DetectorName:  "onnx_model_detector",
 		ModelBaseURL:  "http://localhost:8000",
+		ONNXModelPath: "pii_onnx_model/model_quantized.onnx",
+		TokenizerPath: "pii_onnx_model/tokenizer.json",
+		UIPath:        "./ui/dist",
 		Database: DatabaseConfig{
 			Enabled:      false,
 			Host:         "localhost",

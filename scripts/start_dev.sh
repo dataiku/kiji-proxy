@@ -33,4 +33,4 @@ echo "  - Port: 8080"
 echo ""
 
 echo "🚀 Starting Go server..."
-go run main.go --config=config.development.json
+go run main.go --config=config/config.development.json

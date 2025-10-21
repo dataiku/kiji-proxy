@@ -25,7 +25,7 @@ type ONNXModelDetectorSimple struct {
 // NewONNXModelDetectorSimple creates a new ONNX model detector
 func NewONNXModelDetectorSimple(modelPath string, tokenizerPath string) (*ONNXModelDetectorSimple, error) {
 	// Set the ONNX Runtime shared library path for macOS
-	onnxruntime.SetSharedLibraryPath("dist/yaak-proxy/libonnxruntime.1.23.1.dylib")
+	onnxruntime.SetSharedLibraryPath("./libonnxruntime.1.23.1.dylib")
 
 	// Initialize ONNX Runtime environment only if not already initialized
 	if !onnxruntime.IsInitialized() {

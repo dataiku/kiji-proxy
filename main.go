@@ -1,15 +1,24 @@
 package main
 
 import (
+	"embed"
 	"encoding/json"
 	"flag"
+	"io/fs"
 	"log"
 	"os"
+	"path/filepath"
 	"strconv"
 
 	"github.com/hannes/yaak-private/config"
 	"github.com/hannes/yaak-private/server"
 )
+
+//go:embed ui/dist/*
+var uiFiles embed.FS
+
+//go:embed pii_onnx_model/*
+var modelFiles embed.FS
 
 const TRUE = "true"
 
@@ -37,9 +46,35 @@ func main() {
 	// cfg.Logging.LogVerbose = true     // Log detailed PII changes
 
 	// Create and start server
-	srv, err := server.NewServer(cfg)
-	if err != nil {
-		log.Fatalf("Failed to create server: %v", err)
+	var srv *server.Server
+	var err error
+
+	// Check if we're in development mode (using config file)
+	// In development, use file system; in production, use embedded files
+	if *configPath != "" {
+		// Development mode - use file system
+		srv, err = server.NewServer(cfg)
+		if err != nil {
+			log.Fatalf("Failed to create server: %v", err)
+		}
+		log.Println("Using file system UI and model files (development mode)")
+	} else {
+		// Production mode - use embedded files
+		// Extract model files to temporary directory for ONNX runtime
+		log.Println("Extracting embedded model files...")
+		err := extractEmbeddedModelFiles(modelFiles)
+		if err != nil {
+			log.Printf("Warning: Failed to extract model files: %v", err)
+			log.Println("Falling back to file system model files")
+		} else {
+			log.Println("Model files extracted successfully")
+		}
+
+		srv, err = server.NewServerWithEmbedded(cfg, uiFiles, modelFiles)
+		if err != nil {
+			log.Fatalf("Failed to create server with embedded files: %v", err)
+		}
+		log.Println("Using embedded UI and model files (production mode)")
 	}
 
 	// Start server with error handling
@@ -154,4 +189,41 @@ func loadLoggingConfig(cfg *config.Config) {
 	if logResponses := os.Getenv("LOG_RESPONSES"); logResponses != "" {
 		cfg.Logging.LogResponses = logResponses == TRUE
 	}
+}
+
+// extractEmbeddedModelFiles extracts embedded model files to the current directory
+func extractEmbeddedModelFiles(modelFS embed.FS) error {
+	// Create pii_onnx_model directory if it doesn't exist
+	if err := os.MkdirAll("pii_onnx_model", 0755); err != nil {
+		return err
+	}
+
+	// Walk through embedded files and extract them
+	return fs.WalkDir(modelFS, ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Skip directories
+		if d.IsDir() {
+			return nil
+		}
+
+		// Read embedded file
+		content, err := modelFS.ReadFile(path)
+		if err != nil {
+			return err
+		}
+
+		// Create target file path
+		targetPath := filepath.Join("pii_onnx_model", filepath.Base(path))
+
+		// Write file to disk
+		if err := os.WriteFile(targetPath, content, 0644); err != nil {
+			return err
+		}
+
+		log.Printf("Extracted: %s", targetPath)
+		return nil
+	})
 }
