@@ -25,18 +25,17 @@ jobs:
       with:
         version: "latest"
 
-    - name: Install dependencies
+    - name: Install ruff
       run: |
-        uv sync --dev
-        uv add --dev ruff
+        uv pip install ruff
 
     - name: Run ruff linter
       run: |
-        uv run -- ruff check .
+        ruff check .
 
     - name: Run ruff formatter check
       run: |
-        uv run -- ruff format --check . --diff
+        ruff format --check . --diff
 
   go-lint:
     runs-on: ubuntu-latest
