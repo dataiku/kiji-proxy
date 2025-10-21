@@ -1,6 +1,9 @@
 package pii
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+)
 
 const (
 	DetectorNameModel     = "model_detector"
@@ -10,7 +13,7 @@ const (
 
 type Detector interface {
 	GetName() string
-	Detect(input DetectorInput) (DetectorOutput, error)
+	Detect(ctx context.Context, input DetectorInput) (DetectorOutput, error)
 	Close() error
 }
 

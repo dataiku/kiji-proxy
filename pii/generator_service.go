@@ -14,6 +14,7 @@ type GeneratorService struct {
 
 // NewGeneratorService creates a new generator service
 func NewGeneratorService() *GeneratorService {
+	// #nosec G404 - Using math/rand for deterministic PII generation, not security-critical
 	return &GeneratorService{
 		rng: rand.New(rand.NewSource(time.Now().UnixNano())),
 	}

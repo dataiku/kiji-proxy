@@ -83,6 +83,7 @@ func main() {
 
 // loadConfigFromFile loads configuration from a JSON file
 func loadConfigFromFile(path string, cfg *config.Config) {
+	// #nosec G304 - Config file path is controlled by application, not user input
 	file, err := os.Open(path)
 	if err != nil {
 		log.Printf("Failed to open config file: %v", err)
@@ -198,7 +199,7 @@ func loadLoggingConfig(cfg *config.Config) {
 // extractEmbeddedModelFiles extracts embedded model files to the current directory
 func extractEmbeddedModelFiles(modelFS embed.FS) error {
 	// Create pii_onnx_model directory if it doesn't exist
-	if err := os.MkdirAll("pii_onnx_model", 0755); err != nil {
+	if err := os.MkdirAll("pii_onnx_model", 0750); err != nil {
 		return err
 	}
 
@@ -223,7 +224,7 @@ func extractEmbeddedModelFiles(modelFS embed.FS) error {
 		targetPath := filepath.Join("pii_onnx_model", filepath.Base(path))
 
 		// Write file to disk
-		if err := os.WriteFile(targetPath, content, 0644); err != nil {
+		if err := os.WriteFile(targetPath, content, 0600); err != nil {
 			return err
 		}
 

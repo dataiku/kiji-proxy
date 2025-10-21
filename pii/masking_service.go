@@ -1,6 +1,7 @@
 package pii
 
 import (
+	"context"
 	"log"
 	"strings"
 
@@ -30,7 +31,7 @@ func NewMaskingService(detector detectors.Detector, generator *GeneratorService)
 
 // MaskText detects PII in text and returns masked text with mappings
 func (s *MaskingService) MaskText(text string, logPrefix string) MaskedResult {
-	piiFound, err := s.detector.Detect(detectors.DetectorInput{Text: text})
+	piiFound, err := s.detector.Detect(context.Background(), detectors.DetectorInput{Text: text})
 	if err != nil {
 		log.Printf("%s ❌ Failed to detect PII: %v", logPrefix, err)
 		return MaskedResult{

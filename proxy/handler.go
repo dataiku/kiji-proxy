@@ -122,7 +122,7 @@ func (h *Handler) checkRequestPII(body string) (string, map[string]string, []pii
 func (h *Handler) createAndSendProxyRequest(r *http.Request, body []byte) (*http.Response, error) {
 	targetURL := h.buildTargetURL(r)
 
-	proxyReq, err := http.NewRequest(r.Method, targetURL, bytes.NewReader(body))
+	proxyReq, err := http.NewRequestWithContext(r.Context(), r.Method, targetURL, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create proxy request: %w", err)
 	}
@@ -271,7 +271,7 @@ func (h *Handler) HandleDetails(w http.ResponseWriter, r *http.Request) {
 	}
 
 	targetURL := h.config.OpenAIBaseURL + "/chat/completions"
-	proxyReq, err := http.NewRequest(r.Method, targetURL, bytes.NewReader(maskedRequestBody))
+	proxyReq, err := http.NewRequestWithContext(r.Context(), r.Method, targetURL, bytes.NewReader(maskedRequestBody))
 	if err != nil {
 		log.Printf("[Details] ❌ Failed to create proxy request: %v", err)
 		http.Error(w, "Failed to create proxy request", http.StatusInternalServerError)

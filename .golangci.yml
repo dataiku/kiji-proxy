@@ -12,6 +12,8 @@ run:
     - tokenizers
     - .venv
     - __pycache__
+  skip-files:
+    - ".*demo\\.go$"
 
 linters:
   enable:
@@ -45,3 +47,8 @@ issues:
     - path: .*demo\.go$
       linters:
         - errcheck
+        - gocritic
+    - path: dist/.*demo\.go$
+      linters:
+        - errcheck
+        - gocritic

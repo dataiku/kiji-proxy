@@ -1,6 +1,7 @@
 package pii
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -90,7 +91,7 @@ func (d *ONNXModelDetectorSimple) GetName() string {
 }
 
 // Detect processes the input and returns detected entities
-func (d *ONNXModelDetectorSimple) Detect(input DetectorInput) (DetectorOutput, error) {
+func (d *ONNXModelDetectorSimple) Detect(ctx context.Context, input DetectorInput) (DetectorOutput, error) {
 	// Initialize session and tensors on first use
 	if d.session == nil {
 		if err := d.initializeSession(); err != nil {
@@ -111,9 +112,7 @@ func (d *ONNXModelDetectorSimple) Detect(input DetectorInput) (DetectorOutput, e
 	}
 
 	// Update input tensors with new data
-	if err := d.updateInputTensors(inputIDs, attentionMask); err != nil {
-		return DetectorOutput{}, fmt.Errorf("failed to update input tensors: %w", err)
-	}
+	d.updateInputTensors(inputIDs, attentionMask)
 
 	// Run inference
 	if err := d.session.Run(); err != nil {
@@ -182,8 +181,9 @@ func (d *ONNXModelDetectorSimple) processOutputInline(originalText string, token
 			baseLabel = strings.TrimPrefix(strings.TrimPrefix(label, "B-"), "I-")
 		}
 
-		// If we have a non-O label and it's beginning or we don't have a current entity
-		if label != "O" && (isBeginning || currentEntity == nil) {
+		// Handle different entity states using switch for better readability
+		switch {
+		case label != "O" && (isBeginning || currentEntity == nil):
 			// Finish previous entity if exists
 			if currentEntity != nil {
 				d.finalizeEntity(currentEntity, currentTokens, originalText, offsets)
@@ -196,12 +196,12 @@ func (d *ONNXModelDetectorSimple) processOutputInline(originalText string, token
 				Confidence: confidence,
 			}
 			currentTokens = []int{i}
-		} else if label != "O" && isInside && currentEntity != nil && currentEntity.Label == baseLabel {
+		case label != "O" && isInside && currentEntity != nil && currentEntity.Label == baseLabel:
 			// Continue current entity
 			currentTokens = append(currentTokens, i)
 			// Update confidence to average
 			currentEntity.Confidence = (currentEntity.Confidence + confidence) / 2
-		} else {
+		default:
 			// Finish current entity if exists
 			if currentEntity != nil {
 				d.finalizeEntity(currentEntity, currentTokens, originalText, offsets)
@@ -233,8 +233,20 @@ func (d *ONNXModelDetectorSimple) finalizeEntity(entity *Entity, tokenIndices []
 
 	// Extract the actual text from the original string
 	entity.Text = originalText[startOffset[0]:endOffset[1]]
-	entity.StartPos = int(startOffset[0])
-	entity.EndPos = int(endOffset[1])
+	// Safe conversion with bounds checking
+	const maxInt = int(^uint(0) >> 1)
+	if startOffset[0] <= uint(maxInt) {
+		// #nosec G115 - Safe conversion with bounds checking
+		entity.StartPos = int(startOffset[0])
+	} else {
+		entity.StartPos = maxInt // Max int value
+	}
+	if endOffset[1] <= uint(maxInt) {
+		// #nosec G115 - Safe conversion with bounds checking
+		entity.EndPos = int(endOffset[1])
+	} else {
+		entity.EndPos = maxInt // Max int value
+	}
 }
 
 // initializeSession initializes the ONNX session and tensors
@@ -300,7 +312,7 @@ func (d *ONNXModelDetectorSimple) initializeSession() error {
 }
 
 // updateInputTensors updates the input tensors with new data
-func (d *ONNXModelDetectorSimple) updateInputTensors(inputIDs, attentionMask []int64) error {
+func (d *ONNXModelDetectorSimple) updateInputTensors(inputIDs, attentionMask []int64) {
 	// Get current tensor data and update it
 	inputData := d.inputTensor.GetData()
 	maskData := d.maskTensor.GetData()
@@ -314,8 +326,6 @@ func (d *ONNXModelDetectorSimple) updateInputTensors(inputIDs, attentionMask []i
 	// Copy new data
 	copy(inputData, inputIDs)
 	copy(maskData, attentionMask)
-
-	return nil
 }
 
 // Close implements the Detector interface

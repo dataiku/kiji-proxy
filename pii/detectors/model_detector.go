@@ -2,6 +2,7 @@ package pii
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 )
@@ -23,7 +24,7 @@ func (m *ModelDetector) GetName() string {
 }
 
 // Detect processes the input and returns detected entities
-func (m *ModelDetector) Detect(input DetectorInput) (DetectorOutput, error) {
+func (m *ModelDetector) Detect(ctx context.Context, input DetectorInput) (DetectorOutput, error) {
 	var entities []Entity
 
 	// send input to model server using POST request -> baseURL / detect
@@ -34,7 +35,14 @@ func (m *ModelDetector) Detect(input DetectorInput) (DetectorOutput, error) {
 	if err != nil {
 		return DetectorOutput{}, err
 	}
-	response, err := http.Post(m.baseURL+"/detect", "application/json", bytes.NewBuffer(jsonData))
+	req, err := http.NewRequestWithContext(ctx, "POST", m.baseURL+"/detect", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return DetectorOutput{}, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	response, err := client.Do(req)
 	if err != nil {
 		return DetectorOutput{}, err
 	}
