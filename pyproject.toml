@@ -55,10 +55,7 @@ quantization = [
     "onnxruntime>=1.16.0",
 ]
 
-all = [
-    "pytest>=6.0",
-    "ruff>=0.1.0",
-]
+# Note: 'all' group removed - use 'dev' instead for development dependencies
 
 [project.scripts]
 yaak-server = "model_server.fast_api:main"

@@ -78,7 +78,7 @@ install-training: venv ## Install training dependencies only
 
 install-all: venv ## Install all optional dependencies
 	@echo "$(BLUE)Installing all dependencies...$(NC)"
-	uv pip install -e ".[all]"
+	uv pip install -e ".[dev,training,quantization]"
 	@echo "$(GREEN)✅ Full installation complete$(NC)"
 
 ##@ Dependency Management

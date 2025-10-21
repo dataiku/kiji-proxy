@@ -27,7 +27,7 @@ jobs:
 
     - name: Install dependencies
       run: |
-        uv sync --dev --all-extras
+        uv sync --dev
 
     - name: Run ruff linter
       run: |
