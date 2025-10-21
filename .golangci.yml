@@ -27,8 +27,6 @@ linters:
     - whitespace
 
 issues:
-  exclude:
-    - "pattern pii_onnx_model/*: no matching files found"
   exclude-rules:
     - path: _test\.go
       linters:
