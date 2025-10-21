@@ -10,9 +10,7 @@ output_path = "/Users/hannes/Private/yaak-proxy/pii_onnx_model"
 
 print("Loading PII model and exporting to ONNX...")
 model = ORTModelForTokenClassification.from_pretrained(
-    model_path,
-    export=True,
-    provider="CPUExecutionProvider"
+    model_path, export=True, provider="CPUExecutionProvider"
 )
 
 # Quantize the model
@@ -32,7 +30,7 @@ else:
     print(f"Quantized model not found at {onnx_model_path}")
     # Try to find any .onnx file in the output directory
     for file in os.listdir(output_path):
-        if file.endswith('.onnx'):
+        if file.endswith(".onnx"):
             onnx_file = os.path.join(output_path, file)
             print(f"Found ONNX model: {onnx_file}")
             model_onnx = onnx.load(onnx_file)
