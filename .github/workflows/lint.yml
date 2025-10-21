@@ -28,9 +28,9 @@ jobs:
     - name: Create virtual environment
       run: uv venv
 
-    - name: Install ruff
+    - name: Install lint dependencies
       run: |
-        uv pip install ruff
+        uv pip install .[lint]
 
     - name: Run ruff linter
       run: |
