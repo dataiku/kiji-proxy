@@ -3,8 +3,8 @@ package pii
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"math"
+	"os"
 	"strings"
 
 	"github.com/daulet/tokenizers"
@@ -39,16 +39,23 @@ func NewONNXModelDetectorSimple(modelPath string, tokenizerPath string) (*ONNXMo
 	// Load tokenizer
 	tk, err := tokenizers.FromFile(tokenizerPath)
 	if err != nil {
-		onnxruntime.DestroyEnvironment()
+		if err := onnxruntime.DestroyEnvironment(); err != nil {
+			// Log but don't fail on cleanup error
+			fmt.Printf("Warning: failed to destroy environment during cleanup: %v\n", err)
+		}
 		return nil, fmt.Errorf("failed to load tokenizer: %w", err)
 	}
 
 	// Load model configuration
 	configPath := "pii_onnx_model/config.json"
-	configData, err := ioutil.ReadFile(configPath)
+	configData, err := os.ReadFile(configPath)
 	if err != nil {
-		tk.Close()
-		onnxruntime.DestroyEnvironment()
+		if err := tk.Close(); err != nil {
+			fmt.Printf("Warning: failed to close tokenizer during cleanup: %v\n", err)
+		}
+		if err := onnxruntime.DestroyEnvironment(); err != nil {
+			fmt.Printf("Warning: failed to destroy environment during cleanup: %v\n", err)
+		}
 		return nil, fmt.Errorf("failed to read config file: %w", err)
 	}
 
@@ -57,8 +64,12 @@ func NewONNXModelDetectorSimple(modelPath string, tokenizerPath string) (*ONNXMo
 		Label2ID map[string]int    `json:"label2id"`
 	}
 	if err := json.Unmarshal(configData, &config); err != nil {
-		tk.Close()
-		onnxruntime.DestroyEnvironment()
+		if err := tk.Close(); err != nil {
+			fmt.Printf("Warning: failed to close tokenizer during cleanup: %v\n", err)
+		}
+		if err := onnxruntime.DestroyEnvironment(); err != nil {
+			fmt.Printf("Warning: failed to destroy environment during cleanup: %v\n", err)
+		}
 		return nil, fmt.Errorf("failed to parse config: %w", err)
 	}
 
@@ -240,7 +251,9 @@ func (d *ONNXModelDetectorSimple) initializeSession() error {
 
 	maskTensor, err := onnxruntime.NewTensor(inputShape, make([]int64, maxSeqLen))
 	if err != nil {
-		inputTensor.Destroy()
+		if err := inputTensor.Destroy(); err != nil {
+			fmt.Printf("Warning: failed to destroy input tensor during cleanup: %v\n", err)
+		}
 		return fmt.Errorf("failed to create mask tensor: %w", err)
 	}
 
@@ -248,8 +261,12 @@ func (d *ONNXModelDetectorSimple) initializeSession() error {
 	outputShape := onnxruntime.NewShape(batchSize, maxSeqLen, 33) // 33 labels
 	outputTensor, err := onnxruntime.NewEmptyTensor[float32](outputShape)
 	if err != nil {
-		inputTensor.Destroy()
-		maskTensor.Destroy()
+		if err := inputTensor.Destroy(); err != nil {
+			fmt.Printf("Warning: failed to destroy input tensor during cleanup: %v\n", err)
+		}
+		if err := maskTensor.Destroy(); err != nil {
+			fmt.Printf("Warning: failed to destroy mask tensor during cleanup: %v\n", err)
+		}
 		return fmt.Errorf("failed to create output tensor: %w", err)
 	}
 
@@ -262,9 +279,15 @@ func (d *ONNXModelDetectorSimple) initializeSession() error {
 		[]onnxruntime.Value{outputTensor},
 		nil)
 	if err != nil {
-		inputTensor.Destroy()
-		maskTensor.Destroy()
-		outputTensor.Destroy()
+		if err := inputTensor.Destroy(); err != nil {
+			fmt.Printf("Warning: failed to destroy input tensor during cleanup: %v\n", err)
+		}
+		if err := maskTensor.Destroy(); err != nil {
+			fmt.Printf("Warning: failed to destroy mask tensor during cleanup: %v\n", err)
+		}
+		if err := outputTensor.Destroy(); err != nil {
+			fmt.Printf("Warning: failed to destroy output tensor during cleanup: %v\n", err)
+		}
 		return fmt.Errorf("failed to create session: %w", err)
 	}
 
@@ -297,21 +320,39 @@ func (d *ONNXModelDetectorSimple) updateInputTensors(inputIDs, attentionMask []i
 
 // Close implements the Detector interface
 func (d *ONNXModelDetectorSimple) Close() error {
+	var errs []error
+
 	if d.session != nil {
-		d.session.Destroy()
+		if err := d.session.Destroy(); err != nil {
+			errs = append(errs, fmt.Errorf("failed to destroy session: %w", err))
+		}
 	}
 	if d.inputTensor != nil {
-		d.inputTensor.Destroy()
+		if err := d.inputTensor.Destroy(); err != nil {
+			errs = append(errs, fmt.Errorf("failed to destroy input tensor: %w", err))
+		}
 	}
 	if d.maskTensor != nil {
-		d.maskTensor.Destroy()
+		if err := d.maskTensor.Destroy(); err != nil {
+			errs = append(errs, fmt.Errorf("failed to destroy mask tensor: %w", err))
+		}
 	}
 	if d.outputTensor != nil {
-		d.outputTensor.Destroy()
+		if err := d.outputTensor.Destroy(); err != nil {
+			errs = append(errs, fmt.Errorf("failed to destroy output tensor: %w", err))
+		}
 	}
 	if d.tokenizer != nil {
-		d.tokenizer.Close()
+		if err := d.tokenizer.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("failed to close tokenizer: %w", err))
+		}
 	}
-	onnxruntime.DestroyEnvironment()
+	if err := onnxruntime.DestroyEnvironment(); err != nil {
+		errs = append(errs, fmt.Errorf("failed to destroy environment: %w", err))
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("cleanup errors: %v", errs)
+	}
 	return nil
 }

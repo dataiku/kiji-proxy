@@ -148,10 +148,7 @@ func (h *Handler) createAndSendProxyRequest(r *http.Request, body []byte) (*http
 // buildTargetURL builds the target URL for the proxy request
 func (h *Handler) buildTargetURL(r *http.Request) string {
 	// Remove the /v1 prefix from the path since the base URL already includes it
-	path := r.URL.Path
-	if strings.HasPrefix(path, "/v1") {
-		path = path[3:] // Remove "/v1" prefix
-	}
+	path := strings.TrimPrefix(r.URL.Path, "/v1")
 
 	targetURL := h.config.OpenAIBaseURL + path
 	if r.URL.RawQuery != "" {

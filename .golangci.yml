@@ -1,0 +1,47 @@
+version: 2
+
+run:
+  timeout: 5m
+  skip-dirs:
+    - pii_onnx_model
+    - pii_model
+    - dist
+    - build
+    - node_modules
+    - ui/node_modules
+    - tokenizers
+    - .venv
+    - __pycache__
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - misspell
+    - gocyclo
+    - goconst
+    - dupl
+    - gocritic
+    - gosec
+    - nakedret
+    - noctx
+    - rowserrcheck
+    - unconvert
+    - unparam
+    - whitespace
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - gomnd
+        - funlen
+        - gocyclo
+        - goconst
+        - dupl
+    - path: .*demo\.go$
+      linters:
+        - errcheck

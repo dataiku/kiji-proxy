@@ -88,7 +88,11 @@ func loadConfigFromFile(path string, cfg *config.Config) {
 		log.Printf("Failed to open config file: %v", err)
 		return
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			log.Printf("Failed to close config file: %v", err)
+		}
+	}()
 
 	decoder := json.NewDecoder(file)
 	if err := decoder.Decode(cfg); err != nil {
