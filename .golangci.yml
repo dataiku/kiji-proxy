@@ -1,10 +1,20 @@
 # golangci-lint configuration
 # Compatible with v2.4.0 (same as local development)
 
-version: 2
+version: "2"
 
 run:
   timeout: 5m
+  skip-dirs:
+    - pii_onnx_model
+    - pii_model
+    - dist
+    - build
+    - node_modules
+    - ui/node_modules
+    - tokenizers
+    - .venv
+    - __pycache__
 
 linters:
   enable:
@@ -27,16 +37,6 @@ linters:
     - whitespace
 
 issues:
-  exclude-dirs:
-    - pii_onnx_model
-    - pii_model
-    - dist
-    - build
-    - node_modules
-    - ui/node_modules
-    - tokenizers
-    - .venv
-    - __pycache__
   exclude-rules:
     - path: _test\.go
       linters:
