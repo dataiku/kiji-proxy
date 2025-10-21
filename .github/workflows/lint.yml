@@ -34,11 +34,11 @@ jobs:
 
     - name: Run ruff linter
       run: |
-        ruff check .
+        uv run -- ruff check .
 
     - name: Run ruff formatter check
       run: |
-        ruff format --check . --diff
+        uv run -- ruff format --check . --diff
 
   go-lint:
     runs-on: ubuntu-latest
