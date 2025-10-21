@@ -55,7 +55,11 @@ func (s *Server) Start() error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", s.healthCheck)
 	mux.HandleFunc("/details", s.detailsHandler)
-	mux.Handle("/", s.handler)
+	mux.Handle("/v1/chat/completions", s.handler)
+
+	// Serve UI files
+	uiFS := http.FileServer(http.Dir(s.config.UIPath))
+	mux.Handle("/", uiFS)
 
 	// Create server with timeout configuration
 	server := &http.Server{

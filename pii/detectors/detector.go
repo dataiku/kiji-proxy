@@ -49,7 +49,11 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("model_path is required for ONNX model detector")
 		}
-		return NewONNXModelDetectorSimple(modelPath)
+		tokenizerPath, ok := config["tokenizer_path"].(string)
+		if !ok {
+			return nil, fmt.Errorf("tokenizer_path is required for ONNX model detector")
+		}
+		return NewONNXModelDetectorSimple(modelPath, tokenizerPath)
 	})
 }
 

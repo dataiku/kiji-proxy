@@ -38,6 +38,9 @@ func (h *Handler) GetDetector() (pii.Detector, error) {
 	switch detectorName {
 	case pii.DetectorNameModel:
 		detectorConfig["base_url"] = h.config.ModelBaseURL
+	case pii.DetectorNameONNXModel:
+		detectorConfig["model_path"] = h.config.ONNXModelPath
+		detectorConfig["tokenizer_path"] = h.config.TokenizerPath
 	case pii.DetectorNameRegex:
 		detectorConfig["patterns"] = pii.PIIPatterns
 	default:

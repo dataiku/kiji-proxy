@@ -33,6 +33,9 @@ type Config struct {
 	ModelBaseURL  string
 	Database      DatabaseConfig
 	Logging       LoggingConfig
+	ONNXModelPath string
+	TokenizerPath string
+	UIPath        string
 }
 
 // DefaultConfig returns the default configuration

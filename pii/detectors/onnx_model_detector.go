@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math"
-	"path/filepath"
 
 	"github.com/daulet/tokenizers"
 	onnxruntime "github.com/yalue/onnxruntime_go"
@@ -24,18 +23,19 @@ type ONNXModelDetectorSimple struct {
 }
 
 // NewONNXModelDetectorSimple creates a new ONNX model detector
-func NewONNXModelDetectorSimple(modelPath string) (*ONNXModelDetectorSimple, error) {
-	// Set ONNX Runtime library path
-	onnxruntime.SetSharedLibraryPath("/Users/hannes/Private/yaak-proxy/.venv/lib/python3.13/site-packages/onnxruntime/capi/libonnxruntime.1.23.1.dylib")
+func NewONNXModelDetectorSimple(modelPath string, tokenizerPath string) (*ONNXModelDetectorSimple, error) {
+	// Set the ONNX Runtime shared library path for macOS
+	onnxruntime.SetSharedLibraryPath("dist/yaak-proxy/libonnxruntime.1.23.1.dylib")
 
-	// Initialize ONNX Runtime environment
-	err := onnxruntime.InitializeEnvironment()
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize ONNX Runtime environment: %w", err)
+	// Initialize ONNX Runtime environment only if not already initialized
+	if !onnxruntime.IsInitialized() {
+		err := onnxruntime.InitializeEnvironment()
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize ONNX Runtime environment: %w", err)
+		}
 	}
 
 	// Load tokenizer
-	tokenizerPath := filepath.Join(modelPath, "tokenizer.json")
 	tk, err := tokenizers.FromFile(tokenizerPath)
 	if err != nil {
 		onnxruntime.DestroyEnvironment()
@@ -43,7 +43,7 @@ func NewONNXModelDetectorSimple(modelPath string) (*ONNXModelDetectorSimple, err
 	}
 
 	// Load model configuration
-	configPath := filepath.Join(modelPath, "config.json")
+	configPath := "pii_onnx_model/config.json"
 	configData, err := ioutil.ReadFile(configPath)
 	if err != nil {
 		tk.Close()
@@ -204,8 +204,8 @@ func (d *ONNXModelDetectorSimple) initializeSession() error {
 	}
 
 	// Create session
-	modelPath := filepath.Join(d.modelPath, "model_quantized.onnx")
-	session, err := onnxruntime.NewAdvancedSession(modelPath,
+	// d.modelPath already contains the full path to the model file
+	session, err := onnxruntime.NewAdvancedSession(d.modelPath,
 		[]string{"input_ids", "attention_mask"},
 		[]string{"logits"},
 		[]onnxruntime.Value{inputTensor, maskTensor},

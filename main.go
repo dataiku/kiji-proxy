@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/json"
+	"flag"
 	"log"
 	"os"
 	"strconv"
@@ -14,6 +16,14 @@ const TRUE = "true"
 func main() {
 	// Load configuration
 	cfg := config.DefaultConfig()
+
+	// Check for config file path from command-line flag
+	configPath := flag.String("config", "", "Path to JSON config file")
+	flag.Parse()
+
+	if *configPath != "" {
+		loadConfigFromFile(*configPath, cfg)
+	}
 
 	// Override configuration with environment variables
 	loadConfigFromEnv(cfg)
@@ -34,6 +44,21 @@ func main() {
 
 	// Start server with error handling
 	srv.StartWithErrorHandling()
+}
+
+// loadConfigFromFile loads configuration from a JSON file
+func loadConfigFromFile(path string, cfg *config.Config) {
+	file, err := os.Open(path)
+	if err != nil {
+		log.Printf("Failed to open config file: %v", err)
+		return
+	}
+	defer file.Close()
+
+	decoder := json.NewDecoder(file)
+	if err := decoder.Decode(cfg); err != nil {
+		log.Printf("Failed to decode config file: %v", err)
+	}
 }
 
 // loadConfigFromEnv loads configuration from environment variables
