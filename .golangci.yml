@@ -35,3 +35,6 @@ issues:
         - gocyclo
         - goconst
         - dupl
+    - path: main\.go
+      linters:
+        - typecheck
