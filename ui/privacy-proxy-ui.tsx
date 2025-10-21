@@ -226,9 +226,9 @@ export default function PrivacyProxyUI() {
                   className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-amber-300 rounded-lg text-sm"
                 >
                   <span className="font-semibold text-amber-700 uppercase text-xs">{entity.type}</span>
-                  <span className="font-mono text-amber-600">{entity.token}</span>
-                  <ArrowRight className="w-3 h-3 text-amber-400" />
                   <span className="text-slate-700">{entity.original}</span>
+                  <ArrowRight className="w-3 h-3 text-amber-400" />
+                  <span className="font-mono text-amber-600">{entity.token}</span>
                   {showConfidence && (
                     <>
                       <span className="text-slate-300">|</span>

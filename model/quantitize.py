@@ -1,8 +1,8 @@
 import os
-from optimum.onnxruntime import ORTModelForTokenClassification
-from optimum.onnxruntime import ORTQuantizer
-from optimum.onnxruntime.configuration import AutoQuantizationConfig
+
 import onnx
+from optimum.onnxruntime import ORTModelForTokenClassification, ORTQuantizer
+from optimum.onnxruntime.configuration import AutoQuantizationConfig
 
 # Load the PII model and export to ONNX
 model_path = "/Users/hannes/Private/yaak-proxy/pii_model"

@@ -9,7 +9,7 @@
     "LogRequests": true,
     "LogResponses": true,
     "LogPIIChanges": true,
-    "LogVerbose": false
+    "LogVerbose": true
   },
   "ONNXModelPath": "pii_onnx_model/model_quantized.onnx",
   "TokenizerPath": "pii_onnx_model/tokenizer.json",

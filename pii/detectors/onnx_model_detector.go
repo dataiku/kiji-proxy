@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math"
+	"strings"
 
 	"github.com/daulet/tokenizers"
 	onnxruntime "github.com/yalue/onnxruntime_go"
@@ -86,8 +87,9 @@ func (d *ONNXModelDetectorSimple) Detect(input DetectorInput) (DetectorOutput, e
 		}
 	}
 
-	// Tokenize input
-	tokenIDs, _ := d.tokenizer.Encode(input.Text, true) // true = add special tokens
+	// Tokenize input with offsets to get character positions
+	encoding := d.tokenizer.EncodeWithOptions(input.Text, true, tokenizers.WithReturnOffsets())
+	tokenIDs := encoding.IDs
 
 	// Convert to int64 for ONNX
 	inputIDs := make([]int64, len(tokenIDs))
@@ -108,7 +110,7 @@ func (d *ONNXModelDetectorSimple) Detect(input DetectorInput) (DetectorOutput, e
 	}
 
 	// Process results inline to avoid the compilation issue
-	entities := d.processOutputInline(input.Text, tokenIDs)
+	entities := d.processOutputInline(input.Text, tokenIDs, encoding.Offsets)
 
 	return DetectorOutput{
 		Text:     input.Text,
@@ -117,9 +119,13 @@ func (d *ONNXModelDetectorSimple) Detect(input DetectorInput) (DetectorOutput, e
 }
 
 // processOutputInline converts model output to entities (inline to avoid compilation issues)
-func (d *ONNXModelDetectorSimple) processOutputInline(originalText string, tokenIDs []uint32) []Entity {
+func (d *ONNXModelDetectorSimple) processOutputInline(originalText string, tokenIDs []uint32, offsets []tokenizers.Offset) []Entity {
 	outputData := d.outputTensor.GetData()
 	entities := []Entity{}
+
+	// Group consecutive tokens with same label (B-PREFIX, I-PREFIX pattern)
+	var currentEntity *Entity
+	var currentTokens []int
 
 	// Process each token
 	for i := range tokenIDs {
@@ -141,12 +147,7 @@ func (d *ONNXModelDetectorSimple) processOutputInline(originalText string, token
 		classID := fmt.Sprintf("%d", bestClass)
 		label, exists := d.id2label[classID]
 		if !exists {
-			continue
-		}
-
-		// Skip "O" (outside) labels
-		if label == "O" {
-			continue
+			label = "O"
 		}
 
 		// Convert logits to probability (softmax)
@@ -157,23 +158,72 @@ func (d *ONNXModelDetectorSimple) processOutputInline(originalText string, token
 		}
 		confidence := prob / sum
 
-		// Only include entities with reasonable confidence
+		// Only process tokens with reasonable confidence
 		if confidence < 0.5 {
-			continue
+			label = "O"
 		}
 
-		// For now, create a simple entity with token ID as text
-		// TODO: Implement proper token-to-text mapping
-		entities = append(entities, Entity{
-			Text:       fmt.Sprintf("token_%d", tokenIDs[i]),
-			Label:      label,
-			StartPos:   i, // Simplified position
-			EndPos:     i + 1,
-			Confidence: confidence,
-		})
+		// Handle B-PREFIX (beginning) and I-PREFIX (inside) labels
+		isBeginning := strings.HasPrefix(label, "B-")
+		isInside := strings.HasPrefix(label, "I-")
+		baseLabel := label
+		if isBeginning || isInside {
+			baseLabel = strings.TrimPrefix(strings.TrimPrefix(label, "B-"), "I-")
+		}
+
+		// If we have a non-O label and it's beginning or we don't have a current entity
+		if label != "O" && (isBeginning || currentEntity == nil) {
+			// Finish previous entity if exists
+			if currentEntity != nil {
+				d.finalizeEntity(currentEntity, currentTokens, originalText, offsets)
+				entities = append(entities, *currentEntity)
+			}
+
+			// Start new entity
+			currentEntity = &Entity{
+				Label:      baseLabel,
+				Confidence: confidence,
+			}
+			currentTokens = []int{i}
+		} else if label != "O" && isInside && currentEntity != nil && currentEntity.Label == baseLabel {
+			// Continue current entity
+			currentTokens = append(currentTokens, i)
+			// Update confidence to average
+			currentEntity.Confidence = (currentEntity.Confidence + confidence) / 2
+		} else {
+			// Finish current entity if exists
+			if currentEntity != nil {
+				d.finalizeEntity(currentEntity, currentTokens, originalText, offsets)
+				entities = append(entities, *currentEntity)
+				currentEntity = nil
+				currentTokens = nil
+			}
+		}
+	}
+
+	// Finish last entity if exists
+	if currentEntity != nil {
+		d.finalizeEntity(currentEntity, currentTokens, originalText, offsets)
+		entities = append(entities, *currentEntity)
 	}
 
 	return entities
+}
+
+// finalizeEntity extracts the actual text from the original string using token offsets
+func (d *ONNXModelDetectorSimple) finalizeEntity(entity *Entity, tokenIndices []int, originalText string, offsets []tokenizers.Offset) {
+	if len(tokenIndices) == 0 {
+		return
+	}
+
+	// Get the start and end character positions
+	startOffset := offsets[tokenIndices[0]]
+	endOffset := offsets[tokenIndices[len(tokenIndices)-1]]
+
+	// Extract the actual text from the original string
+	entity.Text = originalText[startOffset[0]:endOffset[1]]
+	entity.StartPos = int(startOffset[0])
+	entity.EndPos = int(endOffset[1])
 }
 
 // initializeSession initializes the ONNX session and tensors
