@@ -1,14 +1,8 @@
-.PHONY: help install install-dev install-server install-training install-all
-.PHONY: venv lock sync update
-.PHONY: server dev server-test example-client
-.PHONY: eval train
+.PHONY: help install install-dev venv
 .PHONY: format lint typecheck check ruff-fix ruff-all
 .PHONY: test test-go test-all
 .PHONY: clean clean-venv clean-all
-.PHONY: docker-build docker-build-model docker-build-all
-.PHONY: docker-up docker-up-logs docker-up-model docker-dev
-.PHONY: docker-down docker-restart docker-restart-model
-.PHONY: docker-logs docker-logs-model docker-logs-proxy docker-ps docker-clean
+.PHONY: server dev server-test example-client
 .PHONY: list show shell jupyter info quickstart
 
 # Default target
@@ -56,7 +50,7 @@ venv: ## Create virtual environment with uv
 	@echo "$(GREEN)✅ Virtual environment created at .venv$(NC)"
 	@echo "$(YELLOW)Activate with: source .venv/bin/activate$(NC)"
 
-install: venv ## Install project with all dependencies (includes server)
+install: venv ## Install project with all dependencies
 	@echo "$(BLUE)Installing project dependencies...$(NC)"
 	uv pip install -e .
 	@echo "$(GREEN)✅ Installation complete$(NC)"
@@ -65,38 +59,6 @@ install-dev: venv ## Install with development dependencies
 	@echo "$(BLUE)Installing with dev dependencies...$(NC)"
 	uv pip install -e ".[dev]"
 	@echo "$(GREEN)✅ Dev installation complete$(NC)"
-
-install-server: venv ## Install server dependencies only
-	@echo "$(BLUE)Installing server dependencies...$(NC)"
-	uv pip install -e ".[server]"
-	@echo "$(GREEN)✅ Server installation complete$(NC)"
-
-install-training: venv ## Install training dependencies only
-	@echo "$(BLUE)Installing training dependencies...$(NC)"
-	uv pip install -e ".[training]"
-	@echo "$(GREEN)✅ Training installation complete$(NC)"
-
-install-all: venv ## Install all optional dependencies
-	@echo "$(BLUE)Installing all dependencies...$(NC)"
-	uv pip install -e ".[dev,training,quantization]"
-	@echo "$(GREEN)✅ Full installation complete$(NC)"
-
-##@ Dependency Management
-
-lock: ## Generate requirements.lock file
-	@echo "$(BLUE)Generating lock file...$(NC)"
-	uv pip compile pyproject.toml -o requirements.lock
-	@echo "$(GREEN)✅ Lock file generated$(NC)"
-
-sync: ## Install from lock file
-	@echo "$(BLUE)Syncing dependencies from lock file...$(NC)"
-	uv pip sync requirements.lock
-	@echo "$(GREEN)✅ Dependencies synced$(NC)"
-
-update: ## Update all dependencies
-	@echo "$(BLUE)Updating dependencies...$(NC)"
-	uv pip install --upgrade -e .
-	@echo "$(GREEN)✅ Dependencies updated$(NC)"
 
 ##@ FastAPI Server
 
@@ -177,119 +139,4 @@ clean-venv: ## Remove virtual environment
 
 clean-all: clean clean-venv ## Remove everything (artifacts, cache, and venv)
 	@echo "$(GREEN)✅ Full cleanup complete$(NC)"
-
-##@ Docker
-
-docker-build: ## Build Docker image (Go proxy)
-	@echo "$(BLUE)Building Docker image...$(NC)"
-	docker build -t yaak-pii-detection .
-
-docker-build-model: ## Build model server Docker image
-	@echo "$(BLUE)Building model server Docker image...$(NC)"
-	@if [ ! -d "./pii_model" ]; then \
-		echo "$(YELLOW)⚠️  Warning: ./pii_model directory not found$(NC)"; \
-		echo "$(YELLOW)   The model will need to be mounted at runtime$(NC)"; \
-	fi
-	docker build -f Dockerfile.model-server -t yaak-model-server .
-
-docker-build-ui: ## Build UI Docker image
-	@echo "$(BLUE)Building UI Docker image...$(NC)"
-	docker build -f Dockerfile.ui -t yaak-proxy-ui .
-
-docker-build-all: docker-build docker-build-model docker-build-ui ## Build all Docker images
-	@echo "$(GREEN)✅ All Docker images built$(NC)"
-
-docker-up: ## Start Docker Compose services in background
-	@echo "$(BLUE)Starting Docker services...$(NC)"
-	docker compose up -d
-
-docker-up-logs: ## Start Docker Compose services with logs
-	@echo "$(BLUE)Starting Docker services with logs...$(NC)"
-	docker compose up
-
-docker-up-force: ## Start Docker Compose services with force rebuild (no cache)
-	@echo "$(BLUE)Force rebuilding and starting Docker services...$(NC)"
-	docker compose build --no-cache
-	docker compose up -d
-
-docker-up-logs-force: ## Start Docker Compose services with force rebuild and logs
-	@echo "$(BLUE)Force rebuilding and starting Docker services with logs...$(NC)"
-	docker compose build --no-cache
-	docker compose up
-
-docker-up-model: ## Start only model server
-	@echo "$(BLUE)Starting model server...$(NC)"
-	docker compose up -d model-server
-
-docker-up-ui: ## Start only UI service
-	@echo "$(BLUE)Starting UI service...$(NC)"
-	docker compose up -d privacy-proxy-ui
-
-docker-dev: ## Start services in development mode (with hot-reload)
-	@echo "$(BLUE)Starting services in development mode...$(NC)"
-	docker compose -f docker-compose.yml -f docker-compose.dev.yml up
-
-docker-down: ## Stop Docker Compose services
-	@echo "$(BLUE)Stopping Docker services...$(NC)"
-	docker compose down
-
-docker-restart: ## Restart Docker Compose services
-	@echo "$(BLUE)Restarting Docker services...$(NC)"
-	docker compose restart
-
-docker-restart-model: ## Restart model server
-	@echo "$(BLUE)Restarting model server...$(NC)"
-	docker compose restart model-server
-
-docker-logs: ## View Docker logs (all services)
-	docker compose logs -f
-
-docker-logs-model: ## View model server logs
-	docker compose logs -f model-server
-
-docker-logs-proxy: ## View proxy logs
-	docker compose logs -f yaak-proxy
-
-docker-logs-ui: ## View UI logs
-	docker compose logs -f privacy-proxy-ui
-
-docker-ps: ## Show running containers
-	docker compose ps
-
-docker-clean: ## Remove all containers and volumes
-	@echo "$(BLUE)Cleaning Docker resources...$(NC)"
-	docker compose down -v
-	@echo "$(GREEN)✅ Docker cleanup complete$(NC)"
-
-docker-clean-all: ## Remove all containers, volumes, and images (nuclear option)
-	@echo "$(BLUE)Cleaning all Docker resources...$(NC)"
-	docker compose down -v --rmi all
-	docker system prune -af
-	@echo "$(GREEN)✅ Complete Docker cleanup done$(NC)"
-
-##@ Utilities
-
-list: ## List installed packages
-	uv pip list
-
-show: ## Show package info (usage: make show PKG=package-name)
-	uv pip show $(PKG)
-
-shell: ## Start IPython shell
-	uv run ipython
-
-jupyter: ## Start Jupyter notebook
-	uv run jupyter notebook
-
-##@ Quick Start
-
-quickstart: install ## Quick setup and start server
-	@echo ""
-	@echo "$(GREEN)✅ Setup complete!$(NC)"
-	@echo ""
-	@echo "$(BLUE)Next steps:$(NC)"
-	@echo "  1. Activate virtual environment: $(GREEN)source .venv/bin/activate$(NC)"
-	@echo "  2. Start development server:     $(GREEN)make dev$(NC)"
-	@echo "  3. Visit API docs:               $(GREEN)http://localhost:8000/docs$(NC)"
-	@echo ""
 
