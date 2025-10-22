@@ -1,6 +1,7 @@
 package pii
 
 import (
+	"context"
 	"regexp"
 )
 
@@ -26,7 +27,7 @@ func (r *RegexDetector) GetName() string {
 }
 
 // Detect processes the input and returns detected entities
-func (r *RegexDetector) Detect(input DetectorInput) (DetectorOutput, error) {
+func (r *RegexDetector) Detect(ctx context.Context, input DetectorInput) (DetectorOutput, error) {
 	var entities []Entity
 
 	// loop through all patterns and find matches

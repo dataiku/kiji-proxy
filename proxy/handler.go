@@ -6,14 +6,12 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"math/rand"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/hannes/yaak-private/config"
+	piiServices "github.com/hannes/yaak-private/pii"
 	pii "github.com/hannes/yaak-private/pii/detectors"
-	piiGenerators "github.com/hannes/yaak-private/pii/generators"
 	"github.com/hannes/yaak-private/processor"
 )
 
@@ -23,6 +21,7 @@ type Handler struct {
 	config            *config.Config
 	detector          *pii.Detector
 	responseProcessor *processor.ResponseProcessor
+	maskingService    *piiServices.MaskingService
 }
 
 // GetDetector returns the PII detector instance
@@ -38,51 +37,15 @@ func (h *Handler) GetDetector() (pii.Detector, error) {
 	switch detectorName {
 	case pii.DetectorNameModel:
 		detectorConfig["base_url"] = h.config.ModelBaseURL
+	case pii.DetectorNameONNXModel:
+		detectorConfig["model_path"] = h.config.ONNXModelPath
+		detectorConfig["tokenizer_path"] = h.config.TokenizerPath
 	case pii.DetectorNameRegex:
 		detectorConfig["patterns"] = pii.PIIPatterns
 	default:
 		return nil, fmt.Errorf("invalid detector name: %s", detectorName)
 	}
 	return pii.NewDetector(detectorName, detectorConfig)
-}
-
-// generateMaskedText creates a masked version of PII text based on the label
-func (h *Handler) generateMaskedText(label string, originalText string) string {
-	// Use map-based approach to reduce cyclomatic complexity
-	generator := h.getGeneratorForLabel(label)
-	return generator(originalText)
-}
-
-// getGeneratorForLabel returns the appropriate generator function for the given label
-func (h *Handler) getGeneratorForLabel(label string) func(string) string {
-	// Create a secure random generator for each call
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-
-	generators := map[string]func(string) string{
-		"EMAIL":            func(original string) string { return piiGenerators.EmailGenerator(rng, original) },
-		"SOCIALNUM":        func(original string) string { return piiGenerators.SSNGenerator(rng, original) },
-		"TELEPHONENUM":     func(original string) string { return piiGenerators.PhoneGenerator(rng, original) },
-		"CREDITCARDNUMBER": func(original string) string { return piiGenerators.CreditCardGenerator(rng, original) },
-		"USERNAME":         func(original string) string { return piiGenerators.UsernameGenerator(rng, original) },
-		"DATEOFBIRTH":      func(original string) string { return piiGenerators.DateOfBirthGenerator(rng, original) },
-		"ZIPCODE":          func(original string) string { return piiGenerators.ZipCodeGenerator(rng, original) },
-		"ACCOUNTNUM":       func(original string) string { return piiGenerators.AccountNumGenerator(rng, original) },
-		"IDCARDNUM":        func(original string) string { return piiGenerators.IDCardNumGenerator(rng, original) },
-		"DRIVERLICENSENUM": func(original string) string { return piiGenerators.DriverLicenseNumGenerator(rng, original) },
-		"TAXNUM":           func(original string) string { return piiGenerators.TaxNumGenerator(rng, original) },
-		"CITY":             func(original string) string { return piiGenerators.CityGenerator(rng, original) },
-		"STREET":           func(original string) string { return piiGenerators.StreetGenerator(rng, original) },
-		"BUILDINGNUM":      func(original string) string { return piiGenerators.BuildingNumGenerator(rng, original) },
-		"GIVENNAME":        func(original string) string { return piiGenerators.GivenNameGenerator(rng, original) },
-		"SURNAME":          func(original string) string { return piiGenerators.SurnameGenerator(rng, original) },
-	}
-
-	if generator, exists := generators[label]; exists {
-		return generator
-	}
-
-	// Return generic generator for unknown labels
-	return func(original string) string { return piiGenerators.GenericGenerator(rng, original) }
 }
 
 // ServeHTTP implements the http.Handler interface
@@ -101,7 +64,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[Proxy] Request body size: %d bytes", len(body))
 
 	// Check for PII in the request and get redacted body
-	redactedBody := h.checkRequestPII(string(body))
+	redactedBody, _, _ := h.checkRequestPII(string(body))
 
 	// Create and send proxy request with redacted body
 	resp, err := h.createAndSendProxyRequest(r, []byte(redactedBody))
@@ -127,44 +90,19 @@ func (h *Handler) readRequestBody(r *http.Request) ([]byte, error) {
 	return body, nil
 }
 
+// maskPIIInText detects PII in text and returns masked text with mappings
+func (h *Handler) maskPIIInText(text string, logPrefix string) (string, map[string]string, []pii.Entity) {
+	result := h.maskingService.MaskText(text, logPrefix)
+	return result.MaskedText, result.MaskedToOriginal, result.Entities
+}
+
 // checkRequestPII checks for PII in the request body and creates mappings
-func (h *Handler) checkRequestPII(body string) string {
+func (h *Handler) checkRequestPII(body string) (string, map[string]string, []pii.Entity) {
 	log.Println("[Proxy] Checking for PII in request...")
 
-	piiFound, err := (*h.detector).Detect(pii.DetectorInput{Text: body})
-	if err != nil {
-		log.Printf("[Proxy] ❌ Failed to detect PII: %v", err)
-		return body
-	}
-	if len(piiFound.Entities) > 0 {
-		log.Printf("[Proxy] ⚠️  PII detected in request: %d entities", len(piiFound.Entities))
+	maskedBody, maskedToOriginal, entities := h.maskPIIInText(body, "[Proxy]")
 
-		// Create mapping of original text to masked text
-		maskedToOriginal := make(map[string]string)
-		maskedBody := body
-
-		// Sort entities by start position in descending order to avoid position shifts
-		entities := piiFound.Entities
-		for i := 0; i < len(entities)-1; i++ {
-			for j := 0; j < len(entities)-i-1; j++ {
-				if entities[j].StartPos < entities[j+1].StartPos {
-					entities[j], entities[j+1] = entities[j+1], entities[j]
-				}
-			}
-		}
-
-		// Replace PII with masked text and create mapping
-		for _, entity := range entities {
-			originalText := entity.Text
-			maskedText := h.generateMaskedText(entity.Label, originalText)
-
-			// Store mapping for restoration
-			maskedToOriginal[maskedText] = originalText
-
-			// Replace in the body
-			maskedBody = strings.Replace(maskedBody, originalText, maskedText, 1)
-		}
-
+	if len(entities) > 0 {
 		// Set the mapping in the response processor
 		h.responseProcessor.SetMaskedToOriginalMapping(maskedToOriginal)
 
@@ -175,19 +113,16 @@ func (h *Handler) checkRequestPII(body string) string {
 				log.Printf("Masked request: %s", maskedBody)
 			}
 		}
-
-		return maskedBody
 	}
 
-	log.Println("[Proxy] No PII detected in request")
-	return body
+	return maskedBody, maskedToOriginal, entities
 }
 
 // createAndSendProxyRequest creates and sends the proxy request to OpenAI
 func (h *Handler) createAndSendProxyRequest(r *http.Request, body []byte) (*http.Response, error) {
 	targetURL := h.buildTargetURL(r)
 
-	proxyReq, err := http.NewRequest(r.Method, targetURL, bytes.NewReader(body))
+	proxyReq, err := http.NewRequestWithContext(r.Context(), r.Method, targetURL, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create proxy request: %w", err)
 	}
@@ -212,7 +147,10 @@ func (h *Handler) createAndSendProxyRequest(r *http.Request, body []byte) (*http
 
 // buildTargetURL builds the target URL for the proxy request
 func (h *Handler) buildTargetURL(r *http.Request) string {
-	targetURL := h.config.OpenAIBaseURL + r.URL.Path
+	// Remove the /v1 prefix from the path since the base URL already includes it
+	path := strings.TrimPrefix(r.URL.Path, "/v1")
+
+	targetURL := h.config.OpenAIBaseURL + path
 	if r.URL.RawQuery != "" {
 		targetURL += "?" + r.URL.RawQuery
 	}
@@ -266,12 +204,18 @@ func NewHandler(cfg *config.Config) (*Handler, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get detector: %w", err)
 	}
+
+	// Create services
+	generatorService := piiServices.NewGeneratorService()
+	maskingService := piiServices.NewMaskingService(detector, generatorService)
 	responseProcessor := processor.NewResponseProcessor(&detector, cfg.Logging)
+
 	return &Handler{
 		client:            &http.Client{},
 		config:            cfg,
 		detector:          &detector,
 		responseProcessor: responseProcessor,
+		maskingService:    maskingService,
 	}, nil
 }
 
@@ -293,65 +237,30 @@ func (h *Handler) HandleDetails(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Extract text content from messages
-	originalText, err := h.extractTextFromMessages(requestData)
-	if err != nil {
-		log.Printf("[Details] ❌ Failed to extract text from messages: %v", err)
-		http.Error(w, "Invalid message format", http.StatusBadRequest)
-		return
-	}
+	// Create masked request using the unified logic
+	maskedRequest, maskedToOriginal, entities := h.createMaskedRequest(requestData)
 
-	// Detect PII in the original text
-	piiFound, err := (*h.detector).Detect(pii.DetectorInput{Text: originalText})
-	if err != nil {
-		log.Printf("[Details] ❌ Failed to detect PII: %v", err)
-		http.Error(w, "PII detection failed", http.StatusInternalServerError)
-		return
-	}
-
-	// Create masked version and collect entity details
-	maskedText := originalText
-	var piiEntities []map[string]interface{}
-	maskedToOriginal := make(map[string]string)
-
-	if len(piiFound.Entities) > 0 {
-		log.Printf("[Details] ⚠️  PII detected: %d entities", len(piiFound.Entities))
-
-		// Sort entities by start position in descending order to avoid position shifts
-		entities := piiFound.Entities
-		for i := 0; i < len(entities)-1; i++ {
-			for j := 0; j < len(entities)-i-1; j++ {
-				if entities[j].StartPos < entities[j+1].StartPos {
-					entities[j], entities[j+1] = entities[j+1], entities[j]
-				}
+	// Initialize piiEntities as empty slice to avoid null issues
+	piiEntities := make([]map[string]interface{}, 0)
+	for _, entity := range entities {
+		// Find the masked text for this entity from the mapping
+		var maskedText string
+		for masked, original := range maskedToOriginal {
+			if original == entity.Text {
+				maskedText = masked
+				break
 			}
 		}
 
-		// Replace PII with masked text and collect entity details
-		for _, entity := range entities {
-			originalEntityText := entity.Text
-			maskedEntityText := h.generateMaskedText(entity.Label, originalEntityText)
-
-			// Store mapping for restoration
-			maskedToOriginal[maskedEntityText] = originalEntityText
-
-			// Replace in the text
-			maskedText = strings.Replace(maskedText, originalEntityText, maskedEntityText, 1)
-
-			// Collect entity details
-			piiEntities = append(piiEntities, map[string]interface{}{
-				"text":        originalEntityText,
-				"masked_text": maskedEntityText,
-				"label":       entity.Label,
-				"confidence":  entity.Confidence,
-				"start_pos":   entity.StartPos,
-				"end_pos":     entity.EndPos,
-			})
-		}
+		piiEntities = append(piiEntities, map[string]interface{}{
+			"text":        entity.Text, // Original text
+			"masked_text": maskedText,  // Actually used masked text
+			"label":       entity.Label,
+			"confidence":  entity.Confidence,
+			"start_pos":   entity.StartPos,
+			"end_pos":     entity.EndPos,
+		})
 	}
-
-	// Create masked request by replacing text in the original request
-	maskedRequest := h.createMaskedRequest(requestData, originalText, maskedText)
 
 	// Call OpenAI API with masked request
 	maskedRequestBody, err := json.Marshal(maskedRequest)
@@ -362,7 +271,7 @@ func (h *Handler) HandleDetails(w http.ResponseWriter, r *http.Request) {
 	}
 
 	targetURL := h.config.OpenAIBaseURL + "/chat/completions"
-	proxyReq, err := http.NewRequest(r.Method, targetURL, bytes.NewReader(maskedRequestBody))
+	proxyReq, err := http.NewRequestWithContext(r.Context(), r.Method, targetURL, bytes.NewReader(maskedRequestBody))
 	if err != nil {
 		log.Printf("[Details] ❌ Failed to create proxy request: %v", err)
 		http.Error(w, "Failed to create proxy request", http.StatusInternalServerError)
@@ -407,7 +316,7 @@ func (h *Handler) HandleDetails(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Extract text content from response
-	maskedResponseText, err := h.extractTextFromResponse(responseData)
+	textFromResponse, err := h.extractTextFromResponse(responseData)
 	if err != nil {
 		log.Printf("[Details] ❌ Failed to extract text from response: %v", err)
 		http.Error(w, "Invalid response format", http.StatusInternalServerError)
@@ -415,15 +324,22 @@ func (h *Handler) HandleDetails(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create unmasked response by restoring original PII
-	unmaskedResponseText := maskedResponseText
+	unmaskedResponseText := textFromResponse
 	for masked, original := range maskedToOriginal {
 		unmaskedResponseText = strings.ReplaceAll(unmaskedResponseText, masked, original)
 	}
 
+	// Extract original text for response
+	originalText, _ := h.extractTextFromMessages(requestData)
+
+	// Format masked request as a readable string
+	maskedRequestText, _ := h.extractTextFromMessages(maskedRequest)
+
 	// Create response
 	detailsResponse := map[string]interface{}{
-		"masked_request":    maskedText,
-		"masked_response":   maskedResponseText,
+		"original_request":  originalText,
+		"masked_request":    maskedRequestText,
+		"masked_response":   textFromResponse,
 		"unmasked_response": unmaskedResponseText,
 		"pii_entities":      piiEntities,
 	}
@@ -490,33 +406,57 @@ func (h *Handler) extractTextFromResponse(responseData map[string]interface{}) (
 	return content, nil
 }
 
-// createMaskedRequest creates a masked version of the request by replacing text in messages
-func (h *Handler) createMaskedRequest(originalRequest map[string]interface{}, originalText, maskedText string) map[string]interface{} {
-	// Deep copy the request
+// createMaskedRequest creates a masked version of the request by detecting and masking PII in messages
+func (h *Handler) createMaskedRequest(originalRequest map[string]interface{}) (map[string]interface{}, map[string]string, []pii.Entity) {
+	// Extract text content from messages to validate
+	_, err := h.extractTextFromMessages(originalRequest)
+	if err != nil {
+		log.Printf("Failed to extract text from messages: %v", err)
+		return originalRequest, make(map[string]string), []pii.Entity{}
+	}
+
+	// Create a deep copy of the original request
 	requestBytes, err := json.Marshal(originalRequest)
 	if err != nil {
 		log.Printf("Failed to marshal original request: %v", err)
-		return originalRequest
+		return originalRequest, make(map[string]string), []pii.Entity{}
 	}
+
 	var maskedRequest map[string]interface{}
 	if err := json.Unmarshal(requestBytes, &maskedRequest); err != nil {
 		log.Printf("Failed to unmarshal request bytes: %v", err)
-		return originalRequest
+		return originalRequest, make(map[string]string), []pii.Entity{}
 	}
 
-	// Replace text in messages
+	var entities []pii.Entity
+	maskedToOriginal := make(map[string]string)
+
+	// Process each message in the masked request
 	if messages, ok := maskedRequest["messages"].([]interface{}); ok {
 		for _, msg := range messages {
 			if message, ok := msg.(map[string]interface{}); ok {
 				if content, ok := message["content"].(string); ok {
-					// Replace original text with masked text in content
-					message["content"] = strings.ReplaceAll(content, originalText, maskedText)
+					var maskedText string
+					var _maskedToOriginal map[string]string
+					var _entities []pii.Entity
+
+					// Mask PII in this message's content
+					maskedText, _maskedToOriginal, _entities = h.maskPIIInText(content, "[MaskedRequest]")
+
+					// Update the message content with masked text
+					message["content"] = maskedText
+
+					// Collect entities and mappings
+					entities = append(entities, _entities...)
+					for k, v := range _maskedToOriginal {
+						maskedToOriginal[k] = v
+					}
 				}
 			}
 		}
 	}
 
-	return maskedRequest
+	return maskedRequest, maskedToOriginal, entities
 }
 
 func (h *Handler) Close() error {

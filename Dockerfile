@@ -13,11 +13,15 @@ COPY go.mod go.sum ./
 # Download dependencies
 RUN go mod download
 
-# Copy source code
-COPY . .
-
-RUN cat /app/server/server.go
-RUN cat /app/proxy/handler.go
+# Copy source code - exclude ui/, model-server/, and pii_model/
+COPY main.go ./
+COPY config/ ./config/
+COPY pii/ ./pii/
+COPY processor/ ./processor/
+COPY proxy/ ./proxy/
+COPY server/ ./server/
+COPY pii_onnx_model/ ./pii_onnx_model/
+COPY tokenizers/ ./tokenizers/
 
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main .

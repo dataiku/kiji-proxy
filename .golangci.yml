@@ -1,0 +1,37 @@
+# golangci-lint configuration
+# Compatible with CI v1.64.2
+
+
+
+run:
+  timeout: 5m
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - misspell
+    - gocyclo
+    - goconst
+    - dupl
+    - gocritic
+    - gosec
+    - nakedret
+    - noctx
+    - rowserrcheck
+    - unconvert
+    - unparam
+    - whitespace
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - gomnd
+        - funlen
+        - gocyclo
+        - goconst
+        - dupl

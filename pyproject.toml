@@ -29,9 +29,9 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=6.0",
+]
+lint = [
     "ruff>=0.1.0",
-    "ipython>=8.0",
-    "jupyter>=1.0",
 ]
 
 # Training dependencies (not needed in production)
@@ -48,10 +48,14 @@ training = [
     "sympy>=1.0.0",
 ]
 
-all = [
-    "pytest>=6.0",
-    "ruff>=0.1.0",
+# ONNX quantization dependencies
+quantization = [
+    "optimum[onnxruntime]>=1.15.0",
+    "onnx>=1.15.0",
+    "onnxruntime>=1.16.0",
 ]
+
+# Note: 'all' group removed - use 'dev' instead for development dependencies
 
 [project.scripts]
 yaak-server = "model_server.fast_api:main"

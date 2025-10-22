@@ -1,15 +1,19 @@
 package pii
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+)
 
 const (
-	DetectorNameModel = "model_detector"
-	DetectorNameRegex = "regex_detector"
+	DetectorNameModel     = "model_detector"
+	DetectorNameRegex     = "regex_detector"
+	DetectorNameONNXModel = "onnx_model_detector"
 )
 
 type Detector interface {
 	GetName() string
-	Detect(input DetectorInput) (DetectorOutput, error)
+	Detect(ctx context.Context, input DetectorInput) (DetectorOutput, error)
 	Close() error
 }
 
@@ -41,6 +45,18 @@ func init() {
 
 	RegisterDetectorFactory(DetectorNameRegex, func(config map[string]interface{}) (Detector, error) {
 		return NewRegexDetector(PIIPatterns), nil
+	})
+
+	RegisterDetectorFactory(DetectorNameONNXModel, func(config map[string]interface{}) (Detector, error) {
+		modelPath, ok := config["model_path"].(string)
+		if !ok {
+			return nil, fmt.Errorf("model_path is required for ONNX model detector")
+		}
+		tokenizerPath, ok := config["tokenizer_path"].(string)
+		if !ok {
+			return nil, fmt.Errorf("tokenizer_path is required for ONNX model detector")
+		}
+		return NewONNXModelDetectorSimple(modelPath, tokenizerPath)
 	})
 }
 

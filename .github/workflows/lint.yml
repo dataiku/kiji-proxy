@@ -25,17 +25,22 @@ jobs:
       with:
         version: "latest"
 
-    - name: Install dependencies
+    - name: Create virtual environment
+      run: uv venv
+
+    - name: Install lint dependencies
       run: |
-        uv sync --dev --all-extras
+        uv pip install ruff
 
     - name: Run ruff linter
       run: |
-        uv run ruff check .
+        source .venv/bin/activate
+        ruff check .
 
     - name: Run ruff formatter check
       run: |
-        uv run ruff format --check . --diff
+        source .venv/bin/activate
+        ruff format --check . --diff
 
   go-lint:
     runs-on: ubuntu-latest
@@ -51,7 +56,4 @@ jobs:
         go-version: '1.25'
 
     - name: golangci-lint
-      uses: golangci/golangci-lint-action@v3
-      with:
-        version: latest
-        args: --timeout=5m
+      uses: golangci/golangci-lint-action@v6
