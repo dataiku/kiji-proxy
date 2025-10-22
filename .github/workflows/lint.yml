@@ -30,7 +30,7 @@ jobs:
 
     - name: Install lint dependencies
       run: |
-        uv pip install .[lint]
+        uv pip install ruff
 
     - name: Run ruff linter
       run: |
