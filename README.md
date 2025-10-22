@@ -1,12 +1,35 @@
 
 
-# Yaak Proxy Service
+# Yaak PII Detection Proxy
 
 <div align="center">
   <img src="static/yaak.png" alt="Yaak Mascot" width="300">
 </div>
 
 A secure HTTP proxy service that intercepts requests to the OpenAI API, detects and redacts Personally Identifiable Information (PII), and restores original PII in responses. Built with Go and featuring PostgreSQL database support for persistent PII mapping storage.
+
+## 🎯 What is Yaak?
+
+Yaak is a privacy-first proxy service that sits between your application and OpenAI's API, automatically detecting and masking PII in requests while seamlessly restoring the original data in responses. This ensures your sensitive data never reaches external APIs while maintaining full functionality.
+
+## ⚡ Quick Commands
+
+```bash
+# Start everything (Docker)
+docker-compose up -d
+
+# Start Python ML components
+make quickstart
+
+# Run Go tests
+go test ./...
+
+# Run Python tests
+make test
+
+# View all available commands
+make help
+```
 
 ## 🖥️ UI Screenshot
 
@@ -60,21 +83,30 @@ A secure HTTP proxy service that intercepts requests to the OpenAI API, detects 
 
 ### Option 1: Docker Compose (Recommended)
 
-1. **Start the services:**
+1. **Set your OpenAI API key:**
+   ```bash
+   export OPENAI_API_KEY="your-api-key-here"
+   ```
+
+2. **Start all services:**
    ```bash
    docker-compose up -d
    ```
 
-2. **Test the service:**
+3. **Verify services are running:**
    ```bash
+   # Check proxy service
    curl http://localhost:8080/health
+
+   # Check UI (optional)
+   curl http://localhost:3000
    ```
 
-3. **Test PII detection:**
+4. **Test PII detection:**
    ```bash
    curl -X POST http://localhost:8080/chat/completions \
      -H "Content-Type: application/json" \
-     -H "Authorization: Bearer your-openai-api-key" \
+     -H "Authorization: Bearer $OPENAI_API_KEY" \
      -d '{
        "messages": [
          {
@@ -90,8 +122,9 @@ A secure HTTP proxy service that intercepts requests to the OpenAI API, detects 
 1. **Prerequisites:**
    - Go 1.21+
    - PostgreSQL (optional, for database features)
+   - Python 3.11+ (for ML components)
 
-2. **Install dependencies:**
+2. **Install Go dependencies:**
    ```bash
    go mod tidy
    ```
@@ -101,42 +134,90 @@ A secure HTTP proxy service that intercepts requests to the OpenAI API, detects 
    go run main.go
    ```
 
+### Option 3: Python ML Components
+
+For advanced PII detection with transformer models:
+
+```bash
+# Install UV (fast Python package manager)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Quick setup
+make quickstart
+
+# Or step by step:
+make venv
+make install
+make dev
+```
+
+Visit http://localhost:8000/docs for interactive API documentation.
+
 ## 📋 Services
 
-### Yaak Proxy Application
-- **Port:** 8080
-- **Health Check:** `http://localhost:8080/health`
-- **Features:** PII detection, replacement, and restoration
-- **Storage:** In-memory (default) or PostgreSQL database
+### Core Services
 
-### PostgreSQL Database (Docker)
-- **Port:** 5432
-- **Database:** `pii_proxy`
+| Service | Port | Description | Health Check |
+|---------|------|-------------|--------------|
+| **Yaak Proxy** | 8080 | Main proxy service with PII detection | `http://localhost:8080/health` |
+| **PostgreSQL** | 5432 | Database for PII mapping storage | `docker-compose ps` |
+| **Privacy UI** | 8080 | React-based web interface | `http://localhost:8080` |
+
+### Model Hosting
+
+Tool supports hosting your own model server and also hosting via onnx-go bindings.
+
+### Optional Services
+
+| Service | Port | Description | Status |
+|---------|------|-------------|--------|
+| **FastAPI Server** | 8000 | Advanced ML-based PII detection | Commented out in docker-compose |
+| **Model Server** | 8000 | Python ML model serving | Available via `make dev` |
+
+### Database Configuration
+- **Database:** `pii_proxy` (Docker) / `yaak` (default config)
 - **Username:** `postgres`
 - **Password:** `postgres123`
-- **Auto-setup:** Runs database schema on first startup
+- **Auto-setup:** Database schema runs on first startup
 
 ## ⚙️ Configuration
 
 ### Environment Variables
 
+#### Required Variables
 ```bash
-# Database Configuration
+# OpenAI API Configuration
+OPENAI_API_KEY=your-api-key-here  # Your OpenAI API key (required)
+```
+
+#### Database Configuration
+```bash
+# Database Settings
 DB_ENABLED=true                    # Enable database storage
 DB_HOST=localhost                  # Database host
 DB_PORT=5432                       # Database port
-DB_NAME=pii_proxy                  # Database name
+DB_NAME=pii_proxy                  # Database name (Docker) / yaak (default)
 DB_USER=postgres                   # Database username
 DB_PASSWORD=postgres123            # Database password
 DB_SSL_MODE=disable                # SSL mode
 DB_USE_CACHE=true                  # Use in-memory cache
 DB_CLEANUP_HOURS=24                # Cleanup old mappings after N hours
+```
 
-# Application Configuration
+#### Application Configuration
+```bash
+# Proxy Settings
 PROXY_PORT=:8080                   # Proxy server port
 OPENAI_BASE_URL=https://api.openai.com/v1  # OpenAI API base URL
 
-# Logging Configuration
+# PII Detection
+DETECTOR_NAME=onnx_model_detector    # Detection method: onnx_model_detector, model_detector, regex_detector
+MODEL_BASE_URL=http://localhost:8000 # Model server URL (if using external model)
+```
+
+#### Logging Configuration
+```bash
+# Logging Settings
 LOG_REQUESTS=true                  # Log request content
 LOG_RESPONSES=false                # Log response content
 LOG_PII_CHANGES=true               # Log PII detection/restoration
@@ -334,7 +415,7 @@ ALTER SYSTEM SET effective_cache_size = '1GB';
 ├── main.go                 # Go application entry point
 ├── config/                 # Configuration management
 │   ├── config.go          # Configuration structs and defaults
-│   └── README.md          # Configuration documentation
+│   └── config.development.json  # Development configuration
 ├── pii/                    # PII detection and mapping
 │   ├── detector.go         # PII detection logic
 │   ├── mapper.go           # PII mapping management
@@ -344,11 +425,16 @@ ALTER SYSTEM SET effective_cache_size = '1GB';
 ├── proxy/                  # HTTP proxy handler
 ├── processor/              # Response processing
 ├── server/                 # HTTP server
+├── ui/                     # React-based web interface
+│   ├── dist/              # Built UI assets
+│   └── privacy-proxy-ui.tsx  # Main UI component
 ├── model/                  # Python ML model training and evaluation
 ├── model_server/           # FastAPI server for PII detection
 ├── pii_model/              # Trained DistilBERT model files
-├── examples/               # Usage examples
+├── pii_onnx_model/         # ONNX quantized model files
 ├── scripts/                # Setup and utility scripts
+├── static/                 # Static assets (images, etc.)
+├── dist/                   # Distribution builds
 ├── Makefile               # Development commands (30+ targets)
 ├── pyproject.toml         # Python project configuration with Ruff
 ├── docker-compose.yml     # Docker orchestration
@@ -377,12 +463,36 @@ ALTER SYSTEM SET effective_cache_size = '1GB';
 
 ### Local Development with Hot Reload
 
+#### Go Development
 ```bash
 # Install air for hot reloading
 go install github.com/cosmtrek/air@latest
 
 # Run with hot reload
 air
+```
+
+#### UI Development
+```bash
+# Navigate to UI directory
+cd ui
+
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+```
+
+#### Python ML Development
+```bash
+# Quick development setup
+make quickstart
+
+# Or manual setup
+make venv
+make install-dev
+make dev
 ```
 
 ## 🐛 Troubleshooting
@@ -434,14 +544,45 @@ cfg.Logging.LogRequests = true
 cfg.Logging.LogResponses = true
 ```
 
+## 🖥️ Web Interface
+
+Yaak includes a React-based web interface for monitoring and configuration:
+
+- **URL:** http://localhost:3000 (when running with Docker)
+- **Features:**
+  - Real-time PII detection monitoring
+  - Configuration management
+  - Request/response logging
+  - Database statistics
+
+### UI Development
+```bash
+cd ui
+npm install
+npm run dev
+```
+
 ## 📚 API Reference
 
-### Endpoints
+### Core Endpoints
 
-- `GET /health` - Health check endpoint
-- `POST /chat/completions` - Proxy to OpenAI Chat Completions API
-- `POST /completions` - Proxy to OpenAI Completions API
-- `POST /embeddings` - Proxy to OpenAI Embeddings API
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/health` | GET | Health check endpoint |
+| `/chat/completions` | POST | Proxy to OpenAI Chat Completions API |
+| `/completions` | POST | Proxy to OpenAI Completions API |
+| `/embeddings` | POST | Proxy to OpenAI Embeddings API |
+
+### Python ML API (Optional)
+
+When running the FastAPI server (`make dev`):
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/health` | GET | Model server health check |
+| `/model/info` | GET | Model information |
+| `/detect` | POST | Detect PII in text |
+| `/detect/batch` | POST | Batch PII detection |
 
 ### Request/Response Format
 
@@ -663,10 +804,11 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## 🙏 Acknowledgments
 
-- Built with Go and PostgreSQL
-- Docker containerization
-- OpenAI API compatibility
-- Thread-safe concurrent processing
-- Python ML components with FastAPI
-- Customizable PII detection model
-- Modern tooling: UV, Ruff, and comprehensive Makefile
+- **Go Backend**: High-performance proxy with concurrent request handling
+- **PostgreSQL**: Persistent PII mapping storage
+- **Docker**: Complete containerization with multi-service orchestration
+- **OpenAI API**: Full compatibility with OpenAI's API format
+- **React UI**: Modern web interface for monitoring and configuration
+- **Python ML**: Advanced PII detection with transformer models
+- **Modern Tooling**: UV for fast Python package management, Ruff for code quality
+- **Thread-Safe**: Concurrent processing with proper synchronization
