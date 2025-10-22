@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"io/fs"
 	"log"
 	"net/http"
 	"time"
@@ -14,6 +15,8 @@ import (
 type Server struct {
 	config  *config.Config
 	handler *proxy.Handler
+	uiFS    fs.FS
+	modelFS fs.FS
 }
 
 // NewServer creates a new server instance
@@ -28,6 +31,21 @@ func NewServer(cfg *config.Config) (*Server, error) {
 	return &Server{
 		config:  cfg,
 		handler: handler,
+	}, nil
+}
+
+// NewServerWithEmbedded creates a new server instance with embedded filesystems
+func NewServerWithEmbedded(cfg *config.Config, uiFS, modelFS fs.FS) (*Server, error) {
+	handler, err := proxy.NewHandler(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create proxy handler: %w", err)
+	}
+
+	return &Server{
+		config:  cfg,
+		handler: handler,
+		uiFS:    uiFS,
+		modelFS: modelFS,
 	}, nil
 }
 
@@ -55,7 +73,27 @@ func (s *Server) Start() error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", s.healthCheck)
 	mux.HandleFunc("/details", s.detailsHandler)
-	mux.Handle("/", s.handler)
+	mux.Handle("/v1/chat/completions", s.handler)
+
+	// Serve UI files
+	if s.uiFS != nil {
+		// Use embedded filesystem - need to strip the "ui/dist/" prefix
+		// The embedded files are at "ui/dist/" but we want to serve them at "/"
+		subFS, err := fs.Sub(s.uiFS, "ui/dist")
+		if err != nil {
+			log.Printf("Failed to create sub-filesystem: %v", err)
+			// Fallback to regular embedded filesystem
+			uiFS := http.FileServer(http.FS(s.uiFS))
+			mux.Handle("/", uiFS)
+		} else {
+			uiFS := http.FileServer(http.FS(subFS))
+			mux.Handle("/", uiFS)
+		}
+	} else {
+		// Use file system
+		uiFS := http.FileServer(http.Dir(s.config.UIPath))
+		mux.Handle("/", uiFS)
+	}
 
 	// Create server with timeout configuration
 	server := &http.Server{

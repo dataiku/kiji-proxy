@@ -1,6 +1,7 @@
 package pii
 
 import (
+	"context"
 	"testing"
 )
 
@@ -21,7 +22,7 @@ func TestRegexDetector_Detect_NoMatches(t *testing.T) {
 	detector := NewRegexDetector(patterns)
 	input := DetectorInput{Text: "This text has no SSN numbers."}
 
-	output, err := detector.Detect(input)
+	output, err := detector.Detect(context.Background(), input)
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}
@@ -42,7 +43,7 @@ func TestRegexDetector_Detect_WithMatches(t *testing.T) {
 	detector := NewRegexDetector(patterns)
 	input := DetectorInput{Text: "My SSN is 123-45-6789 and another is 987-65-4321."}
 
-	output, err := detector.Detect(input)
+	output, err := detector.Detect(context.Background(), input)
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}
@@ -89,7 +90,7 @@ func TestRegexDetector_Detect_EmailPattern(t *testing.T) {
 	detector := NewRegexDetector(patterns)
 	input := DetectorInput{Text: "Contact me at john.doe@example.com or jane@test.org"}
 
-	output, err := detector.Detect(input)
+	output, err := detector.Detect(context.Background(), input)
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}
@@ -126,7 +127,7 @@ func TestRegexDetector_Detect_MultiplePatterns(t *testing.T) {
 	detector := NewRegexDetector(patterns)
 	input := DetectorInput{Text: "Contact john@example.com at 123 Main St, 12345. SSN: 123-45-6789"}
 
-	output, err := detector.Detect(input)
+	output, err := detector.Detect(context.Background(), input)
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}

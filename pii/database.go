@@ -49,7 +49,7 @@ type PostgresPIIMappingDB struct {
 }
 
 // NewPostgresPIIMappingDB creates a new PostgreSQL PII mapping database
-func NewPostgresPIIMappingDB(config DatabaseConfig) (*PostgresPIIMappingDB, error) {
+func NewPostgresPIIMappingDB(ctx context.Context, config DatabaseConfig) (*PostgresPIIMappingDB, error) {
 	// Build connection string
 	connStr := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
 		config.Host, config.Port, config.Username, config.Password, config.Database, config.SSLMode)
@@ -66,12 +66,12 @@ func NewPostgresPIIMappingDB(config DatabaseConfig) (*PostgresPIIMappingDB, erro
 	db.SetConnMaxLifetime(config.MaxLifetime)
 
 	// Test connection
-	if err := db.Ping(); err != nil {
+	if err := db.PingContext(ctx); err != nil {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
 	// Create table if it doesn't exist
-	if err := createTableIfNotExists(db); err != nil {
+	if err := createTableIfNotExists(ctx, db); err != nil {
 		return nil, fmt.Errorf("failed to create table: %w", err)
 	}
 
@@ -79,7 +79,7 @@ func NewPostgresPIIMappingDB(config DatabaseConfig) (*PostgresPIIMappingDB, erro
 }
 
 // createTableIfNotExists creates the pii_mappings table if it doesn't exist
-func createTableIfNotExists(db *sql.DB) error {
+func createTableIfNotExists(ctx context.Context, db *sql.DB) error {
 	query := `
 	CREATE TABLE IF NOT EXISTS pii_mappings (
 		id SERIAL PRIMARY KEY,
@@ -100,7 +100,7 @@ func createTableIfNotExists(db *sql.DB) error {
 	CREATE INDEX IF NOT EXISTS idx_pii_mappings_confidence ON pii_mappings(confidence);
 	`
 
-	_, err := db.Exec(query)
+	_, err := db.ExecContext(ctx, query)
 	return err
 }
 
