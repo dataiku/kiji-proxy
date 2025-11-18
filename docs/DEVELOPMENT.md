@@ -4,9 +4,239 @@ This guide covers the development setup and build processes for the Yaak Proxy p
 
 ## Table of Contents
 
+- [Go and Delve Setup](#go-and-delve-setup)
 - [Compiling Tokenizers with Rust](#compiling-tokenizers-with-rust)
 - [VS Code Debugging Setup](#vs-code-debugging-setup)
 - [Building a Single Binary](#building-a-single-binary)
+
+## Go and Delve Setup
+
+This section covers installing and configuring Go and Delve (the Go debugger) for development in Cursor/VS Code.
+
+### Prerequisites
+
+- macOS, Linux, or Windows
+- Homebrew (macOS) or appropriate package manager for your OS
+
+### Installing Go
+
+#### macOS (using Homebrew)
+
+```bash
+# Install Go
+brew install go
+
+# Verify installation
+go version
+```
+
+You should see output like: `go version go1.25.4 darwin/arm64`
+
+#### Linux
+
+```bash
+# Ubuntu/Debian
+sudo apt-get update
+sudo apt-get install golang-go
+
+# Or download from https://go.dev/dl/
+wget https://go.dev/dl/go1.21.0.linux-amd64.tar.gz
+sudo tar -C /usr/local -xzf go1.21.0.linux-amd64.tar.gz
+export PATH=$PATH:/usr/local/go/bin
+```
+
+#### Windows
+
+1. Download the installer from [https://go.dev/dl/](https://go.dev/dl/)
+2. Run the installer and follow the prompts
+3. Verify installation: `go version`
+
+### Installing Delve (Go Debugger)
+
+Delve (dlv) is the debugger used by the Go extension in Cursor/VS Code.
+
+```bash
+# Install Delve
+go install github.com/go-delve/delve/cmd/dlv@latest
+```
+
+This installs Delve to `$GOPATH/bin/dlv` (typically `~/go/bin/dlv`).
+
+### Configuring PATH
+
+To ensure Delve is accessible from your terminal and Cursor:
+
+#### macOS/Linux (zsh/bash)
+
+Add the following to your `~/.zshrc` or `~/.bashrc`:
+
+```bash
+# Add Go bin directory to PATH
+export PATH="$HOME/go/bin:$PATH"
+```
+
+Then reload your shell:
+
+```bash
+# For zsh
+source ~/.zshrc
+
+# For bash
+source ~/.bashrc
+```
+
+#### Verify Installation
+
+```bash
+# Check Go version
+go version
+
+# Check Delve version
+dlv version
+```
+
+You should see:
+- Go: `go version go1.25.4 ...`
+- Delve: `Delve Debugger Version: 1.25.2`
+
+### Cursor/VS Code Configuration
+
+The project includes configuration files in `.vscode/` to enable debugging:
+
+#### 1. Settings (`.vscode/settings.json`)
+
+This file configures the Go extension to find Delve:
+
+```json
+{
+    "go.delvePath": "/Users/hannes/go/bin/dlv",
+    "go.toolsGopath": "/Users/hannes/go"
+}
+```
+
+**Note:** Update the path to match your system:
+- macOS/Linux: `$HOME/go/bin/dlv` (e.g., `/Users/username/go/bin/dlv`)
+- Windows: `%USERPROFILE%\go\bin\dlv.exe`
+
+#### 2. Launch Configurations (`.vscode/launch.json`)
+
+The project includes several debug configurations:
+
+1. **Launch yaak-proxy** - Main debugging configuration
+   - Uses development config file
+   - Pre-configured environment variables
+   - Runs on port 8080
+
+2. **Debug Current File** - Debug any Go file directly
+
+3. **Attach to Process** - Attach to a running Go process
+
+4. **Connect to Server** - Remote debugging (port 2345)
+
+5. **Debug Current Test** - Debug the test in the current file
+
+6. **Debug All Tests in Package** - Debug all tests in the current package
+
+### Using the Debugger
+
+1. **Install Go Extension:**
+   - Open Cursor/VS Code
+   - Go to Extensions (Cmd+Shift+X / Ctrl+Shift+X)
+   - Search for "Go" and install the official Go extension
+
+2. **Set Breakpoints:**
+   - Click in the left margin (gutter) of any Go file
+   - Red dots indicate breakpoints
+
+3. **Start Debugging:**
+   - Press `F5` or go to Run → Start Debugging
+   - Select a configuration from the dropdown
+   - The debugger will start and stop at breakpoints
+
+4. **Debug Controls:**
+   - **Continue (F5):** Resume execution
+   - **Step Over (F10):** Execute current line
+   - **Step Into (F11):** Step into function calls
+   - **Step Out (Shift+F11):** Step out of current function
+   - **Restart (Ctrl+Shift+F5 / Cmd+Shift+F5):** Restart debugging session
+   - **Stop (Shift+F5):** Stop debugging
+
+5. **Debug Panels:**
+   - **Variables:** Inspect variable values
+   - **Watch:** Monitor specific expressions
+   - **Call Stack:** View function call hierarchy
+   - **Debug Console:** Evaluate expressions and run commands
+
+### Troubleshooting
+
+#### "Cannot find Delve debugger"
+
+**Solution 1:** Ensure Delve is installed and in PATH
+```bash
+# Install Delve
+go install github.com/go-delve/delve/cmd/dlv@latest
+
+# Verify it's accessible
+which dlv
+# Should output: /Users/username/go/bin/dlv (or similar)
+```
+
+**Solution 2:** Update `.vscode/settings.json` with the correct path
+```json
+{
+    "go.delvePath": "/absolute/path/to/dlv"
+}
+```
+
+**Solution 3:** Restart Cursor/VS Code after installing Delve
+
+#### "command not found: dlv"
+
+Add Go bin directory to your PATH:
+```bash
+# Add to ~/.zshrc or ~/.bashrc
+export PATH="$HOME/go/bin:$PATH"
+
+# Reload shell
+source ~/.zshrc  # or source ~/.bashrc
+```
+
+#### Go extension not working
+
+1. Ensure the Go extension is installed
+2. Check Go extension output: View → Output → Select "Go" from dropdown
+3. Reload Cursor/VS Code: Cmd+Shift+P / Ctrl+Shift+P → "Reload Window"
+
+#### Debugger not stopping at breakpoints
+
+1. Ensure you're using a debug configuration (not just running the program)
+2. Check that breakpoints are set (red dots in gutter)
+3. Verify the code path is being executed
+4. Try setting a breakpoint in `main()` to verify debugging works
+
+### Verifying Setup
+
+Run these commands to verify everything is configured correctly:
+
+```bash
+# Check Go installation
+go version
+
+# Check Delve installation
+dlv version
+
+# Check Go environment
+go env GOPATH
+go env GOBIN
+
+# Verify Delve is in PATH
+which dlv
+
+# Test Go can find dependencies
+go mod download
+```
+
+All commands should complete without errors.
 
 ## Compiling Tokenizers with Rust
 
@@ -89,6 +319,8 @@ This runs Go tests with the proper linker flags to use the compiled static libra
 
 ## VS Code Debugging Setup
 
+> **Prerequisites:** Before debugging, ensure you have completed the [Go and Delve Setup](#go-and-delve-setup) section above.
+
 The project includes a comprehensive VS Code debugging configuration in `.vscode/launch.json`.
 
 ### Debug Configurations Available
@@ -97,6 +329,8 @@ The project includes a comprehensive VS Code debugging configuration in `.vscode
 2. **Debug Current File** - Debug the currently open Go file
 3. **Attach to Process** - Attach to a running process
 4. **Connect to Server** - Remote debugging
+5. **Debug Current Test** - Debug the test in the current file
+6. **Debug All Tests in Package** - Debug all tests in the current package
 
 ### Main Debug Configuration
 
