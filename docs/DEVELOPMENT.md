@@ -5,6 +5,7 @@ This guide covers the development setup and build processes for the Yaak Proxy p
 ## Table of Contents
 
 - [Go and Delve Setup](#go-and-delve-setup)
+- [Installing ONNX Runtime Library](#installing-onnx-runtime-library)
 - [Compiling Tokenizers with Rust](#compiling-tokenizers-with-rust)
 - [VS Code Debugging Setup](#vs-code-debugging-setup)
 - [Building a Single Binary](#building-a-single-binary)
@@ -238,6 +239,139 @@ go mod download
 
 All commands should complete without errors.
 
+## Installing ONNX Runtime Library
+
+The project uses ONNX Runtime for running the PII detection model. The Go application requires the ONNX Runtime shared library to be available in the project root.
+
+### Prerequisites
+
+- **UV** (fast Python package manager) - Install from [astral.sh/uv](https://astral.sh/uv)
+  ```bash
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  ```
+  
+  After installation, add UV to your PATH:
+  ```bash
+  # For zsh/bash
+  source "$HOME/.local/bin/env"
+  
+  # Or add to ~/.zshrc or ~/.bashrc
+  export PATH="$HOME/.local/bin:$PATH"
+  ```
+
+### Installing ONNX Runtime
+
+1. **Create a virtual environment with a compatible Python version:**
+   
+   ONNX Runtime requires Python 3.10-3.13 (not 3.14+). UV will automatically download a compatible version if needed.
+   
+   ```bash
+   # From the project root
+   cd /path/to/yaak-proxy
+   
+   # Create virtual environment (UV will use Python 3.13 if available, or download it)
+   uv venv --python 3.13
+   # Or use 3.12 or 3.11 if 3.13 is not available
+   # uv venv --python 3.12
+   ```
+
+2. **Activate the virtual environment and install ONNX Runtime:**
+   
+   ```bash
+   # Activate the virtual environment
+   source .venv/bin/activate
+   
+   # Install ONNX Runtime using UV
+   uv pip install onnxruntime
+   ```
+   
+   This will install ONNX Runtime (typically version 1.23.2) and its dependencies.
+
+3. **Copy the library file to the project root:**
+   
+   ```bash
+   # Find the library file (version may vary, e.g., 1.23.2)
+   find .venv -name "libonnxruntime*.dylib"
+   
+   # Copy it to the project root with the expected name
+   cp .venv/lib/python3.13/site-packages/onnxruntime/capi/libonnxruntime.1.23.2.dylib \
+      ./libonnxruntime.1.23.1.dylib
+   ```
+   
+   **Note:** The code expects `libonnxruntime.1.23.1.dylib`, but the installed version may be 1.23.2. This is fine as the API is compatible. Simply copy the file with the expected name.
+
+4. **Verify the installation:**
+   
+   ```bash
+   # Check that the library file exists
+   ls -lh libonnxruntime.1.23.1.dylib
+   
+   # Verify it's a valid library (macOS)
+   file libonnxruntime.1.23.1.dylib
+   otool -L libonnxruntime.1.23.1.dylib | head -5
+   ```
+   
+   You should see output indicating it's a valid Mach-O shared library for arm64 (Apple Silicon) or x86_64 (Intel).
+
+### Alternative: Using Pre-built Binaries
+
+If you prefer not to use Python/UV, you can download pre-built ONNX Runtime libraries:
+
+- **macOS ARM64:** Download from [ONNX Runtime releases](https://github.com/microsoft/onnxruntime/releases)
+- Extract and copy `libonnxruntime.1.23.1.dylib` to the project root
+
+### Troubleshooting
+
+**Issue: "library 'onnxruntime' not found"**
+
+- Ensure the library file is in the project root: `./libonnxruntime.1.23.1.dylib`
+- Check that the file has execute permissions: `chmod +x libonnxruntime.1.23.1.dylib`
+- Verify the library architecture matches your system (arm64 for Apple Silicon, x86_64 for Intel)
+
+**Issue: "Python version not compatible"**
+
+- ONNX Runtime requires Python 3.10-3.13. If you have Python 3.14+, UV will automatically use a compatible version when you specify `--python 3.13`
+
+**Issue: "Permission denied" when copying**
+
+- Ensure you have write permissions in the project directory
+- Try using `sudo` if necessary (though this is usually not required)
+
+### Quick Setup Script
+
+You can automate the setup with this script:
+
+```bash
+#!/bin/bash
+set -e
+
+# Install UV if not present
+if ! command -v uv &> /dev/null; then
+    echo "Installing UV..."
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    export PATH="$HOME/.local/bin:$PATH"
+fi
+
+# Create venv and install ONNX Runtime
+echo "Creating virtual environment..."
+uv venv --python 3.13
+source .venv/bin/activate
+
+echo "Installing ONNX Runtime..."
+uv pip install onnxruntime
+
+# Find and copy the library
+echo "Copying ONNX Runtime library..."
+LIB_PATH=$(find .venv -name "libonnxruntime*.dylib" | head -1)
+if [ -n "$LIB_PATH" ]; then
+    cp "$LIB_PATH" ./libonnxruntime.1.23.1.dylib
+    echo "✅ ONNX Runtime library installed at ./libonnxruntime.1.23.1.dylib"
+else
+    echo "❌ Could not find ONNX Runtime library"
+    exit 1
+fi
+```
+
 ## Compiling Tokenizers with Rust
 
 The project uses Rust-based tokenizers that need to be compiled into a static library for Go integration.
@@ -380,17 +514,25 @@ The "Launch yaak-proxy" configuration includes:
 
 Before debugging, ensure:
 
-1. **Tokenizers are compiled:**
+1. **ONNX Runtime library is installed:**
+   - Follow the [Installing ONNX Runtime Library](#installing-onnx-runtime-library) section above
+   - Ensure `libonnxruntime.1.23.1.dylib` is in the project root
+
+2. **Tokenizers are compiled:**
    ```bash
    cd tokenizers && make build
    ```
+   
+   Or use pre-built binaries (see [Compiling Tokenizers with Rust](#compiling-tokenizers-with-rust))
 
-2. **Model server is running (if using ONNX model):**
+3. **Model server is running (if using external model server):**
    ```bash
    make dev  # Starts the model server
    ```
+   
+   **Note:** If using `onnx_model_detector`, the model runs locally and no external server is needed.
 
-3. **Configuration file exists:**
+4. **Configuration file exists:**
    - Ensure `config/config.development.json` exists
    - Update API keys and URLs as needed
 
