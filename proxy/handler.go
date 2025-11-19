@@ -188,9 +188,7 @@ func (h *Handler) buildTargetURL(r *http.Request) (string, error) {
 	path := strings.TrimPrefix(r.URL.Path, "/v1")
 
 	// Ensure forwardEndpoint doesn't end with /v1 if path already starts with /
-	if strings.HasSuffix(forwardEndpoint, "/v1") {
-		forwardEndpoint = strings.TrimSuffix(forwardEndpoint, "/v1")
-	}
+	forwardEndpoint = strings.TrimSuffix(forwardEndpoint, "/v1")
 
 	// Remove trailing slash from forwardEndpoint to avoid double slashes
 	forwardEndpoint = strings.TrimSuffix(forwardEndpoint, "/")
