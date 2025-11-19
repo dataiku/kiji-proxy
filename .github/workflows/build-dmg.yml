@@ -10,6 +10,8 @@ jobs:
   build-dmg:
     runs-on: macos-latest
     name: Build DMG for macOS
+    permissions:
+      contents: write  # Required to create releases
 
     steps:
     - name: Checkout code
@@ -177,7 +179,7 @@ jobs:
           electron_ui/release/*.zip
         draft: false
         prerelease: ${{ github.ref != 'refs/heads/main' }}
-        make_latest: ${{ github.ref == 'refs/heads/main' }}
+        generate_release_notes: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
