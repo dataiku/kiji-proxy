@@ -1,0 +1,161 @@
+name: Build DMG
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  build-dmg:
+    runs-on: macos-latest
+    name: Build DMG for macOS
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: electron_ui/package-lock.json
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        version: "latest"
+
+    - name: Set up Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable
+
+    - name: Install Python dependencies
+      run: |
+        uv venv
+        source .venv/bin/activate
+        uv pip install onnxruntime
+
+    - name: Find and copy ONNX Runtime library
+      run: |
+        source .venv/bin/activate
+        ONNX_LIB=$(find .venv -name "libonnxruntime*.dylib" | head -1)
+        if [ -n "$ONNX_LIB" ]; then
+          cp "$ONNX_LIB" ./libonnxruntime.1.23.1.dylib
+          echo "✅ ONNX Runtime library copied"
+        else
+          echo "⚠️  ONNX Runtime library not found, continuing..."
+        fi
+
+    - name: Build tokenizers library (if needed)
+      run: |
+        cd tokenizers
+        if [ -f "libtokenizers.a" ]; then
+          echo "✅ Using existing libtokenizers.a"
+        elif [ -f "libtokenizers.darwin-arm64.tar.gz" ]; then
+          echo "Extracting pre-built library..."
+          tar -xzf libtokenizers.darwin-arm64.tar.gz
+        elif [ -f "Makefile" ]; then
+          echo "Building with Makefile..."
+          make build || cargo build --release
+          if [ -f "target/release/libtokenizers.a" ]; then
+            cp target/release/libtokenizers.a ./libtokenizers.a
+          fi
+        else
+          echo "Building with cargo..."
+          cargo build --release
+          if [ -f "target/release/libtokenizers.a" ]; then
+            cp target/release/libtokenizers.a ./libtokenizers.a
+          fi
+        fi
+        if [ ! -f "libtokenizers.a" ]; then
+          echo "❌ Failed to obtain libtokenizers.a"
+          exit 1
+        fi
+        cd ..
+
+    - name: Build Go binary
+      run: |
+        mkdir -p build
+        CGO_ENABLED=1 \
+        go build \
+          -ldflags="-extldflags '-L./tokenizers'" \
+          -o build/yaak-proxy \
+          main.go
+
+    - name: Prepare Electron resources
+      run: |
+        mkdir -p electron_ui/resources
+        cp build/yaak-proxy electron_ui/resources/yaak-proxy
+        chmod +x electron_ui/resources/yaak-proxy
+        
+        # Copy ONNX library if it exists
+        if [ -f "libonnxruntime.1.23.1.dylib" ]; then
+          cp libonnxruntime.1.23.1.dylib electron_ui/resources/
+        fi
+        
+        # Copy model files
+        if [ -d "pii_onnx_model" ]; then
+          cp -r pii_onnx_model electron_ui/resources/
+        fi
+
+    - name: Install Electron dependencies
+      working-directory: electron_ui
+      run: npm ci
+
+    - name: Build Electron app
+      working-directory: electron_ui
+      run: npm run build:electron
+
+    - name: Package Electron app (DMG)
+      working-directory: electron_ui
+      run: npm run electron:pack
+
+    - name: Upload DMG artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: Privacy-Proxy-DMG
+        path: electron_ui/release/*.dmg
+        retention-days: 30
+
+    - name: Upload ZIP artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: Privacy-Proxy-ZIP
+        path: electron_ui/release/*.zip
+        retention-days: 30
+      continue-on-error: true # ZIP might not always be created
+
+    - name: Build summary
+      run: |
+        echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "✅ DMG files created:" >> $GITHUB_STEP_SUMMARY
+        ls -lh electron_ui/release/*.dmg 2>/dev/null | awk '{print "- " $9 " (" $5 ")"}' >> $GITHUB_STEP_SUMMARY || echo "- No DMG files found" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "📦 Artifacts uploaded to workflow run" >> $GITHUB_STEP_SUMMARY
+
+    - name: Create Release (if tag)
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          electron_ui/release/*.dmg
+          electron_ui/release/*.zip
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

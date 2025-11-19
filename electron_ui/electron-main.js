@@ -1,9 +1,11 @@
 const { app, BrowserWindow, Menu, ipcMain, safeStorage } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { spawn } = require('child_process');
 const isDev = process.env.NODE_ENV === 'development';
 
 let mainWindow;
+let goProcess = null;
 
 // Storage for API key (using safeStorage when available, fallback to encrypted file)
 const getStoragePath = () => {
@@ -15,7 +17,160 @@ const isEncryptionAvailable = () => {
   return safeStorage.isEncryptionAvailable();
 };
 
+// Get the path to the Go binary in the app bundle
+const getGoBinaryPath = () => {
+  if (isDev) {
+    // In development, look for the binary in the project root
+    const devPath = path.join(__dirname, '..', 'build', 'yaak-proxy');
+    if (fs.existsSync(devPath)) {
+      return devPath;
+    }
+    // Fallback: assume it's running separately
+    return null;
+  }
+  
+  // In production, the binary is in the app's resources directory
+  // For macOS app bundles: Contents/Resources/
+  if (process.platform === 'darwin') {
+    // app.getAppPath() returns the path to the app bundle's Contents/Resources/app.asar or Contents/Resources/app
+    const resourcesPath = process.resourcesPath || app.getAppPath();
+    const binaryPath = path.join(resourcesPath, 'resources', 'yaak-proxy');
+    
+    // If not found, try alternative paths
+    if (fs.existsSync(binaryPath)) {
+      return binaryPath;
+    }
+    
+    // Try without 'resources' subdirectory (if resources are at root)
+    const altPath = path.join(resourcesPath, 'yaak-proxy');
+    if (fs.existsSync(altPath)) {
+      return altPath;
+    }
+  }
+  
+  // For other platforms or if not found
+  const resourcesPath = process.resourcesPath || app.getAppPath();
+  return path.join(resourcesPath, 'resources', 'yaak-proxy');
+};
+
+// Get the path to resources directory
+const getResourcesPath = () => {
+  if (isDev) {
+    return path.join(__dirname, '..');
+  }
+  
+  if (process.platform === 'darwin') {
+    return process.resourcesPath || app.getAppPath();
+  }
+  
+  return process.resourcesPath || app.getAppPath();
+};
+
+// Launch the Go binary backend
+const launchGoBinary = () => {
+  const binaryPath = getGoBinaryPath();
+  
+  if (!binaryPath || !fs.existsSync(binaryPath)) {
+    console.warn('Go binary not found at:', binaryPath);
+    console.warn('The app will try to connect to an existing backend server.');
+    return;
+  }
+  
+  // Get resources path for ONNX library and model files
+  const resourcesPath = getResourcesPath();
+  const onnxLibPath = path.join(resourcesPath, 'resources', 'libonnxruntime.1.23.1.dylib');
+  const modelPath = path.join(resourcesPath, 'resources', 'pii_onnx_model');
+  
+  // Set up environment variables
+  const env = { ...process.env };
+  
+  // Set ONNX Runtime library path if it exists
+  if (fs.existsSync(onnxLibPath)) {
+    env.ONNXRUNTIME_SHARED_LIBRARY_PATH = onnxLibPath;
+  } else {
+    // Try alternative location
+    const altOnnxPath = path.join(resourcesPath, 'libonnxruntime.1.23.1.dylib');
+    if (fs.existsSync(altOnnxPath)) {
+      env.ONNXRUNTIME_SHARED_LIBRARY_PATH = altOnnxPath;
+    }
+  }
+  
+  // Set working directory to resources so model files can be found
+  const workingDir = fs.existsSync(modelPath) ? path.join(resourcesPath, 'resources') : resourcesPath;
+  
+  console.log('Launching Go binary:', binaryPath);
+  console.log('Working directory:', workingDir);
+  console.log('ONNX library path:', env.ONNXRUNTIME_SHARED_LIBRARY_PATH || 'not set');
+  
+  // Spawn the Go process
+  goProcess = spawn(binaryPath, [], {
+    cwd: workingDir,
+    env: env,
+    stdio: ['ignore', 'pipe', 'pipe']
+  });
+  
+  // Handle stdout
+  goProcess.stdout.on('data', (data) => {
+    console.log(`[Go Backend] ${data.toString().trim()}`);
+  });
+  
+  // Handle stderr
+  goProcess.stderr.on('data', (data) => {
+    console.error(`[Go Backend Error] ${data.toString().trim()}`);
+  });
+  
+  // Handle process exit
+  goProcess.on('exit', (code, signal) => {
+    console.log(`Go binary exited with code ${code} and signal ${signal}`);
+    goProcess = null;
+    
+    // If the process exited unexpectedly and we're not shutting down, show an error
+    if (code !== 0 && code !== null && !app.isQuitting) {
+      if (mainWindow) {
+        mainWindow.webContents.send('backend-error', {
+          message: 'Backend server exited unexpectedly',
+          code: code
+        });
+      }
+    }
+  });
+  
+  // Handle process errors
+  goProcess.on('error', (error) => {
+    console.error('Failed to start Go binary:', error);
+    goProcess = null;
+    
+    if (mainWindow) {
+      mainWindow.webContents.send('backend-error', {
+        message: 'Failed to start backend server',
+        error: error.message
+      });
+    }
+  });
+};
+
+// Stop the Go binary
+const stopGoBinary = () => {
+  if (goProcess) {
+    console.log('Stopping Go binary...');
+    goProcess.kill('SIGTERM');
+    
+    // Force kill after 3 seconds if still running
+    setTimeout(() => {
+      if (goProcess && !goProcess.killed) {
+        console.log('Force killing Go binary...');
+        goProcess.kill('SIGKILL');
+      }
+      goProcess = null;
+    }, 3000);
+  }
+};
+
 function createWindow() {
+  // Get icon path (works in both dev and production)
+  const iconPath = path.join(__dirname, 'assets', 'icon.png');
+  const iconExists = fs.existsSync(iconPath);
+  
   // Create the browser window
   mainWindow = new BrowserWindow({
     width: 1400,
@@ -29,7 +184,7 @@ function createWindow() {
       webSecurity: true,
       preload: path.join(__dirname, 'electron-preload.js')
     },
-    icon: path.join(__dirname, 'assets', 'icon.png'), // Optional: add an icon
+    ...(iconExists && { icon: iconPath }), // App icon (only set if file exists)
     show: false // Don't show until ready
   });
 
@@ -177,13 +332,27 @@ function createMenu() {
 
 // This method will be called when Electron has finished initialization
 app.whenReady().then(() => {
-  createWindow();
-  createMenu();
+  // Launch the Go binary backend first
+  launchGoBinary();
+  
+  // Wait a moment for the backend to start, then create the window
+  setTimeout(() => {
+    createWindow();
+    createMenu();
+  }, 1000);
 
   app.on('activate', () => {
     // On macOS, re-create a window when the dock icon is clicked
     if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
+      // Ensure backend is running
+      if (!goProcess) {
+        launchGoBinary();
+        setTimeout(() => {
+          createWindow();
+        }, 1000);
+      } else {
+        createWindow();
+      }
     }
   });
 });
@@ -191,8 +360,20 @@ app.whenReady().then(() => {
 // Quit when all windows are closed, except on macOS
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
+    stopGoBinary();
     app.quit();
   }
+});
+
+// Handle app quitting
+app.on('before-quit', () => {
+  app.isQuitting = true;
+  stopGoBinary();
+});
+
+// Handle app will quit (macOS)
+app.on('will-quit', () => {
+  stopGoBinary();
 });
 
 // IPC handlers for secure storage

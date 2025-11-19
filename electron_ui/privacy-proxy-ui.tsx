@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Shield, Eye, Send, AlertCircle, Settings } from 'lucide-react';
 import SettingsModal from './SettingsModal';
+import logoImage from './assets/logo.png';
 
 export default function PrivacyProxyUI() {
   const [inputData, setInputData] = useState('');
@@ -179,7 +180,7 @@ export default function PrivacyProxyUI() {
         {/* Header */}
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-3 mb-4 relative">
-            <Shield className="w-10 h-10 text-blue-600" />
+            <img src={logoImage} alt="Yaak Logo" className="w-12 h-12" />
             <h1 className="text-4xl font-bold text-slate-800">Yaak - Privacy Proxy</h1>
             {isElectron && (
               <button
