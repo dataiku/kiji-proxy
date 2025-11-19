@@ -22,6 +22,7 @@ type Handler struct {
 	detector          *pii.Detector
 	responseProcessor *processor.ResponseProcessor
 	maskingService    *piiServices.MaskingService
+	electronConfigPath string
 }
 
 // GetDetector returns the PII detector instance
@@ -69,7 +70,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Create and send proxy request with redacted body
 	resp, err := h.createAndSendProxyRequest(r, []byte(redactedBody))
 	if err != nil {
-		http.Error(w, "Failed to proxy request to OpenAI", http.StatusBadGateway)
+		log.Printf("[Proxy] ❌ Failed to create proxy request: %v", err)
+		http.Error(w, fmt.Sprintf("Failed to proxy request: %v", err), http.StatusInternalServerError)
 		return
 	}
 	defer func() { _ = resp.Body.Close() }()
@@ -120,7 +122,10 @@ func (h *Handler) checkRequestPII(body string) (string, map[string]string, []pii
 
 // createAndSendProxyRequest creates and sends the proxy request to OpenAI
 func (h *Handler) createAndSendProxyRequest(r *http.Request, body []byte) (*http.Response, error) {
-	targetURL := h.buildTargetURL(r)
+	targetURL, err := h.buildTargetURL(r)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build target URL: %w", err)
+	}
 
 	proxyReq, err := http.NewRequestWithContext(r.Context(), r.Method, targetURL, bytes.NewReader(body))
 	if err != nil {
@@ -130,8 +135,9 @@ func (h *Handler) createAndSendProxyRequest(r *http.Request, body []byte) (*http
 	// Copy headers from original request
 	h.copyHeaders(r.Header, proxyReq.Header)
 
-	// Add OpenAI API key
-	proxyReq.Header.Set("Authorization", "Bearer "+h.config.OpenAIAPIKey)
+	// Add OpenAI API key (from header or config)
+	apiKey := h.getOpenAIAPIKey(r)
+	proxyReq.Header.Set("Authorization", "Bearer "+apiKey)
 
 	// Explicitly set Accept-Encoding to identity to avoid compressed responses
 	proxyReq.Header.Set("Accept-Encoding", "identity")
@@ -145,16 +151,53 @@ func (h *Handler) createAndSendProxyRequest(r *http.Request, body []byte) (*http
 	return resp, nil
 }
 
+// getOpenAIAPIKey gets the OpenAI API key from request header or falls back to config
+func (h *Handler) getOpenAIAPIKey(r *http.Request) string {
+	// Check for API key in custom header (for Electron app)
+	if apiKey := r.Header.Get("X-OpenAI-API-Key"); apiKey != "" {
+		return apiKey
+	}
+	// Fall back to config
+	return h.config.OpenAIAPIKey
+}
+
+// getForwardEndpoint reads the forward endpoint from Electron config file
+// Returns error if config file doesn't exist or forwardEndpoint is invalid
+func (h *Handler) getForwardEndpoint() (string, error) {
+	// If electron config path is set, read from it
+	if h.electronConfigPath != "" {
+		forwardEndpoint, err := config.ReadForwardEndpoint(h.electronConfigPath)
+		if err != nil {
+			return "", fmt.Errorf("failed to read forward endpoint from electron config: %w", err)
+		}
+		return forwardEndpoint, nil
+	}
+	// Fall back to config if electron config path is not set
+	return h.config.OpenAIBaseURL, nil
+}
+
 // buildTargetURL builds the target URL for the proxy request
-func (h *Handler) buildTargetURL(r *http.Request) string {
+func (h *Handler) buildTargetURL(r *http.Request) (string, error) {
+	// Get forward endpoint (from Electron config or fallback to config)
+	forwardEndpoint, err := h.getForwardEndpoint()
+	if err != nil {
+		return "", err
+	}
+
 	// Remove the /v1 prefix from the path since the base URL already includes it
 	path := strings.TrimPrefix(r.URL.Path, "/v1")
 
-	targetURL := h.config.OpenAIBaseURL + path
+	// Ensure forwardEndpoint doesn't end with /v1 if path already starts with /
+	forwardEndpoint = strings.TrimSuffix(forwardEndpoint, "/v1")
+
+	// Remove trailing slash from forwardEndpoint to avoid double slashes
+	forwardEndpoint = strings.TrimSuffix(forwardEndpoint, "/")
+
+	targetURL := forwardEndpoint + path
 	if r.URL.RawQuery != "" {
 		targetURL += "?" + r.URL.RawQuery
 	}
-	return targetURL
+	return targetURL, nil
 }
 
 // copyHeaders copies headers from source to destination
@@ -197,7 +240,7 @@ func (h *Handler) processAndSendResponse(w http.ResponseWriter, resp *http.Respo
 	}
 }
 
-func NewHandler(cfg *config.Config) (*Handler, error) {
+func NewHandler(cfg *config.Config, electronConfigPath string) (*Handler, error) {
 	// Create a temporary handler to get the detector
 	tempHandler := &Handler{config: cfg}
 	detector, err := tempHandler.GetDetector()
@@ -211,11 +254,12 @@ func NewHandler(cfg *config.Config) (*Handler, error) {
 	responseProcessor := processor.NewResponseProcessor(&detector, cfg.Logging)
 
 	return &Handler{
-		client:            &http.Client{},
-		config:            cfg,
-		detector:          &detector,
-		responseProcessor: responseProcessor,
-		maskingService:    maskingService,
+		client:             &http.Client{},
+		config:             cfg,
+		detector:           &detector,
+		responseProcessor:  responseProcessor,
+		maskingService:     maskingService,
+		electronConfigPath: electronConfigPath,
 	}, nil
 }
 
@@ -270,7 +314,22 @@ func (h *Handler) HandleDetails(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	targetURL := h.config.OpenAIBaseURL + "/chat/completions"
+	// Get forward endpoint (from Electron config or fallback to config)
+	forwardEndpoint, err := h.getForwardEndpoint()
+	if err != nil {
+		log.Printf("[Details] ❌ Failed to get forward endpoint: %v", err)
+		http.Error(w, fmt.Sprintf("Failed to get forward endpoint: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// Build target URL - normalize base URL and always append /v1/chat/completions
+	// Remove /v1 and trailing slashes to get the base URL
+	forwardEndpoint = strings.TrimSuffix(forwardEndpoint, "/v1")
+	forwardEndpoint = strings.TrimSuffix(forwardEndpoint, "/")
+	// Always append /v1/chat/completions since HandleDetails always calls this endpoint
+	targetURL := forwardEndpoint + "/v1/chat/completions"
+	log.Printf("[Details] Forward endpoint (normalized): %s", forwardEndpoint)
+	log.Printf("[Details] Target URL: %s", targetURL)
 	proxyReq, err := http.NewRequestWithContext(r.Context(), r.Method, targetURL, bytes.NewReader(maskedRequestBody))
 	if err != nil {
 		log.Printf("[Details] ❌ Failed to create proxy request: %v", err)
@@ -281,8 +340,9 @@ func (h *Handler) HandleDetails(w http.ResponseWriter, r *http.Request) {
 	// Copy headers from original request
 	h.copyHeaders(r.Header, proxyReq.Header)
 
-	// Add OpenAI API key
-	proxyReq.Header.Set("Authorization", "Bearer "+h.config.OpenAIAPIKey)
+	// Add OpenAI API key (from header or config)
+	apiKey := h.getOpenAIAPIKey(r)
+	proxyReq.Header.Set("Authorization", "Bearer "+apiKey)
 
 	// Explicitly set Accept-Encoding to identity to avoid compressed responses
 	proxyReq.Header.Set("Accept-Encoding", "identity")
@@ -306,12 +366,41 @@ func (h *Handler) HandleDetails(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse OpenAI response
+	// Check if response is successful (2xx status codes)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		log.Printf("[Details] ❌ OpenAI API returned error status: %s", resp.Status)
+		log.Printf("[Details] OpenAI error response body: %s", string(respBody))
+		
+		// Try to parse as JSON error response, otherwise return the raw body
+		var errorResponse map[string]interface{}
+		if err := json.Unmarshal(respBody, &errorResponse); err == nil {
+			// Successfully parsed as JSON, return it as error
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(resp.StatusCode)
+			if err := json.NewEncoder(w).Encode(map[string]interface{}{
+				"error": errorResponse,
+				"status_code": resp.StatusCode,
+			}); err != nil {
+				log.Printf("[Details] ❌ Failed to write error response: %v", err)
+			}
+		} else {
+			// Not JSON, return as plain text error
+			w.Header().Set("Content-Type", "text/plain")
+			w.WriteHeader(resp.StatusCode)
+			if _, err := w.Write(respBody); err != nil {
+				log.Printf("[Details] ❌ Failed to write error response: %v", err)
+			}
+		}
+		return
+	}
+
+	// Parse OpenAI response (only for successful responses)
 	log.Printf("[Details] OpenAI response body: %s", string(respBody))
 	var responseData map[string]interface{}
 	if err := json.Unmarshal(respBody, &responseData); err != nil {
 		log.Printf("[Details] ❌ Failed to parse OpenAI response: %v", err)
-		http.Error(w, "Invalid OpenAI response", http.StatusInternalServerError)
+		log.Printf("[Details] Response body was: %s", string(respBody))
+		http.Error(w, fmt.Sprintf("Invalid OpenAI response: %v", err), http.StatusInternalServerError)
 		return
 	}
 
