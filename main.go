@@ -12,6 +12,7 @@ import (
 
 	"github.com/hannes/yaak-private/config"
 	"github.com/hannes/yaak-private/server"
+	"github.com/joho/godotenv"
 )
 
 //go:embed ui/dist/*
@@ -23,11 +24,22 @@ var modelFiles embed.FS
 const TRUE = "true"
 
 func main() {
+	// Load .env file if it exists
+	// Try loading from current directory and workspace root
+	if err := godotenv.Load(); err == nil {
+		log.Println("Loaded .env file from current directory")
+	} else if err := godotenv.Load(".env"); err == nil {
+		log.Println("Loaded .env file from .env path")
+	} else {
+		log.Printf("Note: .env file not found or could not be loaded: %v", err)
+	}
+
 	// Load configuration
 	cfg := config.DefaultConfig()
 
 	// Check for config file path from command-line flag
 	configPath := flag.String("config", "", "Path to JSON config file")
+	electronConfigPath := flag.String("electron-config", "", "Path to Electron's config.json file")
 	flag.Parse()
 
 	if *configPath != "" {
@@ -53,7 +65,7 @@ func main() {
 	// In development, use file system; in production, use embedded files
 	if *configPath != "" {
 		// Development mode - use file system
-		srv, err = server.NewServer(cfg)
+		srv, err = server.NewServer(cfg, *electronConfigPath)
 		if err != nil {
 			log.Fatalf("Failed to create server: %v", err)
 		}
@@ -70,7 +82,7 @@ func main() {
 			log.Println("Model files extracted successfully")
 		}
 
-		srv, err = server.NewServerWithEmbedded(cfg, uiFiles, modelFiles)
+		srv, err = server.NewServerWithEmbedded(cfg, uiFiles, modelFiles, *electronConfigPath)
 		if err != nil {
 			log.Fatalf("Failed to create server with embedded files: %v", err)
 		}
@@ -163,6 +175,9 @@ func loadApplicationConfig(cfg *config.Config) {
 	}
 	if apiKey := os.Getenv("OPENAI_API_KEY"); apiKey != "" {
 		cfg.OpenAIAPIKey = apiKey
+		log.Printf("Loaded OPENAI_API_KEY from environment (length: %d)", len(apiKey))
+	} else {
+		log.Printf("Warning: OPENAI_API_KEY is empty or not set")
 	}
 }
 
