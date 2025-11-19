@@ -83,3 +83,6 @@ electron_ui/postcss.config.js
 
 build/
 config/config.development.json
+electron_ui/release/
+electron_ui/resources/
+electron_ui/dist/
