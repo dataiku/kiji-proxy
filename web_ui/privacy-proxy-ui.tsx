@@ -117,7 +117,7 @@ export default function PrivacyProxyUI() {
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-3 mb-4">
             <Shield className="w-10 h-10 text-blue-600" />
-            <h1 className="text-4xl font-bold text-slate-800">Privacy Proxy Service</h1>
+            <h1 className="text-4xl font-bold text-slate-800">Yaak - Privacy Proxy</h1>
           </div>
           <p className="text-slate-600 text-lg">
             Secure data masking, AI processing, and demasking pipeline
