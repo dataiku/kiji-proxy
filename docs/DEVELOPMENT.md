@@ -4,9 +4,373 @@ This guide covers the development setup and build processes for the Yaak Proxy p
 
 ## Table of Contents
 
+- [Go and Delve Setup](#go-and-delve-setup)
+- [Installing ONNX Runtime Library](#installing-onnx-runtime-library)
 - [Compiling Tokenizers with Rust](#compiling-tokenizers-with-rust)
 - [VS Code Debugging Setup](#vs-code-debugging-setup)
 - [Building a Single Binary](#building-a-single-binary)
+
+## Go and Delve Setup
+
+This section covers installing and configuring Go and Delve (the Go debugger) for development in Cursor/VS Code.
+
+### Prerequisites
+
+- macOS, Linux, or Windows
+- Homebrew (macOS) or appropriate package manager for your OS
+
+### Installing Go
+
+#### macOS (using Homebrew)
+
+```bash
+# Install Go
+brew install go
+
+# Verify installation
+go version
+```
+
+You should see output like: `go version go1.25.4 darwin/arm64`
+
+#### Linux
+
+```bash
+# Ubuntu/Debian
+sudo apt-get update
+sudo apt-get install golang-go
+
+# Or download from https://go.dev/dl/
+wget https://go.dev/dl/go1.21.0.linux-amd64.tar.gz
+sudo tar -C /usr/local -xzf go1.21.0.linux-amd64.tar.gz
+export PATH=$PATH:/usr/local/go/bin
+```
+
+#### Windows
+
+1. Download the installer from [https://go.dev/dl/](https://go.dev/dl/)
+2. Run the installer and follow the prompts
+3. Verify installation: `go version`
+
+### Installing Delve (Go Debugger)
+
+Delve (dlv) is the debugger used by the Go extension in Cursor/VS Code.
+
+```bash
+# Install Delve
+go install github.com/go-delve/delve/cmd/dlv@latest
+```
+
+This installs Delve to `$GOPATH/bin/dlv` (typically `~/go/bin/dlv`).
+
+### Configuring PATH
+
+To ensure Delve is accessible from your terminal and Cursor:
+
+#### macOS/Linux (zsh/bash)
+
+Add the following to your `~/.zshrc` or `~/.bashrc`:
+
+```bash
+# Add Go bin directory to PATH
+export PATH="$HOME/go/bin:$PATH"
+```
+
+Then reload your shell:
+
+```bash
+# For zsh
+source ~/.zshrc
+
+# For bash
+source ~/.bashrc
+```
+
+#### Verify Installation
+
+```bash
+# Check Go version
+go version
+
+# Check Delve version
+dlv version
+```
+
+You should see:
+- Go: `go version go1.25.4 ...`
+- Delve: `Delve Debugger Version: 1.25.2`
+
+### Cursor/VS Code Configuration
+
+The project includes configuration files in `.vscode/` to enable debugging:
+
+#### 1. Settings (`.vscode/settings.json`)
+
+This file configures the Go extension to find Delve:
+
+```json
+{
+    "go.delvePath": "/Users/hannes/go/bin/dlv",
+    "go.toolsGopath": "/Users/hannes/go"
+}
+```
+
+**Note:** Update the path to match your system:
+- macOS/Linux: `$HOME/go/bin/dlv` (e.g., `/Users/username/go/bin/dlv`)
+- Windows: `%USERPROFILE%\go\bin\dlv.exe`
+
+#### 2. Launch Configurations (`.vscode/launch.json`)
+
+The project includes several debug configurations:
+
+1. **Launch yaak-proxy** - Main debugging configuration
+   - Uses development config file
+   - Pre-configured environment variables
+   - Runs on port 8080
+
+2. **Debug Current File** - Debug any Go file directly
+
+3. **Attach to Process** - Attach to a running Go process
+
+4. **Connect to Server** - Remote debugging (port 2345)
+
+5. **Debug Current Test** - Debug the test in the current file
+
+6. **Debug All Tests in Package** - Debug all tests in the current package
+
+### Using the Debugger
+
+1. **Install Go Extension:**
+   - Open Cursor/VS Code
+   - Go to Extensions (Cmd+Shift+X / Ctrl+Shift+X)
+   - Search for "Go" and install the official Go extension
+
+2. **Set Breakpoints:**
+   - Click in the left margin (gutter) of any Go file
+   - Red dots indicate breakpoints
+
+3. **Start Debugging:**
+   - Press `F5` or go to Run → Start Debugging
+   - Select a configuration from the dropdown
+   - The debugger will start and stop at breakpoints
+
+4. **Debug Controls:**
+   - **Continue (F5):** Resume execution
+   - **Step Over (F10):** Execute current line
+   - **Step Into (F11):** Step into function calls
+   - **Step Out (Shift+F11):** Step out of current function
+   - **Restart (Ctrl+Shift+F5 / Cmd+Shift+F5):** Restart debugging session
+   - **Stop (Shift+F5):** Stop debugging
+
+5. **Debug Panels:**
+   - **Variables:** Inspect variable values
+   - **Watch:** Monitor specific expressions
+   - **Call Stack:** View function call hierarchy
+   - **Debug Console:** Evaluate expressions and run commands
+
+### Troubleshooting
+
+#### "Cannot find Delve debugger"
+
+**Solution 1:** Ensure Delve is installed and in PATH
+```bash
+# Install Delve
+go install github.com/go-delve/delve/cmd/dlv@latest
+
+# Verify it's accessible
+which dlv
+# Should output: /Users/username/go/bin/dlv (or similar)
+```
+
+**Solution 2:** Update `.vscode/settings.json` with the correct path
+```json
+{
+    "go.delvePath": "/absolute/path/to/dlv"
+}
+```
+
+**Solution 3:** Restart Cursor/VS Code after installing Delve
+
+#### "command not found: dlv"
+
+Add Go bin directory to your PATH:
+```bash
+# Add to ~/.zshrc or ~/.bashrc
+export PATH="$HOME/go/bin:$PATH"
+
+# Reload shell
+source ~/.zshrc  # or source ~/.bashrc
+```
+
+#### Go extension not working
+
+1. Ensure the Go extension is installed
+2. Check Go extension output: View → Output → Select "Go" from dropdown
+3. Reload Cursor/VS Code: Cmd+Shift+P / Ctrl+Shift+P → "Reload Window"
+
+#### Debugger not stopping at breakpoints
+
+1. Ensure you're using a debug configuration (not just running the program)
+2. Check that breakpoints are set (red dots in gutter)
+3. Verify the code path is being executed
+4. Try setting a breakpoint in `main()` to verify debugging works
+
+### Verifying Setup
+
+Run these commands to verify everything is configured correctly:
+
+```bash
+# Check Go installation
+go version
+
+# Check Delve installation
+dlv version
+
+# Check Go environment
+go env GOPATH
+go env GOBIN
+
+# Verify Delve is in PATH
+which dlv
+
+# Test Go can find dependencies
+go mod download
+```
+
+All commands should complete without errors.
+
+## Installing ONNX Runtime Library
+
+The project uses ONNX Runtime for running the PII detection model. The Go application requires the ONNX Runtime shared library to be available in the project root.
+
+### Prerequisites
+
+- **UV** (fast Python package manager) - Install from [astral.sh/uv](https://astral.sh/uv)
+  ```bash
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  ```
+  
+  After installation, add UV to your PATH:
+  ```bash
+  # For zsh/bash
+  source "$HOME/.local/bin/env"
+  
+  # Or add to ~/.zshrc or ~/.bashrc
+  export PATH="$HOME/.local/bin:$PATH"
+  ```
+
+### Installing ONNX Runtime
+
+1. **Create a virtual environment with a compatible Python version:**
+   
+   ONNX Runtime requires Python 3.10-3.13 (not 3.14+). UV will automatically download a compatible version if needed.
+   
+   ```bash
+   # From the project root
+   cd /path/to/yaak-proxy
+   
+   # Create virtual environment (UV will use Python 3.13 if available, or download it)
+   uv venv --python 3.13
+   # Or use 3.12 or 3.11 if 3.13 is not available
+   # uv venv --python 3.12
+   ```
+
+2. **Activate the virtual environment and install ONNX Runtime:**
+   
+   ```bash
+   # Activate the virtual environment
+   source .venv/bin/activate
+   
+   # Install ONNX Runtime using UV
+   uv pip install onnxruntime
+   ```
+   
+   This will install ONNX Runtime (typically version 1.23.2) and its dependencies.
+
+3. **Copy the library file to the project root:**
+   
+   ```bash
+   # Find the library file (version may vary, e.g., 1.23.2)
+   find .venv -name "libonnxruntime*.dylib"
+   
+   # Copy it to the project root with the expected name
+   cp .venv/lib/python3.13/site-packages/onnxruntime/capi/libonnxruntime.1.23.2.dylib \
+      ./libonnxruntime.1.23.1.dylib
+   ```
+   
+   **Note:** The code expects `libonnxruntime.1.23.1.dylib`, but the installed version may be 1.23.2. This is fine as the API is compatible. Simply copy the file with the expected name.
+
+4. **Verify the installation:**
+   
+   ```bash
+   # Check that the library file exists
+   ls -lh libonnxruntime.1.23.1.dylib
+   
+   # Verify it's a valid library (macOS)
+   file libonnxruntime.1.23.1.dylib
+   otool -L libonnxruntime.1.23.1.dylib | head -5
+   ```
+   
+   You should see output indicating it's a valid Mach-O shared library for arm64 (Apple Silicon) or x86_64 (Intel).
+
+### Alternative: Using Pre-built Binaries
+
+If you prefer not to use Python/UV, you can download pre-built ONNX Runtime libraries:
+
+- **macOS ARM64:** Download from [ONNX Runtime releases](https://github.com/microsoft/onnxruntime/releases)
+- Extract and copy `libonnxruntime.1.23.1.dylib` to the project root
+
+### Troubleshooting
+
+**Issue: "library 'onnxruntime' not found"**
+
+- Ensure the library file is in the project root: `./libonnxruntime.1.23.1.dylib`
+- Check that the file has execute permissions: `chmod +x libonnxruntime.1.23.1.dylib`
+- Verify the library architecture matches your system (arm64 for Apple Silicon, x86_64 for Intel)
+
+**Issue: "Python version not compatible"**
+
+- ONNX Runtime requires Python 3.10-3.13. If you have Python 3.14+, UV will automatically use a compatible version when you specify `--python 3.13`
+
+**Issue: "Permission denied" when copying**
+
+- Ensure you have write permissions in the project directory
+- Try using `sudo` if necessary (though this is usually not required)
+
+### Quick Setup Script
+
+You can automate the setup with this script:
+
+```bash
+#!/bin/bash
+set -e
+
+# Install UV if not present
+if ! command -v uv &> /dev/null; then
+    echo "Installing UV..."
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    export PATH="$HOME/.local/bin:$PATH"
+fi
+
+# Create venv and install ONNX Runtime
+echo "Creating virtual environment..."
+uv venv --python 3.13
+source .venv/bin/activate
+
+echo "Installing ONNX Runtime..."
+uv pip install onnxruntime
+
+# Find and copy the library
+echo "Copying ONNX Runtime library..."
+LIB_PATH=$(find .venv -name "libonnxruntime*.dylib" | head -1)
+if [ -n "$LIB_PATH" ]; then
+    cp "$LIB_PATH" ./libonnxruntime.1.23.1.dylib
+    echo "✅ ONNX Runtime library installed at ./libonnxruntime.1.23.1.dylib"
+else
+    echo "❌ Could not find ONNX Runtime library"
+    exit 1
+fi
+```
 
 ## Compiling Tokenizers with Rust
 
@@ -89,6 +453,8 @@ This runs Go tests with the proper linker flags to use the compiled static libra
 
 ## VS Code Debugging Setup
 
+> **Prerequisites:** Before debugging, ensure you have completed the [Go and Delve Setup](#go-and-delve-setup) section above.
+
 The project includes a comprehensive VS Code debugging configuration in `.vscode/launch.json`.
 
 ### Debug Configurations Available
@@ -97,6 +463,8 @@ The project includes a comprehensive VS Code debugging configuration in `.vscode
 2. **Debug Current File** - Debug the currently open Go file
 3. **Attach to Process** - Attach to a running process
 4. **Connect to Server** - Remote debugging
+5. **Debug Current Test** - Debug the test in the current file
+6. **Debug All Tests in Package** - Debug all tests in the current package
 
 ### Main Debug Configuration
 
@@ -146,17 +514,25 @@ The "Launch yaak-proxy" configuration includes:
 
 Before debugging, ensure:
 
-1. **Tokenizers are compiled:**
+1. **ONNX Runtime library is installed:**
+   - Follow the [Installing ONNX Runtime Library](#installing-onnx-runtime-library) section above
+   - Ensure `libonnxruntime.1.23.1.dylib` is in the project root
+
+2. **Tokenizers are compiled:**
    ```bash
    cd tokenizers && make build
    ```
+   
+   Or use pre-built binaries (see [Compiling Tokenizers with Rust](#compiling-tokenizers-with-rust))
 
-2. **Model server is running (if using ONNX model):**
+3. **Model server is running (if using external model server):**
    ```bash
    make dev  # Starts the model server
    ```
+   
+   **Note:** If using `onnx_model_detector`, the model runs locally and no external server is needed.
 
-3. **Configuration file exists:**
+4. **Configuration file exists:**
    - Ensure `config/config.development.json` exists
    - Update API keys and URLs as needed
 

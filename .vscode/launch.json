@@ -23,7 +23,7 @@
         "LOG_VERBOSE": "false",
         "CGO_LDFLAGS": "-L./tokenizers"
       },
-      "args": ["--config=config/config.development.json"],
+      "args": ["-config", "config/config.development.json"],
       "showLog": true,
       "trace": "verbose"
     },
@@ -51,6 +51,23 @@
       "remotePath": "${workspaceFolder}",
       "port": 2345,
       "host": "127.0.0.1",
+      "showLog": true
+    },
+    {
+      "name": "Debug Current Test",
+      "type": "go",
+      "request": "launch",
+      "mode": "test",
+      "program": "${fileDirname}",
+      "showLog": true
+    },
+    {
+      "name": "Debug All Tests in Package",
+      "type": "go",
+      "request": "launch",
+      "mode": "test",
+      "program": "${fileDirname}",
+      "args": ["-test.v"],
       "showLog": true
     }
   ]
