@@ -3,7 +3,7 @@ name: Build DMG
 on:
   push:
     branches:
-      - fix-dmg-build
+      - main
   workflow_dispatch: # Allow manual triggering
 
 jobs:
@@ -156,6 +156,7 @@ jobs:
         echo "Version: $VERSION"
 
     - name: Create Release
+      if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
       uses: softprops/action-gh-release@v1
       with:
         tag_name: v${{ steps.get_version.outputs.version }}-${{ github.run_number }}
@@ -164,7 +165,6 @@ jobs:
           ## Privacy Proxy v${{ steps.get_version.outputs.version }}
           
           Automated build from commit ${{ github.sha }}
-          Branch: ${{ github.ref_name }}
           
           ### Changes
           - See commit history for details
