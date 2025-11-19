@@ -71,7 +71,6 @@ electron_ui/dist/*.css
 electron_ui/dist/*.map
 electron_ui/src/
 electron_ui/public/
-electron_ui/package.json
 electron_ui/yarn.lock
 electron_ui/tsconfig.json
 electron_ui/vite.config.ts
