@@ -123,7 +123,63 @@ jobs:
 
     - name: Package Electron app (DMG)
       working-directory: electron_ui
+      env:
+        CSC_IDENTITY_AUTO_DISCOVERY: false  # Disable code signing
       run: npm run electron:pack
+
+    - name: Remove quarantine and rebuild DMG
+      working-directory: electron_ui
+      run: |
+        # Remove quarantine attribute and rebuild DMG to allow unsigned app to run
+        DMG_PATH=$(find release -name "*.dmg" | head -1)
+        if [ -n "$DMG_PATH" ]; then
+          echo "Processing DMG: $DMG_PATH"
+          
+          # Create temporary directories
+          TEMP_DIR=$(mktemp -d)
+          MOUNT_POINT="$TEMP_DIR/mount"
+          EXTRACT_DIR="$TEMP_DIR/extract"
+          mkdir -p "$MOUNT_POINT" "$EXTRACT_DIR"
+          
+          # Mount the DMG
+          hdiutil attach "$DMG_PATH" -mountpoint "$MOUNT_POINT" -quiet -readonly
+          
+          # Copy contents to extract directory
+          cp -R "$MOUNT_POINT"/* "$EXTRACT_DIR/"
+          
+          # Unmount the DMG
+          hdiutil detach "$MOUNT_POINT" -quiet
+          
+          # Remove quarantine from the app bundle and all its contents
+          APP_PATH=$(find "$EXTRACT_DIR" -name "*.app" -type d | head -1)
+          if [ -n "$APP_PATH" ]; then
+            echo "Removing quarantine from: $APP_PATH"
+            # Remove quarantine recursively from app bundle and all contents
+            xattr -cr "$APP_PATH"
+            # Also remove from all files inside (some tools set it on individual files)
+            find "$APP_PATH" -type f -exec xattr -c {} \; 2>/dev/null || true
+            echo "✅ Quarantine attribute removed from app bundle and contents"
+            
+            # Get DMG metadata
+            DMG_NAME=$(basename "$DMG_PATH" .dmg)
+            DMG_DIR=$(dirname "$DMG_PATH")
+            
+            # Remove old DMG
+            rm -f "$DMG_PATH"
+            
+            # Create new DMG without quarantine
+            hdiutil create -volname "$DMG_NAME" -srcfolder "$EXTRACT_DIR" -ov -format UDZO "$DMG_DIR/$DMG_NAME.dmg"
+            
+            echo "✅ DMG rebuilt without quarantine attribute"
+          else
+            echo "⚠️  App bundle not found in DMG"
+          fi
+          
+          # Cleanup
+          rm -rf "$TEMP_DIR"
+        else
+          echo "⚠️  DMG not found, skipping quarantine removal"
+        fi
 
     - name: Upload DMG artifact
       uses: actions/upload-artifact@v4
