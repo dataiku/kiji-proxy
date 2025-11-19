@@ -111,7 +111,7 @@ func (s *Server) Start() error {
 func (s *Server) healthCheck(w http.ResponseWriter, r *http.Request) {
 	// Add CORS headers
 	s.corsHandler(w, r)
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if _, err := w.Write([]byte(`{"status":"healthy","service":"Yaak Proxy Service"}`)); err != nil {
@@ -131,7 +131,7 @@ func (s *Server) corsHandler(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", origin)
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
 	}
-	
+
 	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-OpenAI-API-Key")
 	w.Header().Set("Access-Control-Max-Age", "3600")
@@ -140,17 +140,17 @@ func (s *Server) corsHandler(w http.ResponseWriter, r *http.Request) {
 // detailsHandler provides the details endpoint for PII analysis
 func (s *Server) detailsHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("--- in detailsHandler ---")
-	
+
 	// Handle CORS preflight OPTIONS request
 	if r.Method == http.MethodOptions {
 		s.corsHandler(w, r)
 		w.WriteHeader(http.StatusOK)
 		return
 	}
-	
+
 	// Add CORS headers to all responses
 	s.corsHandler(w, r)
-	
+
 	// Only allow POST requests
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)

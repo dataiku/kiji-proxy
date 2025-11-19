@@ -1,7 +1,7 @@
 {
   "ProxyPort": ":8080",
   "DetectorName": "onnx_model_detector",
-  "ModelBaseURL": "http://localhost:8000",
+  "ModelBaseURL": "https://api.openai.com/v1",
   "Database": {
     "Enabled": false
   },
@@ -13,5 +13,5 @@
   },
   "ONNXModelPath": "pii_onnx_model/model_quantized.onnx",
   "TokenizerPath": "pii_onnx_model/tokenizer.json",
-  "UIPath": "./ui/dist"
+  "UIPath": "./ui_v2/dist"
 }
