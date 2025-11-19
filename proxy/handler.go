@@ -17,11 +17,11 @@ import (
 
 // Handler handles HTTP requests and proxies them to OpenAI API
 type Handler struct {
-	client            *http.Client
-	config            *config.Config
-	detector          *pii.Detector
-	responseProcessor *processor.ResponseProcessor
-	maskingService    *piiServices.MaskingService
+	client             *http.Client
+	config             *config.Config
+	detector           *pii.Detector
+	responseProcessor  *processor.ResponseProcessor
+	maskingService     *piiServices.MaskingService
 	electronConfigPath string
 }
 
@@ -370,7 +370,7 @@ func (h *Handler) HandleDetails(w http.ResponseWriter, r *http.Request) {
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		log.Printf("[Details] ❌ OpenAI API returned error status: %s", resp.Status)
 		log.Printf("[Details] OpenAI error response body: %s", string(respBody))
-		
+
 		// Try to parse as JSON error response, otherwise return the raw body
 		var errorResponse map[string]interface{}
 		if err := json.Unmarshal(respBody, &errorResponse); err == nil {
@@ -378,7 +378,7 @@ func (h *Handler) HandleDetails(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(resp.StatusCode)
 			if err := json.NewEncoder(w).Encode(map[string]interface{}{
-				"error": errorResponse,
+				"error":       errorResponse,
 				"status_code": resp.StatusCode,
 			}); err != nil {
 				log.Printf("[Details] ❌ Failed to write error response: %v", err)
