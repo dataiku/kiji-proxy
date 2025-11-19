@@ -74,7 +74,6 @@ electron_ui/public/
 electron_ui/yarn.lock
 electron_ui/tsconfig.json
 electron_ui/vite.config.ts
-electron_ui/index.html
 electron_ui/tailwind.config.js
 electron_ui/postcss.config.js
 !electron_ui/dist/.placeholder
