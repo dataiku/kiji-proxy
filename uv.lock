@@ -2605,6 +2605,8 @@ dependencies = [
 [package.optional-dependencies]
 dev = [
     { name = "pytest" },
+]
+lint = [
     { name = "ruff" },
 ]
 quantization = [
@@ -2642,7 +2644,7 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=6.0" },
     { name = "python-multipart", specifier = ">=0.0.6" },
     { name = "requests", specifier = ">=2.28.0" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.1.0" },
+    { name = "ruff", marker = "extra == 'lint'", specifier = ">=0.1.0" },
     { name = "scikit-learn", marker = "extra == 'training'", specifier = ">=1.0.0" },
     { name = "scipy", marker = "extra == 'training'", specifier = ">=1.0.0" },
     { name = "sympy", marker = "extra == 'training'", specifier = ">=1.0.0" },
@@ -2652,7 +2654,7 @@ requires-dist = [
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.24.0" },
     { name = "wandb", marker = "extra == 'training'", specifier = ">=0.12.0" },
 ]
-provides-extras = ["dev", "training", "quantization"]
+provides-extras = ["dev", "lint", "training", "quantization"]
 
 [[package]]
 name = "yarl"

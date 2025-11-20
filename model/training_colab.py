@@ -477,6 +477,7 @@ class WordBasedPreprocessor:
         labels = []
         for i, label in enumerate(source_labels):
             word_ids = tokenized_inputs.word_ids(batch_index=i)
+            previous_word_idx = None
             previous_label = None
             label_ids = [-100]  # Start with padding
 
@@ -484,16 +485,21 @@ class WordBasedPreprocessor:
                 for word_idx in word_ids:
                     if word_idx is None:
                         continue
-                    elif label[word_idx] == "O":
+                    
+                    current_word_label = label[word_idx]
+                    
+                    # If current word is "O", always assign "O"
+                    if current_word_label == "O":
                         label_ids.append(self.label2id["O"])
-                    elif previous_label == label[word_idx]:
-                        # Continuation of entity (Inside)
-                        label_ids.append(self.label2id[f"I-{label[word_idx]}"])
+                    # If we're in the same word AND the label matches previous, use "I-" (Inside)
+                    elif previous_word_idx == word_idx and previous_label == current_word_label:
+                        label_ids.append(self.label2id[f"I-{current_word_label}"])
                     else:
-                        # Beginning of entity
-                        label_ids.append(self.label2id[f"B-{label[word_idx]}"])
+                        # New word or different label - use "B-" (Beginning)
+                        label_ids.append(self.label2id[f"B-{current_word_label}"])
 
-                    previous_label = label[word_idx]
+                    previous_word_idx = word_idx
+                    previous_label = current_word_label
 
                 # Truncate and add final padding
                 label_ids = [*label_ids[:511], -100]
