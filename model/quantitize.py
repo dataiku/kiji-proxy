@@ -21,15 +21,14 @@ Usage:
 import argparse
 import json
 import logging
-import os
 import sys
 from pathlib import Path
 
 import onnx
 import torch
-from optimum.onnxruntime import ORTModelForTokenClassification, ORTQuantizer
+from optimum.onnxruntime import ORTQuantizer
 from optimum.onnxruntime.configuration import AutoQuantizationConfig
-from transformers import AutoModel, AutoTokenizer
+from transformers import AutoTokenizer
 
 # Add project root to path for imports
 project_root = Path(__file__).parent.parent
@@ -223,8 +222,6 @@ def export_to_onnx(
         "special_tokens_map.json",
     ]
 
-    model_path = Path(model.encoder.config.name_or_path if hasattr(model.encoder.config, 'name_or_path') else "distilbert-base-cased")
-    
     # Try to copy from model directory first, then from base model
     for file in tokenizer_files:
         src = Path(tokenizer.name_or_path) / file if hasattr(tokenizer, 'name_or_path') else None
@@ -235,7 +232,7 @@ def export_to_onnx(
                 # Tokenizer files are in cache, we'll save them
                 base_tokenizer.save_pretrained(str(output_path))
                 break
-            except:
+            except Exception:
                 pass
 
     # Save tokenizer to output directory
@@ -265,8 +262,6 @@ def quantize_model(
 
     # Use optimum for quantization
     # ORTQuantizer expects a model directory, not a file path
-    from optimum.onnxruntime import ORTQuantizer
-    from optimum.onnxruntime.configuration import AutoQuantizationConfig
 
     # Create quantizer from model directory (onnx_path should be the directory)
     model_dir = Path(onnx_path).parent if Path(onnx_path).is_file() else Path(onnx_path)
@@ -304,7 +299,7 @@ def quantize_model(
         logger.info("\n📊 Quantized Model Information:")
         logger.info(f"   Inputs: {[input.name for input in model_onnx.graph.input]}")
         logger.info(f"   Outputs: {[output.name for output in model_onnx.graph.output]}")
-        
+
         # Get model size
         model_size_mb = quantized_model_path.stat().st_size / (1024 * 1024)
         logger.info(f"   Model size: {model_size_mb:.2f} MB")
@@ -357,7 +352,7 @@ def main():
         model, label_mappings, tokenizer = load_multitask_model(args.model_path)
 
         # Export to ONNX
-        onnx_path = export_to_onnx(model, tokenizer, args.output_path, args.opset)
+        export_to_onnx(model, tokenizer, args.output_path, args.opset)
 
         # Save label mappings to output directory
         output_path = Path(args.output_path)

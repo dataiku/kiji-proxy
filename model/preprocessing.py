@@ -95,7 +95,7 @@ class DatasetProcessor:
 
         samples = []
         json_files = list(samples_dir.glob("*.json"))
-        
+
         logger.info(f"\n📥 Loading training samples from {samples_dir}...")
         logger.info(f"Found {len(json_files)} JSON files")
 
@@ -128,13 +128,13 @@ class DatasetProcessor:
         pii_label2id = first_sample["pii_sample"]["label2id"]
         pii_id2label = {int(k): v for k, v in first_sample["pii_sample"]["id2label"].items()}
         coref_id2label = {int(k): v for k, v in first_sample["coreference_sample"]["cluster_id2label"].items()}
-        
+
         # Determine number of coreference classes (max cluster ID + 1 for NO_COREF)
         # Find max cluster ID from all samples to get accurate count
         max_coref_id = 0
         for sample in all_samples:
             coref_labels = sample["coreference_sample"]["coreference_labels"]
-            max_in_sample = max((l for l in coref_labels if l >= 0), default=0)
+            max_in_sample = max((label for label in coref_labels if label >= 0), default=0)
             max_coref_id = max(max_coref_id, max_in_sample)
         num_coref_labels = max_coref_id + 1
 

@@ -22,7 +22,7 @@ import time
 from pathlib import Path
 
 import torch
-from transformers import AutoModel, AutoTokenizer
+from transformers import AutoTokenizer
 
 # Add project root to path for imports
 project_root = Path(__file__).parent.parent
@@ -131,7 +131,7 @@ class PIIModelLoader:
         num_pii_labels = len(self.pii_label2id)
         num_coref_labels = len(self.coref_id2label) if self.coref_id2label else 2
 
-        logger.info(f"📋 Model configuration:")
+        logger.info("📋 Model configuration:")
         logger.info(f"   Base model: {base_model_name}")
         logger.info(f"   PII labels: {num_pii_labels}")
         logger.info(f"   Co-reference labels: {num_coref_labels}")
@@ -174,7 +174,7 @@ class PIIModelLoader:
 
         self.model.to(self.device)
         self.model.eval()
-        
+
         device_name = "MPS (Apple Silicon)" if self.device.type == "mps" else str(self.device)
         logger.info(f"✅ Loaded model on device: {device_name}")
 

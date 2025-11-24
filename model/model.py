@@ -139,7 +139,7 @@ class MultiTaskLoss(nn.Module):
         """
         pii_loss = self.pii_loss_fn(pii_logits, pii_labels)
         coref_loss = self.coref_loss_fn(coref_logits, coref_labels)
-        
+
         total_loss = self.pii_weight * pii_loss + self.coref_weight * coref_loss
         return total_loss
 
@@ -147,7 +147,6 @@ class MultiTaskLoss(nn.Module):
 class MultiTaskPIIDetectionModel(nn.Module):
     """
     Multi-task model for PII detection and co-reference detection.
-    
     Uses a shared BERT encoder with two separate classification heads.
     """
 
@@ -170,17 +169,17 @@ class MultiTaskPIIDetectionModel(nn.Module):
             id2label_coref: Mapping from co-reference label IDs to label names
         """
         super().__init__()
-        
+
         # Shared encoder
         self.encoder = AutoModel.from_pretrained(model_name)
         hidden_size = self.encoder.config.hidden_size
-        
+
         # PII detection head
         self.pii_classifier = nn.Linear(hidden_size, num_pii_labels)
-        
+
         # Co-reference detection head
         self.coref_classifier = nn.Linear(hidden_size, num_coref_labels)
-        
+
         # Store label mappings
         self.num_pii_labels = num_pii_labels
         self.num_coref_labels = num_coref_labels
@@ -209,13 +208,13 @@ class MultiTaskPIIDetectionModel(nn.Module):
         # Get shared encoder outputs
         outputs = self.encoder(input_ids=input_ids, attention_mask=attention_mask)
         sequence_output = outputs.last_hidden_state  # (batch_size, seq_len, hidden_size)
-        
+
         # PII detection logits
         pii_logits = self.pii_classifier(sequence_output)
-        
+
         # Co-reference detection logits
         coref_logits = self.coref_classifier(sequence_output)
-        
+
         return {
             "pii_logits": pii_logits,
             "coref_logits": coref_logits,

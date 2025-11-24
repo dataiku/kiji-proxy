@@ -25,9 +25,10 @@ try:
     from .trainer import PIITrainer
 except ImportError:
     # Fallback for direct execution
-    from config import EnvironmentSetup, TrainingConfig
     from preprocessing import DatasetProcessor
     from trainer import PIITrainer
+
+    from config import EnvironmentSetup, TrainingConfig
 
 # Set up logging
 logging.basicConfig(
@@ -107,7 +108,7 @@ def main(use_google_drive: bool = True, drive_folder: str = "MyDrive/pii_models"
     logger.info(f"  Precision (macro): {results.get('eval_pii_precision_macro', 'N/A'):.4f}")
     logger.info(f"  Recall (weighted): {results.get('eval_pii_recall_weighted', 'N/A'):.4f}")
     logger.info(f"  Recall (macro): {results.get('eval_pii_recall_macro', 'N/A'):.4f}")
-    
+
     if 'eval_coref_f1' in results or 'eval_coref_f1_weighted' in results:
         logger.info("\n📊 Co-reference Detection Metrics:")
         logger.info(f"  F1 (weighted): {results.get('eval_coref_f1_weighted', results.get('eval_coref_f1', 'N/A')):.4f}")
@@ -116,7 +117,7 @@ def main(use_google_drive: bool = True, drive_folder: str = "MyDrive/pii_models"
         logger.info(f"  Precision (macro): {results.get('eval_coref_precision_macro', 'N/A'):.4f}")
         logger.info(f"  Recall (weighted): {results.get('eval_coref_recall_weighted', 'N/A'):.4f}")
         logger.info(f"  Recall (macro): {results.get('eval_coref_recall_macro', 'N/A'):.4f}")
-    
+
     logger.info(f"\n💾 Model saved locally to: {config.output_dir}")
     if drive_path:
         logger.info(f"💾 Model saved to Google Drive: {drive_path}")

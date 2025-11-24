@@ -153,7 +153,7 @@ class MultiTaskTrainer(Trainer):
             }
         else:
             predictions = None
-            
+
         if pii_labels is not None and coref_labels is not None:
             # Keep as tensors on CPU for padding - use dict for compatibility
             labels = {
@@ -212,7 +212,7 @@ class PIITrainer:
             raise ValueError("Label mappings must be loaded first")
 
         num_pii_labels = len(self.pii_label2id)
-        
+
         self.model = MultiTaskPIIDetectionModel(
             model_name=self.config.model_name,
             num_pii_labels=num_pii_labels,
@@ -234,7 +234,7 @@ class PIITrainer:
                 num_classes=self.num_coref_labels,
                 reduction="mean",
             )
-            
+
             self.multi_task_loss_fn = MultiTaskLoss(
                 pii_loss_fn=pii_loss_fn,
                 coref_loss_fn=coref_loss_fn,
@@ -260,7 +260,7 @@ class PIITrainer:
         """
         predictions = eval_pred.predictions
         label_ids = eval_pred.label_ids
-        
+
         # Handle different prediction formats
         if isinstance(predictions, dict):
             pii_predictions = predictions.get("pii_logits", predictions)
@@ -303,7 +303,7 @@ class PIITrainer:
 
         pii_flat_preds = [item for sublist in pii_true_preds for item in sublist]
         pii_flat_labels = [item for sublist in pii_true_labels for item in sublist]
-        
+
         # Compute PII detection metrics
         pii_f1_weighted = f1_score(pii_flat_labels, pii_flat_preds, average="weighted")
         pii_f1_macro = f1_score(pii_flat_labels, pii_flat_preds, average="macro")
@@ -319,7 +319,7 @@ class PIITrainer:
         pii_recall_macro = recall_score(
             pii_flat_labels, pii_flat_preds, average="macro", zero_division=0
         )
-        
+
         # Per-class metrics
         unique_labels = sorted(set(pii_flat_labels + pii_flat_preds))
         pii_f1_per_class = f1_score(
@@ -331,7 +331,7 @@ class PIITrainer:
         pii_recall_per_class = recall_score(
             pii_flat_labels, pii_flat_preds, average=None, labels=unique_labels, zero_division=0
         )
-        
+
         # Build metrics dictionary
         metrics = {
             "eval_pii_f1_weighted": pii_f1_weighted,
@@ -343,12 +343,12 @@ class PIITrainer:
             # Keep backward compatibility
             "eval_pii_f1": pii_f1_weighted,
         }
-        
+
         # Add per-class metrics (limit to reasonable number of classes)
         non_o_labels = [label for label in unique_labels if label != "O"]
         if len(non_o_labels) <= 20:
             for label, f1, prec, rec in zip(
-                unique_labels, pii_f1_per_class, pii_precision_per_class, pii_recall_per_class
+                unique_labels, pii_f1_per_class, pii_precision_per_class, pii_recall_per_class, strict=True
             ):
                 # Sanitize label name for metric key
                 safe_label = label.replace("-", "_").replace(" ", "_")
@@ -378,7 +378,7 @@ class PIITrainer:
 
             coref_flat_preds = [item for sublist in coref_true_preds for item in sublist]
             coref_flat_labels = [item for sublist in coref_true_labels for item in sublist]
-            
+
             # Compute co-reference detection metrics
             coref_f1_weighted = f1_score(
                 coref_flat_labels, coref_flat_preds, average="weighted", zero_division=0
@@ -398,7 +398,7 @@ class PIITrainer:
             coref_recall_macro = recall_score(
                 coref_flat_labels, coref_flat_preds, average="macro", zero_division=0
             )
-            
+
             # Per-class metrics for co-reference
             unique_coref_labels = sorted(set(coref_flat_labels + coref_flat_preds))
             coref_f1_per_class = f1_score(
@@ -422,7 +422,7 @@ class PIITrainer:
                 labels=unique_coref_labels,
                 zero_division=0,
             )
-            
+
             # Add co-reference metrics
             metrics.update({
                 "eval_coref_f1_weighted": coref_f1_weighted,
@@ -434,7 +434,7 @@ class PIITrainer:
                 # Keep backward compatibility
                 "eval_coref_f1": coref_f1_weighted,
             })
-            
+
             # Add per-class metrics for co-reference
             if len(unique_coref_labels) <= 20:
                 for label, f1, prec, rec in zip(
@@ -442,6 +442,7 @@ class PIITrainer:
                     coref_f1_per_class,
                     coref_precision_per_class,
                     coref_recall_per_class,
+                    strict=True,
                 ):
                     safe_label = f"cluster_{label}"
                     metrics[f"eval_coref_f1_{safe_label}"] = float(f1)
@@ -469,38 +470,38 @@ class PIITrainer:
             """Collate function for multi-task learning with padding."""
             # Get pad token ID from tokenizer
             pad_token_id = self.tokenizer.pad_token_id if self.tokenizer.pad_token_id is not None else 0
-            
+
             # Find maximum sequence length in batch
             max_length = max(len(f["input_ids"]) for f in features)
-            
+
             batch = {}
-            
+
             # Pad and convert input_ids
             padded_input_ids = []
             padded_attention_mask = []
             padded_pii_labels = []
             padded_coref_labels = []
-            
+
             for f in features:
                 seq_len = len(f["input_ids"])
                 padding_length = max_length - seq_len
-                
+
                 # Pad input_ids with pad_token_id
                 padded_input_ids.append(f["input_ids"] + [pad_token_id] * padding_length)
-                
+
                 # Pad attention_mask with 0s
                 padded_attention_mask.append(f["attention_mask"] + [0] * padding_length)
-                
+
                 # Pad labels with -100 (ignore index)
                 padded_pii_labels.append(f["pii_labels"] + [-100] * padding_length)
                 padded_coref_labels.append(f["coref_labels"] + [-100] * padding_length)
-            
+
             # Convert to tensors
             batch["input_ids"] = torch.tensor(padded_input_ids, dtype=torch.long)
             batch["attention_mask"] = torch.tensor(padded_attention_mask, dtype=torch.long)
             batch["pii_labels"] = torch.tensor(padded_pii_labels, dtype=torch.long)
             batch["coref_labels"] = torch.tensor(padded_coref_labels, dtype=torch.long)
-            
+
             return batch
 
         # Training arguments
@@ -583,7 +584,7 @@ class PIITrainer:
                         label in key for label in ["B-", "I-", "CLUSTER_"]
                     ):  # Skip per-class in summary
                         logger.info(f"    {key}: {pii_metrics[key]:.4f}")
-        
+
         if any(k.startswith("eval_coref_") for k in results.keys()):
             logger.info("\n🔍 Co-reference Detection Metrics:")
             coref_metrics = {

@@ -42,7 +42,7 @@ class TrainingConfig:
     eval_size_ratio: float = 0.2  # Validation set size as ratio of training
     max_sequence_length: int = 512
     training_samples_dir: str = "dataset/training_samples"
-    
+
     # Multi-task learning
     pii_loss_weight: float = 1.0  # Weight for PII detection loss
     coref_loss_weight: float = 1.0  # Weight for co-reference detection loss
@@ -157,24 +157,24 @@ class EnvironmentSetup:
         # Check MPS (Apple Silicon) first
         mps_available = hasattr(torch.backends, 'mps') and torch.backends.mps.is_available()
         cuda_available = torch.cuda.is_available()
-        
+
         if mps_available:
             logger.info(f"\n✅ MPS (Metal) available: {torch.backends.mps.is_available()}")
             logger.info("   Using Apple Silicon GPU acceleration")
-            logger.info(f"   Device: mps")
+            logger.info("   Device: mps")
         elif cuda_available:
             logger.info(f"\n✅ CUDA available: {cuda_available}")
             logger.info(f"   GPU: {torch.cuda.get_device_name(0)}")
             logger.info(
                 f"   GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f} GB"
             )
-            logger.info(f"   Device: cuda")
+            logger.info("   Device: cuda")
         else:
-            logger.info(f"\n⚠️  No GPU available - using CPU")
+            logger.info("\n⚠️  No GPU available - using CPU")
             logger.info(f"   CUDA available: {cuda_available}")
             logger.info(f"   MPS available: {mps_available}")
-            logger.info(f"   Device: cpu")
-    
+            logger.info("   Device: cpu")
+
     @staticmethod
     def get_device():
         """Get the best available device (MPS > CUDA > CPU)."""
