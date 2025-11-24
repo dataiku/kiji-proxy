@@ -2,32 +2,37 @@
 PII Detection Model Evaluation Script
 
 This script:
-1. Downloads the most recent model from Google Drive
-2. Loads the model and tokenizer
-3. Runs inference on 10 test cases
-4. Displays detected PII entities
+1. Loads a trained multi-task PII detection model (local)
+2. Runs inference on test cases
+3. Displays detected PII entities and co-reference clusters
 
 Usage:
-    # In Google Colab:
-    python eval_model.py
-
-    # With custom Google Drive folder:
-    python eval_model.py --drive-folder "MyDrive/my_models"
-
-    # Using local model (skip Google Drive):
+    # Using local model:
     python eval_model.py --local-model "./pii_model"
+
+    # With custom number of test cases:
+    python eval_model.py --local-model "./pii_model" --num-tests 5
 """
 
 import argparse
 import json
 import logging
-import re
+import sys
 import time
-from datetime import datetime
 from pathlib import Path
 
 import torch
-from transformers import AutoModelForTokenClassification, AutoTokenizer
+from transformers import AutoModel, AutoTokenizer
+
+# Add project root to path for imports
+project_root = Path(__file__).parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
+try:
+    from model.model import MultiTaskPIIDetectionModel
+except ImportError:
+    from model import MultiTaskPIIDetectionModel
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -35,91 +40,18 @@ logger = logging.getLogger(__name__)
 
 
 # =============================================================================
-# GOOGLE DRIVE UTILITIES
+# DEVICE UTILITIES
 # =============================================================================
 
 
-class GoogleDriveManager:
-    """Handles Google Drive mounting and model retrieval."""
-
-    @staticmethod
-    def mount_drive(mount_point: str = "/content/drive") -> bool:
-        """
-        Mount Google Drive in Colab environment.
-
-        Args:
-            mount_point: Path where Google Drive should be mounted
-
-        Returns:
-            True if mounted successfully, False otherwise
-        """
-        try:
-            from google.colab import drive
-
-            drive.mount(mount_point)
-            logger.info(f"✅ Google Drive mounted at {mount_point}")
-        except ImportError:
-            logger.warning("⚠️  Not running in Google Colab - skipping Drive mount")
-            return False
-        except Exception:
-            logger.exception("❌ Failed to mount Google Drive")
-            return False
-        else:
-            return True
-
-    @staticmethod
-    def find_latest_model(drive_folder: str = "MyDrive/pii_models") -> str | None:
-        """
-        Find the most recent model in Google Drive folder.
-
-        Args:
-            drive_folder: Folder path in Google Drive (relative to mount point)
-
-        Returns:
-            Path to the most recent model, or None if not found
-        """
-        drive_path = Path(f"/content/drive/{drive_folder}")
-
-        if not drive_path.exists():
-            logger.error(f"❌ Google Drive folder not found: {drive_path}")
-            return None
-
-        # List all directories in the folder
-        model_dirs = [d for d in drive_path.iterdir() if d.is_dir()]
-
-        if not model_dirs:
-            logger.error(f"❌ No models found in {drive_path}")
-            return None
-
-        # Parse timestamps and find the most recent
-        model_timestamps = []
-        for model_dir in model_dirs:
-            # Extract timestamp (format: modelname_YYYYMMDD_HHMMSS)
-            match = re.search(r"_(\d{8}_\d{6})$", model_dir.name)
-            if match:
-                timestamp_str = match.group(1)
-                try:
-                    timestamp = datetime.strptime(timestamp_str, "%Y%m%d_%H%M%S")
-                    model_timestamps.append((timestamp, model_dir.name))
-                except ValueError:
-                    continue
-
-        if not model_timestamps:
-            # If no timestamps found, use the first model
-            logger.warning(
-                f"⚠️  No timestamped models found, using: {model_dirs[0].name}"
-            )
-            return str(drive_path / model_dirs[0].name)
-
-        # Sort by timestamp and get the most recent
-        model_timestamps.sort(reverse=True)
-        latest_model = model_timestamps[0][1]
-        latest_path = drive_path / latest_model
-
-        logger.info(f"✅ Found latest model: {latest_model}")
-        logger.info(f"   Path: {latest_path}")
-
-        return str(latest_path)
+def get_device():
+    """Get the best available device (MPS > CUDA > CPU)."""
+    if hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+        return torch.device("mps")
+    elif torch.cuda.is_available():
+        return torch.device("cuda")
+    else:
+        return torch.device("cpu")
 
 
 # =============================================================================
@@ -128,7 +60,7 @@ class GoogleDriveManager:
 
 
 class PIIModelLoader:
-    """Loads and manages PII detection model."""
+    """Loads and manages multi-task PII detection model."""
 
     def __init__(self, model_path: str):
         """
@@ -140,41 +72,111 @@ class PIIModelLoader:
         self.model_path = model_path
         self.model = None
         self.tokenizer = None
-        self.label2id = None
-        self.id2label = None
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.pii_label2id = None
+        self.pii_id2label = None
+        self.coref_id2label = None
+        self.device = get_device()
 
     def load_model(self):
-        """Load model, tokenizer, and label mappings."""
+        """Load multi-task model, tokenizer, and label mappings."""
         logger.info(f"\n📥 Loading model from: {self.model_path}")
 
         # Load label mappings
         mappings_path = Path(self.model_path) / "label_mappings.json"
-        if mappings_path.exists():
-            with mappings_path.open() as f:
-                mappings = json.load(f)
-            self.label2id = mappings["label2id"]
-            self.id2label = {int(k): v for k, v in mappings["id2label"].items()}
-            logger.info(f"✅ Loaded {len(self.label2id)} label mappings")
-        else:
-            logger.warning(
-                "⚠️  Label mappings not found, will use model's default labels"
+        if not mappings_path.exists():
+            raise FileNotFoundError(
+                f"Label mappings not found at {mappings_path}. "
+                "Make sure the model was trained and saved correctly."
             )
+
+        with mappings_path.open() as f:
+            mappings = json.load(f)
+
+        # Load PII label mappings
+        self.pii_label2id = mappings["pii"]["label2id"]
+        self.pii_id2label = {
+            int(k): v for k, v in mappings["pii"]["id2label"].items()
+        }
+        logger.info(f"✅ Loaded {len(self.pii_label2id)} PII label mappings")
+
+        # Load co-reference label mappings
+        if "coref" in mappings:
+            self.coref_id2label = {
+                int(k): v for k, v in mappings["coref"]["id2label"].items()
+            }
+            logger.info(f"✅ Loaded {len(self.coref_id2label)} co-reference label mappings")
 
         # Load tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_path)
         logger.info("✅ Loaded tokenizer")
 
-        # Load model
-        self.model = AutoModelForTokenClassification.from_pretrained(self.model_path)
+        # Load model config to get base model name
+        config_path = Path(self.model_path) / "config.json"
+        if config_path.exists():
+            with config_path.open() as f:
+                model_config = json.load(f)
+            # Try to get base model name from config
+            base_model_name = (
+                model_config.get("_name_or_path")
+                or model_config.get("model_type", "distilbert")
+            )
+            # Convert model_type to full model name if needed
+            if base_model_name == "distilbert":
+                base_model_name = "distilbert-base-cased"
+        else:
+            base_model_name = "distilbert-base-cased"
+            logger.warning("⚠️  config.json not found, using default: distilbert-base-cased")
+
+        # Determine number of labels
+        num_pii_labels = len(self.pii_label2id)
+        num_coref_labels = len(self.coref_id2label) if self.coref_id2label else 2
+
+        logger.info(f"📋 Model configuration:")
+        logger.info(f"   Base model: {base_model_name}")
+        logger.info(f"   PII labels: {num_pii_labels}")
+        logger.info(f"   Co-reference labels: {num_coref_labels}")
+
+        # Load multi-task model
+        self.model = MultiTaskPIIDetectionModel(
+            model_name=base_model_name,
+            num_pii_labels=num_pii_labels,
+            num_coref_labels=num_coref_labels,
+            id2label_pii=self.pii_id2label,
+            id2label_coref=self.coref_id2label or {0: "NO_COREF", 1: "CLUSTER_0"},
+        )
+
+        # Load model weights
+        model_weights_path = Path(self.model_path) / "pytorch_model.bin"
+        if not model_weights_path.exists():
+            # Try alternative naming
+            model_weights_path = Path(self.model_path) / "model.safetensors"
+            if not model_weights_path.exists():
+                # Try to find any .bin file
+                bin_files = list(Path(self.model_path).glob("*.bin"))
+                if bin_files:
+                    model_weights_path = bin_files[0]
+                    logger.info(f"   Found weights: {model_weights_path.name}")
+
+        if model_weights_path.exists():
+            logger.info(f"📦 Loading weights from: {model_weights_path.name}")
+            state_dict = torch.load(model_weights_path, map_location=self.device)
+            # Handle state dict that might have 'model.' prefix
+            if any(k.startswith("model.") for k in state_dict.keys()):
+                state_dict = {
+                    k.replace("model.", ""): v
+                    for k, v in state_dict.items()
+                    if k.startswith("model.")
+                }
+            self.model.load_state_dict(state_dict, strict=False)
+            logger.info("✅ Model weights loaded")
+        else:
+            logger.warning("⚠️  Model weights not found, using randomly initialized model")
+
         self.model.to(self.device)
         self.model.eval()
-        logger.info(f"✅ Loaded model on device: {self.device}")
-
-        # If label mappings weren't loaded, get them from the model
-        if self.id2label is None:
-            self.id2label = self.model.config.id2label
-            self.label2id = self.model.config.label2id
+        
+        device_name = "MPS (Apple Silicon)" if self.device.type == "mps" else str(self.device)
+        logger.info(f"✅ Loaded model on device: {device_name}")
 
     def predict(self, text: str) -> tuple[list[tuple[str, str, int, int]], float]:
         """
@@ -205,14 +207,17 @@ class PIIModelLoader:
         offset_mapping = inputs.pop("offset_mapping")[0]
         inputs = {k: v.to(self.device) for k, v in inputs.items()}
 
-        # Run inference
+        # Run inference with multi-task model
         with torch.no_grad():
             outputs = self.model(**inputs)
-            predictions = torch.argmax(outputs.logits, dim=-1)[0]
+            # Get PII predictions (we focus on PII detection for this evaluation)
+            pii_predictions = torch.argmax(outputs["pii_logits"], dim=-1)[0]
 
         # Convert predictions to labels
         tokens = self.tokenizer.convert_ids_to_tokens(inputs["input_ids"][0])
-        predicted_labels = [self.id2label[p.item()] for p in predictions]
+        predicted_labels = [
+            self.pii_id2label.get(p.item(), "O") for p in pii_predictions
+        ]
 
         # Extract entities
         entities = []
@@ -229,7 +234,7 @@ class PIIModelLoader:
                 self.tokenizer.cls_token,
                 self.tokenizer.sep_token,
                 self.tokenizer.pad_token,
-            ]:
+            ] or label == "IGNORE":
                 continue
 
             # Check if this is a PII token
@@ -248,8 +253,18 @@ class PIIModelLoader:
                 current_entity = token
 
             elif label.startswith("I-") and current_entity is not None:
-                # Continue current entity
-                current_end = offset[1].item()
+                # Continue current entity (only if same label)
+                if current_label == label[2:]:  # Check label matches
+                    current_end = offset[1].item()
+                else:
+                    # Different label - save previous and start new
+                    entity_text = text[current_start:current_end]
+                    entities.append(
+                        (entity_text, current_label, current_start, current_end)
+                    )
+                    current_label = label[2:]
+                    current_start = offset[0].item()
+                    current_end = offset[1].item()
 
             elif current_entity is not None:  # "O" label or entity ended
                 # Save previous entity if exists
@@ -276,16 +291,16 @@ class PIIModelLoader:
 # =============================================================================
 
 TEST_CASES = [
-    "My name is John Smith and my email is john.smith@email.com",
-    "Please contact Sarah Johnson at 555-123-4567 or sarah.j@company.org",
-    "The patient's DOB is 03/15/1985 and SSN is 123-45-6789",
-    "Credit card number: 4532-1234-5678-9010, exp: 12/25",
-    "I live at 123 Main Street, Springfield, IL 62701",
-    "Username: mike_wilson, Password: SecurePass123, Account: 9876543210",
-    "Dr. Emily Chen can be reached at emily.chen@hospital.com or 555-987-6543",
-    "Tax ID: 98-7654321, Driver's License: D1234567",
-    "My colleague Alex Martinez lives at 456 Oak Avenue, Apt 7B, Boston, MA 02108",
-    "Contact info - Name: Jennifer Lee, Tel: +1-555-246-8101, Email: j.lee@tech.com, ID: EMP001234",
+    "My name is John Smith and my email is john.smith@email.com. I was born on March 15, 1985.",
+    "Please contact Sarah Johnson at 555-123-4567 or sarah.j@company.org. She lives in New York.",
+    "The patient's date of birth is 03/15/1985 and their social security number is 123-45-6789.",
+    "I live at 123 Main Street, Springfield, IL 62701. My phone number is 217-555-1234.",
+    "Dr. Emily Chen can be reached at emily.chen@hospital.com or 555-987-6543. Her office is at 789 Medical Center Drive.",
+    "My colleague Alex Martinez lives at 456 Oak Avenue, Apt 7B, Boston, MA 02108. You can email him at alex.m@company.com.",
+    "Contact info - Name: Jennifer Lee, Tel: +1-555-246-8101, Email: j.lee@tech.com, Employee ID: EMP001234.",
+    "Fatima Khaled resides at 2114 Cedar Crescent in Marseille, France. Her ID card number is XA1890274.",
+    "The customer's driver license ID is F23098719 and their zip code is 13008. They moved there last year.",
+    "Robert Williams was born on 1980-05-20. His email address is robert.williams@example.org and he can be reached at 415-555-0199.",
 ]
 
 
@@ -327,16 +342,10 @@ def main():
     """Main execution function."""
     parser = argparse.ArgumentParser(description="Evaluate PII detection model")
     parser.add_argument(
-        "--drive-folder",
-        type=str,
-        default="MyDrive/pii_models",
-        help="Google Drive folder containing models (default: MyDrive/pii_models)",
-    )
-    parser.add_argument(
         "--local-model",
         type=str,
-        default=None,
-        help="Path to local model (skips Google Drive download)",
+        default="./pii_model",
+        help="Path to local model directory (default: ./pii_model)",
     )
     parser.add_argument(
         "--num-tests",
@@ -352,41 +361,40 @@ def main():
     logger.info("=" * 80)
 
     # Determine model path
-    model_path = None
+    model_path = args.local_model
 
-    if args.local_model:
-        # Use local model
-        model_path = args.local_model
-        logger.info(f"\n📁 Using local model: {model_path}")
-    else:
-        # Mount Google Drive and find latest model
-        logger.info("\n1️⃣  Mounting Google Drive...")
-        if GoogleDriveManager.mount_drive():
-            logger.info("\n2️⃣  Finding latest model...")
-            model_path = GoogleDriveManager.find_latest_model(args.drive_folder)
-        else:
-            logger.warning("\n⚠️  Google Drive not available. Trying local fallback...")
-            # Try local fallback
-            local_paths = ["./pii_model", "../pii_model", "../../pii_model"]
-            for path in local_paths:
-                if Path(path).exists():
-                    model_path = path
-                    logger.info(f"✅ Found local model: {model_path}")
-                    break
+    # Try to find model if path doesn't exist
+    if not Path(model_path).exists():
+        logger.warning(f"⚠️  Model path not found: {model_path}")
+        # Try common locations
+        local_paths = ["./pii_model", "../pii_model", "model/pii_model"]
+        for path in local_paths:
+            if Path(path).exists():
+                model_path = path
+                logger.info(f"✅ Found model at: {model_path}")
+                break
 
-    if model_path is None or not Path(model_path).exists():
+    if not Path(model_path).exists():
         logger.error("\n❌ No model found! Please specify a valid model path.")
+        logger.error(f"   Searched: {args.local_model}")
         logger.error("   Use --local-model <path> to specify a local model")
         return
 
+    logger.info(f"\n📁 Using model: {model_path}")
+
+    # Check device availability
+    device = get_device()
+    device_name = "MPS (Apple Silicon)" if device.type == "mps" else str(device)
+    logger.info(f"🖥️  Device: {device_name}")
+
     # Load model
-    logger.info("\n3️⃣  Loading model...")
+    logger.info("\n📥 Loading model...")
     loader = PIIModelLoader(model_path)
     loader.load_model()
 
     # Run inference on test cases
     logger.info(
-        f"\n4️⃣  Running inference on {min(args.num_tests, len(TEST_CASES))} test cases..."
+        f"\n🚀 Running inference on {min(args.num_tests, len(TEST_CASES))} test cases..."
     )
 
     inference_times = []
