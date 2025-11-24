@@ -50,45 +50,45 @@ class TrainingSetConfig:
     model_name: str = "distilbert-base-cased"  # Tokenizer model name
 
     def get_languages(
-        self, language_count: int = 10, seed: int = 42, is_testing: bool = False
+        self, language_count: int = 10, seed: int | None = 42, is_testing: bool = False
     ) -> list[str]:
         languages = (
             "English",
             "German",
             "French",
             "Spanish",
-            "Italian",
-            "Portuguese",
+            # "Italian",
+            # "Portuguese",
             "Dutch",
-            "Swedish",
+            # "Swedish",
             "Danish",
-            "Norwegian",
-            "Finnish",
-            "Estonian",
-            "Latvian",
-            "Lithuanian",
-            "Polish",
-            "Romanian",
-            "Russian",
-            "Turkish",
-            "Ukrainian",
-            "Chinese",
-            "Swahili",
-            "Arabic",
-            "Hausa",
-            "Yoruba",
-            "Zulu",
-            "Amharic",
-            "Afrikaans",
-            "Thai",
-            "Vietnamese",
-            "Indonesian",
-            "Malay",
-            "Tagalog",
-            "Burmese",
-            "Malayalam",
-            "Lao",
-            "Khmer",
+            # "Norwegian",
+            # "Finnish",
+            # "Estonian",
+            # "Latvian",
+            # "Lithuanian",
+            # "Polish",
+            # "Romanian",
+            # "Russian",
+            # "Turkish",
+            # "Ukrainian",
+            # "Chinese",
+            # "Swahili",
+            # "Arabic",
+            # "Hausa",
+            # "Yoruba",
+            # "Zulu",
+            # "Amharic",
+            # "Afrikaans",
+            # "Thai",
+            # "Vietnamese",
+            # "Indonesian",
+            # "Malay",
+            # "Tagalog",
+            # "Burmese",
+            # "Malayalam",
+            # "Lao",
+            # "Khmer",
         )
 
         # Use a separate Random instance for languages to avoid affecting global random state
@@ -97,17 +97,24 @@ class TrainingSetConfig:
         if is_testing:
             return [languages[0]]
         else:
-            return lang_rng.sample(languages, language_count)
+            return languages
 
     def get_pii_labels(
-        self, all_labels: bool = False, return_count: int = 10
+        self, all_labels: bool = False, return_count: int = 10, seed: int | None = None
     ) -> dict[str, str]:
-        """Get PII labels with their human-readable descriptions."""
+        """
+        Get PII labels with their human-readable descriptions.
+        
+        Args:
+            all_labels: Whether to return all labels
+            return_count: Number of labels to return if not all_labels
+            seed: Random seed for label selection (for variation)
+        """
         # Use the centralized label descriptions from LabelUtils
         labels = LabelUtils.LABEL_DESCRIPTIONS.copy()
 
         if not all_labels:
-            labels = LabelUtils.select_label_subset(labels, return_count)
+            labels = LabelUtils.select_label_subset(labels, return_count, seed=seed)
         return labels
 
 
@@ -148,21 +155,48 @@ class TrainingSetGenerator:
         # Create standard label mappings once
         self.label2id, self.id2label = LabelUtils.create_standard_label2id()
 
-    def generate_pii_samples(self) -> dict[str, Any]:
-        """Generate PII samples for a given language."""
-        languages = self.config.get_languages(is_testing=self.is_testing)
-        labels = self.config.get_pii_labels(return_count=4)
+    def generate_pii_samples(self, sample_index: int = 0) -> dict[str, Any]:
+        """
+        Generate PII samples for a given language.
+        
+        Args:
+            sample_index: Index of the sample being generated (used for seed variation)
+        """
+        # Use sample_index as seed to ensure different randomness per sample
+        sample_seed = sample_index if not self.is_testing else 42
+        
+        languages = self.config.get_languages(
+            is_testing=self.is_testing, 
+            seed=sample_seed
+        )
+        
+        # Pass seed to label selection for variation
+        labels = self.config.get_pii_labels(
+            return_count=4,
+            seed=sample_seed
+        )
 
-        prompt = PromptBuilder.build_generation_prompt(labels, languages)
+        prompt = PromptBuilder.build_generation_prompt(
+            labels, 
+            languages, 
+            sample_index=sample_index
+        )
         json_schema = get_pii_sample_schema()
 
         result = self.llm_client.generate(prompt, json_schema)
 
         # Handle different response formats
         if isinstance(result, list):
+            # LLM may return a list even if we asked for one sample
+            # Just take the first item
+            if len(result) == 0:
+                raise ValueError("LLM returned an empty list")
+            # Log if we got multiple items (might be useful for debugging)
             if len(result) > 1:
-                raise ValueError("Expected a single result, got a list with multiple items")
-            return result[0] if result else {}
+                logging.warning(
+                    f"LLM returned {len(result)} samples, using the first one"
+                )
+            return result[0]
         elif isinstance(result, dict) and "samples" in result:
             samples = result["samples"]
             if isinstance(samples, list) and len(samples) > 0:
@@ -236,12 +270,15 @@ def main():
         num_samples=FLAGS.num_samples,
         output_dir=FLAGS.output_dir,
     )
-    gen = TrainingSetGenerator(config, is_testing=True)
+    # Use testing mode only if generating very few samples (for quick testing)
+    # Otherwise use full diversity
+    is_testing = config.num_samples <= 3
+    gen = TrainingSetGenerator(config, is_testing=is_testing)
     tokenizer = AutoTokenizer.from_pretrained(config.model_name)
 
     for i in tqdm(range(config.num_samples)):
-        # Generate sample
-        result = gen.generate_pii_samples()
+        # Generate sample with index for seed variation
+        result = gen.generate_pii_samples(sample_index=i)
         logging.info(result)
 
         # Save raw sample
