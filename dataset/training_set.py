@@ -1,10 +1,9 @@
-import random
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-from absl import flags, logging
 
+from absl import flags, logging
 from dotenv import load_dotenv
 from tqdm import tqdm
 from transformers import AutoTokenizer
@@ -91,9 +90,6 @@ class TrainingSetConfig:
             # "Khmer",
         )
 
-        # Use a separate Random instance for languages to avoid affecting global random state
-        lang_rng = random.Random(seed) if seed else random.Random()
-
         if is_testing:
             return [languages[0]]
         else:
@@ -104,7 +100,7 @@ class TrainingSetConfig:
     ) -> dict[str, str]:
         """
         Get PII labels with their human-readable descriptions.
-        
+
         Args:
             all_labels: Whether to return all labels
             return_count: Number of labels to return if not all_labels
@@ -158,18 +154,18 @@ class TrainingSetGenerator:
     def generate_pii_samples(self, sample_index: int = 0) -> dict[str, Any]:
         """
         Generate PII samples for a given language.
-        
+
         Args:
             sample_index: Index of the sample being generated (used for seed variation)
         """
         # Use sample_index as seed to ensure different randomness per sample
         sample_seed = sample_index if not self.is_testing else 42
-        
+
         languages = self.config.get_languages(
-            is_testing=self.is_testing, 
+            is_testing=self.is_testing,
             seed=sample_seed
         )
-        
+
         # Pass seed to label selection for variation
         labels = self.config.get_pii_labels(
             return_count=4,
@@ -177,8 +173,8 @@ class TrainingSetGenerator:
         )
 
         prompt = PromptBuilder.build_generation_prompt(
-            labels, 
-            languages, 
+            labels,
+            languages,
             sample_index=sample_index
         )
         json_schema = get_pii_sample_schema()

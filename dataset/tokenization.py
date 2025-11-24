@@ -191,7 +191,6 @@ class TokenizationProcessor:
                     if pos == -1:
                         break
 
-                    end_pos = pos + len(mention)
                     text_before_mention = text[:pos]
                     words_before = text_before_mention.split()
                     start_word_idx = len(words_before)

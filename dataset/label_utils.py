@@ -84,9 +84,7 @@ class LabelUtils:
     ) -> dict[str, str]:
         """
         Select a subset of labels with special handling for address labels.
-
         If any address-related label is selected, all address labels are included.
-
         Args:
             labels: Dictionary of label codes to descriptions
             return_count: Number of labels to randomly select

@@ -93,7 +93,7 @@ class PromptBuilder:
     ) -> str:
         """
         Build a prompt for generating PII samples.
-        
+
         Args:
             labels: Dictionary of PII labels to include
             languages: List of languages to use
@@ -105,10 +105,10 @@ class PromptBuilder:
         example_string = f"""
         ```json\n{json.dumps(random_sample, indent=2)}\n```
         """
-        
+
         # Pick one language randomly from the list
         selected_language = random.choice(languages) if languages else "English"
-        
+
         # Add variety in writing style and context
         writing_styles = [
             "formal business email",
@@ -123,7 +123,7 @@ class PromptBuilder:
             "job application form"
         ]
         style = writing_styles[sample_index % len(writing_styles)]
-        
+
         # Vary sentence complexity
         complexity_hints = [
             "Use simple, straightforward sentences.",
@@ -142,8 +142,10 @@ class PromptBuilder:
             '{"value": "Ravi", "label": "FIRSTNAME"} {"value": "Patel", "label": "SURNAME"}'
         )
 
+        labels_list = ", ".join(labels.values())
         return f"""
-        Generate one text sample in the style of a {style} that contains the following PII types: \n {", \n".join(labels.values())}
+        Generate one text sample in the style of a {style} that contains the following PII types:
+        {labels_list}
 
         Instructions:
             1. Generate the sample in {selected_language} language and make the text as well as the PII data as realistic to the language (e.g. use German, Swiss or Austrian addresses, phone numbers, dates, etc. for German).
@@ -157,7 +159,7 @@ class PromptBuilder:
             9. Return the text sample with the included PII data and the type of PII (see example below)
             10. Include coreference information: group all mentions that refer to the same entity into clusters (e.g., if "John Doe", "He", and "His" all refer to the same person, they should be in one cluster)
             11. This is incorrect: {incorrect_example}. If the required labels only contain "surname", only generate a sample with a surname {correct_surname_only}. If the required labels only contain "first name", only generate a sample with a first name {correct_firstname_only}. If first name and surname are required, this is correct: {correct_both}.
-            12. Be creative with your first and last names (use diverse ethnic backgrounds, cultural origins, and avoid common names like "John Smith", "Jane Doe", "Sarah Johnson", "Mike Wilson", etc.). 
+            12. Be creative with your first and last names (use diverse ethnic backgrounds, cultural origins, and avoid common names like "John Smith", "Jane Doe", "Sarah Johnson", "Mike Wilson", etc.).
             13. Use diverse street names and city names (use names from different countries, cultures, and avoid common ones like "Main Street", "Oak Avenue", "New York", "Los Angeles", "London", "Paris", etc.).
             14. Vary the format of dates, phone numbers, and addresses to reflect different countries and regions
             15. Make the text feel natural and contextually appropriate - don't just list PII items
