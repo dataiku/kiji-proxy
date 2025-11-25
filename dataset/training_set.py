@@ -36,7 +36,7 @@ FLAGS = flags.FLAGS
 flags.DEFINE_integer("num_samples", 5, "Number of samples to generate")
 flags.DEFINE_boolean("use_ollama", False, "Whether to use Ollama instead of OpenAI")
 flags.DEFINE_string("output_dir", "dataset", "Output directory for generated samples")
-flags.DEFINE_string("log_level", "INFO", "Logging level (DEBUG, INFO, WARNING, ERROR)")
+flags.DEFINE_string("log_level", "WARNING", "Logging level (DEBUG, INFO, WARNING, ERROR)")
 flags.DEFINE_integer(
     "max_workers",
     None,
@@ -215,57 +215,43 @@ class TrainingSetGenerator:
         return self.llm_client.review(prompt, json_schema)
 
     def convert_to_training_sample(
-        self, result: dict[str, Any], tokenizer: AutoTokenizer
+        self, result: dict[str, Any], tokenizer: AutoTokenizer | None = None
     ) -> dict[str, Any]:
-        """Convert the result to a training sample with B-* and I-* labels."""
-        text = result["text"]
-        privacy_mask = result["privacy_mask"]
-        coreferences = result["coreferences"]
-
-        # Create tokenization processor
-        processor = TokenizationProcessor(tokenizer, self.label2id, self.id2label)
-
-        # Generate PII and coreference samples
-        pii_sample = processor.create_pii_sample(text, privacy_mask)
-        coreference_sample = processor.create_coreference_sample(text, coreferences)
-
-        # Validate that tokenization is consistent
-        if coreference_sample["input_ids"] != pii_sample["input_ids"]:
-            raise ValueError("Input IDs do not match")
-        if coreference_sample["attention_mask"] != pii_sample["attention_mask"]:
-            raise ValueError("Attention masks do not match")
-
-        input_ids = pii_sample["input_ids"]
-        attention_mask = pii_sample["attention_mask"]
-
-        # Remove duplicate keys
-        for key in ["input_ids", "attention_mask", "text"]:
-            pii_sample.pop(key, None)
-            coreference_sample.pop(key, None)
-
-        # Combine results
-        result.update(
-            {
-                "input_ids": input_ids,
-                "attention_mask": attention_mask,
-                "coreference_sample": coreference_sample,
-                "pii_sample": pii_sample,
-            }
-        )
+        """
+        Convert the result to a training sample format.
+        
+        Note: Tokenization is now done during training, not during dataset creation.
+        This method just ensures the sample has the required fields (text, privacy_mask, coreferences).
+        
+        Args:
+            result: Sample dictionary with text, privacy_mask, and coreferences
+            tokenizer: Optional tokenizer (kept for backward compatibility, not used)
+        
+        Returns:
+            Sample dictionary with text, privacy_mask, and coreferences (no tokenization)
+        """
+        # Just return the raw data - tokenization will happen during training
+        # Ensure required fields are present
+        required_fields = ["text", "privacy_mask", "coreferences"]
+        for field in required_fields:
+            if field not in result:
+                raise ValueError(f"Missing required field: {field}")
+        
+        # Return the sample as-is (no tokenization)
         return result
 
 
 def process_single_sample(
     sample_index: int,
     gen: TrainingSetGenerator,
-    tokenizer: AutoTokenizer,
+    tokenizer: AutoTokenizer | None = None,
 ) -> tuple[int, str]:
     """
     Process a single training sample (generate, review, convert, save).
     Args:
         sample_index: Index of the sample to generate
         gen: TrainingSetGenerator instance
-        tokenizer: Tokenizer instance
+        tokenizer: Tokenizer instance (deprecated, kept for backward compatibility)
     Returns:
         Tuple of (sample_index, file_name) for the saved training sample
     """
@@ -281,12 +267,12 @@ def process_single_sample(
     file_name = gen.file_manager.save_sample(result, "reviewed_samples", file_name)
     logging.info(f"Sample {sample_index}: Reviewed sample")
 
-    # Convert to training sample
-    training_sample = gen.convert_to_training_sample(result, tokenizer)
-    file_name = gen.file_manager.save_sample(
-        training_sample, "training_samples", file_name
-    )
-    logging.info(f"Sample {sample_index}: Saved training sample to {file_name}")
+    # # Convert to training sample (tokenization now happens during training)
+    # training_sample = gen.convert_to_training_sample(result, tokenizer=None)
+    # file_name = gen.file_manager.save_sample(
+    #     training_sample, "training_samples", file_name
+    # )
+    # logging.info(f"Sample {sample_index}: Saved training sample to {file_name}")
 
     return sample_index, file_name
 
@@ -309,7 +295,7 @@ def main():
     # Otherwise use full diversity
     is_testing = config.num_samples <= 3
     gen = TrainingSetGenerator(config, is_testing=is_testing)
-    tokenizer = AutoTokenizer.from_pretrained(config.model_name)
+    # Tokenizer is no longer needed during dataset creation (tokenization happens during training)
 
     # Determine number of workers
     max_workers = FLAGS.max_workers
@@ -326,7 +312,7 @@ def main():
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             # Submit all tasks
             future_to_index = {
-                executor.submit(process_single_sample, i, gen, tokenizer): i
+                executor.submit(process_single_sample, i, gen, None): i
                 for i in range(config.num_samples)
             }
 
@@ -336,7 +322,7 @@ def main():
                     sample_index = future_to_index[future]
                     try:
                         idx, file_name = future.result()
-                        print(f"Sample {idx}: Saved training sample to {file_name}")
+                        # print(f"Sample {idx}: Saved training sample to {file_name}")
                         pbar.update(1)
                     except Exception as exc:
                         logging.error(
@@ -346,7 +332,7 @@ def main():
     else:
         # Sequential processing for single sample or when max_workers <= 1
         for i in tqdm(range(config.num_samples)):
-            idx, file_name = process_single_sample(i, gen, tokenizer)
+            idx, file_name = process_single_sample(i, gen, None)
             print(f"Sample {idx}: Saved training sample to {file_name}")
 
 

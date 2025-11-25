@@ -42,7 +42,7 @@ class TrainingConfig:
     # Dataset settings
     eval_size_ratio: float = 0.2  # Validation set size as ratio of training
     max_sequence_length: int = 512
-    training_samples_dir: str = "dataset/training_samples"
+    training_samples_dir: str = "dataset/reviewed_samples"  # Use reviewed_samples by default
 
     # Multi-task learning
     pii_loss_weight: float = 1.0  # Weight for PII detection loss

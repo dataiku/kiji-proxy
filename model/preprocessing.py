@@ -16,8 +16,10 @@ try:
     if str(project_root) not in sys.path:
         sys.path.insert(0, str(project_root))
     from dataset.label_utils import LabelUtils
+    from dataset.tokenization import TokenizationProcessor
 except ImportError:
     from dataset.label_utils import LabelUtils
+    from dataset.tokenization import TokenizationProcessor
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +85,14 @@ class DatasetProcessor:
         """
         self.config = config
         self.tokenizer = AutoTokenizer.from_pretrained(config.model_name)
+        
+        # Create label mappings for tokenization
+        self.label2id, self.id2label = LabelUtils.create_standard_label2id()
+        
+        # Create tokenization processor
+        self.tokenization_processor = TokenizationProcessor(
+            self.tokenizer, self.label2id, self.id2label
+        )
 
     def load_training_samples(self) -> list[dict]:
         """
@@ -115,16 +125,134 @@ class DatasetProcessor:
     def prepare_datasets(self) -> tuple[Dataset, Dataset, dict, dict]:
         """
         Prepare training and validation datasets from local JSON files.
+        Tokenization is performed on-the-fly during dataset preparation.
 
         Returns:
             Tuple of (train_dataset, val_dataset, label_mappings, coref_mappings)
         """
-        # Load all samples
+        # Load all samples (raw text, privacy_mask, coreferences)
         all_samples = self.load_training_samples()
 
         if len(all_samples) == 0:
             raise ValueError("No training samples found!")
 
+        # Check if samples are already tokenized (backward compatibility)
+        first_sample = all_samples[0]
+        is_already_tokenized = "input_ids" in first_sample and "pii_sample" in first_sample
+
+        if is_already_tokenized:
+            logger.info("⚠️  Found pre-tokenized samples. Using existing tokenization.")
+            # Use old code path for backward compatibility
+            return self._prepare_datasets_legacy(all_samples)
+
+        # New code path: tokenize on-the-fly
+        logger.info("🔄 Tokenizing samples on-the-fly during dataset preparation...")
+
+        # Determine max coreference cluster ID from all samples
+        max_coref_id = 0
+        for sample in all_samples:
+            coreferences = sample.get("coreferences", [])
+            for coref in coreferences:
+                cluster_id = coref.get("cluster_id", 0)
+                max_coref_id = max(max_coref_id, cluster_id)
+        num_coref_labels = max_coref_id + 2  # +1 for NO_COREF (0), +1 for 0-indexed
+
+        # Prepare dataset format with on-the-fly tokenization
+        def format_sample(sample: dict) -> dict:
+            """Format a single sample for training by tokenizing on-the-fly."""
+            text = sample["text"]
+            privacy_mask = sample["privacy_mask"]
+            coreferences = sample.get("coreferences", [])
+
+            # Tokenize PII sample
+            pii_sample = self.tokenization_processor.create_pii_sample(text, privacy_mask)
+            
+            # Tokenize coreference sample
+            coreference_sample = self.tokenization_processor.create_coreference_sample(
+                text, coreferences
+            )
+
+            # Validate that tokenization is consistent
+            if coreference_sample["input_ids"] != pii_sample["input_ids"]:
+                raise ValueError("Input IDs do not match between PII and coreference samples")
+            if coreference_sample["attention_mask"] != pii_sample["attention_mask"]:
+                raise ValueError("Attention masks do not match between PII and coreference samples")
+
+            return {
+                "input_ids": pii_sample["input_ids"],
+                "attention_mask": pii_sample["attention_mask"],
+                "pii_labels": pii_sample["labels"],
+                "coref_labels": coreference_sample["coreference_labels"],
+            }
+
+        # Tokenize all samples
+        logger.info("📝 Tokenizing samples...")
+        formatted_samples = []
+        for i, sample in enumerate(all_samples):
+            try:
+                formatted_samples.append(format_sample(sample))
+                if (i + 1) % 100 == 0:
+                    logger.info(f"  Tokenized {i + 1}/{len(all_samples)} samples...")
+            except Exception as e:
+                logger.warning(f"⚠️  Failed to tokenize sample {i}: {e}")
+                continue
+
+        if len(formatted_samples) == 0:
+            raise ValueError("No samples could be tokenized!")
+
+        # Split into train and validation
+        split_idx = int(len(formatted_samples) * (1 - self.config.eval_size_ratio))
+        train_samples = formatted_samples[:split_idx]
+        val_samples = formatted_samples[split_idx:]
+
+        # Create HuggingFace datasets
+        train_dataset = Dataset.from_list(train_samples)
+        val_dataset = Dataset.from_list(val_samples)
+
+        # Prepare label mappings
+        pii_label2id = self.label2id
+        pii_id2label = self.id2label
+
+        # Create coreference label mappings
+        coref_id2label = {0: "NO_COREF"}
+        for i in range(1, num_coref_labels):
+            coref_id2label[i] = f"CLUSTER_{i-1}"
+
+        # Save label mappings
+        mappings_path = Path(self.config.output_dir) / "label_mappings.json"
+        mappings = {
+            "pii": {
+                "label2id": pii_label2id,
+                "id2label": {str(k): v for k, v in pii_id2label.items()},
+            },
+            "coref": {
+                "id2label": {str(k): v for k, v in coref_id2label.items()},
+            },
+        }
+        with mappings_path.open("w") as f:
+            json.dump(mappings, f, indent=2)
+        logger.info(f"✅ Label mappings saved to {mappings_path}")
+
+        logger.info("\n📊 Dataset Summary:")
+        logger.info(f"  Training samples: {len(train_dataset)}")
+        logger.info(f"  Validation samples: {len(val_dataset)}")
+        logger.info(f"  PII labels: {len(pii_label2id)}")
+        logger.info(f"  Co-reference labels: {num_coref_labels}")
+
+        return (
+            train_dataset,
+            val_dataset,
+            mappings,
+            {"num_coref_labels": num_coref_labels},
+        )
+
+    def _prepare_datasets_legacy(self, all_samples: list[dict]) -> tuple[Dataset, Dataset, dict, dict]:
+        """
+        Legacy method for handling pre-tokenized samples (backward compatibility).
+
+        Returns:
+            Tuple of (train_dataset, val_dataset, label_mappings, coref_mappings)
+        """
         # Extract label mappings from first sample (they should be consistent)
         first_sample = all_samples[0]
         pii_label2id = first_sample["pii_sample"]["label2id"]

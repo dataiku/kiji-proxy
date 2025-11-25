@@ -12,6 +12,9 @@ Usage:
 
     # With custom number of test cases:
     python eval_model.py --local-model "./pii_model" --num-tests 5
+
+The script evaluates both PII detection and co-reference resolution capabilities
+of the multi-task model, showing detected entities and how they are clustered.
 """
 
 import argparse
@@ -22,6 +25,7 @@ import time
 from pathlib import Path
 
 import torch
+from safetensors import safe_open
 from transformers import AutoTokenizer
 
 # Add project root to path for imports
@@ -130,7 +134,58 @@ class PIIModelLoader:
 
         # Determine number of labels
         num_pii_labels = len(self.pii_label2id)
-        num_coref_labels = len(self.coref_id2label) if self.coref_id2label else 2
+        
+        # Determine num_coref_labels from mappings (use max ID + 1 if available)
+        if self.coref_id2label:
+            num_coref_labels = max(self.coref_id2label.keys()) + 1
+        else:
+            num_coref_labels = 2
+
+        # Find model weights file
+        model_weights_path = Path(self.model_path) / "pytorch_model.bin"
+        if not model_weights_path.exists():
+            # Try alternative naming
+            model_weights_path = Path(self.model_path) / "model.safetensors"
+            if not model_weights_path.exists():
+                # Try to find any .bin file
+                bin_files = list(Path(self.model_path).glob("*.bin"))
+                if bin_files:
+                    model_weights_path = bin_files[0]
+                    logger.info(f"   Found weights: {model_weights_path.name}")
+
+        # Load model weights first to determine correct num_coref_labels
+        state_dict = None
+        if model_weights_path.exists():
+            logger.info(f"📦 Loading weights from: {model_weights_path.name}")
+            
+            # Handle safetensors files
+            if model_weights_path.suffix == ".safetensors":
+                state_dict = {}
+                with safe_open(model_weights_path, framework="pt", device="cpu") as f:
+                    for key in f.keys():
+                        state_dict[key] = f.get_tensor(key)
+            else:
+                # Handle .bin files - use weights_only=False for PyTorch 2.6+
+                state_dict = torch.load(
+                    model_weights_path, map_location="cpu", weights_only=False
+                )
+            
+            # Handle state dict that might have 'model.' prefix
+            if any(k.startswith("model.") for k in state_dict.keys()):
+                state_dict = {
+                    k.replace("model.", ""): v
+                    for k, v in state_dict.items()
+                    if k.startswith("model.")
+                }
+            
+            # Infer num_coref_labels from model weights
+            for key in state_dict.keys():
+                if "coref_classifier.weight" in key:
+                    num_coref_labels = state_dict[key].shape[0]
+                    logger.info(
+                        f"   Detected {num_coref_labels} co-reference labels from model weights"
+                    )
+                    break
 
         logger.info("📋 Model configuration:")
         logger.info(f"   Base model: {base_model_name}")
@@ -146,28 +201,26 @@ class PIIModelLoader:
             id2label_coref=self.coref_id2label or {0: "NO_COREF", 1: "CLUSTER_0"},
         )
 
-        # Load model weights
-        model_weights_path = Path(self.model_path) / "pytorch_model.bin"
-        if not model_weights_path.exists():
-            # Try alternative naming
-            model_weights_path = Path(self.model_path) / "model.safetensors"
-            if not model_weights_path.exists():
-                # Try to find any .bin file
-                bin_files = list(Path(self.model_path).glob("*.bin"))
-                if bin_files:
-                    model_weights_path = bin_files[0]
-                    logger.info(f"   Found weights: {model_weights_path.name}")
-
-        if model_weights_path.exists():
-            logger.info(f"📦 Loading weights from: {model_weights_path.name}")
-            state_dict = torch.load(model_weights_path, map_location=self.device)
-            # Handle state dict that might have 'model.' prefix
-            if any(k.startswith("model.") for k in state_dict.keys()):
-                state_dict = {
-                    k.replace("model.", ""): v
-                    for k, v in state_dict.items()
-                    if k.startswith("model.")
-                }
+        # Load model weights into the model
+        if state_dict is not None:
+            # Move tensors to the correct device
+            if model_weights_path.suffix != ".safetensors":
+                # For .bin files, we already loaded to CPU, now move to device
+                state_dict = {k: v.to(self.device) for k, v in state_dict.items()}
+            else:
+                # For safetensors, reload to device
+                state_dict = {}
+                with safe_open(model_weights_path, framework="pt", device=str(self.device)) as f:
+                    for key in f.keys():
+                        state_dict[key] = f.get_tensor(key)
+                # Handle state dict that might have 'model.' prefix
+                if any(k.startswith("model.") for k in state_dict.keys()):
+                    state_dict = {
+                        k.replace("model.", ""): v
+                        for k, v in state_dict.items()
+                        if k.startswith("model.")
+                    }
+            
             self.model.load_state_dict(state_dict, strict=False)
             logger.info("✅ Model weights loaded")
         else:
@@ -183,7 +236,9 @@ class PIIModelLoader:
         )
         logger.info(f"✅ Loaded model on device: {device_name}")
 
-    def predict(self, text: str) -> tuple[list[tuple[str, str, int, int]], float]:
+    def predict(
+        self, text: str
+    ) -> tuple[list[tuple[str, str, int, int]], dict[int, list[tuple[str, int, int]]], float]:
         """
         Run inference on input text and measure inference time.
 
@@ -191,8 +246,9 @@ class PIIModelLoader:
             text: Input text to analyze
 
         Returns:
-            Tuple of (entities, inference_time_ms)
+            Tuple of (entities, coref_clusters, inference_time_ms)
             - entities: List of tuples (entity_text, label, start_pos, end_pos)
+            - coref_clusters: Dict mapping cluster_id to list of (text, start_pos, end_pos)
             - inference_time_ms: Time taken for inference in milliseconds
         """
         if self.model is None or self.tokenizer is None:
@@ -215,14 +271,17 @@ class PIIModelLoader:
         # Run inference with multi-task model
         with torch.no_grad():
             outputs = self.model(**inputs)
-            # Get PII predictions (we focus on PII detection for this evaluation)
+            # Get PII predictions
             pii_predictions = torch.argmax(outputs["pii_logits"], dim=-1)[0]
+            # Get co-reference predictions
+            coref_predictions = torch.argmax(outputs["coref_logits"], dim=-1)[0]
 
         # Convert predictions to labels
         tokens = self.tokenizer.convert_ids_to_tokens(inputs["input_ids"][0])
         predicted_labels = [
             self.pii_id2label.get(p.item(), "O") for p in pii_predictions
         ]
+        predicted_coref_ids = [p.item() for p in coref_predictions]
 
         # Extract entities
         entities = []
@@ -230,6 +289,14 @@ class PIIModelLoader:
         current_label = None
         current_start = None
         current_end = None
+
+        # Helper function to strip trailing punctuation from entity text
+        def strip_trailing_punctuation(text: str) -> tuple[str, int]:
+            """Strip trailing punctuation and return cleaned text and number of chars stripped."""
+            punctuation = ",.;:!?)]}"
+            stripped = text.rstrip(punctuation)
+            chars_stripped = len(text) - len(stripped)
+            return stripped, chars_stripped
 
         for _idx, (token, label, offset) in enumerate(
             zip(tokens, predicted_labels, offset_mapping, strict=True)
@@ -246,53 +313,135 @@ class PIIModelLoader:
             ):
                 continue
 
+            # Skip punctuation-only tokens when continuing an entity
+            # This prevents punctuation from being included in entities
+            token_text = text[offset[0].item() : offset[1].item()] if offset[0].item() < len(text) else ""
+            is_punctuation_only = token_text.strip() and all(c in ",.;:!?)]}" for c in token_text.strip())
+            
             # Check if this is a PII token
             if label.startswith("B-"):
                 # Save previous entity if exists
                 if current_entity is not None:
                     entity_text = text[current_start:current_end]
-                    entities.append(
-                        (entity_text, current_label, current_start, current_end)
-                    )
+                    # Strip trailing punctuation
+                    entity_text, chars_stripped = strip_trailing_punctuation(entity_text)
+                    if entity_text:  # Only add if there's text left after stripping
+                        entities.append(
+                            (entity_text, current_label, current_start, current_end - chars_stripped)
+                        )
 
-                # Start new entity
-                current_label = label[2:]  # Remove "B-" prefix
-                current_start = offset[0].item()
-                current_end = offset[1].item()
-                current_entity = token
-
-            elif label.startswith("I-") and current_entity is not None:
-                # Continue current entity (only if same label)
-                if current_label == label[2:]:  # Check label matches
-                    current_end = offset[1].item()
-                else:
-                    # Different label - save previous and start new
-                    entity_text = text[current_start:current_end]
-                    entities.append(
-                        (entity_text, current_label, current_start, current_end)
-                    )
-                    current_label = label[2:]
+                # Start new entity (skip if it's punctuation-only)
+                if not is_punctuation_only:
+                    current_label = label[2:]  # Remove "B-" prefix
                     current_start = offset[0].item()
                     current_end = offset[1].item()
+                    current_entity = token
+                else:
+                    current_entity = None
+                    current_label = None
+
+            elif label.startswith("I-") and current_entity is not None:
+                # Continue current entity (only if same label and not punctuation-only)
+                if current_label == label[2:] and not is_punctuation_only:  # Check label matches
+                    current_end = offset[1].item()
+                else:
+                    # Different label or punctuation - save previous and start new (if not punctuation)
+                    entity_text = text[current_start:current_end]
+                    # Strip trailing punctuation
+                    entity_text, chars_stripped = strip_trailing_punctuation(entity_text)
+                    if entity_text:  # Only add if there's text left after stripping
+                        entities.append(
+                            (entity_text, current_label, current_start, current_end - chars_stripped)
+                        )
+                    
+                    if not is_punctuation_only:
+                        current_label = label[2:]
+                        current_start = offset[0].item()
+                        current_end = offset[1].item()
+                    else:
+                        current_entity = None
+                        current_label = None
 
             elif current_entity is not None:  # "O" label or entity ended
                 # Save previous entity if exists
                 entity_text = text[current_start:current_end]
-                entities.append(
-                    (entity_text, current_label, current_start, current_end)
-                )
+                # Strip trailing punctuation
+                entity_text, chars_stripped = strip_trailing_punctuation(entity_text)
+                if entity_text:  # Only add if there's text left after stripping
+                    entities.append(
+                        (entity_text, current_label, current_start, current_end - chars_stripped)
+                    )
                 current_entity = None
                 current_label = None
 
         # Don't forget the last entity
         if current_entity is not None:
             entity_text = text[current_start:current_end]
-            entities.append((entity_text, current_label, current_start, current_end))
+            # Strip trailing punctuation
+            entity_text, chars_stripped = strip_trailing_punctuation(entity_text)
+            if entity_text:  # Only add if there's text left after stripping
+                entities.append((entity_text, current_label, current_start, current_end - chars_stripped))
+
+        # Extract co-reference clusters
+        coref_clusters: dict[int, list[tuple[str, int, int]]] = {}
+        for token, coref_id, offset in zip(tokens, predicted_coref_ids, offset_mapping, strict=True):
+            # Skip special tokens
+            if (
+                token
+                in [
+                    self.tokenizer.cls_token,
+                    self.tokenizer.sep_token,
+                    self.tokenizer.pad_token,
+                ]
+            ):
+                continue
+
+            # Skip NO_COREF (typically 0)
+            if coref_id == 0:
+                continue
+
+            # Get the text span for this token
+            start_pos = offset[0].item()
+            end_pos = offset[1].item()
+            token_text = text[start_pos:end_pos]
+
+            # Add to cluster
+            if coref_id not in coref_clusters:
+                coref_clusters[coref_id] = []
+            coref_clusters[coref_id].append((token_text, start_pos, end_pos))
+
+        # Merge adjacent tokens in the same cluster
+        merged_clusters: dict[int, list[tuple[str, int, int]]] = {}
+        for cluster_id, spans in coref_clusters.items():
+            if not spans:
+                continue
+
+            # Sort by start position
+            spans = sorted(spans, key=lambda x: x[1])
+            merged = []
+            current_span = spans[0]
+
+            for span in spans[1:]:
+                token_text, start_pos, end_pos = span
+                prev_text, prev_start, prev_end = current_span
+
+                # If adjacent or overlapping, merge
+                if start_pos <= prev_end:
+                    # Merge tokens
+                    merged_text = text[prev_start:end_pos]
+                    current_span = (merged_text, prev_start, end_pos)
+                else:
+                    # Save current and start new
+                    merged.append(current_span)
+                    current_span = span
+
+            merged.append(current_span)
+            merged_clusters[cluster_id] = merged
 
         end_time = time.perf_counter()
         inference_time_ms = (end_time - start_time) * 1000
 
-        return entities, inference_time_ms
+        return entities, merged_clusters, inference_time_ms
 
 
 # =============================================================================
@@ -321,8 +470,10 @@ TEST_CASES = [
 def print_results(
     text: str,
     entities: list[tuple[str, str, int, int]],
+    coref_clusters: dict[int, list[tuple[str, int, int]]],
     case_num: int,
     inference_time_ms: float,
+    coref_id2label: dict[int, str] | None = None,
 ):
     """
     Print inference results in a formatted way.
@@ -330,21 +481,38 @@ def print_results(
     Args:
         text: Original input text
         entities: List of detected entities
+        coref_clusters: Dict mapping cluster_id to list of (text, start_pos, end_pos)
         case_num: Test case number
         inference_time_ms: Inference time in milliseconds
+        coref_id2label: Optional mapping from cluster ID to label name
     """
     logger.info(f"\n{'=' * 80}")
     logger.info(f"Test Case {case_num}")
     logger.info(f"{'=' * 80}")
     logger.info(f"Text: {text}")
     logger.info(f"Inference Time: {inference_time_ms:.2f} ms")
-    logger.info("\nDetected PII Entities:")
-
+    
+    logger.info("\n🔍 Detected PII Entities:")
     if entities:
         for entity_text, label, start, end in entities:
             logger.info(f"  • [{label}] '{entity_text}' (position {start}-{end})")
     else:
         logger.info("  (No PII entities detected)")
+
+    logger.info("\n🔗 Co-reference Clusters:")
+    if coref_clusters:
+        # Sort clusters by ID for consistent output
+        for cluster_id in sorted(coref_clusters.keys()):
+            if coref_id2label and cluster_id in coref_id2label:
+                cluster_label = coref_id2label[cluster_id]
+            else:
+                cluster_label = f"CLUSTER_{cluster_id}"
+            spans = coref_clusters[cluster_id]
+            logger.info(f"  • {cluster_label} ({len(spans)} mention(s)):")
+            for token_text, start, end in spans:
+                logger.info(f"      - '{token_text}' (position {start}-{end})")
+    else:
+        logger.info("  (No co-reference clusters detected)")
 
 
 def main():
@@ -408,12 +576,21 @@ def main():
 
     inference_times = []
     total_entities = 0
+    total_clusters = 0
 
     for i, test_text in enumerate(TEST_CASES[: args.num_tests], 1):
-        entities, inference_time_ms = loader.predict(test_text)
+        entities, coref_clusters, inference_time_ms = loader.predict(test_text)
         inference_times.append(inference_time_ms)
         total_entities += len(entities)
-        print_results(test_text, entities, i, inference_time_ms)
+        total_clusters += len(coref_clusters)
+        print_results(
+            test_text,
+            entities,
+            coref_clusters,
+            i,
+            inference_time_ms,
+            loader.coref_id2label,
+        )
 
     # Calculate statistics
     avg_time = sum(inference_times) / len(inference_times) if inference_times else 0
@@ -438,6 +615,10 @@ def main():
     logger.info(f"  Total PII entities detected: {total_entities}")
     logger.info(
         f"  Average entities per test: {total_entities / len(inference_times):.1f}"
+    )
+    logger.info(f"  Total co-reference clusters detected: {total_clusters}")
+    logger.info(
+        f"  Average clusters per test: {total_clusters / len(inference_times):.1f}"
     )
     logger.info(f"{'=' * 80}\n")
 

@@ -28,6 +28,7 @@ import onnx
 import torch
 from optimum.onnxruntime import ORTQuantizer
 from optimum.onnxruntime.configuration import AutoQuantizationConfig
+from safetensors import safe_open
 from transformers import AutoTokenizer
 
 # Add project root to path for imports
@@ -117,14 +118,30 @@ def load_multitask_model(
     # Load model weights
     model_weights_path = model_path / "pytorch_model.bin"
     if not model_weights_path.exists():
-        bin_files = list(model_path.glob("*.bin"))
-        if bin_files:
-            model_weights_path = bin_files[0]
-            logger.info(f"   Found weights: {model_weights_path.name}")
+        # Try safetensors format
+        model_weights_path = model_path / "model.safetensors"
+        if not model_weights_path.exists():
+            # Try to find any .bin file
+            bin_files = list(model_path.glob("*.bin"))
+            if bin_files:
+                model_weights_path = bin_files[0]
+                logger.info(f"   Found weights: {model_weights_path.name}")
 
     if model_weights_path.exists():
         logger.info(f"📦 Loading weights from: {model_weights_path.name}")
-        state_dict = torch.load(model_weights_path, map_location="cpu")
+        
+        # Handle safetensors files
+        if model_weights_path.suffix == ".safetensors":
+            state_dict = {}
+            with safe_open(model_weights_path, framework="pt", device="cpu") as f:
+                for key in f.keys():
+                    state_dict[key] = f.get_tensor(key)
+        else:
+            # Handle .bin files - use weights_only=False for PyTorch 2.6+
+            state_dict = torch.load(
+                model_weights_path, map_location="cpu", weights_only=False
+            )
+        
         # Handle state dict that might have 'model.' prefix
         if any(k.startswith("model.") for k in state_dict.keys()):
             state_dict = {

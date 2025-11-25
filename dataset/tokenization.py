@@ -88,14 +88,14 @@ class TokenizationProcessor:
         return word_labels
 
     def _align_labels_with_tokens(
-        self, word_labels: list[str], word_ids: list[int | None]
+        self, word_labels: list[str], word_ids: list[int | None], token_texts: list[str] | None = None
     ) -> list[int]:
         """Align word-level labels with token IDs."""
         label_ids = []
         previous_word_idx = None
         previous_label = None
 
-        for word_idx in word_ids:
+        for idx, word_idx in enumerate(word_ids):
             if word_idx is None:
                 # Special tokens (CLS, SEP, etc.) - ignore with -100
                 label_ids.append(-100)
@@ -104,6 +104,23 @@ class TokenizationProcessor:
             if word_idx >= len(word_labels):
                 # Out of bounds - mark as ignored
                 label_ids.append(-100)
+                continue
+
+            # Check if this token is punctuation-only
+            is_punctuation_only = False
+            if token_texts is not None and idx < len(token_texts):
+                token_text = token_texts[idx]
+                # Check if token contains only punctuation (excluding whitespace)
+                stripped = token_text.strip()
+                is_punctuation_only = stripped and all(
+                    c in ",.;:!?)]} " for c in stripped
+                )
+
+            # If punctuation-only, always label as "O" regardless of word-level label
+            if is_punctuation_only:
+                label_ids.append(0)
+                previous_word_idx = word_idx
+                previous_label = "O"
                 continue
 
             current_word_label = word_labels[word_idx]
@@ -150,7 +167,7 @@ class TokenizationProcessor:
             truncation=True,
             is_split_into_words=True,
             max_length=512,
-            return_offsets_mapping=False,
+            return_offsets_mapping=True,
         )
 
         # Get word IDs for alignment
@@ -159,8 +176,26 @@ class TokenizationProcessor:
         except (TypeError, AttributeError):
             word_ids = tokenized.word_ids()
 
+        # Get token texts to check for punctuation-only tokens
+        token_texts = None
+        try:
+            token_ids = tokenized["input_ids"][0]
+            # Convert token IDs to token strings
+            token_texts = []
+            for tid in token_ids:
+                try:
+                    # Convert ID to token string
+                    token_str = self.tokenizer.convert_ids_to_tokens([tid])[0]
+                    # Decode the token (handles subword tokens)
+                    token_text = self.tokenizer.convert_tokens_to_string([token_str])
+                    token_texts.append(token_text)
+                except (IndexError, TypeError, AttributeError):
+                    token_texts.append("")
+        except (TypeError, KeyError, IndexError, AttributeError):
+            token_texts = None
+
         # Align labels with tokens
-        label_ids = self._align_labels_with_tokens(word_labels, word_ids)
+        label_ids = self._align_labels_with_tokens(word_labels, word_ids, token_texts)
 
         return {
             "input_ids": tokenized["input_ids"],
@@ -182,7 +217,7 @@ class TokenizationProcessor:
             truncation=True,
             is_split_into_words=True,
             max_length=512,
-            return_offsets_mapping=False,
+            return_offsets_mapping=True,
         )
 
         # Get word IDs for token alignment
@@ -190,6 +225,27 @@ class TokenizationProcessor:
             word_ids = tokenized.word_ids(batch_index=0)
         except (TypeError, AttributeError):
             word_ids = tokenized.word_ids()
+
+        # Get offset mapping and token texts to check for punctuation
+        try:
+            offset_mapping = tokenized["offset_mapping"][0]
+        except (TypeError, KeyError, IndexError):
+            offset_mapping = None
+
+        # Get token texts to check for punctuation-only tokens
+        token_texts = None
+        try:
+            token_ids = tokenized["input_ids"][0]
+            token_texts = []
+            for tid in token_ids:
+                try:
+                    token_str = self.tokenizer.convert_ids_to_tokens([tid])[0]
+                    token_text = self.tokenizer.convert_tokens_to_string([token_str])
+                    token_texts.append(token_text)
+                except (IndexError, TypeError, AttributeError):
+                    token_texts.append("")
+        except (TypeError, KeyError, IndexError, AttributeError):
+            token_texts = None
 
         # Create a mapping from word index to cluster ID
         word_to_cluster = [-1] * len(words_original)
@@ -201,9 +257,11 @@ class TokenizationProcessor:
 
             # For each mention in the cluster, find its position in the text
             for mention in mentions:
+                # Strip punctuation from mention for matching
+                mention_clean = mention.strip().rstrip(",.;:!?)]}")
                 start = 0
                 while True:
-                    pos = text.find(mention, start)
+                    pos = text.find(mention_clean, start)
                     if pos == -1:
                         break
 
@@ -211,7 +269,7 @@ class TokenizationProcessor:
                     words_before = text_before_mention.split()
                     start_word_idx = len(words_before)
 
-                    mention_words = mention.split()
+                    mention_words = mention_clean.split()
                     end_word_idx = start_word_idx + len(mention_words)
 
                     # Verify the match by checking if words align correctly
@@ -220,31 +278,49 @@ class TokenizationProcessor:
                             words_original[start_word_idx:end_word_idx]
                         )
                         if (
-                            mention.lower() in mention_text_at_pos.lower()
-                            or mention_text_at_pos.lower() in mention.lower()
+                            mention_clean.lower() in mention_text_at_pos.lower()
+                            or mention_text_at_pos.lower() in mention_clean.lower()
                         ):
-                            # Assign cluster ID to all words in this mention
+                            # Assign cluster ID to all words in this mention (skip punctuation-only words)
                             for word_idx in range(
                                 start_word_idx, min(end_word_idx, len(words_original))
                             ):
-                                if word_to_cluster[word_idx] == -1:
+                                # Check if this word is punctuation-only
+                                word_text = words_original[word_idx]
+                                is_punctuation_only = word_text.strip() and all(
+                                    c in ",.;:!?)]} " for c in word_text.strip()
+                                )
+                                if not is_punctuation_only and word_to_cluster[word_idx] == -1:
                                     word_to_cluster[word_idx] = cluster_id
 
                     start = pos + 1
 
         # Align cluster IDs with tokens
         cluster_labels = []
-        for word_idx in word_ids:
+        for idx, word_idx in enumerate(word_ids):
             if word_idx is None:
                 cluster_labels.append(-100)
             elif word_idx >= len(word_to_cluster):
                 cluster_labels.append(-100)
             else:
-                cluster_id = word_to_cluster[word_idx]
-                if cluster_id == -1:
-                    cluster_labels.append(0)  # No coreference
+                # Check if this token is punctuation-only
+                is_punctuation_only = False
+                if token_texts is not None and idx < len(token_texts):
+                    token_text = token_texts[idx]
+                    stripped = token_text.strip()
+                    is_punctuation_only = stripped and all(
+                        c in ",.;:!?)]} " for c in stripped
+                    )
+                
+                # If punctuation-only, always label as NO_COREF (0)
+                if is_punctuation_only:
+                    cluster_labels.append(0)
                 else:
-                    cluster_labels.append(cluster_id + 1)  # Add 1 to avoid 0
+                    cluster_id = word_to_cluster[word_idx]
+                    if cluster_id == -1:
+                        cluster_labels.append(0)  # No coreference
+                    else:
+                        cluster_labels.append(cluster_id + 1)  # Add 1 to avoid 0
 
         # Truncate to max_length if needed
         if len(cluster_labels) > 512:

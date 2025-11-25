@@ -38,13 +38,19 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def main(use_google_drive: bool = True, drive_folder: str = "MyDrive/pii_models"):
+def main(
+    use_google_drive: bool = True,
+    drive_folder: str = "MyDrive/pii_models",
+    training_samples_dir: str | None = None,
+):
     """
     Main execution function.
 
     Args:
         use_google_drive: Whether to save model to Google Drive (Colab only)
         drive_folder: Target folder in Google Drive for saving the model
+        training_samples_dir: Path to training samples directory (default: "dataset/reviewed_samples")
+                              Override to use "dataset/training_samples" or another directory
     """
     logger.info("=" * 60)
     logger.info("Multi-Task PII Detection and Co-reference Detection Training")
@@ -63,7 +69,10 @@ def main(use_google_drive: bool = True, drive_folder: str = "MyDrive/pii_models"
 
     # Load configuration
     logger.info("\n2️⃣  Loading configuration...")
-    config = TrainingConfig()
+    config_kwargs = {}
+    if training_samples_dir is not None:
+        config_kwargs["training_samples_dir"] = training_samples_dir
+    config = TrainingConfig(**config_kwargs)
     config.print_summary()
 
     # Prepare datasets
