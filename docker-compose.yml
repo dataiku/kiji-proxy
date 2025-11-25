@@ -43,8 +43,7 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
 
       # PII Detector configuration
-      DETECTOR_NAME: "onnx_model_detector"  # or "model_detector" or "regex_detector"
-      # MODEL_BASE_URL: "http://model-server:8000"
+      DETECTOR_NAME: "onnx_model_detector"  # or "regex_detector"
 
       # Logging configuration
       LOG_PII_CHANGES: "true"
@@ -58,69 +57,11 @@ services:
       DB_CLEANUP_HOURS: "24"
     ports:
       - "8080:8080"
-    # volumes:
-    #   # Mount PII detector configuration (if using config file)
-    #   - ./config/pii_detector_config.json:/app/config/pii_detector_config.json:ro
     depends_on:
       postgres:
         condition: service_healthy
       # model-server:
       #   condition: service_healthy
-    networks:
-      - yaak-proxy-network
-    restart: unless-stopped
-
-  # # PII Detection Model Server (FastAPI)
-  # model-server:
-  #   build:
-  #     context: .
-  #     dockerfile: Dockerfile.model-server
-  #   container_name: yaak-model-server
-  #   environment:
-  #     # Model configuration
-  #     MODEL_PATH: /app/pii_model
-
-  #     # Server configuration
-  #     MAX_TEXT_LENGTH: "5000"
-  #     MAX_BATCH_SIZE: "50"
-
-  #     # CORS settings (configure for production)
-  #     ALLOW_ORIGINS: "*"
-  #   ports:
-  #     - "8000:8000"
-  #   volumes:
-  #     # Mount model files (make sure ./pii_model exists)
-  #     - ./pii_model:/app/pii_model:ro
-  #     # Optional: Mount for development
-  #     # - ./model_server:/app/model_server
-  #   healthcheck:
-  #     test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 3
-  #     start_period: 40s
-  #   networks:
-  #     - yaak-proxy-network
-  #   restart: unless-stopped
-
-  # Privacy Proxy UI (React)
-  privacy-proxy-ui:
-    build:
-      context: .
-      dockerfile: Dockerfile.ui
-    container_name: yaak-proxy-ui
-    environment:
-      # UI configuration
-      PORT: "3000"
-      NODE_ENV: "production"
-    ports:
-      - "3000:3000"
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
     networks:
       - yaak-proxy-network
     restart: unless-stopped
