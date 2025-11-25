@@ -83,3 +83,8 @@ config/config.development.json
 electron_ui/release/
 electron_ui/resources/
 electron_ui/dist/
+
+# dataset
+dataset/reviewed_samples/*.json
+dataset/training_samples/*.json
+dataset/samples/*.json
