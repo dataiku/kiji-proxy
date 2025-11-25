@@ -15,7 +15,7 @@ import (
 	"github.com/joho/godotenv"
 )
 
-//go:embed web_ui/dist/*
+//go:embed electron_ui/dist/*
 var uiFiles embed.FS
 
 //go:embed pii_onnx_model/*

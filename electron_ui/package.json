@@ -1,7 +1,7 @@
 {
-  "name": "privacy-proxy-ui",
+  "name": "yaak-privacy-proxy",
   "version": "1.0.0",
-  "description": "Privacy Proxy UI - React component for PII masking demo",
+  "description": "Yaak Privacy Proxy",
   "main": "electron-main.js",
   "scripts": {
     "build": "webpack --mode production",
@@ -36,7 +36,7 @@
   },
   "build": {
     "appId": "com.yaak.proxy",
-    "productName": "Privacy Proxy",
+    "productName": "Yaak Privacy Proxy",
     "icon": "assets/icon.png",
     "directories": {
       "output": "release"
@@ -46,7 +46,8 @@
       "electron-main.js",
       "electron-preload.js",
       "package.json",
-      "assets/icon.png"
+      "assets/icon.png",
+      "assets/arrow.png"
     ],
     "extraFiles": [
       {
@@ -69,6 +70,8 @@
     },
     "dmg": {
       "title": "${productName} ${version}",
+      "background": "assets/dmg-background.png",
+      "iconSize": 128,
       "contents": [
         {
           "x": 410,
