@@ -29,12 +29,13 @@ echo ""
 echo "📦 Step 1: Building Go binary..."
 echo "--------------------------------"
 
-# Build the Go binary
+# Build the Go binary with embedded files
 CGO_ENABLED=1 \
 go build \
+  -tags embed \
   -ldflags="-extldflags '-L./tokenizers'" \
   -o "$BUILD_DIR/$BINARY_NAME" \
-  $MAIN_FILE
+  .
 
 if [ $? -ne 0 ]; then
     echo "❌ Go binary build failed!"

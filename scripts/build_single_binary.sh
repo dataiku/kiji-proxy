@@ -39,9 +39,10 @@ echo "📦 Step 2: Building Go binary with embedded files..."
 # Build the main binary with embedded files
 CGO_ENABLED=1 \
 go build \
+  -tags embed \
   -ldflags="-extldflags '-L./tokenizers'" \
   -o $BUILD_DIR/$BINARY_NAME \
-  $MAIN_FILE
+  .
 
 if [ $? -ne 0 ]; then
     echo "❌ Build failed!"
