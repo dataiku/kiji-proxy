@@ -35,12 +35,14 @@ jobs:
     - name: Run ruff linter
       run: |
         source .venv/bin/activate
-        ruff check .
+        # Exclude pii_onnx_model/ as it's tracked by Git LFS and files aren't pulled in CI
+        ruff check pii/ model/ dataset/
 
     - name: Run ruff formatter check
       run: |
         source .venv/bin/activate
-        ruff format --check . --diff
+        # Exclude pii_onnx_model/ as it's tracked by Git LFS and files aren't pulled in CI
+        ruff format --check pii/ model/ dataset/ --diff
 
   go-lint:
     runs-on: ubuntu-latest
