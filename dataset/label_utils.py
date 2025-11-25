@@ -1,4 +1,5 @@
 """Label utilities for PII detection."""
+
 import random
 from typing import ClassVar
 
@@ -104,4 +105,3 @@ class LabelUtils:
 
         # Filter labels to only include selected keys (which includes all address labels if any was selected)
         return {key: labels[key] for key in selected_keys}
-

@@ -15,6 +15,7 @@ Usage:
     # To disable Google Drive saving:
     main(use_google_drive=False)
 """
+
 import logging
 import time
 
@@ -68,7 +69,9 @@ def main(use_google_drive: bool = True, drive_folder: str = "MyDrive/pii_models"
     # Prepare datasets
     logger.info("\n3️⃣  Preparing datasets...")
     dataset_processor = DatasetProcessor(config)
-    train_dataset, val_dataset, mappings, coref_info = dataset_processor.prepare_datasets()
+    train_dataset, val_dataset, mappings, coref_info = (
+        dataset_processor.prepare_datasets()
+    )
 
     # Initialize trainer
     logger.info("\n4️⃣  Initializing trainer...")
@@ -102,21 +105,39 @@ def main(use_google_drive: bool = True, drive_folder: str = "MyDrive/pii_models"
     logger.info("🎉 TRAINING COMPLETE!")
     logger.info("=" * 60)
     logger.info("\n📊 PII Detection Metrics:")
-    logger.info(f"  F1 (weighted): {results.get('eval_pii_f1_weighted', results.get('eval_pii_f1', 'N/A')):.4f}")
+    logger.info(
+        f"  F1 (weighted): {results.get('eval_pii_f1_weighted', results.get('eval_pii_f1', 'N/A')):.4f}"
+    )
     logger.info(f"  F1 (macro): {results.get('eval_pii_f1_macro', 'N/A'):.4f}")
-    logger.info(f"  Precision (weighted): {results.get('eval_pii_precision_weighted', 'N/A'):.4f}")
-    logger.info(f"  Precision (macro): {results.get('eval_pii_precision_macro', 'N/A'):.4f}")
-    logger.info(f"  Recall (weighted): {results.get('eval_pii_recall_weighted', 'N/A'):.4f}")
+    logger.info(
+        f"  Precision (weighted): {results.get('eval_pii_precision_weighted', 'N/A'):.4f}"
+    )
+    logger.info(
+        f"  Precision (macro): {results.get('eval_pii_precision_macro', 'N/A'):.4f}"
+    )
+    logger.info(
+        f"  Recall (weighted): {results.get('eval_pii_recall_weighted', 'N/A'):.4f}"
+    )
     logger.info(f"  Recall (macro): {results.get('eval_pii_recall_macro', 'N/A'):.4f}")
 
-    if 'eval_coref_f1' in results or 'eval_coref_f1_weighted' in results:
+    if "eval_coref_f1" in results or "eval_coref_f1_weighted" in results:
         logger.info("\n📊 Co-reference Detection Metrics:")
-        logger.info(f"  F1 (weighted): {results.get('eval_coref_f1_weighted', results.get('eval_coref_f1', 'N/A')):.4f}")
+        logger.info(
+            f"  F1 (weighted): {results.get('eval_coref_f1_weighted', results.get('eval_coref_f1', 'N/A')):.4f}"
+        )
         logger.info(f"  F1 (macro): {results.get('eval_coref_f1_macro', 'N/A'):.4f}")
-        logger.info(f"  Precision (weighted): {results.get('eval_coref_precision_weighted', 'N/A'):.4f}")
-        logger.info(f"  Precision (macro): {results.get('eval_coref_precision_macro', 'N/A'):.4f}")
-        logger.info(f"  Recall (weighted): {results.get('eval_coref_recall_weighted', 'N/A'):.4f}")
-        logger.info(f"  Recall (macro): {results.get('eval_coref_recall_macro', 'N/A'):.4f}")
+        logger.info(
+            f"  Precision (weighted): {results.get('eval_coref_precision_weighted', 'N/A'):.4f}"
+        )
+        logger.info(
+            f"  Precision (macro): {results.get('eval_coref_precision_macro', 'N/A'):.4f}"
+        )
+        logger.info(
+            f"  Recall (weighted): {results.get('eval_coref_recall_weighted', 'N/A'):.4f}"
+        )
+        logger.info(
+            f"  Recall (macro): {results.get('eval_coref_recall_macro', 'N/A'):.4f}"
+        )
 
     logger.info(f"\n💾 Model saved locally to: {config.output_dir}")
     if drive_path:
@@ -126,4 +147,3 @@ def main(use_google_drive: bool = True, drive_folder: str = "MyDrive/pii_models"
 
 if __name__ == "__main__":
     main()
-

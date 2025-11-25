@@ -1,4 +1,5 @@
 """Tokenization utilities for training samples."""
+
 import re
 from typing import Any
 
@@ -8,7 +9,12 @@ from transformers import AutoTokenizer
 class TokenizationProcessor:
     """Processes text tokenization and label alignment."""
 
-    def __init__(self, tokenizer: AutoTokenizer, label2id: dict[str, int], id2label: dict[int, str]):
+    def __init__(
+        self,
+        tokenizer: AutoTokenizer,
+        label2id: dict[str, int],
+        id2label: dict[int, str],
+    ):
         self.tokenizer = tokenizer
         self.label2id = label2id
         self.id2label = id2label
@@ -28,16 +34,20 @@ class TokenizationProcessor:
                 pos = text.find(value, start)
                 if pos == -1:
                     break
-                privacy_mask_with_positions.append({
-                    "value": value,
-                    "label": label,
-                    "start": pos,
-                    "end": pos + len(value),
-                })
+                privacy_mask_with_positions.append(
+                    {
+                        "value": value,
+                        "label": label,
+                        "start": pos,
+                        "end": pos + len(value),
+                    }
+                )
                 start = pos + 1
 
         # Sort by start position (reverse order for replacement)
-        return sorted(privacy_mask_with_positions, key=lambda x: x["start"], reverse=True)
+        return sorted(
+            privacy_mask_with_positions, key=lambda x: x["start"], reverse=True
+        )
 
     def _create_word_labels(
         self, text: str, privacy_mask_with_positions: list[dict[str, Any]]
@@ -56,7 +66,9 @@ class TokenizationProcessor:
 
             # Replace with appropriate number of label placeholders
             replacement = " ".join([label] * word_count)
-            text_with_labels = text_with_labels[:start] + replacement + text_with_labels[end:]
+            text_with_labels = (
+                text_with_labels[:start] + replacement + text_with_labels[end:]
+            )
 
         # Split into words and assign labels
         words = text_with_labels.split()
@@ -97,7 +109,9 @@ class TokenizationProcessor:
             current_word_label = word_labels[word_idx]
 
             # Determine if this is beginning or inside
-            is_beginning = (previous_word_idx != word_idx) or (previous_label != current_word_label)
+            is_beginning = (previous_word_idx != word_idx) or (
+                previous_label != current_word_label
+            )
 
             if current_word_label == "O":
                 label_ids.append(0)
@@ -122,7 +136,9 @@ class TokenizationProcessor:
     ) -> dict[str, Any]:
         """Create a PII training sample with tokenized input and labels."""
         # Find positions for privacy mask items
-        privacy_mask_with_positions = self._find_privacy_mask_positions(text, privacy_mask)
+        privacy_mask_with_positions = self._find_privacy_mask_positions(
+            text, privacy_mask
+        )
 
         # Create word-level labels
         word_labels = self._create_word_labels(text, privacy_mask_with_positions)
@@ -200,13 +216,17 @@ class TokenizationProcessor:
 
                     # Verify the match by checking if words align correctly
                     if start_word_idx < len(words_original):
-                        mention_text_at_pos = " ".join(words_original[start_word_idx:end_word_idx])
+                        mention_text_at_pos = " ".join(
+                            words_original[start_word_idx:end_word_idx]
+                        )
                         if (
                             mention.lower() in mention_text_at_pos.lower()
                             or mention_text_at_pos.lower() in mention.lower()
                         ):
                             # Assign cluster ID to all words in this mention
-                            for word_idx in range(start_word_idx, min(end_word_idx, len(words_original))):
+                            for word_idx in range(
+                                start_word_idx, min(end_word_idx, len(words_original))
+                            ):
                                 if word_to_cluster[word_idx] == -1:
                                     word_to_cluster[word_idx] = cluster_id
 
@@ -245,4 +265,3 @@ class TokenizationProcessor:
             "text": text,
             "cluster_id2label": cluster_id2label,
         }
-

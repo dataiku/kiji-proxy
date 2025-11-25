@@ -1,4 +1,5 @@
 """Configuration and environment setup for training."""
+
 import logging
 import os
 import subprocess
@@ -155,11 +156,15 @@ class EnvironmentSetup:
     def check_gpu():
         """Check and print GPU availability (MPS, CUDA, or CPU)."""
         # Check MPS (Apple Silicon) first
-        mps_available = hasattr(torch.backends, 'mps') and torch.backends.mps.is_available()
+        mps_available = (
+            hasattr(torch.backends, "mps") and torch.backends.mps.is_available()
+        )
         cuda_available = torch.cuda.is_available()
 
         if mps_available:
-            logger.info(f"\n✅ MPS (Metal) available: {torch.backends.mps.is_available()}")
+            logger.info(
+                f"\n✅ MPS (Metal) available: {torch.backends.mps.is_available()}"
+            )
             logger.info("   Using Apple Silicon GPU acceleration")
             logger.info("   Device: mps")
         elif cuda_available:
@@ -178,10 +183,9 @@ class EnvironmentSetup:
     @staticmethod
     def get_device():
         """Get the best available device (MPS > CUDA > CPU)."""
-        if hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+        if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
             return torch.device("mps")
         elif torch.cuda.is_available():
             return torch.device("cuda")
         else:
             return torch.device("cpu")
-

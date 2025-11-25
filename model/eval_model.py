@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 
 def get_device():
     """Get the best available device (MPS > CUDA > CPU)."""
-    if hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+    if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
         return torch.device("mps")
     elif torch.cuda.is_available():
         return torch.device("cuda")
@@ -94,9 +94,7 @@ class PIIModelLoader:
 
         # Load PII label mappings
         self.pii_label2id = mappings["pii"]["label2id"]
-        self.pii_id2label = {
-            int(k): v for k, v in mappings["pii"]["id2label"].items()
-        }
+        self.pii_id2label = {int(k): v for k, v in mappings["pii"]["id2label"].items()}
         logger.info(f"✅ Loaded {len(self.pii_label2id)} PII label mappings")
 
         # Load co-reference label mappings
@@ -104,7 +102,9 @@ class PIIModelLoader:
             self.coref_id2label = {
                 int(k): v for k, v in mappings["coref"]["id2label"].items()
             }
-            logger.info(f"✅ Loaded {len(self.coref_id2label)} co-reference label mappings")
+            logger.info(
+                f"✅ Loaded {len(self.coref_id2label)} co-reference label mappings"
+            )
 
         # Load tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_path)
@@ -116,16 +116,17 @@ class PIIModelLoader:
             with config_path.open() as f:
                 model_config = json.load(f)
             # Try to get base model name from config
-            base_model_name = (
-                model_config.get("_name_or_path")
-                or model_config.get("model_type", "distilbert")
+            base_model_name = model_config.get("_name_or_path") or model_config.get(
+                "model_type", "distilbert"
             )
             # Convert model_type to full model name if needed
             if base_model_name == "distilbert":
                 base_model_name = "distilbert-base-cased"
         else:
             base_model_name = "distilbert-base-cased"
-            logger.warning("⚠️  config.json not found, using default: distilbert-base-cased")
+            logger.warning(
+                "⚠️  config.json not found, using default: distilbert-base-cased"
+            )
 
         # Determine number of labels
         num_pii_labels = len(self.pii_label2id)
@@ -170,12 +171,16 @@ class PIIModelLoader:
             self.model.load_state_dict(state_dict, strict=False)
             logger.info("✅ Model weights loaded")
         else:
-            logger.warning("⚠️  Model weights not found, using randomly initialized model")
+            logger.warning(
+                "⚠️  Model weights not found, using randomly initialized model"
+            )
 
         self.model.to(self.device)
         self.model.eval()
 
-        device_name = "MPS (Apple Silicon)" if self.device.type == "mps" else str(self.device)
+        device_name = (
+            "MPS (Apple Silicon)" if self.device.type == "mps" else str(self.device)
+        )
         logger.info(f"✅ Loaded model on device: {device_name}")
 
     def predict(self, text: str) -> tuple[list[tuple[str, str, int, int]], float]:
@@ -230,11 +235,15 @@ class PIIModelLoader:
             zip(tokens, predicted_labels, offset_mapping, strict=True)
         ):
             # Skip special tokens
-            if token in [
-                self.tokenizer.cls_token,
-                self.tokenizer.sep_token,
-                self.tokenizer.pad_token,
-            ] or label == "IGNORE":
+            if (
+                token
+                in [
+                    self.tokenizer.cls_token,
+                    self.tokenizer.sep_token,
+                    self.tokenizer.pad_token,
+                ]
+                or label == "IGNORE"
+            ):
                 continue
 
             # Check if this is a PII token

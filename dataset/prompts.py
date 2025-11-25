@@ -1,4 +1,5 @@
 """Prompt builders for LLM interactions."""
+
 import json
 import random
 from typing import Any
@@ -28,9 +29,9 @@ class PromptBuilder:
                 {
                     "cluster_id": 0,
                     "mentions": ["Michael Chen", "I", "my"],
-                    "entity_type": "person"
+                    "entity_type": "person",
                 }
-            ]
+            ],
         },
         {
             "text": "The patient, Maria Santos, was admitted on 2024-03-15. Her date of birth is 1985-07-22. The medical record shows her SSN as 456-78-9012. Dr. Thompson noted that Ms. Santos should follow up at her current address: 789 Maple Boulevard, Austin, TX 78701.",
@@ -50,9 +51,9 @@ class PromptBuilder:
                 {
                     "cluster_id": 0,
                     "mentions": ["Maria Santos", "Her", "Ms. Santos", "her"],
-                    "entity_type": "person"
+                    "entity_type": "person",
                 }
-            ]
+            ],
         },
         {
             "text": "Customer ID: CUST-789456. Account holder: Kenji Yamamoto. Contact: kenji.y@email.jp. The account was opened on 12/05/2020. Tax identification number: JP-987654321. IBAN: GB82WEST12345698765432.",
@@ -64,7 +65,7 @@ class PromptBuilder:
                 {"value": "JP-987654321", "label": "TAXNUM"},
                 {"value": "GB82WEST12345698765432", "label": "IBAN"},
             ],
-            "coreferences": []
+            "coreferences": [],
         },
         {
             "text": "Just moved to a new place! My address is now 42 Rue de la Paix, Lyon, 69001, France. Phone changed too: +33-6-12-34-56-78. Email stays the same: sophie.martin@france.fr",
@@ -81,9 +82,9 @@ class PromptBuilder:
                 {
                     "cluster_id": 0,
                     "mentions": ["My", "I", "My"],
-                    "entity_type": "person"
+                    "entity_type": "person",
                 }
-            ]
+            ],
         },
     ]
 
@@ -120,7 +121,7 @@ class PromptBuilder:
             "medical record entry",
             "legal document excerpt",
             "academic paper citation",
-            "job application form"
+            "job application form",
         ]
         style = writing_styles[sample_index % len(writing_styles)]
 
@@ -130,7 +131,7 @@ class PromptBuilder:
             "Use varied sentence lengths and structures.",
             "Include some complex sentences with subordinate clauses.",
             "Mix short and long sentences for natural flow.",
-            "Use a conversational tone with varied sentence patterns."
+            "Use a conversational tone with varied sentence patterns.",
         ]
         complexity = complexity_hints[sample_index % len(complexity_hints)]
 
@@ -138,9 +139,7 @@ class PromptBuilder:
         incorrect_example = '{"value": "Ravi Patel", "label": "FIRSTNAME"}'
         correct_surname_only = '{"value": "Patel", "label": "SURNAME"}'
         correct_firstname_only = '{"value": "Ravi", "label": "FIRSTNAME"}'
-        correct_both = (
-            '{"value": "Ravi", "label": "FIRSTNAME"} {"value": "Patel", "label": "SURNAME"}'
-        )
+        correct_both = '{"value": "Ravi", "label": "FIRSTNAME"} {"value": "Patel", "label": "SURNAME"}'
 
         labels_list = ", ".join(labels.values())
         return f"""
@@ -213,4 +212,3 @@ Each sample contains:
 
 **Your Task:**
 Please review and correct the dataset example! Return the correct JSON if it needs correction. Just return the JSON structure, no explanation, no extra text."""
-

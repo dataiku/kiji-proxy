@@ -1,4 +1,5 @@
 """Model architecture and loss functions."""
+
 import torch
 from torch import nn
 from torch.nn import functional
@@ -207,7 +208,9 @@ class MultiTaskPIIDetectionModel(nn.Module):
         """
         # Get shared encoder outputs
         outputs = self.encoder(input_ids=input_ids, attention_mask=attention_mask)
-        sequence_output = outputs.last_hidden_state  # (batch_size, seq_len, hidden_size)
+        sequence_output = (
+            outputs.last_hidden_state
+        )  # (batch_size, seq_len, hidden_size)
 
         # PII detection logits
         pii_logits = self.pii_classifier(sequence_output)
@@ -220,4 +223,3 @@ class MultiTaskPIIDetectionModel(nn.Module):
             "coref_logits": coref_logits,
             "hidden_states": sequence_output,
         }
-

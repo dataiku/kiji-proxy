@@ -3,4 +3,3 @@
 from .training_set import TrainingSetConfig, TrainingSetGenerator
 
 __all__ = ["TrainingSetConfig", "TrainingSetGenerator"]
-

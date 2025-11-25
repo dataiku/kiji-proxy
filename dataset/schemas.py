@@ -98,4 +98,3 @@ def get_review_sample_schema() -> dict:
         "required": ["text", "privacy_mask", "coreferences"],
         "additionalProperties": False,
     }
-

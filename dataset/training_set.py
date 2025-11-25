@@ -37,7 +37,11 @@ flags.DEFINE_integer("num_samples", 5, "Number of samples to generate")
 flags.DEFINE_boolean("use_ollama", False, "Whether to use Ollama instead of OpenAI")
 flags.DEFINE_string("output_dir", "dataset", "Output directory for generated samples")
 flags.DEFINE_string("log_level", "INFO", "Logging level (DEBUG, INFO, WARNING, ERROR)")
-flags.DEFINE_integer("max_workers", None, "Maximum number of parallel workers (default: min(32, num_samples + 4))")
+flags.DEFINE_integer(
+    "max_workers",
+    None,
+    "Maximum number of parallel workers (default: min(32, num_samples + 4))",
+)
 
 
 @dataclass
@@ -148,7 +152,9 @@ class TrainingSetGenerator:
             self.llm_client = llm_client
 
         # Initialize file manager
-        self.file_manager = file_manager or FileManager(base_output_dir=config.output_dir)
+        self.file_manager = file_manager or FileManager(
+            base_output_dir=config.output_dir
+        )
 
         # Create standard label mappings once
         self.label2id, self.id2label = LabelUtils.create_standard_label2id()
@@ -164,20 +170,14 @@ class TrainingSetGenerator:
         sample_seed = sample_index if not self.is_testing else 42
 
         languages = self.config.get_languages(
-            is_testing=self.is_testing,
-            seed=sample_seed
+            is_testing=self.is_testing, seed=sample_seed
         )
 
         # Pass seed to label selection for variation
-        labels = self.config.get_pii_labels(
-            return_count=4,
-            seed=sample_seed
-        )
+        labels = self.config.get_pii_labels(return_count=4, seed=sample_seed)
 
         prompt = PromptBuilder.build_generation_prompt(
-            labels,
-            languages,
-            sample_index=sample_index
+            labels, languages, sample_index=sample_index
         )
         json_schema = get_pii_sample_schema()
 
@@ -214,7 +214,6 @@ class TrainingSetGenerator:
 
         return self.llm_client.review(prompt, json_schema)
 
-
     def convert_to_training_sample(
         self, result: dict[str, Any], tokenizer: AutoTokenizer
     ) -> dict[str, Any]:
@@ -245,12 +244,14 @@ class TrainingSetGenerator:
             coreference_sample.pop(key, None)
 
         # Combine results
-        result.update({
-            "input_ids": input_ids,
-            "attention_mask": attention_mask,
-            "coreference_sample": coreference_sample,
-            "pii_sample": pii_sample,
-        })
+        result.update(
+            {
+                "input_ids": input_ids,
+                "attention_mask": attention_mask,
+                "coreference_sample": coreference_sample,
+                "pii_sample": pii_sample,
+            }
+        )
         return result
 
 
@@ -318,7 +319,9 @@ def main():
 
     # Use parallel processing if we have multiple samples
     if config.num_samples > 1 and max_workers > 1:
-        logging.info(f"Processing {config.num_samples} samples in parallel with {max_workers} workers")
+        logging.info(
+            f"Processing {config.num_samples} samples in parallel with {max_workers} workers"
+        )
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             # Submit all tasks
@@ -336,13 +339,16 @@ def main():
                         print(f"Sample {idx}: Saved training sample to {file_name}")
                         pbar.update(1)
                     except Exception as exc:
-                        logging.error(f"Sample {sample_index} generated an exception: {exc}")
+                        logging.error(
+                            f"Sample {sample_index} generated an exception: {exc}"
+                        )
                         pbar.update(1)
     else:
         # Sequential processing for single sample or when max_workers <= 1
         for i in tqdm(range(config.num_samples)):
             idx, file_name = process_single_sample(i, gen, tokenizer)
             print(f"Sample {idx}: Saved training sample to {file_name}")
+
 
 if __name__ == "__main__":
     main()

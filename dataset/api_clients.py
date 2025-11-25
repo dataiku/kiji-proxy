@@ -1,4 +1,5 @@
 """API client implementations for LLM providers."""
+
 import json
 import os
 from abc import ABC, abstractmethod
@@ -78,7 +79,9 @@ class OpenAIClient(LLMClient):
         try:
             response.raise_for_status()
         except httpx.HTTPStatusError as e:
-            error_detail = response.text if hasattr(response, "text") else str(response.content)
+            error_detail = (
+                response.text if hasattr(response, "text") else str(response.content)
+            )
             print(f"API Error: {e}")
             print(f"Response: {error_detail}")
             raise
@@ -107,7 +110,9 @@ class OpenAIClient(LLMClient):
 class OllamaClient(LLMClient):
     """Ollama API client."""
 
-    def __init__(self, model: str = "gpt-oss:20b", base_url: str = "http://localhost:11434"):
+    def __init__(
+        self, model: str = "gpt-oss:20b", base_url: str = "http://localhost:11434"
+    ):
         self.model = model
         self.url = f"{base_url}/api/chat"
         self.timeout = httpx.Timeout(300.0, connect=10.0)
@@ -128,7 +133,9 @@ class OllamaClient(LLMClient):
         try:
             response.raise_for_status()
         except httpx.HTTPStatusError as e:
-            error_detail = response.text if hasattr(response, "text") else str(response.content)
+            error_detail = (
+                response.text if hasattr(response, "text") else str(response.content)
+            )
             print(f"API Error: {e}")
             print(f"Response: {error_detail}")
             raise
@@ -147,4 +154,3 @@ class OllamaClient(LLMClient):
     def review(self, prompt: str, json_schema: dict[str, Any]) -> dict[str, Any]:
         """Review and correct a sample using Ollama."""
         return self._make_request(prompt, json_schema, "review")
-

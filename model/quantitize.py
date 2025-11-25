@@ -41,13 +41,15 @@ except ImportError:
     from model import MultiTaskPIIDetectionModel
 
 # Set up logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 
-
-
-def load_multitask_model(model_path: str) -> tuple[MultiTaskPIIDetectionModel, dict, AutoTokenizer]:
+def load_multitask_model(
+    model_path: str,
+) -> tuple[MultiTaskPIIDetectionModel, dict, AutoTokenizer]:
     """
     Load the multi-task model, label mappings, and tokenizer.
 
@@ -73,9 +75,11 @@ def load_multitask_model(model_path: str) -> tuple[MultiTaskPIIDetectionModel, d
 
     pii_label2id = mappings["pii"]["label2id"]
     pii_id2label = {int(k): v for k, v in mappings["pii"]["id2label"].items()}
-    coref_id2label = {
-        int(k): v for k, v in mappings["coref"]["id2label"].items()
-    } if "coref" in mappings else {0: "NO_COREF", 1: "CLUSTER_0"}
+    coref_id2label = (
+        {int(k): v for k, v in mappings["coref"]["id2label"].items()}
+        if "coref" in mappings
+        else {0: "NO_COREF", 1: "CLUSTER_0"}
+    )
 
     logger.info(f"✅ Loaded {len(pii_label2id)} PII label mappings")
 
@@ -88,9 +92,8 @@ def load_multitask_model(model_path: str) -> tuple[MultiTaskPIIDetectionModel, d
     if config_path.exists():
         with config_path.open() as f:
             model_config = json.load(f)
-        base_model_name = (
-            model_config.get("_name_or_path")
-            or model_config.get("model_type", "distilbert")
+        base_model_name = model_config.get("_name_or_path") or model_config.get(
+            "model_type", "distilbert"
         )
         if base_model_name == "distilbert":
             base_model_name = "distilbert-base-cased"
@@ -224,11 +227,17 @@ def export_to_onnx(
 
     # Try to copy from model directory first, then from base model
     for file in tokenizer_files:
-        src = Path(tokenizer.name_or_path) / file if hasattr(tokenizer, 'name_or_path') else None
+        src = (
+            Path(tokenizer.name_or_path) / file
+            if hasattr(tokenizer, "name_or_path")
+            else None
+        )
         if not src or not src.exists():
             # Try loading from transformers cache or base model
             try:
-                base_tokenizer = AutoTokenizer.from_pretrained(model.encoder.config.name_or_path)
+                base_tokenizer = AutoTokenizer.from_pretrained(
+                    model.encoder.config.name_or_path
+                )
                 # Tokenizer files are in cache, we'll save them
                 base_tokenizer.save_pretrained(str(output_path))
                 break
@@ -275,7 +284,9 @@ def quantize_model(
     elif quantization_mode == "q8":
         qconfig = AutoQuantizationConfig.q8()
     else:
-        logger.warning(f"Unknown quantization mode: {quantization_mode}, using avx512_vnni")
+        logger.warning(
+            f"Unknown quantization mode: {quantization_mode}, using avx512_vnni"
+        )
         qconfig = AutoQuantizationConfig.avx512_vnni(is_static=False)
 
     logger.info(f"   Using quantization mode: {quantization_mode}")
@@ -298,7 +309,9 @@ def quantize_model(
         model_onnx = onnx.load(str(quantized_model_path))
         logger.info("\n📊 Quantized Model Information:")
         logger.info(f"   Inputs: {[input.name for input in model_onnx.graph.input]}")
-        logger.info(f"   Outputs: {[output.name for output in model_onnx.graph.output]}")
+        logger.info(
+            f"   Outputs: {[output.name for output in model_onnx.graph.output]}"
+        )
 
         # Get model size
         model_size_mb = quantized_model_path.stat().st_size / (1024 * 1024)
@@ -365,6 +378,7 @@ def main():
         config_path = Path(args.model_path) / "config.json"
         if config_path.exists():
             import shutil
+
             shutil.copy(config_path, output_path / "config.json")
             logger.info("✅ Config file copied")
 

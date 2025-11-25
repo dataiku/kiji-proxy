@@ -1,4 +1,5 @@
 """File operations for saving training samples."""
+
 import hashlib
 import json
 import os
@@ -46,4 +47,3 @@ class FileManager:
         output_dir = Path(self.base_output_dir) / subfolder
         output_dir.mkdir(parents=True, exist_ok=True)
         return output_dir
-
