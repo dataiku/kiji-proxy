@@ -87,4 +87,6 @@ electron_ui/dist/
 # dataset
 dataset/reviewed_samples/*.json
 dataset/training_samples/*.json
-dataset/samples/*.json
+dataset/samples/*.jsonA
+
+.vscode/settings.json
