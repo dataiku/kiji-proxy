@@ -1,4 +1,5 @@
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -36,6 +37,7 @@ flags.DEFINE_integer("num_samples", 5, "Number of samples to generate")
 flags.DEFINE_boolean("use_ollama", False, "Whether to use Ollama instead of OpenAI")
 flags.DEFINE_string("output_dir", "dataset", "Output directory for generated samples")
 flags.DEFINE_string("log_level", "INFO", "Logging level (DEBUG, INFO, WARNING, ERROR)")
+flags.DEFINE_integer("max_workers", None, "Maximum number of parallel workers (default: min(32, num_samples + 4))")
 
 
 @dataclass
@@ -56,11 +58,11 @@ class TrainingSetConfig:
             "German",
             "French",
             "Spanish",
+            "Dutch",
+            "Danish",
             # "Italian",
             # "Portuguese",
-            "Dutch",
             # "Swedish",
-            "Danish",
             # "Norwegian",
             # "Finnish",
             # "Estonian",
@@ -252,6 +254,42 @@ class TrainingSetGenerator:
         return result
 
 
+def process_single_sample(
+    sample_index: int,
+    gen: TrainingSetGenerator,
+    tokenizer: AutoTokenizer,
+) -> tuple[int, str]:
+    """
+    Process a single training sample (generate, review, convert, save).
+    Args:
+        sample_index: Index of the sample to generate
+        gen: TrainingSetGenerator instance
+        tokenizer: Tokenizer instance
+    Returns:
+        Tuple of (sample_index, file_name) for the saved training sample
+    """
+    # Generate sample with index for seed variation
+    result = gen.generate_pii_samples(sample_index=sample_index)
+    logging.info(f"Sample {sample_index}: Generated PII sample")
+
+    # Save raw sample
+    file_name = gen.file_manager.save_sample(result, "samples")
+
+    # Review sample
+    result = gen.review_sample(result)
+    file_name = gen.file_manager.save_sample(result, "reviewed_samples", file_name)
+    logging.info(f"Sample {sample_index}: Reviewed sample")
+
+    # Convert to training sample
+    training_sample = gen.convert_to_training_sample(result, tokenizer)
+    file_name = gen.file_manager.save_sample(
+        training_sample, "training_samples", file_name
+    )
+    logging.info(f"Sample {sample_index}: Saved training sample to {file_name}")
+
+    return sample_index, file_name
+
+
 def main():
     """Main function to generate training samples."""
     # Parse absl flags
@@ -272,24 +310,39 @@ def main():
     gen = TrainingSetGenerator(config, is_testing=is_testing)
     tokenizer = AutoTokenizer.from_pretrained(config.model_name)
 
-    for i in tqdm(range(config.num_samples)):
-        # Generate sample with index for seed variation
-        result = gen.generate_pii_samples(sample_index=i)
-        logging.info(result)
+    # Determine number of workers
+    max_workers = FLAGS.max_workers
+    if max_workers is None:
+        # Default: use min(12, num_samples + 4) to avoid too many concurrent API calls
+        max_workers = min(12, config.num_samples + 4)
 
-        # Save raw sample
-        file_name = gen.file_manager.save_sample(result, "samples")
+    # Use parallel processing if we have multiple samples
+    if config.num_samples > 1 and max_workers > 1:
+        logging.info(f"Processing {config.num_samples} samples in parallel with {max_workers} workers")
 
-        # Review sample
-        result = gen.review_sample(result)
-        file_name = gen.file_manager.save_sample(result, "reviewed_samples", file_name)
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submit all tasks
+            future_to_index = {
+                executor.submit(process_single_sample, i, gen, tokenizer): i
+                for i in range(config.num_samples)
+            }
 
-        # Convert to training sample
-        training_sample = gen.convert_to_training_sample(result, tokenizer)
-        file_name = gen.file_manager.save_sample(
-            training_sample, "training_samples", file_name
-        )
-        print(f"Saved training sample to {file_name}")
+            # Process completed tasks with progress bar
+            with tqdm(total=config.num_samples, desc="Generating samples") as pbar:
+                for future in as_completed(future_to_index):
+                    sample_index = future_to_index[future]
+                    try:
+                        idx, file_name = future.result()
+                        print(f"Sample {idx}: Saved training sample to {file_name}")
+                        pbar.update(1)
+                    except Exception as exc:
+                        logging.error(f"Sample {sample_index} generated an exception: {exc}")
+                        pbar.update(1)
+    else:
+        # Sequential processing for single sample or when max_workers <= 1
+        for i in tqdm(range(config.num_samples)):
+            idx, file_name = process_single_sample(i, gen, tokenizer)
+            print(f"Sample {idx}: Saved training sample to {file_name}")
 
 if __name__ == "__main__":
     main()
