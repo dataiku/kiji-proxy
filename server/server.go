@@ -77,9 +77,9 @@ func (s *Server) Start() error {
 
 	// Serve UI files
 	if s.uiFS != nil {
-		// Use embedded filesystem - need to strip the "web_ui/dist/" prefix
-		// The embedded files are at "web_ui/dist/" but we want to serve them at "/"
-		subFS, err := fs.Sub(s.uiFS, "web_ui/dist")
+		// Use embedded filesystem - need to strip the "electron_ui/dist/" prefix
+		// The embedded files are at "electron_ui/dist/" but we want to serve them at "/"
+		subFS, err := fs.Sub(s.uiFS, "electron_ui/dist")
 		if err != nil {
 			log.Printf("Failed to create sub-filesystem: %v", err)
 			// Fallback to regular embedded filesystem

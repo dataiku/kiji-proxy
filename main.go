@@ -15,12 +15,6 @@ import (
 	"github.com/joho/godotenv"
 )
 
-//go:embed web_ui/dist/*
-var uiFiles embed.FS
-
-//go:embed pii_onnx_model/*
-var modelFiles embed.FS
-
 const TRUE = "true"
 
 func main() {
