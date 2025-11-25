@@ -1,8 +1,8 @@
 .PHONY: help install install-dev venv
-.PHONY: format lint typecheck check ruff-fix ruff-all
+.PHONY: format lint lint-go typecheck check ruff-fix ruff-all
 .PHONY: test test-go test-all
 .PHONY: clean clean-venv clean-all
-.PHONY: server dev server-test example-client
+.PHONY: build-dmg
 .PHONY: list show shell jupyter info quickstart
 
 # Default target
@@ -38,7 +38,6 @@ info: ## Show project info
 	@echo ""
 	@echo "$(BLUE)Quick Commands$(NC)"
 	@echo "  make install     - Install dependencies"
-	@echo "  make dev         - Start dev server"
 	@echo "  make test        - Run tests"
 	@echo "  make help        - Show all commands"
 
@@ -60,24 +59,6 @@ install-dev: venv ## Install with development dependencies
 	uv pip install -e ".[dev]"
 	@echo "$(GREEN)✅ Dev installation complete$(NC)"
 
-##@ FastAPI Server
-
-server: ## Start FastAPI server (production mode)
-	@echo "$(BLUE)Starting FastAPI server...$(NC)"
-	cd model_server && ./start_server.sh
-
-dev: ## Start FastAPI server (development mode with auto-reload)
-	@echo "$(BLUE)Starting server in development mode...$(NC)"
-	cd model_server && ./start_server.sh --reload
-
-server-test: ## Test the FastAPI server
-	@echo "$(BLUE)Testing FastAPI server...$(NC)"
-	uv run python model_server/test_server.py
-
-example-client: ## Run example client
-	@echo "$(BLUE)Running example client...$(NC)"
-	uv run python model_server/example_client.py
-
 ##@ Code Quality
 
 format: ## Format code with ruff
@@ -87,30 +68,40 @@ format: ## Format code with ruff
 
 lint: ## Run linters with ruff
 	@echo "$(BLUE)Running linters...$(NC)"
-	uv run ruff check pii/ model/ model_server/ dataset/ pii_onnx_model/
+	uv run ruff check pii/ model/ model_server/ dataset/ 
 	@echo "$(GREEN)✅ Linting complete$(NC)"
+
+lint-go: ## Lint Go code with golangci-lint
+	@echo "$(BLUE)Linting Go code...$(NC)"
+	@if command -v golangci-lint >/dev/null 2>&1; then \
+		golangci-lint run; \
+	else \
+		echo "$(YELLOW)⚠️  golangci-lint not found. Install with: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)✅ Go linting complete$(NC)"
 
 typecheck: ## Run type checker with ruff
 	@echo "$(BLUE)Running type checker...$(NC)"
-	uv run ruff check pii/ model/ model_server/ dataset/ pii_onnx_model/ --select TYP
+	uv run ruff check pii/ model/ model_server/ dataset/ --select TYP
 	@echo "$(GREEN)✅ Type checking complete$(NC)"
 
 check: format lint typecheck ## Run all code quality checks
 
 ruff-fix: ## Auto-fix ruff issues
 	@echo "$(BLUE)Auto-fixing ruff issues...$(NC)"
-	uv run ruff check pii/ model/ model_server/ dataset/ pii_onnx_model/ --fix
+	uv run ruff check pii/ model/ model_server/ dataset/ --fix
 	@echo "$(GREEN)✅ Auto-fix complete$(NC)"
 
 ruff-all: ## Run all ruff checks (lint + format + typecheck)
 	@echo "$(BLUE)Running all ruff checks...$(NC)"
-	uv run ruff check pii/ model/ model_server/ dataset/ pii_onnx_model/ --fix
+	uv run ruff check pii/ model/ model_server/ dataset/ --fix
 	uv run ruff format .
 	@echo "$(GREEN)✅ All ruff checks complete$(NC)"
 
 ##@ Testing
 
-test: ## Run Python tests
+test-python: ## Run Python tests
 	@echo "$(BLUE)Running Python tests...$(NC)"
 	uv run pytest tests/ -v
 	@echo "$(GREEN)✅ Tests complete$(NC)"
@@ -120,7 +111,7 @@ test-go: ## Run Go tests
 	go test ./... -v
 	@echo "$(GREEN)✅ Go tests complete$(NC)"
 
-test-all: test test-go server-test ## Run all tests (Python, Go, and server)
+test-all: test test-go ## Run all tests (Python and Go)
 	@echo "$(GREEN)✅ All tests complete$(NC)"
 
 ##@ Cleanup
@@ -139,4 +130,16 @@ clean-venv: ## Remove virtual environment
 
 clean-all: clean clean-venv ## Remove everything (artifacts, cache, and venv)
 	@echo "$(GREEN)✅ Full cleanup complete$(NC)"
+
+##@ Build
+
+build-dmg: ## Build DMG package with Go binary and Electron app
+	@echo "$(BLUE)Building DMG package...$(NC)"
+	@if [ ! -f "scripts/build_dmg.sh" ]; then \
+		echo "$(YELLOW)⚠️  build_dmg.sh script not found$(NC)"; \
+		exit 1; \
+	fi
+	@chmod +x scripts/build_dmg.sh
+	@./scripts/build_dmg.sh
+	@echo "$(GREEN)✅ DMG build complete$(NC)"
 
