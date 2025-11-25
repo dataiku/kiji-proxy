@@ -349,8 +349,8 @@ def main():
     parser.add_argument(
         "--output-path",
         type=str,
-        default="./pii_onnx_model",
-        help="Path to save the quantized ONNX model (default: ./pii_onnx_model)",
+        default="./pii_onnx_model_v2",
+        help="Path to save the quantized ONNX model (default: ./pii_onnx_model_v2)",
     )
     parser.add_argument(
         "--quantization-mode",
