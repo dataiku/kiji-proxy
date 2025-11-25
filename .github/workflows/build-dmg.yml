@@ -88,14 +88,23 @@ jobs:
         fi
         cd ..
 
+    - name: Install Electron dependencies
+      working-directory: electron_ui
+      run: npm ci
+
+    - name: Build Electron app
+      working-directory: electron_ui
+      run: npm run build:electron
+
     - name: Build Go binary
       run: |
         mkdir -p build
         CGO_ENABLED=1 \
         go build \
+          -tags embed \
           -ldflags="-extldflags '-L./tokenizers'" \
           -o build/yaak-proxy \
-          main.go
+          .
 
     - name: Prepare Electron resources
       run: |
@@ -112,14 +121,6 @@ jobs:
         if [ -d "pii_onnx_model" ]; then
           cp -r pii_onnx_model electron_ui/resources/
         fi
-
-    - name: Install Electron dependencies
-      working-directory: electron_ui
-      run: npm ci
-
-    - name: Build Electron app
-      working-directory: electron_ui
-      run: npm run build:electron
 
     - name: Package Electron app (DMG)
       working-directory: electron_ui

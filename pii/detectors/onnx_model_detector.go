@@ -14,14 +14,16 @@ import (
 
 // ONNXModelDetectorSimple implements DetectorClass using an internal ONNX model
 type ONNXModelDetectorSimple struct {
-	tokenizer    *tokenizers.Tokenizer
-	session      *onnxruntime.AdvancedSession
-	inputTensor  *onnxruntime.Tensor[int64]
-	maskTensor   *onnxruntime.Tensor[int64]
-	outputTensor *onnxruntime.Tensor[float32]
-	id2label     map[string]string
-	label2id     map[string]int
-	modelPath    string
+	tokenizer     *tokenizers.Tokenizer
+	session       *onnxruntime.AdvancedSession
+	inputTensor   *onnxruntime.Tensor[int64]
+	maskTensor    *onnxruntime.Tensor[int64]
+	outputTensor  *onnxruntime.Tensor[float32]
+	id2label      map[string]string
+	label2id      map[string]int
+	corefID2Label map[string]string
+	numPIILabels  int
+	modelPath     string
 }
 
 // NewONNXModelDetectorSimple creates a new ONNX model detector
@@ -48,7 +50,7 @@ func NewONNXModelDetectorSimple(modelPath string, tokenizerPath string) (*ONNXMo
 	}
 
 	// Load model configuration
-	configPath := "pii_onnx_model/config.json"
+	configPath := "pii_onnx_model/label_mappings.json"
 	configData, err := os.ReadFile(configPath)
 	if err != nil {
 		if err := tk.Close(); err != nil {
@@ -61,8 +63,13 @@ func NewONNXModelDetectorSimple(modelPath string, tokenizerPath string) (*ONNXMo
 	}
 
 	var config struct {
-		ID2Label map[string]string `json:"id2label"`
-		Label2ID map[string]int    `json:"label2id"`
+		PII struct {
+			ID2Label map[string]string `json:"id2label"`
+			Label2ID map[string]int    `json:"label2id"`
+		} `json:"pii"`
+		Coref struct {
+			ID2Label map[string]string `json:"id2label"`
+		} `json:"coref"`
 	}
 	if err := json.Unmarshal(configData, &config); err != nil {
 		if err := tk.Close(); err != nil {
@@ -74,11 +81,34 @@ func NewONNXModelDetectorSimple(modelPath string, tokenizerPath string) (*ONNXMo
 		return nil, fmt.Errorf("failed to parse config: %w", err)
 	}
 
+	// Calculate number of PII labels from the id2label mapping
+	// Find the maximum label ID and add 1 (since IDs are 0-indexed)
+	numPIILabels := 0
+	for idStr := range config.PII.ID2Label {
+		// Skip special labels like "-100" for IGNORE
+		if idStr == "-100" {
+			continue
+		}
+		var id int
+		if _, err := fmt.Sscanf(idStr, "%d", &id); err == nil {
+			if id >= numPIILabels {
+				numPIILabels = id + 1
+			}
+		}
+	}
+	if numPIILabels == 0 {
+		// Fallback: use label2id count if id2label parsing fails
+		numPIILabels = len(config.PII.Label2ID)
+	}
+	fmt.Printf("Loaded %d PII labels (expected 49)\n", numPIILabels)
+
 	detector := &ONNXModelDetectorSimple{
-		tokenizer: tk,
-		id2label:  config.ID2Label,
-		label2id:  config.Label2ID,
-		modelPath: modelPath,
+		tokenizer:     tk,
+		id2label:      config.PII.ID2Label,
+		label2id:      config.PII.Label2ID,
+		corefID2Label: config.Coref.ID2Label,
+		numPIILabels:  numPIILabels,
+		modelPath:     modelPath,
 	}
 
 	// Initialize tensors and session will be done on first use
@@ -133,14 +163,25 @@ func (d *ONNXModelDetectorSimple) processOutputInline(originalText string, token
 	outputData := d.outputTensor.GetData()
 	entities := []Entity{}
 
+	// Ensure we don't process more tokens than we have
+	numTokens := len(tokenIDs)
+	if len(offsets) < numTokens {
+		numTokens = len(offsets)
+	}
+
 	// Group consecutive tokens with same label (B-PREFIX, I-PREFIX pattern)
 	var currentEntity *Entity
 	var currentTokens []int
 
 	// Process each token
-	for i := range tokenIDs {
-		// Get logits for this token (33 classes)
-		tokenLogits := outputData[i*33 : (i+1)*33]
+	for i := 0; i < numTokens; i++ {
+		// Get logits for this token - ensure we don't go out of bounds
+		startIdx := i * d.numPIILabels
+		endIdx := (i + 1) * d.numPIILabels
+		if endIdx > len(outputData) {
+			break // Reached end of output data
+		}
+		tokenLogits := outputData[startIdx:endIdx]
 
 		// Find the class with highest probability
 		maxProb := float64(-math.MaxFloat64)
@@ -270,7 +311,7 @@ func (d *ONNXModelDetectorSimple) initializeSession() error {
 	}
 
 	// Create output tensor
-	outputShape := onnxruntime.NewShape(batchSize, maxSeqLen, 33) // 33 labels
+	outputShape := onnxruntime.NewShape(batchSize, maxSeqLen, int64(d.numPIILabels))
 	outputTensor, err := onnxruntime.NewEmptyTensor[float32](outputShape)
 	if err != nil {
 		if err := inputTensor.Destroy(); err != nil {
@@ -284,9 +325,10 @@ func (d *ONNXModelDetectorSimple) initializeSession() error {
 
 	// Create session
 	// d.modelPath already contains the full path to the model file
+	// Model outputs both pii_logits and coref_logits, but we only use pii_logits for now
 	session, err := onnxruntime.NewAdvancedSession(d.modelPath,
 		[]string{"input_ids", "attention_mask"},
-		[]string{"logits"},
+		[]string{"pii_logits"},
 		[]onnxruntime.Value{inputTensor, maskTensor},
 		[]onnxruntime.Value{outputTensor},
 		nil)
