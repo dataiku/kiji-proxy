@@ -14,14 +14,15 @@ import (
 
 // ONNXModelDetectorSimple implements DetectorClass using an internal ONNX model
 type ONNXModelDetectorSimple struct {
-	tokenizer    *tokenizers.Tokenizer
-	session      *onnxruntime.AdvancedSession
-	inputTensor  *onnxruntime.Tensor[int64]
-	maskTensor   *onnxruntime.Tensor[int64]
-	outputTensor *onnxruntime.Tensor[float32]
-	id2label     map[string]string
-	label2id     map[string]int
-	modelPath    string
+	tokenizer     *tokenizers.Tokenizer
+	session       *onnxruntime.AdvancedSession
+	inputTensor   *onnxruntime.Tensor[int64]
+	maskTensor    *onnxruntime.Tensor[int64]
+	outputTensor  *onnxruntime.Tensor[float32]
+	id2label      map[string]string
+	label2id      map[string]int
+	corefID2Label map[string]string
+	modelPath     string
 }
 
 // NewONNXModelDetectorSimple creates a new ONNX model detector
@@ -48,7 +49,7 @@ func NewONNXModelDetectorSimple(modelPath string, tokenizerPath string) (*ONNXMo
 	}
 
 	// Load model configuration
-	configPath := "pii_onnx_model/config.json"
+	configPath := "pii_onnx_model/label_mappings.json"
 	configData, err := os.ReadFile(configPath)
 	if err != nil {
 		if err := tk.Close(); err != nil {
@@ -61,8 +62,13 @@ func NewONNXModelDetectorSimple(modelPath string, tokenizerPath string) (*ONNXMo
 	}
 
 	var config struct {
-		ID2Label map[string]string `json:"id2label"`
-		Label2ID map[string]int    `json:"label2id"`
+		PII struct {
+			ID2Label map[string]string `json:"id2label"`
+			Label2ID map[string]int    `json:"label2id"`
+		} `json:"pii"`
+		Coref struct {
+			ID2Label map[string]string `json:"id2label"`
+		} `json:"coref"`
 	}
 	if err := json.Unmarshal(configData, &config); err != nil {
 		if err := tk.Close(); err != nil {
@@ -75,10 +81,11 @@ func NewONNXModelDetectorSimple(modelPath string, tokenizerPath string) (*ONNXMo
 	}
 
 	detector := &ONNXModelDetectorSimple{
-		tokenizer: tk,
-		id2label:  config.ID2Label,
-		label2id:  config.Label2ID,
-		modelPath: modelPath,
+		tokenizer:     tk,
+		id2label:      config.PII.ID2Label,
+		label2id:      config.PII.Label2ID,
+		corefID2Label: config.Coref.ID2Label,
+		modelPath:     modelPath,
 	}
 
 	// Initialize tensors and session will be done on first use
@@ -284,9 +291,10 @@ func (d *ONNXModelDetectorSimple) initializeSession() error {
 
 	// Create session
 	// d.modelPath already contains the full path to the model file
+	// Model outputs both pii_logits and coref_logits, but we only use pii_logits for now
 	session, err := onnxruntime.NewAdvancedSession(d.modelPath,
 		[]string{"input_ids", "attention_mask"},
-		[]string{"logits"},
+		[]string{"pii_logits"},
 		[]onnxruntime.Value{inputTensor, maskTensor},
 		[]onnxruntime.Value{outputTensor},
 		nil)
