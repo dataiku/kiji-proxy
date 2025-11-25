@@ -1,3 +1,0 @@
-This directory contains the ONNX model for PII detection.
-The model is downloaded from a remote server and is not part of the repository.
-This placeholder file is here to ensure that the directory is created during checkout.
