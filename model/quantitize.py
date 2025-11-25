@@ -129,7 +129,7 @@ def load_multitask_model(
 
     if model_weights_path.exists():
         logger.info(f"📦 Loading weights from: {model_weights_path.name}")
-        
+
         # Handle safetensors files
         if model_weights_path.suffix == ".safetensors":
             state_dict = {}
@@ -141,7 +141,7 @@ def load_multitask_model(
             state_dict = torch.load(
                 model_weights_path, map_location="cpu", weights_only=False
             )
-        
+
         # Handle state dict that might have 'model.' prefix
         if any(k.startswith("model.") for k in state_dict.keys()):
             state_dict = {

@@ -88,7 +88,10 @@ class TokenizationProcessor:
         return word_labels
 
     def _align_labels_with_tokens(
-        self, word_labels: list[str], word_ids: list[int | None], token_texts: list[str] | None = None
+        self,
+        word_labels: list[str],
+        word_ids: list[int | None],
+        token_texts: list[str] | None = None,
     ) -> list[int]:
         """Align word-level labels with token IDs."""
         label_ids = []
@@ -226,12 +229,6 @@ class TokenizationProcessor:
         except (TypeError, AttributeError):
             word_ids = tokenized.word_ids()
 
-        # Get offset mapping and token texts to check for punctuation
-        try:
-            offset_mapping = tokenized["offset_mapping"][0]
-        except (TypeError, KeyError, IndexError):
-            offset_mapping = None
-
         # Get token texts to check for punctuation-only tokens
         token_texts = None
         try:
@@ -290,7 +287,10 @@ class TokenizationProcessor:
                                 is_punctuation_only = word_text.strip() and all(
                                     c in ",.;:!?)]} " for c in word_text.strip()
                                 )
-                                if not is_punctuation_only and word_to_cluster[word_idx] == -1:
+                                if (
+                                    not is_punctuation_only
+                                    and word_to_cluster[word_idx] == -1
+                                ):
                                     word_to_cluster[word_idx] = cluster_id
 
                     start = pos + 1
@@ -311,7 +311,7 @@ class TokenizationProcessor:
                     is_punctuation_only = stripped and all(
                         c in ",.;:!?)]} " for c in stripped
                     )
-                
+
                 # If punctuation-only, always label as NO_COREF (0)
                 if is_punctuation_only:
                     cluster_labels.append(0)

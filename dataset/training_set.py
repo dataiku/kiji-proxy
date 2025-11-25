@@ -15,7 +15,6 @@ try:
     from .label_utils import LabelUtils
     from .prompts import PromptBuilder
     from .schemas import get_pii_sample_schema, get_review_sample_schema
-    from .tokenization import TokenizationProcessor
 except ImportError:
     # Allow running as a script
     from api_clients import LLMClient, OllamaClient, OpenAIClient
@@ -23,7 +22,6 @@ except ImportError:
     from label_utils import LabelUtils
     from prompts import PromptBuilder
     from schemas import get_pii_sample_schema, get_review_sample_schema
-    from tokenization import TokenizationProcessor
 
 # Load .env file from root directory
 # Get the root directory (parent of model/ directory)
@@ -36,7 +34,9 @@ FLAGS = flags.FLAGS
 flags.DEFINE_integer("num_samples", 5, "Number of samples to generate")
 flags.DEFINE_boolean("use_ollama", False, "Whether to use Ollama instead of OpenAI")
 flags.DEFINE_string("output_dir", "dataset", "Output directory for generated samples")
-flags.DEFINE_string("log_level", "WARNING", "Logging level (DEBUG, INFO, WARNING, ERROR)")
+flags.DEFINE_string(
+    "log_level", "WARNING", "Logging level (DEBUG, INFO, WARNING, ERROR)"
+)
 flags.DEFINE_integer(
     "max_workers",
     None,
@@ -219,14 +219,14 @@ class TrainingSetGenerator:
     ) -> dict[str, Any]:
         """
         Convert the result to a training sample format.
-        
+
         Note: Tokenization is now done during training, not during dataset creation.
         This method just ensures the sample has the required fields (text, privacy_mask, coreferences).
-        
+
         Args:
             result: Sample dictionary with text, privacy_mask, and coreferences
             tokenizer: Optional tokenizer (kept for backward compatibility, not used)
-        
+
         Returns:
             Sample dictionary with text, privacy_mask, and coreferences (no tokenization)
         """
@@ -236,7 +236,7 @@ class TrainingSetGenerator:
         for field in required_fields:
             if field not in result:
                 raise ValueError(f"Missing required field: {field}")
-        
+
         # Return the sample as-is (no tokenization)
         return result
 

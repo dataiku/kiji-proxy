@@ -134,7 +134,7 @@ class PIIModelLoader:
 
         # Determine number of labels
         num_pii_labels = len(self.pii_label2id)
-        
+
         # Determine num_coref_labels from mappings (use max ID + 1 if available)
         if self.coref_id2label:
             num_coref_labels = max(self.coref_id2label.keys()) + 1
@@ -157,7 +157,7 @@ class PIIModelLoader:
         state_dict = None
         if model_weights_path.exists():
             logger.info(f"📦 Loading weights from: {model_weights_path.name}")
-            
+
             # Handle safetensors files
             if model_weights_path.suffix == ".safetensors":
                 state_dict = {}
@@ -169,7 +169,7 @@ class PIIModelLoader:
                 state_dict = torch.load(
                     model_weights_path, map_location="cpu", weights_only=False
                 )
-            
+
             # Handle state dict that might have 'model.' prefix
             if any(k.startswith("model.") for k in state_dict.keys()):
                 state_dict = {
@@ -177,7 +177,7 @@ class PIIModelLoader:
                     for k, v in state_dict.items()
                     if k.startswith("model.")
                 }
-            
+
             # Infer num_coref_labels from model weights
             for key in state_dict.keys():
                 if "coref_classifier.weight" in key:
@@ -210,7 +210,9 @@ class PIIModelLoader:
             else:
                 # For safetensors, reload to device
                 state_dict = {}
-                with safe_open(model_weights_path, framework="pt", device=str(self.device)) as f:
+                with safe_open(
+                    model_weights_path, framework="pt", device=str(self.device)
+                ) as f:
                     for key in f.keys():
                         state_dict[key] = f.get_tensor(key)
                 # Handle state dict that might have 'model.' prefix
@@ -220,7 +222,7 @@ class PIIModelLoader:
                         for k, v in state_dict.items()
                         if k.startswith("model.")
                     }
-            
+
             self.model.load_state_dict(state_dict, strict=False)
             logger.info("✅ Model weights loaded")
         else:
@@ -238,7 +240,9 @@ class PIIModelLoader:
 
     def predict(
         self, text: str
-    ) -> tuple[list[tuple[str, str, int, int]], dict[int, list[tuple[str, int, int]]], float]:
+    ) -> tuple[
+        list[tuple[str, str, int, int]], dict[int, list[tuple[str, int, int]]], float
+    ]:
         """
         Run inference on input text and measure inference time.
 
@@ -315,19 +319,32 @@ class PIIModelLoader:
 
             # Skip punctuation-only tokens when continuing an entity
             # This prevents punctuation from being included in entities
-            token_text = text[offset[0].item() : offset[1].item()] if offset[0].item() < len(text) else ""
-            is_punctuation_only = token_text.strip() and all(c in ",.;:!?)]}" for c in token_text.strip())
-            
+            token_text = (
+                text[offset[0].item() : offset[1].item()]
+                if offset[0].item() < len(text)
+                else ""
+            )
+            is_punctuation_only = token_text.strip() and all(
+                c in ",.;:!?)]}" for c in token_text.strip()
+            )
+
             # Check if this is a PII token
             if label.startswith("B-"):
                 # Save previous entity if exists
                 if current_entity is not None:
                     entity_text = text[current_start:current_end]
                     # Strip trailing punctuation
-                    entity_text, chars_stripped = strip_trailing_punctuation(entity_text)
+                    entity_text, chars_stripped = strip_trailing_punctuation(
+                        entity_text
+                    )
                     if entity_text:  # Only add if there's text left after stripping
                         entities.append(
-                            (entity_text, current_label, current_start, current_end - chars_stripped)
+                            (
+                                entity_text,
+                                current_label,
+                                current_start,
+                                current_end - chars_stripped,
+                            )
                         )
 
                 # Start new entity (skip if it's punctuation-only)
@@ -342,18 +359,27 @@ class PIIModelLoader:
 
             elif label.startswith("I-") and current_entity is not None:
                 # Continue current entity (only if same label and not punctuation-only)
-                if current_label == label[2:] and not is_punctuation_only:  # Check label matches
+                if (
+                    current_label == label[2:] and not is_punctuation_only
+                ):  # Check label matches
                     current_end = offset[1].item()
                 else:
                     # Different label or punctuation - save previous and start new (if not punctuation)
                     entity_text = text[current_start:current_end]
                     # Strip trailing punctuation
-                    entity_text, chars_stripped = strip_trailing_punctuation(entity_text)
+                    entity_text, chars_stripped = strip_trailing_punctuation(
+                        entity_text
+                    )
                     if entity_text:  # Only add if there's text left after stripping
                         entities.append(
-                            (entity_text, current_label, current_start, current_end - chars_stripped)
+                            (
+                                entity_text,
+                                current_label,
+                                current_start,
+                                current_end - chars_stripped,
+                            )
                         )
-                    
+
                     if not is_punctuation_only:
                         current_label = label[2:]
                         current_start = offset[0].item()
@@ -369,7 +395,12 @@ class PIIModelLoader:
                 entity_text, chars_stripped = strip_trailing_punctuation(entity_text)
                 if entity_text:  # Only add if there's text left after stripping
                     entities.append(
-                        (entity_text, current_label, current_start, current_end - chars_stripped)
+                        (
+                            entity_text,
+                            current_label,
+                            current_start,
+                            current_end - chars_stripped,
+                        )
                     )
                 current_entity = None
                 current_label = None
@@ -380,20 +411,26 @@ class PIIModelLoader:
             # Strip trailing punctuation
             entity_text, chars_stripped = strip_trailing_punctuation(entity_text)
             if entity_text:  # Only add if there's text left after stripping
-                entities.append((entity_text, current_label, current_start, current_end - chars_stripped))
+                entities.append(
+                    (
+                        entity_text,
+                        current_label,
+                        current_start,
+                        current_end - chars_stripped,
+                    )
+                )
 
         # Extract co-reference clusters
         coref_clusters: dict[int, list[tuple[str, int, int]]] = {}
-        for token, coref_id, offset in zip(tokens, predicted_coref_ids, offset_mapping, strict=True):
+        for token, coref_id, offset in zip(
+            tokens, predicted_coref_ids, offset_mapping, strict=True
+        ):
             # Skip special tokens
-            if (
-                token
-                in [
-                    self.tokenizer.cls_token,
-                    self.tokenizer.sep_token,
-                    self.tokenizer.pad_token,
-                ]
-            ):
+            if token in [
+                self.tokenizer.cls_token,
+                self.tokenizer.sep_token,
+                self.tokenizer.pad_token,
+            ]:
                 continue
 
             # Skip NO_COREF (typically 0)
@@ -491,7 +528,7 @@ def print_results(
     logger.info(f"{'=' * 80}")
     logger.info(f"Text: {text}")
     logger.info(f"Inference Time: {inference_time_ms:.2f} ms")
-    
+
     logger.info("\n🔍 Detected PII Entities:")
     if entities:
         for entity_text, label, start, end in entities:

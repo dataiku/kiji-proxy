@@ -85,10 +85,10 @@ class DatasetProcessor:
         """
         self.config = config
         self.tokenizer = AutoTokenizer.from_pretrained(config.model_name)
-        
+
         # Create label mappings for tokenization
         self.label2id, self.id2label = LabelUtils.create_standard_label2id()
-        
+
         # Create tokenization processor
         self.tokenization_processor = TokenizationProcessor(
             self.tokenizer, self.label2id, self.id2label
@@ -138,7 +138,9 @@ class DatasetProcessor:
 
         # Check if samples are already tokenized (backward compatibility)
         first_sample = all_samples[0]
-        is_already_tokenized = "input_ids" in first_sample and "pii_sample" in first_sample
+        is_already_tokenized = (
+            "input_ids" in first_sample and "pii_sample" in first_sample
+        )
 
         if is_already_tokenized:
             logger.info("⚠️  Found pre-tokenized samples. Using existing tokenization.")
@@ -165,8 +167,10 @@ class DatasetProcessor:
             coreferences = sample.get("coreferences", [])
 
             # Tokenize PII sample
-            pii_sample = self.tokenization_processor.create_pii_sample(text, privacy_mask)
-            
+            pii_sample = self.tokenization_processor.create_pii_sample(
+                text, privacy_mask
+            )
+
             # Tokenize coreference sample
             coreference_sample = self.tokenization_processor.create_coreference_sample(
                 text, coreferences
@@ -174,9 +178,13 @@ class DatasetProcessor:
 
             # Validate that tokenization is consistent
             if coreference_sample["input_ids"] != pii_sample["input_ids"]:
-                raise ValueError("Input IDs do not match between PII and coreference samples")
+                raise ValueError(
+                    "Input IDs do not match between PII and coreference samples"
+                )
             if coreference_sample["attention_mask"] != pii_sample["attention_mask"]:
-                raise ValueError("Attention masks do not match between PII and coreference samples")
+                raise ValueError(
+                    "Attention masks do not match between PII and coreference samples"
+                )
 
             return {
                 "input_ids": pii_sample["input_ids"],
@@ -216,7 +224,7 @@ class DatasetProcessor:
         # Create coreference label mappings
         coref_id2label = {0: "NO_COREF"}
         for i in range(1, num_coref_labels):
-            coref_id2label[i] = f"CLUSTER_{i-1}"
+            coref_id2label[i] = f"CLUSTER_{i - 1}"
 
         # Save label mappings
         mappings_path = Path(self.config.output_dir) / "label_mappings.json"
@@ -246,7 +254,9 @@ class DatasetProcessor:
             {"num_coref_labels": num_coref_labels},
         )
 
-    def _prepare_datasets_legacy(self, all_samples: list[dict]) -> tuple[Dataset, Dataset, dict, dict]:
+    def _prepare_datasets_legacy(
+        self, all_samples: list[dict]
+    ) -> tuple[Dataset, Dataset, dict, dict]:
         """
         Legacy method for handling pre-tokenized samples (backward compatibility).
 
