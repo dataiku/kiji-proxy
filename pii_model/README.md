@@ -43,36 +43,7 @@ The model can detect the following PII entities:
 
 ## 🚀 How to Serve the Model
 
-### Option 1: Using the FastAPI Server (Recommended)
-
-1. **Navigate to the model server directory:**
-   ```bash
-   cd ../model_server
-   ```
-
-2. **Install dependencies:**
-   ```bash
-   # From project root
-   make install-server
-   # OR
-   pip install -e ".[server]"
-   ```
-
-3. **Start the server:**
-   ```bash
-   # Using the Makefile (recommended)
-   make server
-
-   # OR directly with uvicorn
-   uvicorn fast_api:app --host 0.0.0.0 --port 8000 --reload
-   ```
-
-4. **Access the API:**
-   - **Interactive Docs**: http://localhost:8000/docs
-   - **Alternative Docs**: http://localhost:8000/redoc
-   - **Health Check**: http://localhost:8000/health
-
-### Option 2: Using Docker
+### Option 1: Using Docker
 
 1. **Build the model server image:**
    ```bash
@@ -215,7 +186,6 @@ curl -X POST "http://localhost:8000/detect/batch" \
 
 ## 📚 Additional Resources
 
-- [Model Server Documentation](../model_server/README.md)
 - [Configuration Guide](../config/README.md)
 - [Docker Setup Guide](../DOCKER_README.md)
 - [API Documentation](http://localhost:8000/docs) (when server is running)
