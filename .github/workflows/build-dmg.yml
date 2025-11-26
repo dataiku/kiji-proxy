@@ -102,7 +102,7 @@ jobs:
         CGO_ENABLED=1 \
         go build \
           -tags embed \
-          -ldflags="-extldflags '-L./build/tokenizers'" \
+          -ldflags="-s -w -extldflags '-L./build/tokenizers'" \
           -o build/yaak-proxy \
           ./src/backend
 

@@ -6,6 +6,8 @@ const isProduction = process.env.NODE_ENV === 'production';
 
 module.exports = {
   entry: './index.js',
+  mode: isProduction ? 'production' : 'development',
+  devtool: isProduction ? false : 'source-map', // Disable source maps in production to reduce size
   output: {
     path: path.resolve(__dirname, 'dist'),
     filename: isProduction ? 'bundle.[contenthash].js' : 'bundle.js',

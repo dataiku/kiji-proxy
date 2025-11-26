@@ -56,11 +56,11 @@ echo ""
 echo "📦 Step 2: Building Go binary..."
 echo "--------------------------------"
 
-# Build the Go binary with embedded files
+# Build the Go binary with embedded files (strip symbols for smaller size)
 CGO_ENABLED=1 \
 go build \
   -tags embed \
-  -ldflags="-extldflags '-L./build/tokenizers'" \
+  -ldflags="-s -w -extldflags '-L./build/tokenizers'" \
   -o "$BUILD_DIR/$BINARY_NAME" \
   ./src/backend
 
@@ -113,9 +113,12 @@ else
 fi
 
 # Copy model files (needed for ONNX runtime)
+# Exclude model.onnx as only model_quantized.onnx is used (saves ~249MB)
 if [ -d "model/quantized" ]; then
-    cp -r model/quantized "$RESOURCES_DIR/"
-    echo "✅ Model files copied to $RESOURCES_DIR/quantized/"
+    mkdir -p "$RESOURCES_DIR/model/quantized"
+    # Copy all files except model.onnx (if it exists)
+    find model/quantized -type f ! -name "model.onnx" -exec cp {} "$RESOURCES_DIR/model/quantized/" \;
+    echo "✅ Model files copied to $RESOURCES_DIR/model/quantized/ (excluding unused model.onnx)"
 else
     echo "⚠️  Model directory not found: model/quantized"
     echo "   Continuing without model files (may cause runtime errors)"
