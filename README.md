@@ -722,7 +722,6 @@ print(response.json())
 ### Documentation
 
 - **Model Directory**: See [pii_model/README.md](pii_model/README.md) for model serving instructions
-- **Server Documentation**: See [model_server/README.md](model_server/README.md)
 - **Configuration Guide**: See [config/README.md](config/README.md)
 - **Docker Setup**: See [DOCKER_README.md](DOCKER_README.md)
 - **API Docs**: http://localhost:8000/docs (when server is running)
