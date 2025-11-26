@@ -93,3 +93,5 @@ dataset/training_samples/*.json
 dataset/samples/*.json
 
 .vscode/settings.json
+# ignore any .DS_Store
+.DS_Store
