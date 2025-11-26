@@ -20,6 +20,7 @@ COPY src/backend/pii/ ./src/backend/pii/
 COPY src/backend/processor/ ./src/backend/processor/
 COPY src/backend/proxy/ ./src/backend/proxy/
 COPY src/backend/server/ ./src/backend/server/
+COPY src/scripts/ ./src/scripts/
 COPY pii_onnx_model/ ./pii_onnx_model/
 COPY build/tokenizers/ ./build/tokenizers/
 
@@ -43,7 +44,7 @@ WORKDIR /app
 COPY --from=builder /app/main .
 
 # Copy scripts directory (for reference)
-COPY --from=builder /app/scripts ./scripts
+COPY --from=builder /app/src/scripts ./src/scripts
 
 # Change ownership to non-root user
 RUN chown -R appuser:appgroup /app

@@ -576,7 +576,7 @@ The project includes a script to create a self-contained binary with embedded UI
 
 1. **Run the build script:**
    ```bash
-   ./scripts/build_single_binary.sh
+   ./src/scripts/build_single_binary.sh
    ```
 
    This script:

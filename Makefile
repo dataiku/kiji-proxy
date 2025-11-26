@@ -159,10 +159,10 @@ electron-dev: ## Run Electron app in development mode with hot reload
 
 build-dmg: ## Build DMG package with Go binary and Electron app
 	@echo "$(BLUE)Building DMG package...$(NC)"
-	@if [ ! -f "scripts/build_dmg.sh" ]; then \
+	@if [ ! -f "src/scripts/build_dmg.sh" ]; then \
 		echo "$(YELLOW)⚠️  build_dmg.sh script not found$(NC)"; \
 		exit 1; \
 	fi
-	@chmod +x scripts/build_dmg.sh
-	@./scripts/build_dmg.sh
+	@chmod +x src/scripts/build_dmg.sh
+	@./src/scripts/build_dmg.sh
 	@echo "$(GREEN)✅ DMG build complete$(NC)"

@@ -433,7 +433,7 @@ ALTER SYSTEM SET effective_cache_size = '1GB';
 ├── model/                  # Python ML model training and evaluation
 ├── pii_model/              # Trained DistilBERT model files
 ├── pii_onnx_model/         # ONNX quantized model files
-├── scripts/                # Setup and utility scripts
+├── src/scripts/            # Setup and utility scripts
 ├── build/static/           # Static assets (images, etc.)
 ├── dist/                   # Distribution builds
 ├── Makefile               # Development commands (30+ targets)
