@@ -33,9 +33,9 @@ go.work.sum
 
 # project specific
 
-# any file in pii_model directory
-pii_model/*
-!pii_model/README.md
+# any file in trained model directory
+model/trained/*
+!model/trained/README.md
 
 # Exclude non-quantized ONNX model (use model_quantized.onnx instead)
 pii_onnx_model/model.onnx

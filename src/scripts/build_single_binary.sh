@@ -88,8 +88,8 @@ else
 fi
 
 # Copy model files (still needed for ONNX runtime)
-if [ -d "pii_onnx_model" ]; then
-    cp -r pii_onnx_model "$DIST_ROOT/"
+if [ -d "model/quantized" ]; then
+    cp -r model/quantized "$DIST_ROOT/"
     echo "✅ Model files copied"
 else
     echo "⚠️  Model directory not found"
@@ -123,7 +123,7 @@ This is a self-contained distribution of Yaak Proxy with embedded UI and all dep
 ## Files:
 - `yaak-proxy`: The main executable with embedded UI and model files
 - `libonnxruntime.1.23.1.dylib`: ONNX Runtime shared library
-- `pii_onnx_model/`: ONNX model files (for ONNX runtime access)
+- `quantized/`: ONNX model files (for ONNX runtime access)
 - `run.sh`: Startup script
 
 ## Usage:

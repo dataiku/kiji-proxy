@@ -112,7 +112,7 @@ yaak-proxy/
 ├── yaak-proxy                    # Main executable
 ├── build
 |   └── libonnxruntime.1.23.1.dylib  # ONNX Runtime library
-├── pii_onnx_model/              # ONNX model files
+├── model/quantized/             # ONNX model files
 │   ├── model_quantized.onnx
 │   ├── tokenizer.json
 │   ├── config.json

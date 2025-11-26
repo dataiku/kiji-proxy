@@ -50,7 +50,7 @@ func NewONNXModelDetectorSimple(modelPath string, tokenizerPath string) (*ONNXMo
 	}
 
 	// Load model configuration
-	configPath := "pii_onnx_model/label_mappings.json"
+	configPath := "model/quantized/label_mappings.json"
 	configData, err := os.ReadFile(configPath)
 	if err != nil {
 		if err := tk.Close(); err != nil {

@@ -34,7 +34,7 @@ class TrainingConfig:
     seed: int = 42
 
     # Output and logging
-    output_dir: str = "./pii_model"
+    output_dir: str = "./model/trained"
     use_wandb: bool = False
     use_custom_loss: bool = True
     class_weights: dict[int, float] = field(default_factory=dict)

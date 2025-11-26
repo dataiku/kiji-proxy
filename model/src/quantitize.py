@@ -12,7 +12,7 @@ Usage:
     python quantitize.py
 
     # With custom paths:
-    python quantitize.py --model_path=./pii_model --output_path=./pii_onnx_model
+    python quantitize.py --model_path=./model/trained --output_path=./model/quantized
 
     # With different quantization config:
     python quantitize.py --quantization_mode=avx512_vnni
@@ -35,10 +35,10 @@ from transformers import AutoTokenizer
 # Define command-line flags
 FLAGS = flags.FLAGS
 
-flags.DEFINE_string("model_path", "./pii_model", "Path to the trained model directory")
+flags.DEFINE_string("model_path", "./model/trained", "Path to the trained model directory")
 
 flags.DEFINE_string(
-    "output_path", "./pii_onnx_model", "Path to save the quantized ONNX model"
+    "output_path", "./model/quantized", "Path to save the quantized ONNX model"
 )
 
 flags.DEFINE_enum(

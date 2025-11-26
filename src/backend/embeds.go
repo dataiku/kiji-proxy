@@ -8,5 +8,5 @@ import "embed"
 //go:embed ../frontend/dist/*
 var uiFiles embed.FS
 
-//go:embed ../../pii_onnx_model/*
+//go:embed ../../model/quantized/*
 var modelFiles embed.FS

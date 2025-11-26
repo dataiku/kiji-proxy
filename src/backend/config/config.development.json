@@ -11,7 +11,7 @@
     "LogPIIChanges": true,
     "LogVerbose": true
   },
-  "ONNXModelPath": "pii_onnx_model/model_quantized.onnx",
-  "TokenizerPath": "pii_onnx_model/tokenizer.json",
+  "ONNXModelPath": "model/quantized/model_quantized.onnx",
+  "TokenizerPath": "model/quantized/tokenizer.json",
   "UIPath": "./ui_v2/dist"
 }

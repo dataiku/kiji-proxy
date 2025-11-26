@@ -10,16 +10,16 @@ This script provides detailed, token-level outputs from the model including:
 
 Usage:
     # Using local model:
-    python eval_model_detailed.py --local-model "./pii_model"
+    python eval_model_detailed.py --local-model "./model/trained"
 
     # With custom number of test cases:
-    python eval_model_detailed.py --local-model "./pii_model" --num-tests 5
+    python eval_model_detailed.py --local-model "./model/trained" --num-tests 5
 
     # Show top-k predictions per token:
-    python eval_model_detailed.py --local-model "./pii_model" --top-k 3
+    python eval_model_detailed.py --local-model "./model/trained" --top-k 3
 
     # Show raw logits:
-    python eval_model_detailed.py --local-model "./pii_model" --show-logits
+    python eval_model_detailed.py --local-model "./model/trained" --show-logits
 """
 
 import argparse
@@ -571,8 +571,8 @@ def main():
     parser.add_argument(
         "--local-model",
         type=str,
-        default="./pii_model",
-        help="Path to local model directory (default: ./pii_model)",
+        default="./model/trained",
+        help="Path to local model directory (default: ./model/trained)",
     )
     parser.add_argument(
         "--num-tests",
@@ -605,7 +605,7 @@ def main():
     if not Path(model_path).exists():
         logger.warning(f"⚠️  Model path not found: {model_path}")
         # Try common locations
-        local_paths = ["./pii_model", "../pii_model", "model/pii_model"]
+        local_paths = ["./model/trained", "../model/trained", "model/trained"]
         for path in local_paths:
             if Path(path).exists():
                 model_path = path

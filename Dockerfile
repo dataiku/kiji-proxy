@@ -13,7 +13,7 @@ COPY go.mod go.sum ./
 # Download dependencies
 RUN go mod download
 
-# Copy source code - exclude src/frontend/, model-server/, and pii_model/
+# Copy source code - exclude src/frontend/, model-server/, and model/trained/
 COPY src/backend/main.go ./src/backend/
 COPY src/backend/config/ ./src/backend/config/
 COPY src/backend/pii/ ./src/backend/pii/
@@ -21,7 +21,7 @@ COPY src/backend/processor/ ./src/backend/processor/
 COPY src/backend/proxy/ ./src/backend/proxy/
 COPY src/backend/server/ ./src/backend/server/
 COPY src/scripts/ ./src/scripts/
-COPY pii_onnx_model/ ./pii_onnx_model/
+COPY model/quantized/ ./model/quantized/
 COPY build/tokenizers/ ./build/tokenizers/
 
 # Build the application

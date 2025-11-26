@@ -607,7 +607,7 @@ The build creates:
 dist/yaak-proxy/
 ├── yaak-proxy                    # Main executable
 ├── libonnxruntime.1.23.1.dylib  # ONNX Runtime library
-├── pii_onnx_model/              # Model files
+├── quantized/                   # Model files
 │   ├── config.json
 │   ├── model_quantized.onnx
 │   └── ...
@@ -653,7 +653,7 @@ cd yaak-proxy
    - Check CGO_LDFLAGS environment variable
 
 3. **Model files not found:**
-   - Ensure `pii_onnx_model/` directory exists
+   - Ensure `model/quantized/` directory exists
    - Check that model files are present
 
 ### Development vs Production

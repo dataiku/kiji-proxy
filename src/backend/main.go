@@ -207,8 +207,8 @@ func loadLoggingConfig(cfg *config.Config) {
 
 // extractEmbeddedModelFiles extracts embedded model files to the current directory
 func extractEmbeddedModelFiles(modelFS embed.FS) error {
-	// Create pii_onnx_model directory if it doesn't exist
-	if err := os.MkdirAll("pii_onnx_model", 0750); err != nil {
+	// Create model/quantized directory if it doesn't exist
+	if err := os.MkdirAll("model/quantized", 0750); err != nil {
 		return err
 	}
 
@@ -230,7 +230,7 @@ func extractEmbeddedModelFiles(modelFS embed.FS) error {
 		}
 
 		// Create target file path
-		targetPath := filepath.Join("pii_onnx_model", filepath.Base(path))
+		targetPath := filepath.Join("model/quantized", filepath.Base(path))
 
 		// Write file to disk
 		if err := os.WriteFile(targetPath, content, 0600); err != nil {

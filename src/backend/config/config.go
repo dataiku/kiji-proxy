@@ -45,8 +45,8 @@ func DefaultConfig() *Config {
 		ProxyPort:     ":8080",
 		DetectorName:  "onnx_model_detector",
 		ModelBaseURL:  "http://localhost:8000",
-		ONNXModelPath: "pii_onnx_model/model_quantized.onnx",
-		TokenizerPath: "pii_onnx_model/tokenizer.json",
+		ONNXModelPath: "model/quantized/model_quantized.onnx",
+		TokenizerPath: "model/quantized/tokenizer.json",
 		UIPath:        "./src/frontend/dist",
 		Database: DatabaseConfig{
 			Enabled:      false,

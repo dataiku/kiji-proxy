@@ -8,10 +8,10 @@ This script:
 
 Usage:
     # Using local model:
-    python eval_model.py --local-model "./pii_model"
+    python eval_model.py --local-model "./model/trained"
 
     # With custom number of test cases:
-    python eval_model.py --local-model "./pii_model" --num-tests 5
+    python eval_model.py --local-model "./model/trained" --num-tests 5
 
 The script evaluates both PII detection and co-reference resolution capabilities
 of the multi-task model, showing detected entities and how they are clustered.
@@ -558,8 +558,8 @@ def main():
     parser.add_argument(
         "--local-model",
         type=str,
-        default="./pii_model",
-        help="Path to local model directory (default: ./pii_model)",
+        default="./model/trained",
+        help="Path to local model directory (default: ./model/trained)",
     )
     parser.add_argument(
         "--num-tests",
@@ -581,7 +581,7 @@ def main():
     if not Path(model_path).exists():
         logger.warning(f"⚠️  Model path not found: {model_path}")
         # Try common locations
-        local_paths = ["./pii_model", "../pii_model", "model/pii_model"]
+        local_paths = ["./model/trained", "../model/trained", "model/trained"]
         for path in local_paths:
             if Path(path).exists():
                 model_path = path

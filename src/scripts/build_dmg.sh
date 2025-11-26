@@ -86,11 +86,11 @@ else
 fi
 
 # Copy model files (needed for ONNX runtime)
-if [ -d "pii_onnx_model" ]; then
-    cp -r pii_onnx_model "$RESOURCES_DIR/"
-    echo "✅ Model files copied to $RESOURCES_DIR/pii_onnx_model/"
+if [ -d "model/quantized" ]; then
+    cp -r model/quantized "$RESOURCES_DIR/"
+    echo "✅ Model files copied to $RESOURCES_DIR/quantized/"
 else
-    echo "⚠️  Model directory not found: pii_onnx_model"
+    echo "⚠️  Model directory not found: model/quantized"
     echo "   Continuing without model files (may cause runtime errors)"
 fi
 

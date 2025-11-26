@@ -79,7 +79,7 @@ const launchGoBinary = () => {
   // Get resources path for ONNX library and model files
   const resourcesPath = getResourcesPath();
   const onnxLibPath = path.join(resourcesPath, 'resources', 'libonnxruntime.1.23.1.dylib');
-  const modelPath = path.join(resourcesPath, 'resources', 'pii_onnx_model');
+  const modelPath = path.join(resourcesPath, 'resources', 'quantized');
   
   // Set up environment variables
   const env = { ...process.env };

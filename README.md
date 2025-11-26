@@ -431,8 +431,8 @@ ALTER SYSTEM SET effective_cache_size = '1GB';
 │   ├── config.go          # Configuration structs and defaults
 │   └── config.development.json  # Development configuration
 ├── model/                  # Python ML model training and evaluation
-├── pii_model/              # Trained DistilBERT model files
-├── pii_onnx_model/         # ONNX quantized model files
+├── model/trained/          # Trained DistilBERT model files (unquantized)
+├── model/quantized/         # ONNX quantized model files
 ├── src/scripts/            # Setup and utility scripts
 ├── build/static/           # Static assets (images, etc.)
 ├── dist/                   # Distribution builds
@@ -614,7 +614,7 @@ This project includes Python-based ML components for advanced PII detection usin
 
 - **Model Training** (`model/`) - Train custom PII detection models
 - **Model Evaluation** (`model/eval_model.py`) - Evaluate model performance
-- **Trained Model** (`pii_model/`) - Pre-trained DistilBERT model for PII detection
+- **Trained Model** (`model/trained/`) - Pre-trained DistilBERT model for PII detection
 
 ### Quick Start with UV ⚡
 
@@ -723,7 +723,7 @@ print(response.json())
 
 ### Documentation
 
-- **Model Directory**: See [pii_model/README.md](pii_model/README.md) for model serving instructions
+- **Model Directory**: See [model/trained/README.md](model/trained/README.md) for model serving instructions
 - **Configuration Guide**: See [src/backend/config/README.md](src/backend/config/README.md)
 - **Docker Setup**: See [DOCKER_README.md](DOCKER_README.md)
 - **API Docs**: http://localhost:8000/docs (when server is running)

@@ -118,8 +118,8 @@ jobs:
         fi
 
         # Copy model files
-        if [ -d "pii_onnx_model" ]; then
-          cp -r pii_onnx_model src/frontend/resources/
+        if [ -d "model/quantized" ]; then
+          cp -r model/quantized src/frontend/resources/
         fi
 
     - name: Package Electron app (DMG)
