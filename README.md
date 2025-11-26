@@ -13,11 +13,11 @@
       <img src="https://github.com/hanneshapke/yaak-proxy/actions/workflows/lint.yml/badge.svg" alt="Lint">
     </a>
     <a href="LICENSE">
-      <img src="https://img.shields.io/github/license/hanneshapke/yaak-proxy" alt="License: MIT">
+      <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
     </a>
-    <a href="https://github.com/hanneshapke/yaak-proxy/stargazers">
+    <!-- <a href="https://github.com/hanneshapke/yaak-proxy/stargazers">
       <img src="https://img.shields.io/github/stars/hanneshapke/yaak-proxy?style=social" alt="GitHub Stars">
-    </a>
+    </a> -->
     <a href="https://github.com/hanneshapke/yaak-proxy/issues">
       <img src="https://img.shields.io/github/issues/hanneshapke/yaak-proxy" alt="GitHub Issues">
     </a>
