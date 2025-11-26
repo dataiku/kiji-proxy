@@ -28,26 +28,26 @@ const getGoBinaryPath = () => {
     // Fallback: assume it's running separately
     return null;
   }
-  
+
   // In production, the binary is in the app's resources directory
   // For macOS app bundles: Contents/Resources/
   if (process.platform === 'darwin') {
     // app.getAppPath() returns the path to the app bundle's Contents/Resources/app.asar or Contents/Resources/app
     const resourcesPath = process.resourcesPath || app.getAppPath();
     const binaryPath = path.join(resourcesPath, 'resources', 'yaak-proxy');
-    
+
     // If not found, try alternative paths
     if (fs.existsSync(binaryPath)) {
       return binaryPath;
     }
-    
+
     // Try without 'resources' subdirectory (if resources are at root)
     const altPath = path.join(resourcesPath, 'yaak-proxy');
     if (fs.existsSync(altPath)) {
       return altPath;
     }
   }
-  
+
   // For other platforms or if not found
   const resourcesPath = process.resourcesPath || app.getAppPath();
   return path.join(resourcesPath, 'resources', 'yaak-proxy');
@@ -58,32 +58,32 @@ const getResourcesPath = () => {
   if (isDev) {
     return path.join(__dirname, '..');
   }
-  
+
   if (process.platform === 'darwin') {
     return process.resourcesPath || app.getAppPath();
   }
-  
+
   return process.resourcesPath || app.getAppPath();
 };
 
 // Launch the Go binary backend
 const launchGoBinary = () => {
   const binaryPath = getGoBinaryPath();
-  
+
   if (!binaryPath || !fs.existsSync(binaryPath)) {
     console.warn('Go binary not found at:', binaryPath);
     console.warn('The app will try to connect to an existing backend server.');
     return;
   }
-  
+
   // Get resources path for ONNX library and model files
   const resourcesPath = getResourcesPath();
   const onnxLibPath = path.join(resourcesPath, 'resources', 'libonnxruntime.1.23.1.dylib');
   const modelPath = path.join(resourcesPath, 'resources', 'quantized');
-  
+
   // Set up environment variables
   const env = { ...process.env };
-  
+
   // Set ONNX Runtime library path if it exists
   if (fs.existsSync(onnxLibPath)) {
     env.ONNXRUNTIME_SHARED_LIBRARY_PATH = onnxLibPath;
@@ -94,36 +94,36 @@ const launchGoBinary = () => {
       env.ONNXRUNTIME_SHARED_LIBRARY_PATH = altOnnxPath;
     }
   }
-  
+
   // Set working directory to resources so model files can be found
   const workingDir = fs.existsSync(modelPath) ? path.join(resourcesPath, 'resources') : resourcesPath;
-  
+
   console.log('Launching Go binary:', binaryPath);
   console.log('Working directory:', workingDir);
   console.log('ONNX library path:', env.ONNXRUNTIME_SHARED_LIBRARY_PATH || 'not set');
-  
+
   // Spawn the Go process
   goProcess = spawn(binaryPath, [], {
     cwd: workingDir,
     env: env,
     stdio: ['ignore', 'pipe', 'pipe']
   });
-  
+
   // Handle stdout
   goProcess.stdout.on('data', (data) => {
     console.log(`[Go Backend] ${data.toString().trim()}`);
   });
-  
+
   // Handle stderr
   goProcess.stderr.on('data', (data) => {
     console.error(`[Go Backend Error] ${data.toString().trim()}`);
   });
-  
+
   // Handle process exit
   goProcess.on('exit', (code, signal) => {
     console.log(`Go binary exited with code ${code} and signal ${signal}`);
     goProcess = null;
-    
+
     // If the process exited unexpectedly and we're not shutting down, show an error
     if (code !== 0 && code !== null && !app.isQuitting) {
       if (mainWindow) {
@@ -134,12 +134,12 @@ const launchGoBinary = () => {
       }
     }
   });
-  
+
   // Handle process errors
   goProcess.on('error', (error) => {
     console.error('Failed to start Go binary:', error);
     goProcess = null;
-    
+
     if (mainWindow) {
       mainWindow.webContents.send('backend-error', {
         message: 'Failed to start backend server',
@@ -154,7 +154,7 @@ const stopGoBinary = () => {
   if (goProcess) {
     console.log('Stopping Go binary...');
     goProcess.kill('SIGTERM');
-    
+
     // Force kill after 3 seconds if still running
     setTimeout(() => {
       if (goProcess && !goProcess.killed) {
@@ -170,7 +170,7 @@ function createWindow() {
   // Get icon path (works in both dev and production)
   const iconPath = path.join(__dirname, 'assets', 'icon.png');
   const iconExists = fs.existsSync(iconPath);
-  
+
   // Create the browser window
   mainWindow = new BrowserWindow({
     width: 1400,
@@ -205,7 +205,7 @@ function createWindow() {
   // Show window when ready to prevent visual flash
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
-    
+
     // Open DevTools in development mode
     if (isDev) {
       mainWindow.webContents.openDevTools();
@@ -334,7 +334,7 @@ function createMenu() {
 app.whenReady().then(() => {
   // Launch the Go binary backend first
   launchGoBinary();
-  
+
   // Wait a moment for the backend to start, then create the window
   setTimeout(() => {
     createWindow();
@@ -446,21 +446,21 @@ ipcMain.handle('get-forward-endpoint', async () => {
   try {
     const storagePath = getStoragePath();
     const defaultEndpoint = 'https://api.openai.com/v1';
-    
+
     if (!fs.existsSync(storagePath)) {
       return defaultEndpoint;
     }
 
     const data = fs.readFileSync(storagePath, 'utf8');
     const config = JSON.parse(data);
-    
+
     // Migrate old default value to new default
     if (config.forwardEndpoint === 'http://localhost:8080') {
       config.forwardEndpoint = defaultEndpoint;
       // Save the updated config
       fs.writeFileSync(storagePath, JSON.stringify(config, null, 2), 'utf8');
     }
-    
+
     return config.forwardEndpoint || defaultEndpoint;
   } catch (error) {
     console.error('Error reading forward endpoint:', error);
@@ -501,4 +501,3 @@ app.on('web-contents-created', (event, contents) => {
     require('electron').shell.openExternal(navigationUrl);
   });
 });
-
