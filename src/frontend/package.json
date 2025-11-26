@@ -75,7 +75,7 @@
       "identity": null,
       "minimumSystemVersion": "10.13"
     },
-    "afterPack": "./scripts/remove-locales.js",
+    "afterPack": "../../build/scripts/remove-locales.js",
     "dmg": {
       "title": "${productName} ${version}",
       "background": "assets/dmg-background.png",
