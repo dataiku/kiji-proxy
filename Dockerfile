@@ -13,18 +13,19 @@ COPY go.mod go.sum ./
 # Download dependencies
 RUN go mod download
 
-# Copy source code - exclude ui/, model-server/, and pii_model/
-COPY main.go ./
-COPY config/ ./config/
-COPY pii/ ./pii/
-COPY processor/ ./processor/
-COPY proxy/ ./proxy/
-COPY server/ ./server/
-COPY pii_onnx_model/ ./pii_onnx_model/
-COPY tokenizers/ ./tokenizers/
+# Copy source code - exclude src/frontend/, model-server/, and model/trained/
+COPY src/backend/main.go ./src/backend/
+COPY src/backend/config/ ./src/backend/config/
+COPY src/backend/pii/ ./src/backend/pii/
+COPY src/backend/processor/ ./src/backend/processor/
+COPY src/backend/proxy/ ./src/backend/proxy/
+COPY src/backend/server/ ./src/backend/server/
+COPY src/scripts/ ./src/scripts/
+COPY model/quantized/ ./model/quantized/
+COPY build/tokenizers/ ./build/tokenizers/
 
 # Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main .
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main ./src/backend
 
 # Final stage
 FROM alpine:latest
@@ -43,7 +44,7 @@ WORKDIR /app
 COPY --from=builder /app/main .
 
 # Copy scripts directory (for reference)
-COPY --from=builder /app/scripts ./scripts
+COPY --from=builder /app/src/scripts ./src/scripts
 
 # Change ownership to non-root user
 RUN chown -R appuser:appgroup /app

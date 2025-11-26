@@ -33,9 +33,9 @@ go.work.sum
 
 # project specific
 
-# any file in pii_model directory
-pii_model/*
-!pii_model/README.md
+# any file in trained model directory
+model/trained/*
+!model/trained/README.md
 
 # Exclude non-quantized ONNX model (use model_quantized.onnx instead)
 pii_onnx_model/model.onnx
@@ -81,17 +81,21 @@ electron_ui/tailwind.config.js
 electron_ui/postcss.config.js
 !electron_ui/dist/.placeholder
 
-build/
+build/yaak-proxy
 config/config.development.json
+src/backend/model/
+src/backend/frontend/
 electron_ui/release/
 electron_ui/resources/
 electron_ui/dist/
 
 # dataset
-dataset/reviewed_samples/*.json
-dataset/training_samples/*.json
-dataset/samples/*.json
+model/dataset/reviewed_samples/*.json
+model/dataset/training_samples/*.json
+model/dataset/samples/*.json
 
-.vscode/settings.json
 # ignore any .DS_Store
 .DS_Store
+
+src/frontend/release/
+src/frontend/resources/

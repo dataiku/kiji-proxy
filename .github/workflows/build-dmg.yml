@@ -55,7 +55,7 @@ jobs:
         source .venv/bin/activate
         ONNX_LIB=$(find .venv -name "libonnxruntime*.dylib" | head -1)
         if [ -n "$ONNX_LIB" ]; then
-          cp "$ONNX_LIB" ./libonnxruntime.1.23.1.dylib
+          cp "$ONNX_LIB" ./build/libonnxruntime.1.23.1.dylib
           echo "✅ ONNX Runtime library copied"
         else
           echo "⚠️  ONNX Runtime library not found, continuing..."
@@ -63,7 +63,7 @@ jobs:
 
     - name: Build tokenizers library (if needed)
       run: |
-        cd tokenizers
+        cd build/tokenizers
         if [ -f "libtokenizers.a" ]; then
           echo "✅ Using existing libtokenizers.a"
         elif [ -f "libtokenizers.darwin-arm64.tar.gz" ]; then
@@ -89,11 +89,11 @@ jobs:
         cd ..
 
     - name: Install Electron dependencies
-      working-directory: electron_ui
+      working-directory: src/frontend
       run: npm ci
 
     - name: Build Electron app
-      working-directory: electron_ui
+      working-directory: src/frontend
       run: npm run build:electron
 
     - name: Build Go binary
@@ -102,34 +102,34 @@ jobs:
         CGO_ENABLED=1 \
         go build \
           -tags embed \
-          -ldflags="-s -w -extldflags '-L./tokenizers'" \
+          -ldflags="-s -w -extldflags '-L./build/tokenizers'" \
           -o build/yaak-proxy \
-          .
+          ./src/backend
 
     - name: Prepare Electron resources
       run: |
-        mkdir -p electron_ui/resources
-        cp build/yaak-proxy electron_ui/resources/yaak-proxy
-        chmod +x electron_ui/resources/yaak-proxy
+        mkdir -p src/frontend/resources
+        cp build/yaak-proxy src/frontend/resources/yaak-proxy
+        chmod +x src/frontend/resources/yaak-proxy
 
         # Copy ONNX library if it exists
         if [ -f "libonnxruntime.1.23.1.dylib" ]; then
-          cp libonnxruntime.1.23.1.dylib electron_ui/resources/
+          cp build/libonnxruntime.1.23.1.dylib src/frontend/resources/
         fi
 
         # Copy model files
-        if [ -d "pii_onnx_model" ]; then
-          cp -r pii_onnx_model electron_ui/resources/
+        if [ -d "model/quantized" ]; then
+          cp -r model/quantized src/frontend/resources/
         fi
 
     - name: Package Electron app (DMG)
-      working-directory: electron_ui
+      working-directory: src/frontend
       env:
         CSC_IDENTITY_AUTO_DISCOVERY: false  # Disable code signing
       run: npm run electron:pack
 
     - name: Ad-hoc sign app and rebuild DMG
-      working-directory: electron_ui
+      working-directory: src/frontend
       run: |
         # Ad-hoc sign the app (no certificate needed) and rebuild DMG
         # This helps macOS accept the app even without proper code signing
@@ -197,14 +197,14 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: Privacy-Proxy-DMG
-        path: electron_ui/release/*.dmg
+        path: src/frontend/release/*.dmg
         retention-days: 30
 
     - name: Upload ZIP artifact
       uses: actions/upload-artifact@v4
       with:
         name: Privacy-Proxy-ZIP
-        path: electron_ui/release/*.zip
+        path: src/frontend/release/*.zip
         retention-days: 30
       continue-on-error: true # ZIP might not always be created
 
@@ -213,13 +213,13 @@ jobs:
         echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "✅ DMG files created:" >> $GITHUB_STEP_SUMMARY
-        ls -lh electron_ui/release/*.dmg 2>/dev/null | awk '{print "- " $9 " (" $5 ")"}' >> $GITHUB_STEP_SUMMARY || echo "- No DMG files found" >> $GITHUB_STEP_SUMMARY
+        ls -lh src/frontend/release/*.dmg 2>/dev/null | awk '{print "- " $9 " (" $5 ")"}' >> $GITHUB_STEP_SUMMARY || echo "- No DMG files found" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "📦 Artifacts uploaded to workflow run" >> $GITHUB_STEP_SUMMARY
 
     - name: Get version
       id: get_version
-      working-directory: electron_ui
+      working-directory: src/frontend
       run: |
         VERSION=$(node -p "require('./package.json').version")
         echo "version=$VERSION" >> $GITHUB_OUTPUT
@@ -256,8 +256,8 @@ jobs:
 
           This is required because the app is not code-signed with an Apple Developer certificate. The app is safe to use.
         files: |
-          electron_ui/release/*.dmg
-          electron_ui/release/*.zip
+          src/frontend/release/*.dmg
+          src/frontend/release/*.zip
         draft: false
         prerelease: ${{ github.ref != 'refs/heads/main' }}
         generate_release_notes: true

@@ -69,7 +69,7 @@ format: ## Format code with ruff
 
 lint: ## Run linters with ruff
 	@echo "$(BLUE)Running linters...$(NC)"
-	uv run ruff check pii/ model/ dataset/
+	uv run ruff check model/
 	@echo "$(GREEN)✅ Linting complete$(NC)"
 
 lint-go: ## Lint Go code with golangci-lint
@@ -84,19 +84,19 @@ lint-go: ## Lint Go code with golangci-lint
 
 typecheck: ## Run type checker with ruff
 	@echo "$(BLUE)Running type checker...$(NC)"
-	uv run ruff check pii/ model/ dataset/ --select TYP
+	uv run ruff check model/ --select TYP
 	@echo "$(GREEN)✅ Type checking complete$(NC)"
 
 check: format lint typecheck ## Run all code quality checks
 
 ruff-fix: ## Auto-fix ruff issues
 	@echo "$(BLUE)Auto-fixing ruff issues...$(NC)"
-	uv run ruff check pii/ model/ dataset/ --fix
+	uv run ruff check model/ --fix
 	@echo "$(GREEN)✅ Auto-fix complete$(NC)"
 
 ruff-all: ## Run all ruff checks (lint + format + typecheck)
 	@echo "$(BLUE)Running all ruff checks...$(NC)"
-	uv run ruff check pii/ model/ dataset/ --fix
+	uv run ruff check model/ --fix
 	uv run ruff format .
 	@echo "$(GREEN)✅ All ruff checks complete$(NC)"
 
@@ -121,7 +121,7 @@ clean: ## Remove build artifacts and cache
 	@echo "$(BLUE)Cleaning build artifacts...$(NC)"
 	find . -type d \( -name "__pycache__" -o -name "*.egg-info" -o -name ".pytest_cache" -o -name ".mypy_cache" \) -exec rm -rf {} + 2>/dev/null || true
 	find . -type f -name "*.pyc" -delete 2>/dev/null || true
-	rm -rf build/ dist/ *.egg-info
+	rm -rf build/ *.egg-info
 	@echo "$(GREEN)✅ Cleanup complete$(NC)"
 
 clean-venv: ## Remove virtual environment
@@ -136,33 +136,33 @@ clean-all: clean clean-venv ## Remove everything (artifacts, cache, and venv)
 
 electron-install: ## Install Electron UI dependencies
 	@echo "$(BLUE)Installing Electron UI dependencies...$(NC)"
-	@cd electron_ui && npm install
+	@cd src/frontend && npm install
 	@echo "$(GREEN)✅ Electron dependencies installed$(NC)"
 
 electron-build: ## Build Electron app for production
 	@echo "$(BLUE)Building Electron app...$(NC)"
-	@cd electron_ui && npm run build:electron
+	@cd src/frontend && npm run build:electron
 	@echo "$(GREEN)✅ Electron app built$(NC)"
 
 electron-run: electron-build ## Run Electron app (builds first)
 	@echo "$(BLUE)Starting Electron app...$(NC)"
-	@cd electron_ui && npm run electron
+	@cd src/frontend && npm run electron
 
 electron: electron-run ## Alias for electron-run
 
 electron-dev: ## Run Electron app in development mode with hot reload
 	@echo "$(BLUE)Starting Electron in development mode...$(NC)"
 	@echo "$(YELLOW)Note: Run 'npm run dev' in another terminal for hot reload$(NC)"
-	@cd electron_ui && npm run electron:dev
+	@cd src/frontend && npm run electron:dev
 
 ##@ Build
 
 build-dmg: ## Build DMG package with Go binary and Electron app
 	@echo "$(BLUE)Building DMG package...$(NC)"
-	@if [ ! -f "scripts/build_dmg.sh" ]; then \
+	@if [ ! -f "src/scripts/build_dmg.sh" ]; then \
 		echo "$(YELLOW)⚠️  build_dmg.sh script not found$(NC)"; \
 		exit 1; \
 	fi
-	@chmod +x scripts/build_dmg.sh
-	@./scripts/build_dmg.sh
+	@chmod +x src/scripts/build_dmg.sh
+	@./src/scripts/build_dmg.sh
 	@echo "$(GREEN)✅ DMG build complete$(NC)"

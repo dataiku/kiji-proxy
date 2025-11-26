@@ -3,7 +3,7 @@
 # Yaak PII Detection Proxy
 
 <div align="center">
-  <img src="static/yaak.png" alt="Yaak Mascot" width="300">
+  <img src="build/static/yaak.png" alt="Yaak Mascot" width="300">
 </div>
 
 A secure HTTP proxy service that intercepts requests to the OpenAI API, detects and redacts Personally Identifiable Information (PII), and restores original PII in responses. Built with Go and featuring PostgreSQL database support for persistent PII mapping storage.
@@ -34,7 +34,7 @@ make help
 ## 🖥️ UI Screenshot
 
 <div align="center">
-  <img src="static/ui-screenshot.png" alt="Privacy Proxy Service UI" height="600">
+  <img src="build/static/ui-screenshot.png" alt="Privacy Proxy Service UI" height="600">
 </div>
 
 ## 🏗️ Architecture
@@ -131,7 +131,7 @@ make help
 
 3. **Run the application:**
    ```bash
-   go run main.go
+   go run src/backend/main.go
    ```
 
 ### Option 3: Python ML Components
@@ -412,28 +412,56 @@ ALTER SYSTEM SET effective_cache_size = '1GB';
 
 ### Project Structure
 ```
-├── main.go                 # Go application entry point
-├── config/                 # Configuration management
-│   ├── config.go          # Configuration structs and defaults
-│   └── config.development.json  # Development configuration
-├── pii/                    # PII detection and mapping
-│   ├── detector.go         # PII detection logic
-│   ├── mapper.go           # PII mapping management
-│   ├── database.go         # Database interface
-│   ├── detectors/          # PII detection implementations
-│   └── generators/         # Dummy data generators
-├── proxy/                  # HTTP proxy handler
-├── processor/              # Response processing
-├── server/                 # HTTP server
-├── ui/                     # React-based web interface
-│   ├── dist/              # Built UI assets
-│   └── privacy-proxy-ui.tsx  # Main UI component
-├── model/                  # Python ML model training and evaluation
-├── pii_model/              # Trained DistilBERT model files
-├── pii_onnx_model/         # ONNX quantized model files
-├── scripts/                # Setup and utility scripts
-├── static/                 # Static assets (images, etc.)
-├── dist/                   # Distribution builds
+├── src/
+│   ├── backend/           # Go backend application
+│   │   ├── main.go        # Application entry point
+│   │   ├── embeds.go      # Embedded files (production)
+│   │   ├── embeds_stub.go # Embedded files stub (development)
+│   │   ├── config/        # Configuration management
+│   │   │   ├── config.go
+│   │   │   ├── config.development.json
+│   │   │   └── electron_config.go
+│   │   ├── pii/           # PII detection and mapping
+│   │   │   ├── database.go
+│   │   │   ├── mapper.go
+│   │   │   ├── masking_service.go
+│   │   │   ├── generator_service.go
+│   │   │   ├── detectors/    # PII detection implementations
+│   │   │   └── generators/   # Dummy data generators
+│   │   ├── proxy/         # HTTP proxy handler
+│   │   ├── processor/     # Response processing
+│   │   └── server/        # HTTP server
+│   ├── frontend/          # React-based web interface
+│   │   ├── dist/          # Built UI assets
+│   │   ├── privacy-proxy-ui.tsx
+│   │   └── electron-main.js
+│   └── scripts/           # Setup and utility scripts
+│       ├── build_dmg.sh
+│       ├── build_single_binary.sh
+│       ├── start_dev.sh
+│       └── setup_database.sql
+├── model/                 # Python ML model training and evaluation
+│   ├── src/               # Model source code
+│   │   ├── config.py
+│   │   ├── train.py
+│   │   ├── trainer.py
+│   │   ├── preprocessing.py
+│   │   ├── quantitize.py
+│   │   └── eval_model.py
+│   ├── dataset/           # Training datasets
+│   │   ├── training_samples/
+│   │   ├── reviewed_samples/
+│   │   └── training_set.py
+│   ├── trained/           # Trained DistilBERT model files (unquantized)
+│   └── quantized/         # ONNX quantized model files
+├── build/                 # Build artifacts
+│   ├── static/            # Static assets (images, etc.)
+│   ├── tokenizers/        # Compiled tokenizers library
+│   ├── libonnxruntime.1.23.1.dylib
+│   └── dist/              # Distribution builds
+├── docs/                  # Documentation
+│   ├── BUILD.md
+│   └── DEVELOPMENT.md
 ├── Makefile               # Development commands (30+ targets)
 ├── pyproject.toml         # Python project configuration with Ruff
 ├── docker-compose.yml     # Docker orchestration
@@ -473,8 +501,8 @@ air
 
 #### UI Development
 ```bash
-# Navigate to UI directory
-cd ui
+# Navigate to frontend directory
+cd src/frontend
 
 # Install dependencies
 npm install
@@ -556,7 +584,7 @@ Yaak includes a React-based web interface for monitoring and configuration:
 
 ### UI Development
 ```bash
-cd ui
+cd src/frontend
 npm install
 npm run dev
 ```
@@ -612,7 +640,7 @@ This project includes Python-based ML components for advanced PII detection usin
 
 - **Model Training** (`model/`) - Train custom PII detection models
 - **Model Evaluation** (`model/eval_model.py`) - Evaluate model performance
-- **Trained Model** (`pii_model/`) - Pre-trained DistilBERT model for PII detection
+- **Trained Model** (`model/trained/`) - Pre-trained DistilBERT model for PII detection
 
 ### Quick Start with UV ⚡
 
@@ -721,8 +749,8 @@ print(response.json())
 
 ### Documentation
 
-- **Model Directory**: See [pii_model/README.md](pii_model/README.md) for model serving instructions
-- **Configuration Guide**: See [config/README.md](config/README.md)
+- **Model Directory**: See [model/trained/README.md](model/trained/README.md) for model serving instructions
+- **Configuration Guide**: See [src/backend/config/README.md](src/backend/config/README.md)
 - **Docker Setup**: See [DOCKER_README.md](DOCKER_README.md)
 - **API Docs**: http://localhost:8000/docs (when server is running)
 
