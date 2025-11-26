@@ -49,6 +49,11 @@
       "assets/icon.png",
       "assets/arrow.png"
     ],
+    "asar": true,
+    "asarUnpack": [
+      "resources/**/*"
+    ],
+    "compression": "maximum",
     "extraFiles": [
       {
         "from": "resources",
@@ -56,6 +61,7 @@
         "filter": ["**/*"]
       }
     ],
+    "electronLanguages": ["en"],
     "mac": {
       "category": "public.app-category.utilities",
       "target": [
@@ -66,8 +72,10 @@
       "gatekeeperAssess": false,
       "entitlements": null,
       "entitlementsInherit": null,
-      "identity": null
+      "identity": null,
+      "minimumSystemVersion": "10.13"
     },
+    "afterPack": "./scripts/remove-locales.js",
     "dmg": {
       "title": "${productName} ${version}",
       "background": "assets/dmg-background.png",
