@@ -96,6 +96,29 @@ jobs:
       working-directory: src/frontend
       run: npm run build:electron
 
+    - name: Prepare files for Go embedding
+      run: |
+        # Copy frontend/dist files to src/backend/frontend/dist/ for embedding
+        # Go embed cannot use ../ paths, so we need the files under src/backend/
+        if [ -d "src/frontend/dist" ]; then
+          mkdir -p src/backend/frontend/dist
+          cp -r src/frontend/dist/* src/backend/frontend/dist/
+          echo "✅ Frontend files copied to src/backend/frontend/dist/ for embedding"
+        else
+          echo "❌ Frontend dist directory not found: src/frontend/dist"
+          exit 1
+        fi
+
+        # Copy model files to src/backend/model/quantized/ for embedding
+        if [ -d "model/quantized" ]; then
+          mkdir -p src/backend/model/quantized
+          cp -r model/quantized/* src/backend/model/quantized/
+          echo "✅ Model files copied to src/backend/model/quantized/ for embedding"
+        else
+          echo "⚠️  Model directory not found: model/quantized"
+          echo "   Continuing without model files (may cause runtime errors)"
+        fi
+
     - name: Build Go binary
       run: |
         mkdir -p build
