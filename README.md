@@ -4,6 +4,37 @@
 
 <div align="center">
   <img src="build/static/yaak.png" alt="Yaak Mascot" width="300">
+
+  <p>
+    <a href="https://github.com/hanneshapke/yaak-proxy/actions/workflows/build-dmg.yml">
+      <img src="https://github.com/hanneshapke/yaak-proxy/actions/workflows/build-dmg.yml/badge.svg" alt="Build DMG">
+    </a>
+    <a href="https://github.com/hanneshapke/yaak-proxy/actions/workflows/lint.yml">
+      <img src="https://github.com/hanneshapke/yaak-proxy/actions/workflows/lint.yml/badge.svg" alt="Lint">
+    </a>
+    <a href="LICENSE">
+      <img src="https://img.shields.io/github/license/hanneshapke/yaak-proxy" alt="License: MIT">
+    </a>
+    <a href="https://github.com/hanneshapke/yaak-proxy/stargazers">
+      <img src="https://img.shields.io/github/stars/hanneshapke/yaak-proxy?style=social" alt="GitHub Stars">
+    </a>
+    <a href="https://github.com/hanneshapke/yaak-proxy/issues">
+      <img src="https://img.shields.io/github/issues/hanneshapke/yaak-proxy" alt="GitHub Issues">
+    </a>
+  </p>
+
+  <p>
+    <img src="https://img.shields.io/badge/go-%3E%3D1.21-00ADD8?logo=go" alt="Go Version">
+    <img src="https://img.shields.io/badge/node-%3E%3D18-339933?logo=node.js&logoColor=white" alt="Node Version">
+    <img src="https://img.shields.io/badge/python-%3E%3D3.11-3776AB?logo=python&logoColor=white" alt="Python Version">
+    <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey" alt="Platform">
+  </p>
+
+  <p>
+    <img src="https://img.shields.io/badge/privacy-first-green" alt="Privacy First">
+    <img src="https://img.shields.io/badge/contributions-welcome-brightgreen" alt="Contributions Welcome">
+    <img src="https://img.shields.io/badge/PRs-welcome-brightgreen" alt="PRs Welcome">
+  </p>
 </div>
 
 A secure HTTP proxy service that intercepts requests to the OpenAI API, detects and redacts Personally Identifiable Information (PII), and restores original PII in responses. Built with Go and featuring an Electron desktop app for macOS.
