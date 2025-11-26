@@ -105,10 +105,10 @@ class TokenizationProcessor:
         """Check if punctuation is part of an entity value (e.g., comma in 'Google, Inc.')."""
         if not words_original or not privacy_mask_with_positions or word_idx >= len(words_original):
             return False
-        
+
         original_word = words_original[word_idx]
         word_without_punct = original_word.rstrip(",.;:!?)]}")
-        
+
         for item in privacy_mask_with_positions:
             entity_value = item.get("value", "")
             # Punctuation is part of entity if both:
@@ -212,7 +212,7 @@ class TokenizationProcessor:
                     token_ids = input_ids
             else:
                 token_ids = list(input_ids)
-            
+
             # Convert token IDs to token strings
             token_texts = []
             for tid in token_ids:
@@ -286,7 +286,7 @@ class TokenizationProcessor:
                     token_ids = input_ids
             else:
                 token_ids = list(input_ids)
-            
+
             token_texts = []
             for tid in token_ids:
                 try:
