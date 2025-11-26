@@ -29,11 +29,11 @@ echo ""
 echo "📦 Step 1: Building Go binary..."
 echo "--------------------------------"
 
-# Build the Go binary with embedded files
+# Build the Go binary with embedded files (strip symbols for smaller size)
 CGO_ENABLED=1 \
 go build \
   -tags embed \
-  -ldflags="-extldflags '-L./tokenizers'" \
+  -ldflags="-s -w -extldflags '-L./tokenizers'" \
   -o "$BUILD_DIR/$BINARY_NAME" \
   .
 
@@ -83,9 +83,12 @@ else
 fi
 
 # Copy model files (needed for ONNX runtime)
+# Exclude model.onnx as only model_quantized.onnx is used (saves ~249MB)
 if [ -d "pii_onnx_model" ]; then
-    cp -r pii_onnx_model "$RESOURCES_DIR/"
-    echo "✅ Model files copied to $RESOURCES_DIR/pii_onnx_model/"
+    mkdir -p "$RESOURCES_DIR/pii_onnx_model"
+    # Copy all files except model.onnx
+    find pii_onnx_model -type f ! -name "model.onnx" -exec cp {} "$RESOURCES_DIR/pii_onnx_model/" \;
+    echo "✅ Model files copied to $RESOURCES_DIR/pii_onnx_model/ (excluding unused model.onnx)"
 else
     echo "⚠️  Model directory not found: pii_onnx_model"
     echo "   Continuing without model files (may cause runtime errors)"
@@ -140,4 +143,3 @@ echo "✅ DMG build complete!"
 echo "   The DMG includes both the Go binary and Electron app."
 echo "   Users can drag the app to Applications and it will automatically"
 echo "   launch the Go backend when started."
-
