@@ -424,7 +424,7 @@ ALTER SYSTEM SET effective_cache_size = '1GB';
 │       ├── proxy/          # HTTP proxy handler
 │       ├── processor/      # Response processing
 │       └── server/         # HTTP server
-├── frontend/               # React-based web interface
+├── src/frontend/          # React-based web interface
 │   ├── dist/              # Built UI assets
 │   └── privacy-proxy-ui.tsx  # Main UI component
 ├── src/backend/config/     # Configuration management
@@ -476,7 +476,7 @@ air
 #### UI Development
 ```bash
 # Navigate to frontend directory
-cd frontend
+cd src/frontend
 
 # Install dependencies
 npm install
@@ -558,7 +558,7 @@ Yaak includes a React-based web interface for monitoring and configuration:
 
 ### UI Development
 ```bash
-cd frontend
+cd src/frontend
 npm install
 npm run dev
 ```

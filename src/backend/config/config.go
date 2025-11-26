@@ -47,7 +47,7 @@ func DefaultConfig() *Config {
 		ModelBaseURL:  "http://localhost:8000",
 		ONNXModelPath: "pii_onnx_model/model_quantized.onnx",
 		TokenizerPath: "pii_onnx_model/tokenizer.json",
-		UIPath:        "./frontend/dist",
+		UIPath:        "./src/frontend/dist",
 		Database: DatabaseConfig{
 			Enabled:      false,
 			Host:         "localhost",

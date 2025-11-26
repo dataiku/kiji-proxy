@@ -88,12 +88,12 @@ electron_ui/resources/
 electron_ui/dist/
 
 # dataset
-dataset/reviewed_samples/*.json
-dataset/training_samples/*.json
-dataset/samples/*.json
+model/dataset/reviewed_samples/*.json
+model/dataset/training_samples/*.json
+model/dataset/samples/*.json
 
 # ignore any .DS_Store
 .DS_Store
 
-frontend/release/
-frontend/resources/
+src/frontend/release/
+src/frontend/resources/

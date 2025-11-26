@@ -590,7 +590,7 @@ The project includes a script to create a self-contained binary with embedded UI
 2. **Manual build process:**
    ```bash
    # Build UI
-   cd frontend
+   cd src/frontend
    npm install
    npm run build
    cd ..

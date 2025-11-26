@@ -17,7 +17,7 @@ echo "================================================"
 # Set build variables
 BINARY_NAME="yaak-proxy"
 BUILD_DIR="build"
-ELECTRON_DIR="frontend"
+ELECTRON_DIR="src/frontend"
 RESOURCES_DIR="$ELECTRON_DIR/resources"
 MAIN_FILE="src/backend/main.go"
 

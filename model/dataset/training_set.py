@@ -33,7 +33,7 @@ load_dotenv(env_path)
 FLAGS = flags.FLAGS
 flags.DEFINE_integer("num_samples", 5, "Number of samples to generate")
 flags.DEFINE_boolean("use_ollama", False, "Whether to use Ollama instead of OpenAI")
-flags.DEFINE_string("output_dir", "dataset", "Output directory for generated samples")
+flags.DEFINE_string("output_dir", "model/dataset", "Output directory for generated samples")
 flags.DEFINE_string(
     "log_level", "WARNING", "Logging level (DEBUG, INFO, WARNING, ERROR)"
 )
@@ -51,7 +51,7 @@ class TrainingSetConfig:
     use_ollama: bool = False
     split: str = "train"
     num_samples: int = 5
-    output_dir: str = "dataset"
+    output_dir: str = "model/dataset"
     model_name: str = "distilbert-base-cased"  # Tokenizer model name
 
     def get_languages(

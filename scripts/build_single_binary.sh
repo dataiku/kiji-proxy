@@ -21,7 +21,7 @@ mkdir -p $BUILD_DIR $DIST_DIR
 
 echo "📦 Step 1: Building UI..."
 # Build the UI first
-cd frontend
+cd src/frontend
 if [ ! -d "node_modules" ] || [ "package.json" -nt "node_modules" ]; then
     echo "Installing UI dependencies..."
     npm install

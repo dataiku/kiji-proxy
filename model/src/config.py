@@ -43,7 +43,7 @@ class TrainingConfig:
     eval_size_ratio: float = 0.1  # Validation set size as ratio of training
     max_sequence_length: int = 512
     training_samples_dir: str = (
-        "dataset/reviewed_samples"  # Use reviewed_samples by default
+        "model/dataset/reviewed_samples"  # Use reviewed_samples by default
     )
 
     # Multi-task learning

@@ -49,8 +49,8 @@ def main(
     Args:
         use_google_drive: Whether to save model to Google Drive (Colab only)
         drive_folder: Target folder in Google Drive for saving the model
-        training_samples_dir: Path to training samples directory (default: "dataset/reviewed_samples")
-                              Override to use "dataset/training_samples" or another directory
+        training_samples_dir: Path to training samples directory (default: "model/dataset/reviewed_samples")
+                              Override to use "model/dataset/training_samples" or another directory
     """
     logger.info("=" * 60)
     logger.info("Multi-Task PII Detection and Co-reference Detection Training")

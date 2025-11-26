@@ -13,7 +13,7 @@ COPY go.mod go.sum ./
 # Download dependencies
 RUN go mod download
 
-# Copy source code - exclude frontend/, model-server/, and pii_model/
+# Copy source code - exclude src/frontend/, model-server/, and pii_model/
 COPY src/backend/main.go ./src/backend/
 COPY src/backend/config/ ./src/backend/config/
 COPY src/backend/pii/ ./src/backend/pii/

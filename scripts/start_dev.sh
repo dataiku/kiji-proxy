@@ -5,16 +5,16 @@ echo "🚀 Starting Yaak Proxy Development Server"
 echo "=========================================="
 
 # # Build UI if needed
-# if [ ! -d "frontend/dist" ] || [ "frontend/dist" -ot "frontend/package.json" ]; then
+# if [ ! -d "src/frontend/dist" ] || [ "src/frontend/dist" -ot "src/frontend/package.json" ]; then
 #     echo "📦 Building UI..."
-#     (cd frontend && npm install && npm run build)
+#     (cd src/frontend && npm install && npm run build)
 #     echo "✅ UI built successfully"
 # else
 #     echo "✅ UI already built (skipping)"
 # fi
 
 echo "📦 Building UI..."
-(cd frontend && npm install && npm run build)
+(cd src/frontend && npm install && npm run build)
 echo "✅ UI built successfully"
 
 # Set development environment variables

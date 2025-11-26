@@ -5,7 +5,7 @@ package main
 
 import "embed"
 
-//go:embed ../../frontend/dist/*
+//go:embed ../frontend/dist/*
 var uiFiles embed.FS
 
 //go:embed ../../pii_onnx_model/*
