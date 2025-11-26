@@ -604,7 +604,7 @@ The project includes a script to create a self-contained binary with embedded UI
 The build creates:
 
 ```
-dist/yaak-proxy/
+build/dist/yaak-proxy/
 ├── yaak-proxy                    # Main executable
 ├── libonnxruntime.1.23.1.dylib  # ONNX Runtime library
 ├── quantized/                   # Model files
@@ -619,7 +619,7 @@ dist/yaak-proxy/
 
 1. **Using the startup script:**
    ```bash
-   cd dist/yaak-proxy
+   cd build/dist/yaak-proxy
    ./run.sh
    ```
 
@@ -635,7 +635,7 @@ The build creates a tarball for easy distribution:
 
 ```bash
 # Extract and run
-tar -xzf dist/yaak-proxy-single-binary.tar.gz
+tar -xzf build/dist/yaak-proxy-single-binary.tar.gz
 cd yaak-proxy
 ./run.sh
 ```

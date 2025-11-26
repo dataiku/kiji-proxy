@@ -40,8 +40,8 @@ CGO_ENABLED=1 go build -ldflags="-extldflags '-L./build/tokenizers'" -o yaak-pro
 ```
 
 This creates:
-- `dist/yaak-proxy/` - Complete distribution directory
-- `dist/yaak-proxy-complete.tar.gz` - Compressed distribution
+- `build/dist/yaak-proxy/` - Complete distribution directory
+- `build/dist/yaak-proxy-complete.tar.gz` - Compressed distribution
 
 ## 🏗️ Build Requirements
 
@@ -125,14 +125,14 @@ yaak-proxy/
 
 ### Local Deployment
 ```bash
-cd dist/yaak-proxy
+cd build/dist/yaak-proxy
 ./run.sh
 ```
 
 ### Remote Deployment
 ```bash
 # Copy distribution to remote server
-scp -r dist/yaak-proxy/ user@server:/opt/
+scp -r build/dist/yaak-proxy/ user@server:/opt/
 
 # Run on remote server
 ssh user@server "cd /opt/yaak-proxy && ./run.sh"
@@ -179,7 +179,7 @@ docker run -p 8080:8080 yaak-proxy
 | Target | Description | Output |
 |--------|-------------|--------|
 | `make build` | Build main binary | `build/yaak-proxy` |
-| `make dist` | Create distribution | `dist/yaak-proxy/` |
+| `make dist` | Create distribution | `build/dist/yaak-proxy/` |
 | `make docker` | Docker build | Docker image |
 | `make clean` | Clean artifacts | Removes build files |
 

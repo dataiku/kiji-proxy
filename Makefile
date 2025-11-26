@@ -121,7 +121,7 @@ clean: ## Remove build artifacts and cache
 	@echo "$(BLUE)Cleaning build artifacts...$(NC)"
 	find . -type d \( -name "__pycache__" -o -name "*.egg-info" -o -name ".pytest_cache" -o -name ".mypy_cache" \) -exec rm -rf {} + 2>/dev/null || true
 	find . -type f -name "*.pyc" -delete 2>/dev/null || true
-	rm -rf build/ dist/ *.egg-info
+	rm -rf build/ *.egg-info
 	@echo "$(GREEN)✅ Cleanup complete$(NC)"
 
 clean-venv: ## Remove virtual environment

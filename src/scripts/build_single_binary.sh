@@ -13,7 +13,7 @@ echo "=========================================="
 # Set build variables
 BINARY_NAME="yaak-proxy"
 BUILD_DIR="build"
-DIST_DIR="dist"
+DIST_DIR="build/dist"
 MAIN_FILE="src/backend/main.go"
 
 # Create directories
