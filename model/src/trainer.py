@@ -31,6 +31,7 @@ try:
 except ImportError:
     # Fallback for direct execution
     from config import TrainingConfig
+
     from model import (
         MaskedSparseCategoricalCrossEntropy,
         MultiTaskLoss,

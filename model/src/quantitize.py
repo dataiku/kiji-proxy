@@ -35,7 +35,9 @@ from transformers import AutoTokenizer
 # Define command-line flags
 FLAGS = flags.FLAGS
 
-flags.DEFINE_string("model_path", "./model/trained", "Path to the trained model directory")
+flags.DEFINE_string(
+    "model_path", "./model/trained", "Path to the trained model directory"
+)
 
 flags.DEFINE_string(
     "output_path", "./model/quantized", "Path to save the quantized ONNX model"

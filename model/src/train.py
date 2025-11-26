@@ -26,10 +26,9 @@ try:
     from .trainer import PIITrainer
 except ImportError:
     # Fallback for direct execution
+    from config import EnvironmentSetup, TrainingConfig
     from preprocessing import DatasetProcessor
     from trainer import PIITrainer
-
-    from config import EnvironmentSetup, TrainingConfig
 
 # Set up logging
 logging.basicConfig(

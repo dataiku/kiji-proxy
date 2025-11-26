@@ -319,7 +319,7 @@ class DetailedPIIModelLoader:
                     "label_id": idx.item(),
                     "probability": prob.item(),
                 }
-                for prob, idx in zip(top_k_probs, top_k_indices)
+                for prob, idx in zip(top_k_probs, top_k_indices, strict=True)
             ]
             pii_top_k_list.append(top_k_items)
 
@@ -337,7 +337,7 @@ class DetailedPIIModelLoader:
                     "label_id": idx.item(),
                     "probability": prob.item(),
                 }
-                for prob, idx in zip(top_k_probs, top_k_indices)
+                for prob, idx in zip(top_k_probs, top_k_indices, strict=True)
             ]
             coref_top_k_list.append(top_k_items)
 
@@ -411,7 +411,6 @@ def print_detailed_results(
     pii_top_k = detailed_output["pii_top_k"]
     coref_preds = detailed_output["coref_predictions"]
     coref_top_k = detailed_output["coref_top_k"]
-    offset_mapping = detailed_output["offset_mapping"]
     inference_time = detailed_output["inference_time_ms"]
 
     logger.info(f"\n{'=' * 80}")
@@ -448,10 +447,6 @@ def print_detailed_results(
             coref_label = coref_id2label[coref_id]
         else:
             coref_label = f"CLUSTER_{coref_id}" if coref_id > 0 else "NO_COREF"
-
-        # Get character position
-        char_start = offset_mapping[i][0] if i < len(offset_mapping) else -1
-        char_end = offset_mapping[i][1] if i < len(offset_mapping) else -1
 
         # Truncate token if too long
         token_display = token[:18] + ".." if len(token) > 20 else token

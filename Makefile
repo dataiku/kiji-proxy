@@ -69,7 +69,7 @@ format: ## Format code with ruff
 
 lint: ## Run linters with ruff
 	@echo "$(BLUE)Running linters...$(NC)"
-	uv run ruff check pii/ model/
+	uv run ruff check model/
 	@echo "$(GREEN)✅ Linting complete$(NC)"
 
 lint-go: ## Lint Go code with golangci-lint
@@ -84,19 +84,19 @@ lint-go: ## Lint Go code with golangci-lint
 
 typecheck: ## Run type checker with ruff
 	@echo "$(BLUE)Running type checker...$(NC)"
-	uv run ruff check pii/ model/ --select TYP
+	uv run ruff check model/ --select TYP
 	@echo "$(GREEN)✅ Type checking complete$(NC)"
 
 check: format lint typecheck ## Run all code quality checks
 
 ruff-fix: ## Auto-fix ruff issues
 	@echo "$(BLUE)Auto-fixing ruff issues...$(NC)"
-	uv run ruff check pii/ model/ --fix
+	uv run ruff check model/ --fix
 	@echo "$(GREEN)✅ Auto-fix complete$(NC)"
 
 ruff-all: ## Run all ruff checks (lint + format + typecheck)
 	@echo "$(BLUE)Running all ruff checks...$(NC)"
-	uv run ruff check pii/ model/ --fix
+	uv run ruff check model/ --fix
 	uv run ruff format .
 	@echo "$(GREEN)✅ All ruff checks complete$(NC)"
 
