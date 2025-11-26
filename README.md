@@ -429,7 +429,6 @@ ALTER SYSTEM SET effective_cache_size = '1GB';
 │   ├── dist/              # Built UI assets
 │   └── privacy-proxy-ui.tsx  # Main UI component
 ├── model/                  # Python ML model training and evaluation
-├── model_server/           # FastAPI server for PII detection
 ├── pii_model/              # Trained DistilBERT model files
 ├── pii_onnx_model/         # ONNX quantized model files
 ├── scripts/                # Setup and utility scripts
@@ -613,9 +612,7 @@ This project includes Python-based ML components for advanced PII detection usin
 
 - **Model Training** (`model/`) - Train custom PII detection models
 - **Model Evaluation** (`model/eval_model.py`) - Evaluate model performance
-- **FastAPI Server** (`model_server/`) - REST API for PII detection
 - **Trained Model** (`pii_model/`) - Pre-trained DistilBERT model for PII detection
-- **Example Client** (`model_server/example_client.py`) - Client usage examples
 
 ### Quick Start with UV ⚡
 
