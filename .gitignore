@@ -36,6 +36,9 @@ go.work.sum
 # any file in pii_model directory
 pii_model/*
 !pii_model/README.md
+
+# Exclude non-quantized ONNX model (use model_quantized.onnx instead)
+pii_onnx_model/model.onnx
 .venv/
 __pycache__/
 *.pyc
