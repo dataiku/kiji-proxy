@@ -3,7 +3,6 @@
 .PHONY: test test-go test-all
 .PHONY: clean clean-venv clean-all
 .PHONY: build-dmg
-.PHONY: electron-build electron-run electron electron-dev electron-install
 .PHONY: list show shell jupyter info quickstart
 
 # Default target
@@ -131,29 +130,6 @@ clean-venv: ## Remove virtual environment
 
 clean-all: clean clean-venv ## Remove everything (artifacts, cache, and venv)
 	@echo "$(GREEN)✅ Full cleanup complete$(NC)"
-
-##@ Electron
-
-electron-install: ## Install Electron UI dependencies
-	@echo "$(BLUE)Installing Electron UI dependencies...$(NC)"
-	@cd electron_ui && npm install
-	@echo "$(GREEN)✅ Electron dependencies installed$(NC)"
-
-electron-build: ## Build Electron app for production
-	@echo "$(BLUE)Building Electron app...$(NC)"
-	@cd electron_ui && npm run build:electron
-	@echo "$(GREEN)✅ Electron app built$(NC)"
-
-electron-run: electron-build ## Run Electron app (builds first)
-	@echo "$(BLUE)Starting Electron app...$(NC)"
-	@cd electron_ui && npm run electron
-
-electron: electron-run ## Alias for electron-run
-
-electron-dev: ## Run Electron app in development mode with hot reload
-	@echo "$(BLUE)Starting Electron in development mode...$(NC)"
-	@echo "$(YELLOW)Note: Run 'npm run dev' in another terminal for hot reload$(NC)"
-	@cd electron_ui && npm run electron:dev
 
 ##@ Build
 

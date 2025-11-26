@@ -2,15 +2,12 @@ package proxy
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
-	"strconv"
 	"strings"
-	"time"
 
 	"github.com/hannes/yaak-private/config"
 	piiServices "github.com/hannes/yaak-private/pii"
@@ -26,7 +23,6 @@ type Handler struct {
 	responseProcessor  *processor.ResponseProcessor
 	maskingService     *piiServices.MaskingService
 	electronConfigPath string
-	loggingDB          piiServices.LoggingDB // Database or in-memory storage for logging
 }
 
 // GetDetector returns the PII detector instance
@@ -69,21 +65,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[Proxy] Request body size: %d bytes", len(body))
 
 	// Check for PII in the request and get redacted body
-	redactedBody, _, entities := h.checkRequestPII(string(body))
-
-	// Log initial request if logging is available
-	if h.loggingDB != nil {
-		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-		defer cancel()
-		// Truncate request body if too long (limit to 1000 chars for logging)
-		requestMessage := string(body)
-		if len(requestMessage) > 1000 {
-			requestMessage = requestMessage[:1000] + "... (truncated)"
-		}
-		if err := h.loggingDB.InsertLog(ctx, requestMessage, "In", entities, false); err != nil {
-			log.Printf("[Proxy] ⚠️  Failed to log request: %v", err)
-		}
-	}
+	redactedBody, _, _ := h.checkRequestPII(string(body))
 
 	// Create and send proxy request with redacted body
 	resp, err := h.createAndSendProxyRequest(r, []byte(redactedBody))
@@ -94,45 +76,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	// Read response body before processing (we need it for logging)
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		log.Printf("[Proxy] ❌ Failed to read response body: %v", err)
-		http.Error(w, "Failed to read response", http.StatusInternalServerError)
-		return
-	}
-
-	// Process the response
-	modifiedBody := h.responseProcessor.ProcessResponse(respBody, resp.Header.Get("Content-Type"))
-
-	// Log final response if logging is available
-	if h.loggingDB != nil {
-		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-		defer cancel()
-		// Truncate response body if too long (limit to 1000 chars for logging)
-		responseMessage := string(modifiedBody)
-		if len(responseMessage) > 1000 {
-			responseMessage = responseMessage[:1000] + "... (truncated)"
-		}
-		// Response doesn't have detected PII (we're restoring, not detecting)
-		if err := h.loggingDB.InsertLog(ctx, responseMessage, "Out", []pii.Entity{}, false); err != nil {
-			log.Printf("[Proxy] ⚠️  Failed to log response: %v", err)
-		}
-	}
-
-	// Copy response headers
-	h.copyHeaders(resp.Header, w.Header())
-
-	// Update Content-Length if body was modified
-	if len(modifiedBody) != len(respBody) {
-		w.Header().Set("Content-Length", fmt.Sprintf("%d", len(modifiedBody)))
-	}
-
-	// Write response
-	w.WriteHeader(resp.StatusCode)
-	if _, err := w.Write(modifiedBody); err != nil {
-		log.Printf("Failed to write response: %v", err)
-	}
+	// Process and send response
+	h.processAndSendResponse(w, resp)
 
 	log.Printf("Proxied %s %s - Status: %d", r.Method, r.URL.Path, resp.StatusCode)
 }
@@ -268,6 +213,33 @@ func (h *Handler) copyHeaders(source, destination http.Header) {
 	}
 }
 
+// processAndSendResponse processes the response and sends it to the client
+func (h *Handler) processAndSendResponse(w http.ResponseWriter, resp *http.Response) {
+	// Read OpenAI response
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		http.Error(w, "Failed to read OpenAI response", http.StatusInternalServerError)
+		return
+	}
+
+	// Process the response
+	modifiedBody := h.responseProcessor.ProcessResponse(respBody, resp.Header.Get("Content-Type"))
+
+	// Copy response headers
+	h.copyHeaders(resp.Header, w.Header())
+
+	// Update Content-Length if body was modified
+	if len(modifiedBody) != len(respBody) {
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", len(modifiedBody)))
+	}
+
+	// Write response
+	w.WriteHeader(resp.StatusCode)
+	if _, err := w.Write(modifiedBody); err != nil {
+		log.Printf("Failed to write response: %v", err)
+	}
+}
+
 func NewHandler(cfg *config.Config, electronConfigPath string) (*Handler, error) {
 	// Create a temporary handler to get the detector
 	tempHandler := &Handler{config: cfg}
@@ -281,37 +253,6 @@ func NewHandler(cfg *config.Config, electronConfigPath string) (*Handler, error)
 	maskingService := piiServices.NewMaskingService(detector, generatorService)
 	responseProcessor := processor.NewResponseProcessor(&detector, cfg.Logging)
 
-	// Initialize logging (database or in-memory fallback)
-	var loggingDB piiServices.LoggingDB
-	if cfg.Database.Enabled {
-		ctx := context.Background()
-		dbConfig := piiServices.DatabaseConfig{
-			Host:         cfg.Database.Host,
-			Port:         cfg.Database.Port,
-			Database:     cfg.Database.Database,
-			Username:     cfg.Database.Username,
-			Password:     cfg.Database.Password,
-			SSLMode:      cfg.Database.SSLMode,
-			MaxOpenConns: cfg.Database.MaxOpenConns,
-			MaxIdleConns: cfg.Database.MaxIdleConns,
-			MaxLifetime:  time.Duration(cfg.Database.MaxLifetime) * time.Second,
-		}
-		db, dbErr := piiServices.NewPostgresPIIMappingDB(ctx, dbConfig)
-		if dbErr != nil {
-			log.Printf("⚠️  Failed to initialize database for logging: %v", dbErr)
-			log.Printf("Falling back to in-memory logging...")
-			// Fall back to in-memory storage
-			loggingDB = piiServices.NewInMemoryPIIMappingDB()
-		} else {
-			log.Println("✅ Database logging enabled")
-			loggingDB = db
-		}
-	} else {
-		// Use in-memory storage when database is disabled
-		log.Println("Using in-memory logging (database disabled)")
-		loggingDB = piiServices.NewInMemoryPIIMappingDB()
-	}
-
 	return &Handler{
 		client:             &http.Client{},
 		config:             cfg,
@@ -319,7 +260,6 @@ func NewHandler(cfg *config.Config, electronConfigPath string) (*Handler, error)
 		responseProcessor:  responseProcessor,
 		maskingService:     maskingService,
 		electronConfigPath: electronConfigPath,
-		loggingDB:          loggingDB,
 	}, nil
 }
 
@@ -343,23 +283,6 @@ func (h *Handler) HandleDetails(w http.ResponseWriter, r *http.Request) {
 
 	// Create masked request using the unified logic
 	maskedRequest, maskedToOriginal, entities := h.createMaskedRequest(requestData)
-
-	// Extract original text for logging
-	originalText, _ := h.extractTextFromMessages(requestData)
-
-	// Log initial request if logging is available
-	if h.loggingDB != nil {
-		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-		defer cancel()
-		// Truncate request if too long (limit to 1000 chars for logging)
-		requestMessage := originalText
-		if len(requestMessage) > 1000 {
-			requestMessage = requestMessage[:1000] + "... (truncated)"
-		}
-		if err := h.loggingDB.InsertLog(ctx, requestMessage, "In", entities, false); err != nil {
-			log.Printf("[Details] ⚠️  Failed to log request: %v", err)
-		}
-	}
 
 	// Initialize piiEntities as empty slice to avoid null issues
 	piiEntities := make([]map[string]interface{}, 0)
@@ -495,23 +418,11 @@ func (h *Handler) HandleDetails(w http.ResponseWriter, r *http.Request) {
 		unmaskedResponseText = strings.ReplaceAll(unmaskedResponseText, masked, original)
 	}
 
+	// Extract original text for response
+	originalText, _ := h.extractTextFromMessages(requestData)
+
 	// Format masked request as a readable string
 	maskedRequestText, _ := h.extractTextFromMessages(maskedRequest)
-
-	// Log final response if logging is available (before creating response JSON)
-	if h.loggingDB != nil {
-		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-		defer cancel()
-		// Truncate response if too long (limit to 1000 chars for logging)
-		responseMessage := unmaskedResponseText
-		if len(responseMessage) > 1000 {
-			responseMessage = responseMessage[:1000] + "... (truncated)"
-		}
-		// Response doesn't have detected PII (we're restoring, not detecting)
-		if err := h.loggingDB.InsertLog(ctx, responseMessage, "Out", []pii.Entity{}, false); err != nil {
-			log.Printf("[Details] ⚠️  Failed to log response: %v", err)
-		}
-	}
 
 	// Create response
 	detailsResponse := map[string]interface{}{
@@ -637,83 +548,9 @@ func (h *Handler) createMaskedRequest(originalRequest map[string]interface{}) (m
 	return maskedRequest, maskedToOriginal, entities
 }
 
-// HandleLogs handles requests to retrieve log entries
-func (h *Handler) HandleLogs(w http.ResponseWriter, r *http.Request) {
-	if h.loggingDB == nil {
-		http.Error(w, "Logging not available", http.StatusServiceUnavailable)
-		return
-	}
-
-	// Parse query parameters
-	limit := 100 // Default limit
-	offset := 0  // Default offset
-
-	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
-		if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 {
-			limit = parsedLimit
-		}
-	}
-
-	if offsetStr := r.URL.Query().Get("offset"); offsetStr != "" {
-		if parsedOffset, err := strconv.Atoi(offsetStr); err == nil && parsedOffset >= 0 {
-			offset = parsedOffset
-		}
-	}
-
-	// Get logs from database
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
-	defer cancel()
-
-	logs, err := h.loggingDB.GetLogs(ctx, limit, offset)
-	if err != nil {
-		log.Printf("[Logs] ❌ Failed to retrieve logs: %v", err)
-		http.Error(w, fmt.Sprintf("Failed to retrieve logs: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	// Get total count
-	totalCount, err := h.loggingDB.GetLogsCount(ctx)
-	if err != nil {
-		log.Printf("[Logs] ⚠️  Failed to get logs count: %v", err)
-		// Continue without count
-		totalCount = -1
-	}
-
-	// Create response
-	response := map[string]interface{}{
-		"logs":   logs,
-		"total":  totalCount,
-		"limit":  limit,
-		"offset": offset,
-	}
-
-	// Set response headers
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-
-	// Write response
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		log.Printf("[Logs] ❌ Failed to write response: %v", err)
-	}
-}
-
 func (h *Handler) Close() error {
-	var err error
 	if h.detector != nil {
-		if closeErr := (*h.detector).Close(); closeErr != nil {
-			err = closeErr
-		}
+		return (*h.detector).Close()
 	}
-	// Close logging DB if it implements Close (PostgresPIIMappingDB does, InMemoryPIIMappingDB is a no-op)
-	if h.loggingDB != nil {
-		if closer, ok := h.loggingDB.(interface{ Close() error }); ok {
-			if closeErr := closer.Close(); closeErr != nil {
-				if err != nil {
-					return fmt.Errorf("errors closing detector and logging DB: %w, %v", err, closeErr)
-				}
-				return closeErr
-			}
-		}
-	}
-	return err
+	return nil
 }

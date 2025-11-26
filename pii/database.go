@@ -3,12 +3,9 @@ package pii
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
-	"sync"
 	"time"
 
-	detectors "github.com/hannes/yaak-private/pii/detectors"
 	_ "github.com/lib/pq"
 )
 
@@ -46,18 +43,6 @@ type PIIMappingDB interface {
 	Close() error
 }
 
-// LoggingDB defines the interface for logging operations
-type LoggingDB interface {
-	// InsertLog inserts a log entry
-	InsertLog(ctx context.Context, message string, direction string, entities []detectors.Entity, blocked bool) error
-
-	// GetLogs retrieves log entries
-	GetLogs(ctx context.Context, limit int, offset int) ([]map[string]interface{}, error)
-
-	// GetLogsCount returns the total number of log entries
-	GetLogsCount(ctx context.Context) (int, error)
-}
-
 // PostgresPIIMappingDB implements PIIMappingDB for PostgreSQL
 type PostgresPIIMappingDB struct {
 	db *sql.DB
@@ -90,11 +75,6 @@ func NewPostgresPIIMappingDB(ctx context.Context, config DatabaseConfig) (*Postg
 		return nil, fmt.Errorf("failed to create table: %w", err)
 	}
 
-	// Create logs table if it doesn't exist
-	if err := createLogsTableIfNotExists(ctx, db); err != nil {
-		return nil, fmt.Errorf("failed to create logs table: %w", err)
-	}
-
 	return &PostgresPIIMappingDB{db: db}, nil
 }
 
@@ -118,28 +98,6 @@ func createTableIfNotExists(ctx context.Context, db *sql.DB) error {
 	CREATE INDEX IF NOT EXISTS idx_pii_mappings_created_at ON pii_mappings(created_at);
 	CREATE INDEX IF NOT EXISTS idx_pii_mappings_pii_type ON pii_mappings(pii_type);
 	CREATE INDEX IF NOT EXISTS idx_pii_mappings_confidence ON pii_mappings(confidence);
-	`
-
-	_, err := db.ExecContext(ctx, query)
-	return err
-}
-
-// createLogsTableIfNotExists creates the logs table if it doesn't exist
-func createLogsTableIfNotExists(ctx context.Context, db *sql.DB) error {
-	query := `
-	CREATE TABLE IF NOT EXISTS logs (
-		id SERIAL PRIMARY KEY,
-		timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-		message TEXT NOT NULL,
-		-- detected_pii stores a list of tuples: [{"original_pii": "...", "pii_type": "..."}, ...]
-		detected_pii JSONB NOT NULL DEFAULT '[]'::jsonb,
-		blocked BOOLEAN DEFAULT FALSE
-	);
-
-	-- Create indexes for better performance
-	CREATE INDEX IF NOT EXISTS idx_logs_detected_pii ON logs USING GIN (detected_pii);
-	CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON logs(timestamp);
-	CREATE INDEX IF NOT EXISTS idx_logs_blocked ON logs(blocked);
 	`
 
 	_, err := db.ExecContext(ctx, query)
@@ -244,158 +202,10 @@ func (p *PostgresPIIMappingDB) Close() error {
 	return p.db.Close()
 }
 
-// LogEntry represents a single PII detection entry for logging
-type LogEntry struct {
-	OriginalPII string `json:"original_pii"`
-	PIIType     string `json:"pii_type"`
-}
-
-// InsertLog inserts a log entry into the logs table
-func (p *PostgresPIIMappingDB) InsertLog(ctx context.Context, message string, direction string, entities []detectors.Entity, blocked bool) error {
-	// Convert entities to log entries format: [{"original_pii": "...", "pii_type": "..."}, ...]
-	logEntries := make([]LogEntry, 0, len(entities))
-	for _, entity := range entities {
-		logEntries = append(logEntries, LogEntry{
-			OriginalPII: entity.Text,
-			PIIType:     entity.Label,
-		})
-	}
-
-	// If no entities, use empty array
-	if len(logEntries) == 0 {
-		logEntries = []LogEntry{}
-	}
-
-	// Marshal to JSONB
-	detectedPIIJSON, err := json.Marshal(logEntries)
-	if err != nil {
-		return fmt.Errorf("failed to marshal detected PII: %w", err)
-	}
-
-	// Format message with direction prefix
-	formattedMessage := fmt.Sprintf("[%s] %s", direction, message)
-
-	query := `
-	INSERT INTO logs (timestamp, message, detected_pii, blocked)
-	VALUES (NOW(), $1, $2::jsonb, $3)
-	`
-
-	_, err = p.db.ExecContext(ctx, query, formattedMessage, detectedPIIJSON, blocked)
-	if err != nil {
-		return fmt.Errorf("failed to insert log: %w", err)
-	}
-
-	return nil
-}
-
-// GetLogs retrieves log entries from the database
-func (p *PostgresPIIMappingDB) GetLogs(ctx context.Context, limit int, offset int) ([]map[string]interface{}, error) {
-	query := `
-	SELECT id, timestamp, message, detected_pii, blocked
-	FROM logs
-	ORDER BY timestamp DESC
-	LIMIT $1 OFFSET $2
-	`
-
-	rows, err := p.db.QueryContext(ctx, query, limit, offset)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query logs: %w", err)
-	}
-	defer rows.Close()
-
-	var logs []map[string]interface{}
-	for rows.Next() {
-		var id int
-		var timestamp time.Time
-		var message string
-		var detectedPIIJSON []byte
-		var blocked bool
-
-		if err := rows.Scan(&id, &timestamp, &message, &detectedPIIJSON, &blocked); err != nil {
-			return nil, fmt.Errorf("failed to scan log row: %w", err)
-		}
-
-		// Parse JSONB detected_pii
-		var detectedPII []LogEntry
-		if len(detectedPIIJSON) > 0 {
-			if err := json.Unmarshal(detectedPIIJSON, &detectedPII); err != nil {
-				return nil, fmt.Errorf("failed to unmarshal detected PII: %w", err)
-			}
-		}
-
-		// Determine direction from message prefix
-		direction := "In"
-		if len(message) > 0 && message[0] == '[' {
-			endIdx := 1
-			for endIdx < len(message) && message[endIdx] != ']' {
-				endIdx++
-			}
-			if endIdx < len(message) {
-				direction = message[1:endIdx]
-				message = message[endIdx+2:] // Remove "[Direction] " prefix
-			}
-		}
-
-		// Format detected PII as string
-		detectedPIIStr := formatDetectedPII(detectedPII)
-
-		logs = append(logs, map[string]interface{}{
-			"id":           id,
-			"direction":    direction,
-			"message":      message,
-			"detected_pii": detectedPIIStr,
-			"blocked":      blocked,
-			"timestamp":    timestamp,
-		})
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating log rows: %w", err)
-	}
-
-	return logs, nil
-}
-
-// formatDetectedPII formats the detected PII array as a readable string
-func formatDetectedPII(entries []LogEntry) string {
-	if len(entries) == 0 {
-		return "None"
-	}
-
-	parts := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		parts = append(parts, fmt.Sprintf("%s: %s", entry.PIIType, entry.OriginalPII))
-	}
-
-	if len(parts) == 1 {
-		return parts[0]
-	}
-
-	// Join multiple parts with commas
-	result := parts[0]
-	for i := 1; i < len(parts); i++ {
-		result += ", " + parts[i]
-	}
-	return result
-}
-
-// GetLogsCount returns the total number of log entries
-func (p *PostgresPIIMappingDB) GetLogsCount(ctx context.Context) (int, error) {
-	var count int
-	query := `SELECT COUNT(*) FROM logs`
-	err := p.db.QueryRowContext(ctx, query).Scan(&count)
-	if err != nil {
-		return 0, fmt.Errorf("failed to get logs count: %w", err)
-	}
-	return count, nil
-}
-
 // InMemoryPIIMappingDB implements PIIMappingDB for in-memory storage (fallback)
 type InMemoryPIIMappingDB struct {
 	originalToDummy map[string]string
 	dummyToOriginal map[string]string
-	logs            []map[string]interface{} // In-memory log storage
-	mutex           sync.RWMutex             // For thread-safe log access
 }
 
 // NewInMemoryPIIMappingDB creates a new in-memory PII mapping database
@@ -403,7 +213,6 @@ func NewInMemoryPIIMappingDB() *InMemoryPIIMappingDB {
 	return &InMemoryPIIMappingDB{
 		originalToDummy: make(map[string]string),
 		dummyToOriginal: make(map[string]string),
-		logs:            make([]map[string]interface{}, 0),
 	}
 }
 
@@ -444,83 +253,4 @@ func (i *InMemoryPIIMappingDB) CleanupOldMappings(ctx context.Context, olderThan
 // Close is a no-op for in-memory storage
 func (i *InMemoryPIIMappingDB) Close() error {
 	return nil
-}
-
-// InsertLog inserts a log entry into in-memory storage
-func (i *InMemoryPIIMappingDB) InsertLog(ctx context.Context, message string, direction string, entities []detectors.Entity, blocked bool) error {
-	// Convert entities to log entries format
-	logEntries := make([]LogEntry, 0, len(entities))
-	for _, entity := range entities {
-		logEntries = append(logEntries, LogEntry{
-			OriginalPII: entity.Text,
-			PIIType:     entity.Label,
-		})
-	}
-
-	// Format detected PII as string
-	detectedPIIStr := formatDetectedPII(logEntries)
-
-	// Create log entry
-	logEntry := map[string]interface{}{
-		"id":           len(i.logs) + 1,
-		"direction":    direction,
-		"message":      message,
-		"detected_pii": detectedPIIStr,
-		"blocked":      blocked,
-		"timestamp":    time.Now(),
-	}
-
-	// Thread-safe append
-	i.mutex.Lock()
-	i.logs = append(i.logs, logEntry)
-	i.mutex.Unlock()
-
-	return nil
-}
-
-// GetLogs retrieves log entries from in-memory storage
-func (i *InMemoryPIIMappingDB) GetLogs(ctx context.Context, limit int, offset int) ([]map[string]interface{}, error) {
-	i.mutex.RLock()
-	defer i.mutex.RUnlock()
-
-	// Return empty if no logs
-	if len(i.logs) == 0 {
-		return []map[string]interface{}{}, nil
-	}
-
-	// Calculate bounds (logs are stored oldest to newest, but we want newest first)
-	totalLogs := len(i.logs)
-	start := totalLogs - offset - limit
-	end := totalLogs - offset
-
-	// Clamp to valid range
-	if start < 0 {
-		start = 0
-	}
-	if end > totalLogs {
-		end = totalLogs
-	}
-	if start >= end {
-		return []map[string]interface{}{}, nil
-	}
-
-	// Return logs in reverse order (newest first) - same format as Postgres
-	logs := make([]map[string]interface{}, 0, end-start)
-	for j := end - 1; j >= start; j-- {
-		// Create a copy to avoid race conditions
-		logCopy := make(map[string]interface{})
-		for k, v := range i.logs[j] {
-			logCopy[k] = v
-		}
-		logs = append(logs, logCopy)
-	}
-
-	return logs, nil
-}
-
-// GetLogsCount returns the total number of log entries in memory
-func (i *InMemoryPIIMappingDB) GetLogsCount(ctx context.Context) (int, error) {
-	i.mutex.RLock()
-	defer i.mutex.RUnlock()
-	return len(i.logs), nil
 }
