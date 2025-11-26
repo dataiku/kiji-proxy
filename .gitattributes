@@ -1,1 +1,1 @@
-pii_onnx_model/* filter=lfs diff=lfs merge=lfs -text
+model/quantized/* filter=lfs diff=lfs merge=lfs -text
