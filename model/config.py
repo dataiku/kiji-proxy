@@ -20,17 +20,17 @@ class TrainingConfig:
     model_name: str = "distilbert-base-cased"  # 66M params, fast
 
     # Training parameters
-    num_epochs: int = 3
-    batch_size: int = 32
+    num_epochs: int = 5
+    batch_size: int = 16
     learning_rate: float = 3e-5
     max_samples: int = 400000
 
     # Training optimization
-    warmup_steps: int = 500
+    warmup_steps: int = 200
     weight_decay: float = 0.01
     save_steps: int = 1000
     eval_steps: int = 500
-    logging_steps: int = 100
+    logging_steps: int = 500
     seed: int = 42
 
     # Output and logging
@@ -40,7 +40,7 @@ class TrainingConfig:
     class_weights: dict[int, float] = field(default_factory=dict)
 
     # Dataset settings
-    eval_size_ratio: float = 0.2  # Validation set size as ratio of training
+    eval_size_ratio: float = 0.1  # Validation set size as ratio of training
     max_sequence_length: int = 512
     training_samples_dir: str = (
         "dataset/reviewed_samples"  # Use reviewed_samples by default
