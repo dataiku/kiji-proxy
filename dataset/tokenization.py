@@ -103,7 +103,11 @@ class TokenizationProcessor:
         privacy_mask_with_positions: list[dict[str, Any]] | None,
     ) -> bool:
         """Check if punctuation is part of an entity value (e.g., comma in 'Google, Inc.')."""
-        if not words_original or not privacy_mask_with_positions or word_idx >= len(words_original):
+        if (
+            not words_original
+            or not privacy_mask_with_positions
+            or word_idx >= len(words_original)
+        ):
             return False
 
         original_word = words_original[word_idx]
@@ -145,20 +149,27 @@ class TokenizationProcessor:
                 continue
 
             word_label = word_labels[word_idx]
-            token_text = token_texts[idx] if token_texts and idx < len(token_texts) else ""
+            token_text = (
+                token_texts[idx] if token_texts and idx < len(token_texts) else ""
+            )
             is_punct = self._is_punctuation_only(token_text)
 
             # Determine effective label for this token
             if is_punct:
                 # Punctuation: only label as entity if it's actually part of entity value
                 if word_label != "O" and not self._is_punctuation_in_entity(
-                    token_text.strip(), word_idx, words_original, privacy_mask_with_positions
+                    token_text.strip(),
+                    word_idx,
+                    words_original,
+                    privacy_mask_with_positions,
                 ):
                     # Punctuation after entity (e.g., comma after "Smith") -> "O"
                     word_label = "O"
 
             # Determine if this is beginning of entity or inside
-            is_beginning = (prev_word_idx != word_idx) or (prev_word_label != word_label)
+            is_beginning = (prev_word_idx != word_idx) or (
+                prev_word_label != word_label
+            )
             label_ids.append(self._get_label_id(word_label, is_beginning))
 
             prev_word_idx = word_idx
@@ -240,7 +251,11 @@ class TokenizationProcessor:
 
         # Align labels with tokens
         label_ids = self._align_labels_with_tokens(
-            word_labels, word_ids, token_texts, words_original, privacy_mask_with_positions
+            word_labels,
+            word_ids,
+            token_texts,
+            words_original,
+            privacy_mask_with_positions,
         )
 
         return {
