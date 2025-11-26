@@ -19,15 +19,14 @@ Usage:
 """
 
 import json
-import os
 import logging
+import os
 import sys
 from pathlib import Path
 
-from absl import app
-from absl import flags
 import onnx
 import torch
+from absl import app, flags
 from optimum.onnxruntime import ORTQuantizer
 from optimum.onnxruntime.configuration import AutoQuantizationConfig
 from safetensors import safe_open
@@ -36,35 +35,23 @@ from transformers import AutoTokenizer
 # Define command-line flags
 FLAGS = flags.FLAGS
 
-flags.DEFINE_string(
-    "model_path",
-    "./pii_model",
-    "Path to the trained model directory"
-)
+flags.DEFINE_string("model_path", "./pii_model", "Path to the trained model directory")
 
 flags.DEFINE_string(
-    "output_path",
-    "./pii_onnx_model",
-    "Path to save the quantized ONNX model"
+    "output_path", "./pii_onnx_model", "Path to save the quantized ONNX model"
 )
 
 flags.DEFINE_enum(
     "quantization_mode",
     "avx512_vnni",
     ["avx512_vnni", "avx2", "q8"],
-    "Quantization mode"
+    "Quantization mode",
 )
 
-flags.DEFINE_integer(
-    "opset",
-    14,
-    "ONNX opset version"
-)
+flags.DEFINE_integer("opset", 14, "ONNX opset version")
 
 flags.DEFINE_boolean(
-    "skip_quantization",
-    False,
-    "Skip quantization, only export to ONNX"
+    "skip_quantization", False, "Skip quantization, only export to ONNX"
 )
 
 # Add project root to path for imports
@@ -417,10 +404,14 @@ def main(argv):
         if FLAGS.skip_quantization:
             logger.info(f"saved non-quantized ONNX model: {output_path / 'model.onnx'}")
         else:
-            os.remove(output_path / 'model.onnx')
-            logger.info(f"removed non-quantized ONNX model: {output_path / 'model.onnx'}")
+            os.remove(output_path / "model.onnx")
+            logger.info(
+                f"removed non-quantized ONNX model: {output_path / 'model.onnx'}"
+            )
         if not FLAGS.skip_quantization:
-            logger.info(f"saved quantized ONNX model: {output_path / 'model_quantized.onnx'}")
+            logger.info(
+                f"saved quantized ONNX model: {output_path / 'model_quantized.onnx'}"
+            )
 
     except Exception as e:
         logger.error(f"\n❌ Error: {e}", exc_info=True)
