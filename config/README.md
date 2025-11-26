@@ -85,11 +85,6 @@ To enable ML-based detection, set up the model server and configure:
 }
 ```
 
-Start the ML model server:
-```bash
-cd model_server
-uvicorn fast_api:app --host 0.0.0.0 --port 8000
-```
 
 ### Confidence Thresholds
 
@@ -218,4 +213,3 @@ For more details, see:
 - `pii/CONFIGURATION_GUIDE.md` - Complete configuration guide
 - `pii/CONFIGURATION_SUMMARY.md` - Implementation summary
 - `pii/MODEL_DETECTOR.md` - ML detector documentation
-

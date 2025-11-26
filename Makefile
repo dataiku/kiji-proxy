@@ -69,7 +69,7 @@ format: ## Format code with ruff
 
 lint: ## Run linters with ruff
 	@echo "$(BLUE)Running linters...$(NC)"
-	uv run ruff check pii/ model/ model_server/ dataset/ 
+	uv run ruff check pii/ model/ dataset/
 	@echo "$(GREEN)✅ Linting complete$(NC)"
 
 lint-go: ## Lint Go code with golangci-lint
@@ -84,19 +84,19 @@ lint-go: ## Lint Go code with golangci-lint
 
 typecheck: ## Run type checker with ruff
 	@echo "$(BLUE)Running type checker...$(NC)"
-	uv run ruff check pii/ model/ model_server/ dataset/ --select TYP
+	uv run ruff check pii/ model/ dataset/ --select TYP
 	@echo "$(GREEN)✅ Type checking complete$(NC)"
 
 check: format lint typecheck ## Run all code quality checks
 
 ruff-fix: ## Auto-fix ruff issues
 	@echo "$(BLUE)Auto-fixing ruff issues...$(NC)"
-	uv run ruff check pii/ model/ model_server/ dataset/ --fix
+	uv run ruff check pii/ model/ dataset/ --fix
 	@echo "$(GREEN)✅ Auto-fix complete$(NC)"
 
 ruff-all: ## Run all ruff checks (lint + format + typecheck)
 	@echo "$(BLUE)Running all ruff checks...$(NC)"
-	uv run ruff check pii/ model/ model_server/ dataset/ --fix
+	uv run ruff check pii/ model/ dataset/ --fix
 	uv run ruff format .
 	@echo "$(GREEN)✅ All ruff checks complete$(NC)"
 
@@ -166,4 +166,3 @@ build-dmg: ## Build DMG package with Go binary and Electron app
 	@chmod +x scripts/build_dmg.sh
 	@./scripts/build_dmg.sh
 	@echo "$(GREEN)✅ DMG build complete$(NC)"
-

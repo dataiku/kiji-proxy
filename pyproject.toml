@@ -57,9 +57,6 @@ quantization = [
 
 # Note: 'all' group removed - use 'dev' instead for development dependencies
 
-[project.scripts]
-yaak-server = "model_server.fast_api:main"
-
 [project.urls]
 Homepage = "https://github.com/yaak/pii-detection"
 Repository = "https://github.com/yaak/pii-detection"
@@ -70,10 +67,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["model", "model_server"]
+packages = ["model", ]
 exclude = [
     "model/__pycache__",
-    "model_server/__pycache__",
     "*.pyc",
 ]
 
@@ -98,7 +94,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["model", "model_server"]
+known-first-party = ["model", ]
 
 [tool.ruff.lint.flake8-quotes]
 docstring-quotes = "double"

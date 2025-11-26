@@ -12,24 +12,47 @@ Usage:
     python quantitize.py
 
     # With custom paths:
-    python quantitize.py --model-path ./pii_model --output-path ./pii_onnx_model
+    python quantitize.py --model_path=./pii_model --output_path=./pii_onnx_model
 
     # With different quantization config:
-    python quantitize.py --quantization-mode avx512_vnni
+    python quantitize.py --quantization_mode=avx512_vnni
 """
 
-import argparse
 import json
 import logging
+import os
 import sys
 from pathlib import Path
 
 import onnx
 import torch
+from absl import app, flags
 from optimum.onnxruntime import ORTQuantizer
 from optimum.onnxruntime.configuration import AutoQuantizationConfig
 from safetensors import safe_open
 from transformers import AutoTokenizer
+
+# Define command-line flags
+FLAGS = flags.FLAGS
+
+flags.DEFINE_string("model_path", "./pii_model", "Path to the trained model directory")
+
+flags.DEFINE_string(
+    "output_path", "./pii_onnx_model", "Path to save the quantized ONNX model"
+)
+
+flags.DEFINE_enum(
+    "quantization_mode",
+    "avx512_vnni",
+    ["avx512_vnni", "avx2", "q8"],
+    "Quantization mode",
+)
+
+flags.DEFINE_integer("opset", 14, "ONNX opset version")
+
+flags.DEFINE_boolean(
+    "skip_quantization", False, "Skip quantization, only export to ONNX"
+)
 
 # Add project root to path for imports
 project_root = Path(__file__).parent.parent
@@ -337,41 +360,9 @@ def quantize_model(
         logger.warning("⚠️  Could not find quantized model file")
 
 
-def main():
+def main(argv):
     """Main execution function."""
-    parser = argparse.ArgumentParser(description="Quantize PII detection model to ONNX")
-    parser.add_argument(
-        "--model-path",
-        type=str,
-        default="./pii_model",
-        help="Path to the trained model directory (default: ./pii_model)",
-    )
-    parser.add_argument(
-        "--output-path",
-        type=str,
-        default="./pii_onnx_model",
-        help="Path to save the quantized ONNX model (default: ./pii_onnx_model)",
-    )
-    parser.add_argument(
-        "--quantization-mode",
-        type=str,
-        default="avx512_vnni",
-        choices=["avx512_vnni", "avx2", "q8"],
-        help="Quantization mode (default: avx512_vnni)",
-    )
-    parser.add_argument(
-        "--opset",
-        type=int,
-        default=14,
-        help="ONNX opset version (default: 14)",
-    )
-    parser.add_argument(
-        "--skip-quantization",
-        action="store_true",
-        help="Skip quantization, only export to ONNX",
-    )
-
-    args = parser.parse_args()
+    del argv  # Unused
 
     logger.info("=" * 80)
     logger.info("PII Detection Model Quantization")
@@ -379,20 +370,20 @@ def main():
 
     try:
         # Load model
-        model, label_mappings, tokenizer = load_multitask_model(args.model_path)
+        model, label_mappings, tokenizer = load_multitask_model(FLAGS.model_path)
 
         # Export to ONNX
-        export_to_onnx(model, tokenizer, args.output_path, args.opset)
+        export_to_onnx(model, tokenizer, FLAGS.output_path, FLAGS.opset)
 
         # Save label mappings to output directory
-        output_path = Path(args.output_path)
+        output_path = Path(FLAGS.output_path)
         mappings_path = output_path / "label_mappings.json"
         with mappings_path.open("w") as f:
             json.dump(label_mappings, f, indent=2)
         logger.info(f"✅ Label mappings saved to: {mappings_path}")
 
         # Copy config.json if it exists
-        config_path = Path(args.model_path) / "config.json"
+        config_path = Path(FLAGS.model_path) / "config.json"
         if config_path.exists():
             import shutil
 
@@ -400,19 +391,27 @@ def main():
             logger.info("✅ Config file copied")
 
         # Quantize if requested
-        if not args.skip_quantization:
+        if not FLAGS.skip_quantization:
             # The output_path directory now contains model.onnx, use it for quantization
-            quantize_model(str(output_path), str(output_path), args.quantization_mode)
+            quantize_model(str(output_path), str(output_path), FLAGS.quantization_mode)
         else:
-            logger.info("⏭️  Skipping quantization (--skip-quantization)")
+            logger.info("⏭️  Skipping quantization (--skip_quantization)")
 
         logger.info("\n" + "=" * 80)
         logger.info("✅ Quantization Complete!")
         logger.info("=" * 80)
-        logger.info(f"Model saved to: {args.output_path}")
-        logger.info(f"ONNX model: {output_path / 'model.onnx'}")
-        if not args.skip_quantization:
-            logger.info(f"Quantized model: {output_path / 'model_quantized.onnx'}")
+        logger.info(f"Model saved to: {FLAGS.output_path}")
+        if FLAGS.skip_quantization:
+            logger.info(f"saved non-quantized ONNX model: {output_path / 'model.onnx'}")
+        else:
+            os.remove(output_path / "model.onnx")
+            logger.info(
+                f"removed non-quantized ONNX model: {output_path / 'model.onnx'}"
+            )
+        if not FLAGS.skip_quantization:
+            logger.info(
+                f"saved quantized ONNX model: {output_path / 'model_quantized.onnx'}"
+            )
 
     except Exception as e:
         logger.error(f"\n❌ Error: {e}", exc_info=True)
@@ -420,4 +419,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    app.run(main)
