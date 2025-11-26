@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { Shield, Eye, Send, AlertCircle, Settings } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Shield, Eye, Send, AlertCircle, Settings, Menu, FileText } from 'lucide-react';
 import SettingsModal from './SettingsModal';
+import LoggingModal from './LoggingModal';
 import logoImage from './assets/logo.png';
 
 export default function PrivacyProxyUI() {
@@ -11,15 +12,35 @@ export default function PrivacyProxyUI() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [detectedEntities, setDetectedEntities] = useState([]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isLoggingOpen, setIsLoggingOpen] = useState(false);
   const [forwardEndpoint, setForwardEndpoint] = useState('https://api.openai.com/v1');
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [serverStatus, setServerStatus] = useState<'online' | 'offline'>('offline');
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   
   // Fixed Go server address - always call the Go server at this address
   const GO_SERVER_ADDRESS = 'http://localhost:8080';
 
   // Detect if running in Electron
   const isElectron = typeof window !== 'undefined' && window.electronAPI !== undefined;
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsMenuOpen(false);
+      }
+    };
+
+    if (isMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isMenuOpen]);
 
   // Load settings on mount and listen for menu command
   useEffect(() => {
@@ -180,17 +201,43 @@ export default function PrivacyProxyUI() {
         {/* Header */}
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-3 mb-4 relative">
+            {isElectron && (
+              <div className="absolute left-0" ref={menuRef}>
+                <button
+                  onClick={() => setIsMenuOpen(!isMenuOpen)}
+                  className="p-2 text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
+                  title="Menu"
+                >
+                  <Menu className="w-6 h-6" />
+                </button>
+                {isMenuOpen && (
+                  <div className="absolute left-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-slate-200 z-50">
+                    <button
+                      onClick={() => {
+                        setIsSettingsOpen(true);
+                        setIsMenuOpen(false);
+                      }}
+                      className="w-full text-left px-4 py-3 text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2 first:rounded-t-lg"
+                    >
+                      <Settings className="w-4 h-4" />
+                      Settings
+                    </button>
+                    <button
+                      onClick={() => {
+                        setIsLoggingOpen(true);
+                        setIsMenuOpen(false);
+                      }}
+                      className="w-full text-left px-4 py-3 text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2 last:rounded-b-lg"
+                    >
+                      <FileText className="w-4 h-4" />
+                      Logging
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
             <img src={logoImage} alt="Yaak Logo" className="w-12 h-12" />
             <h1 className="text-4xl font-bold text-slate-800">Yaak - Privacy Proxy</h1>
-            {isElectron && (
-              <button
-                onClick={() => setIsSettingsOpen(true)}
-                className="absolute right-0 p-2 text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
-                title="Settings"
-              >
-                <Settings className="w-6 h-6" />
-              </button>
-            )}
           </div>
           <p className="text-slate-600 text-lg">
             PII Detection and Masking Diff View
@@ -415,6 +462,12 @@ export default function PrivacyProxyUI() {
           setIsSettingsOpen(false);
           loadSettings(); // Reload settings after closing
         }}
+      />
+
+      {/* Logging Modal */}
+      <LoggingModal
+        isOpen={isLoggingOpen}
+        onClose={() => setIsLoggingOpen(false)}
       />
     </div>
   );

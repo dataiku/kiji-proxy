@@ -74,3 +74,17 @@ CREATE TRIGGER update_access_stats
 
 -- View table size
 -- SELECT pg_size_pretty(pg_total_relation_size('pii_mappings'));
+
+CREATE TABLE IF NOT EXISTS logs (
+    id SERIAL PRIMARY KEY,
+    timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    message TEXT NOT NULL,
+    -- detected_pii stores a list of tuples: [{"original_pii": "...", "pii_type": "..."}, ...]
+    detected_pii JSONB NOT NULL DEFAULT '[]'::jsonb,
+    blocked BOOLEAN DEFAULT FALSE
+);
+
+-- Create index for JSONB column to enable efficient queries
+CREATE INDEX IF NOT EXISTS idx_logs_detected_pii ON logs USING GIN (detected_pii);
+CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON logs(timestamp);
+CREATE INDEX IF NOT EXISTS idx_logs_blocked ON logs(blocked);
