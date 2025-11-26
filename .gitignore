@@ -83,6 +83,8 @@ electron_ui/postcss.config.js
 
 build/yaak-proxy
 config/config.development.json
+src/backend/model/
+src/backend/frontend/
 electron_ui/release/
 electron_ui/resources/
 electron_ui/dist/

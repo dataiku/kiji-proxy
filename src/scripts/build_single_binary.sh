@@ -34,7 +34,34 @@ cd ..
 echo "✅ UI built successfully"
 
 echo ""
-echo "📦 Step 2: Building Go binary with embedded files..."
+echo "📦 Step 2: Preparing files for embedding..."
+echo "-------------------------------------------"
+
+# Copy frontend/dist files to src/backend/frontend/dist/ for embedding
+# Go embed cannot use ../ paths, so we need the files under src/backend/
+if [ -d "src/frontend/dist" ]; then
+    mkdir -p src/backend/frontend/dist
+    cp -r src/frontend/dist/* src/backend/frontend/dist/
+    echo "✅ Frontend files copied to src/backend/frontend/dist/ for embedding"
+else
+    echo "⚠️  Frontend dist directory not found: src/frontend/dist"
+    echo "   You may need to build the frontend first"
+    echo "   Continuing without frontend files (may cause runtime errors)"
+fi
+
+# Copy model files to src/backend/model/quantized/ for embedding
+# Go embed cannot use ../ paths, so we need the files under src/backend/
+if [ -d "model/quantized" ]; then
+    mkdir -p src/backend/model/quantized
+    cp -r model/quantized/* src/backend/model/quantized/
+    echo "✅ Model files copied to src/backend/model/quantized/ for embedding"
+else
+    echo "⚠️  Model directory not found: model/quantized"
+    echo "   Continuing without model files (may cause runtime errors)"
+fi
+
+echo ""
+echo "📦 Step 3: Building Go binary with embedded files..."
 
 # Build the main binary with embedded files
 CGO_ENABLED=1 \
@@ -52,7 +79,7 @@ fi
 echo "✅ Go binary created: $BUILD_DIR/$BINARY_NAME"
 
 echo ""
-echo "📦 Step 3: Creating distribution package..."
+echo "📦 Step 4: Creating distribution package..."
 
 # Create distribution directory structure
 DIST_ROOT="$DIST_DIR/$BINARY_NAME"

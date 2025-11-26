@@ -5,8 +5,8 @@ package main
 
 import "embed"
 
-//go:embed ../frontend/dist/*
+//go:embed frontend/dist/*
 var uiFiles embed.FS
 
-//go:embed ../../model/quantized/*
+//go:embed model/quantized/*
 var modelFiles embed.FS

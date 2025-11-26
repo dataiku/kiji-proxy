@@ -7,7 +7,7 @@ set -e
 
 # Get the script directory and project root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 cd "$PROJECT_ROOT"
 
@@ -26,7 +26,34 @@ mkdir -p $BUILD_DIR
 mkdir -p "$RESOURCES_DIR"
 
 echo ""
-echo "📦 Step 1: Building Go binary..."
+echo "📦 Step 1: Preparing files for embedding..."
+echo "-------------------------------------------"
+
+# Copy frontend/dist files to src/backend/frontend/dist/ for embedding
+# Go embed cannot use ../ paths, so we need the files under src/backend/
+if [ -d "src/frontend/dist" ]; then
+    mkdir -p src/backend/frontend/dist
+    cp -r src/frontend/dist/* src/backend/frontend/dist/
+    echo "✅ Frontend files copied to src/backend/frontend/dist/ for embedding"
+else
+    echo "⚠️  Frontend dist directory not found: src/frontend/dist"
+    echo "   You may need to build the frontend first"
+    echo "   Continuing without frontend files (may cause runtime errors)"
+fi
+
+# Copy model files to src/backend/model/quantized/ for embedding
+# Go embed cannot use ../ paths, so we need the files under src/backend/
+if [ -d "model/quantized" ]; then
+    mkdir -p src/backend/model/quantized
+    cp -r model/quantized/* src/backend/model/quantized/
+    echo "✅ Model files copied to src/backend/model/quantized/ for embedding"
+else
+    echo "⚠️  Model directory not found: model/quantized"
+    echo "   Continuing without model files (may cause runtime errors)"
+fi
+
+echo ""
+echo "📦 Step 2: Building Go binary..."
 echo "--------------------------------"
 
 # Build the Go binary with embedded files
@@ -45,7 +72,7 @@ fi
 echo "✅ Go binary created: $BUILD_DIR/$BINARY_NAME"
 
 echo ""
-echo "📦 Step 2: Copying Go binary and dependencies to Electron resources..."
+echo "📦 Step 3: Copying Go binary and dependencies to Electron resources..."
 echo "----------------------------------------------------------------------"
 
 # Copy the Go binary to Electron resources
@@ -95,7 +122,7 @@ else
 fi
 
 echo ""
-echo "📦 Step 3: Building Electron app..."
+echo "📦 Step 4: Building Electron app..."
 echo "-------------------------------------"
 
 cd "$ELECTRON_DIR"
@@ -118,7 +145,7 @@ fi
 echo "✅ Electron app built successfully"
 
 echo ""
-echo "📦 Step 4: Packaging with electron-builder..."
+echo "📦 Step 5: Packaging with electron-builder..."
 echo "----------------------------------------------"
 
 # Package the app (this will create the DMG)
