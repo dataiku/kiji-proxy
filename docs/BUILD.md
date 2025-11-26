@@ -6,7 +6,7 @@ This guide explains how to build Yaak Proxy with all dependencies into a single,
 
 ### Option 1: Simple Build
 ```bash
-make build
+go build -o build/yaak-proxy ./src/backend
 ```
 
 ### Option 2: Complete Distribution
@@ -24,13 +24,13 @@ make docker
 ### 1. Local Development Build
 ```bash
 # Build with local dependencies
-go run -ldflags="-extldflags '-L./tokenizers'" main.go
+go run -ldflags="-extldflags '-L./tokenizers'" src/backend/main.go
 ```
 
 ### 2. Static Binary Build
 ```bash
 # Build static binary
-CGO_ENABLED=1 go build -ldflags="-extldflags '-L./tokenizers'" -o yaak-proxy main.go
+CGO_ENABLED=1 go build -ldflags="-extldflags '-L./tokenizers'" -o yaak-proxy ./src/backend
 ```
 
 ### 3. Complete Distribution Package
@@ -71,13 +71,13 @@ cp target/release/libtokenizers.a .
 ### Step 2: Build Go Binary
 ```bash
 # Basic build
-go build -ldflags="-extldflags '-L./tokenizers'" main.go
+go build -ldflags="-extldflags '-L./tokenizers'" ./src/backend
 
 # Static build (Linux)
 CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build \
   -ldflags="-extldflags '-static'" \
   -tags netgo \
-  -o yaak-proxy-linux main.go
+  -o yaak-proxy-linux ./src/backend
 ```
 
 ### Step 3: Create Distribution

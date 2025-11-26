@@ -89,11 +89,11 @@ jobs:
         cd ..
 
     - name: Install Electron dependencies
-      working-directory: electron_ui
+      working-directory: frontend
       run: npm ci
 
     - name: Build Electron app
-      working-directory: electron_ui
+      working-directory: frontend
       run: npm run build:electron
 
     - name: Build Go binary
@@ -104,89 +104,89 @@ jobs:
           -tags embed \
           -ldflags="-extldflags '-L./tokenizers'" \
           -o build/yaak-proxy \
-          .
+          ./src/backend
 
     - name: Prepare Electron resources
       run: |
-        mkdir -p electron_ui/resources
-        cp build/yaak-proxy electron_ui/resources/yaak-proxy
-        chmod +x electron_ui/resources/yaak-proxy
-        
+        mkdir -p frontend/resources
+        cp build/yaak-proxy frontend/resources/yaak-proxy
+        chmod +x frontend/resources/yaak-proxy
+
         # Copy ONNX library if it exists
         if [ -f "libonnxruntime.1.23.1.dylib" ]; then
-          cp libonnxruntime.1.23.1.dylib electron_ui/resources/
+          cp libonnxruntime.1.23.1.dylib frontend/resources/
         fi
-        
+
         # Copy model files
         if [ -d "pii_onnx_model" ]; then
-          cp -r pii_onnx_model electron_ui/resources/
+          cp -r pii_onnx_model frontend/resources/
         fi
 
     - name: Package Electron app (DMG)
-      working-directory: electron_ui
+      working-directory: frontend
       env:
         CSC_IDENTITY_AUTO_DISCOVERY: false  # Disable code signing
       run: npm run electron:pack
 
     - name: Ad-hoc sign app and rebuild DMG
-      working-directory: electron_ui
+      working-directory: frontend
       run: |
         # Ad-hoc sign the app (no certificate needed) and rebuild DMG
         # This helps macOS accept the app even without proper code signing
         DMG_PATH=$(find release -name "*.dmg" | head -1)
         if [ -n "$DMG_PATH" ]; then
           echo "Processing DMG: $DMG_PATH"
-          
+
           # Create temporary directories
           TEMP_DIR=$(mktemp -d)
           MOUNT_POINT="$TEMP_DIR/mount"
           EXTRACT_DIR="$TEMP_DIR/extract"
           mkdir -p "$MOUNT_POINT" "$EXTRACT_DIR"
-          
+
           # Mount the DMG
           hdiutil attach "$DMG_PATH" -mountpoint "$MOUNT_POINT" -quiet -readonly
-          
+
           # Copy contents to extract directory
           cp -R "$MOUNT_POINT"/* "$EXTRACT_DIR/"
-          
+
           # Unmount the DMG
           hdiutil detach "$MOUNT_POINT" -quiet
-          
+
           # Find and process the app bundle
           APP_PATH=$(find "$EXTRACT_DIR" -name "*.app" -type d | head -1)
           if [ -n "$APP_PATH" ]; then
             echo "Processing app: $APP_PATH"
-            
+
             # Remove quarantine attribute
             xattr -cr "$APP_PATH"
             find "$APP_PATH" -type f -exec xattr -c {} \; 2>/dev/null || true
-            
+
             # Ad-hoc sign the app bundle (this helps macOS accept it)
             # Ad-hoc signing uses "-" which means "sign with ad-hoc identity"
             codesign --force --deep --sign - "$APP_PATH" 2>&1 || {
               echo "⚠️  Ad-hoc signing failed, continuing anyway..."
             }
-            
+
             # Verify the signing
             codesign --verify --verbose "$APP_PATH" 2>&1 || echo "⚠️  Code signing verification failed (expected for ad-hoc)"
-            
+
             echo "✅ App processed and ad-hoc signed"
-            
+
             # Get DMG metadata
             DMG_NAME=$(basename "$DMG_PATH" .dmg)
             DMG_DIR=$(dirname "$DMG_PATH")
-            
+
             # Remove old DMG
             rm -f "$DMG_PATH"
-            
+
             # Create new DMG
             hdiutil create -volname "$DMG_NAME" -srcfolder "$EXTRACT_DIR" -ov -format UDZO "$DMG_DIR/$DMG_NAME.dmg"
-            
+
             echo "✅ DMG rebuilt with ad-hoc signed app"
           else
             echo "⚠️  App bundle not found in DMG"
           fi
-          
+
           # Cleanup
           rm -rf "$TEMP_DIR"
         else
@@ -197,14 +197,14 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: Privacy-Proxy-DMG
-        path: electron_ui/release/*.dmg
+        path: frontend/release/*.dmg
         retention-days: 30
 
     - name: Upload ZIP artifact
       uses: actions/upload-artifact@v4
       with:
         name: Privacy-Proxy-ZIP
-        path: electron_ui/release/*.zip
+        path: frontend/release/*.zip
         retention-days: 30
       continue-on-error: true # ZIP might not always be created
 
@@ -213,13 +213,13 @@ jobs:
         echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "✅ DMG files created:" >> $GITHUB_STEP_SUMMARY
-        ls -lh electron_ui/release/*.dmg 2>/dev/null | awk '{print "- " $9 " (" $5 ")"}' >> $GITHUB_STEP_SUMMARY || echo "- No DMG files found" >> $GITHUB_STEP_SUMMARY
+        ls -lh frontend/release/*.dmg 2>/dev/null | awk '{print "- " $9 " (" $5 ")"}' >> $GITHUB_STEP_SUMMARY || echo "- No DMG files found" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "📦 Artifacts uploaded to workflow run" >> $GITHUB_STEP_SUMMARY
 
     - name: Get version
       id: get_version
-      working-directory: electron_ui
+      working-directory: frontend
       run: |
         VERSION=$(node -p "require('./package.json').version")
         echo "version=$VERSION" >> $GITHUB_OUTPUT
@@ -233,34 +233,33 @@ jobs:
         name: Release v${{ steps.get_version.outputs.version }}-${{ github.run_number }}
         body: |
           ## Privacy Proxy v${{ steps.get_version.outputs.version }}
-          
+
           Automated build from commit ${{ github.sha }}
-          
+
           ### Changes
           - See commit history for details
-          
+
           ### Downloads
           - DMG installer for macOS
           - ZIP archive
-          
+
           ### Installation Notes
-          
+
           If you see a "Privacy Proxy is damaged" error when opening the app:
-          
+
           1. **Right-click method**: Right-click the app in Finder → Select "Open" → Click "Open" in the dialog
-          
+
           2. **Terminal method**: Open Terminal and run:
              ```bash
              xattr -cr /Applications/Privacy\ Proxy.app
              ```
-          
+
           This is required because the app is not code-signed with an Apple Developer certificate. The app is safe to use.
         files: |
-          electron_ui/release/*.dmg
-          electron_ui/release/*.zip
+          frontend/release/*.dmg
+          frontend/release/*.zip
         draft: false
         prerelease: ${{ github.ref != 'refs/heads/main' }}
         generate_release_notes: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-

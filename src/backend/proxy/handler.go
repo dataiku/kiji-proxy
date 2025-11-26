@@ -13,9 +13,9 @@ import (
 	"time"
 
 	"github.com/hannes/yaak-private/config"
-	piiServices "github.com/hannes/yaak-private/pii"
-	pii "github.com/hannes/yaak-private/pii/detectors"
-	"github.com/hannes/yaak-private/processor"
+	piiServices "github.com/hannes/yaak-private/src/backend/pii"
+	pii "github.com/hannes/yaak-private/src/backend/pii/detectors"
+	"github.com/hannes/yaak-private/src/backend/processor"
 )
 
 // Handler handles HTTP requests and proxies them to OpenAI API

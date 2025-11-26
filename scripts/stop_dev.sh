@@ -4,7 +4,7 @@
 echo "🛑 Stopping Yaak Proxy Development Server..."
 
 # Find and kill the Go process
-GO_PID=$(pgrep -f "go run main.go")
+GO_PID=$(pgrep -f "go run src/backend/main.go")
 if [ ! -z "$GO_PID" ]; then
     echo "🔌 Stopping Go server (PID: $GO_PID)..."
     kill $GO_PID

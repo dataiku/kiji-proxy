@@ -17,9 +17,9 @@ echo "================================================"
 # Set build variables
 BINARY_NAME="yaak-proxy"
 BUILD_DIR="build"
-ELECTRON_DIR="electron_ui"
+ELECTRON_DIR="frontend"
 RESOURCES_DIR="$ELECTRON_DIR/resources"
-MAIN_FILE="main.go"
+MAIN_FILE="src/backend/main.go"
 
 # Create directories
 mkdir -p $BUILD_DIR
@@ -35,7 +35,7 @@ go build \
   -tags embed \
   -ldflags="-extldflags '-L./tokenizers'" \
   -o "$BUILD_DIR/$BINARY_NAME" \
-  .
+  ./src/backend
 
 if [ $? -ne 0 ]; then
     echo "❌ Go binary build failed!"
@@ -140,4 +140,3 @@ echo "✅ DMG build complete!"
 echo "   The DMG includes both the Go binary and Electron app."
 echo "   Users can drag the app to Applications and it will automatically"
 echo "   launch the Go backend when started."
-

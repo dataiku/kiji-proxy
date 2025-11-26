@@ -11,7 +11,7 @@ import (
 	"strconv"
 
 	"github.com/hannes/yaak-private/config"
-	"github.com/hannes/yaak-private/server"
+	"github.com/hannes/yaak-private/src/backend/server"
 	"github.com/joho/godotenv"
 )
 

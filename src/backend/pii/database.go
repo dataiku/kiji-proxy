@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	detectors "github.com/hannes/yaak-private/pii/detectors"
+	detectors "github.com/hannes/yaak-private/src/backend/pii/detectors"
 	_ "github.com/lib/pq"
 )
 

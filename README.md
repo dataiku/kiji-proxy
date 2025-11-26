@@ -131,7 +131,7 @@ make help
 
 3. **Run the application:**
    ```bash
-   go run main.go
+   go run src/backend/main.go
    ```
 
 ### Option 3: Python ML Components
@@ -412,22 +412,24 @@ ALTER SYSTEM SET effective_cache_size = '1GB';
 
 ### Project Structure
 ```
-├── main.go                 # Go application entry point
+├── src/
+│   └── backend/
+│       ├── main.go         # Go application entry point
+│       ├── pii/            # PII detection and mapping
+│       │   ├── detector.go         # PII detection logic
+│       │   ├── mapper.go           # PII mapping management
+│       │   ├── database.go         # Database interface
+│       │   ├── detectors/          # PII detection implementations
+│       │   └── generators/         # Dummy data generators
+│       ├── proxy/          # HTTP proxy handler
+│       ├── processor/      # Response processing
+│       └── server/         # HTTP server
+├── frontend/               # React-based web interface
+│   ├── dist/              # Built UI assets
+│   └── privacy-proxy-ui.tsx  # Main UI component
 ├── config/                 # Configuration management
 │   ├── config.go          # Configuration structs and defaults
 │   └── config.development.json  # Development configuration
-├── pii/                    # PII detection and mapping
-│   ├── detector.go         # PII detection logic
-│   ├── mapper.go           # PII mapping management
-│   ├── database.go         # Database interface
-│   ├── detectors/          # PII detection implementations
-│   └── generators/         # Dummy data generators
-├── proxy/                  # HTTP proxy handler
-├── processor/              # Response processing
-├── server/                 # HTTP server
-├── ui/                     # React-based web interface
-│   ├── dist/              # Built UI assets
-│   └── privacy-proxy-ui.tsx  # Main UI component
 ├── model/                  # Python ML model training and evaluation
 ├── pii_model/              # Trained DistilBERT model files
 ├── pii_onnx_model/         # ONNX quantized model files
@@ -473,8 +475,8 @@ air
 
 #### UI Development
 ```bash
-# Navigate to UI directory
-cd ui
+# Navigate to frontend directory
+cd frontend
 
 # Install dependencies
 npm install
@@ -556,7 +558,7 @@ Yaak includes a React-based web interface for monitoring and configuration:
 
 ### UI Development
 ```bash
-cd ui
+cd frontend
 npm install
 npm run dev
 ```

@@ -92,6 +92,8 @@ dataset/reviewed_samples/*.json
 dataset/training_samples/*.json
 dataset/samples/*.json
 
-.vscode/settings.json
 # ignore any .DS_Store
 .DS_Store
+
+frontend/release/
+frontend/resources/

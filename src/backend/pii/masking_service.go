@@ -5,7 +5,7 @@ import (
 	"log"
 	"strings"
 
-	detectors "github.com/hannes/yaak-private/pii/detectors"
+	detectors "github.com/hannes/yaak-private/src/backend/pii/detectors"
 )
 
 // MaskedResult represents the result of masking PII in text

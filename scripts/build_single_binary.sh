@@ -14,14 +14,14 @@ echo "=========================================="
 BINARY_NAME="yaak-proxy"
 BUILD_DIR="build"
 DIST_DIR="dist"
-MAIN_FILE="main.go"
+MAIN_FILE="src/backend/main.go"
 
 # Create directories
 mkdir -p $BUILD_DIR $DIST_DIR
 
 echo "📦 Step 1: Building UI..."
 # Build the UI first
-cd ui
+cd frontend
 if [ ! -d "node_modules" ] || [ "package.json" -nt "node_modules" ]; then
     echo "Installing UI dependencies..."
     npm install
@@ -42,7 +42,7 @@ go build \
   -tags embed \
   -ldflags="-extldflags '-L./tokenizers'" \
   -o $BUILD_DIR/$BINARY_NAME \
-  .
+  ./src/backend
 
 if [ $? -ne 0 ]; then
     echo "❌ Build failed!"

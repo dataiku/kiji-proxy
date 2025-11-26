@@ -249,12 +249,12 @@ The project uses ONNX Runtime for running the PII detection model. The Go applic
   ```bash
   curl -LsSf https://astral.sh/uv/install.sh | sh
   ```
-  
+
   After installation, add UV to your PATH:
   ```bash
   # For zsh/bash
   source "$HOME/.local/bin/env"
-  
+
   # Or add to ~/.zshrc or ~/.bashrc
   export PATH="$HOME/.local/bin:$PATH"
   ```
@@ -262,13 +262,13 @@ The project uses ONNX Runtime for running the PII detection model. The Go applic
 ### Installing ONNX Runtime
 
 1. **Create a virtual environment with a compatible Python version:**
-   
+
    ONNX Runtime requires Python 3.10-3.13 (not 3.14+). UV will automatically download a compatible version if needed.
-   
+
    ```bash
    # From the project root
    cd /path/to/yaak-proxy
-   
+
    # Create virtual environment (UV will use Python 3.13 if available, or download it)
    uv venv --python 3.13
    # Or use 3.12 or 3.11 if 3.13 is not available
@@ -276,41 +276,41 @@ The project uses ONNX Runtime for running the PII detection model. The Go applic
    ```
 
 2. **Activate the virtual environment and install ONNX Runtime:**
-   
+
    ```bash
    # Activate the virtual environment
    source .venv/bin/activate
-   
+
    # Install ONNX Runtime using UV
    uv pip install onnxruntime
    ```
-   
+
    This will install ONNX Runtime (typically version 1.23.2) and its dependencies.
 
 3. **Copy the library file to the project root:**
-   
+
    ```bash
    # Find the library file (version may vary, e.g., 1.23.2)
    find .venv -name "libonnxruntime*.dylib"
-   
+
    # Copy it to the project root with the expected name
    cp .venv/lib/python3.13/site-packages/onnxruntime/capi/libonnxruntime.1.23.2.dylib \
       ./libonnxruntime.1.23.1.dylib
    ```
-   
+
    **Note:** The code expects `libonnxruntime.1.23.1.dylib`, but the installed version may be 1.23.2. This is fine as the API is compatible. Simply copy the file with the expected name.
 
 4. **Verify the installation:**
-   
+
    ```bash
    # Check that the library file exists
    ls -lh libonnxruntime.1.23.1.dylib
-   
+
    # Verify it's a valid library (macOS)
    file libonnxruntime.1.23.1.dylib
    otool -L libonnxruntime.1.23.1.dylib | head -5
    ```
-   
+
    You should see output indicating it's a valid Mach-O shared library for arm64 (Apple Silicon) or x86_64 (Intel).
 
 ### Alternative: Using Pre-built Binaries
@@ -484,7 +484,7 @@ The "Launch yaak-proxy" configuration includes:
   - `CGO_LDFLAGS`: "-L./tokenizers" - Linker flags for tokenizers
 
 - **Arguments:** `--config=config/config.development.json`
-- **Program:** `${workspaceFolder}/main.go`
+- **Program:** `${workspaceFolder}/src/backend/main.go`
 
 ### How to Use VS Code Debugging
 
@@ -522,14 +522,14 @@ Before debugging, ensure:
    ```bash
    cd tokenizers && make build
    ```
-   
+
    Or use pre-built binaries (see [Compiling Tokenizers with Rust](#compiling-tokenizers-with-rust))
 
 3. **Model server is running (if using external model server):**
    ```bash
    make dev  # Starts the model server
    ```
-   
+
    **Note:** If using `onnx_model_detector`, the model runs locally and no external server is needed.
 
 4. **Configuration file exists:**
@@ -541,7 +541,7 @@ Before debugging, ensure:
 If you prefer to run the application directly from the command line:
 
 ```bash
-export CGO_LDFLAGS="-L./tokenizers" && go run main.go --config=config.development.json
+export CGO_LDFLAGS="-L./tokenizers" && go run src/backend/main.go --config=config/config.development.json
 ```
 
 This command:
@@ -555,7 +555,7 @@ For remote debugging:
 
 1. **Start the application with debug flags:**
    ```bash
-   go run -gcflags="all=-N -l" main.go --config=config/config.development.json
+   go run -gcflags="all=-N -l" src/backend/main.go --config=config/config.development.json
    ```
 
 2. **Use the "Connect to Server" configuration:**
@@ -590,13 +590,13 @@ The project includes a script to create a self-contained binary with embedded UI
 2. **Manual build process:**
    ```bash
    # Build UI
-   cd ui
+   cd frontend
    npm install
    npm run build
    cd ..
 
    # Build Go binary
-   CGO_ENABLED=1 go build -ldflags="-extldflags '-L./tokenizers'" -o build/yaak-proxy main.go
+   CGO_ENABLED=1 go build -ldflags="-extldflags '-L./tokenizers'" -o build/yaak-proxy ./src/backend
    ```
 
 ### Distribution Structure

@@ -13,18 +13,18 @@ COPY go.mod go.sum ./
 # Download dependencies
 RUN go mod download
 
-# Copy source code - exclude ui/, model-server/, and pii_model/
-COPY main.go ./
+# Copy source code - exclude frontend/, model-server/, and pii_model/
+COPY src/backend/main.go ./src/backend/
 COPY config/ ./config/
-COPY pii/ ./pii/
-COPY processor/ ./processor/
-COPY proxy/ ./proxy/
-COPY server/ ./server/
+COPY src/backend/pii/ ./src/backend/pii/
+COPY src/backend/processor/ ./src/backend/processor/
+COPY src/backend/proxy/ ./src/backend/proxy/
+COPY src/backend/server/ ./src/backend/server/
 COPY pii_onnx_model/ ./pii_onnx_model/
 COPY tokenizers/ ./tokenizers/
 
 # Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main .
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main ./src/backend
 
 # Final stage
 FROM alpine:latest

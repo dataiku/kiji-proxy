@@ -5,8 +5,8 @@ package main
 
 import "embed"
 
-//go:embed electron_ui/dist/*
+//go:embed ../../frontend/dist/*
 var uiFiles embed.FS
 
-//go:embed pii_onnx_model/*
+//go:embed ../../pii_onnx_model/*
 var modelFiles embed.FS

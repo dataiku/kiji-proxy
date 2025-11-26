@@ -5,16 +5,16 @@ echo "🚀 Starting Yaak Proxy Development Server"
 echo "=========================================="
 
 # # Build UI if needed
-# if [ ! -d "ui/dist" ] || [ "ui/dist" -ot "ui/package.json" ]; then
+# if [ ! -d "frontend/dist" ] || [ "frontend/dist" -ot "frontend/package.json" ]; then
 #     echo "📦 Building UI..."
-#     (cd ui && npm install && npm run build)
+#     (cd frontend && npm install && npm run build)
 #     echo "✅ UI built successfully"
 # else
 #     echo "✅ UI already built (skipping)"
 # fi
 
 echo "📦 Building UI..."
-(cd ui && npm install && npm run build)
+(cd frontend && npm install && npm run build)
 echo "✅ UI built successfully"
 
 # Set development environment variables
@@ -33,4 +33,4 @@ echo "  - Port: 8080"
 echo ""
 
 echo "🚀 Starting Go server..."
-go run main.go --config=config/config.development.json
+go run src/backend/main.go --config=config/config.development.json

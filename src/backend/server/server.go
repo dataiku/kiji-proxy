@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/hannes/yaak-private/config"
-	"github.com/hannes/yaak-private/proxy"
+	"github.com/hannes/yaak-private/src/backend/proxy"
 )
 
 // Server represents the HTTP server
@@ -78,9 +78,9 @@ func (s *Server) Start() error {
 
 	// Serve UI files
 	if s.uiFS != nil {
-		// Use embedded filesystem - need to strip the "electron_ui/dist/" prefix
-		// The embedded files are at "electron_ui/dist/" but we want to serve them at "/"
-		subFS, err := fs.Sub(s.uiFS, "electron_ui/dist")
+		// Use embedded filesystem - need to strip the "frontend/dist/" prefix
+		// The embedded files are at "frontend/dist/" but we want to serve them at "/"
+		subFS, err := fs.Sub(s.uiFS, "frontend/dist")
 		if err != nil {
 			log.Printf("Failed to create sub-filesystem: %v", err)
 			// Fallback to regular embedded filesystem
