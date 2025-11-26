@@ -73,6 +73,7 @@ func (s *Server) Start() error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", s.healthCheck)
 	mux.HandleFunc("/details", s.detailsHandler)
+	mux.HandleFunc("/logs", s.logsHandler)
 	mux.Handle("/v1/chat/completions", s.handler)
 
 	// Serve UI files
@@ -159,6 +160,28 @@ func (s *Server) detailsHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Delegate to the handler's HandleDetails method
 	s.handler.HandleDetails(w, r)
+}
+
+// logsHandler provides the logs endpoint for retrieving log entries
+func (s *Server) logsHandler(w http.ResponseWriter, r *http.Request) {
+	// Handle CORS preflight OPTIONS request
+	if r.Method == http.MethodOptions {
+		s.corsHandler(w, r)
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	// Add CORS headers to all responses
+	s.corsHandler(w, r)
+
+	// Only allow GET requests
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Delegate to the handler's HandleLogs method
+	s.handler.HandleLogs(w, r)
 }
 
 // StartWithErrorHandling starts the server with proper error handling
