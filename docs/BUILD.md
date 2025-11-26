@@ -1,198 +1,285 @@
-# Building Yaak Proxy - Complete Guide
+# Building Yaak Proxy
 
-This guide explains how to build Yaak Proxy with all dependencies into a single, self-contained binary.
+This guide covers building Yaak Proxy for different platforms and deployment scenarios.
 
 ## 🚀 Quick Start
 
-### Option 1: Simple Build
+### macOS (DMG with Electron UI)
+
 ```bash
-go build -o build/yaak-proxy ./src/backend
+make build-dmg
 ```
 
-### Option 2: Complete Distribution
+### Linux (CLI Only)
+
 ```bash
-make dist
+CGO_ENABLED=1 go build -ldflags="-s -w -extldflags '-L./build/tokenizers'" -o yaak-proxy ./src/backend
 ```
 
-### Option 3: Docker Build
+## 📦 macOS DMG Build
+
+The recommended way to distribute Yaak on macOS is as a DMG installer with the Electron UI.
+
+### Prerequisites
+
+- **Go 1.21+** with CGO enabled
+- **Node.js 18+** and npm
+- **Rust toolchain** (for tokenizers library)
+- **ONNX Runtime** library
+
+### Build Steps
+
 ```bash
-make docker
+# 1. Build the DMG package
+make build-dmg
+
+# Or run the script directly
+./src/scripts/build_dmg.sh
 ```
 
-## 📦 Build Options
+The script performs these steps:
 
-### 1. Local Development Build
+1. **Prepares embedded files** - Copies frontend and model files for Go embedding
+2. **Builds Go binary** - Compiles with embedded files and symbol stripping (`-s -w`)
+3. **Copies dependencies** - Go binary, ONNX Runtime library, model files to Electron resources
+4. **Builds Electron app** - Compiles the React frontend
+5. **Creates DMG** - Packages everything with electron-builder
+
+### Output
+
+- **DMG installer**: `src/frontend/release/Yaak Privacy Proxy-*.dmg`
+- **ZIP archive**: `src/frontend/release/Yaak Privacy Proxy-*.zip`
+
+### DMG Contents
+
+The DMG includes:
+- Electron app bundle (`.app`)
+- Embedded Go proxy binary
+- ONNX Runtime library
+- Quantized ML model files
+
+### Size Optimization
+
+The build applies several optimizations:
+- **Symbol stripping**: `-ldflags="-s -w"` reduces Go binary by ~20-30MB
+- **Quantized model only**: Excludes `model.onnx` (249MB), keeps `model_quantized.onnx` (63MB)
+- **English only**: Single language pack (~50MB saved)
+- **Maximum compression**: UDZO format with `compression: "maximum"`
+
+## 🐧 Linux Build (CLI Only)
+
+For Linux servers and headless environments, build the standalone Go binary without Electron.
+
+### Prerequisites
+
+- **Go 1.21+** with CGO enabled
+- **Rust toolchain** (for tokenizers library)
+- **ONNX Runtime** shared library for Linux
+
+### Build Steps
+
 ```bash
-# Build with local dependencies
-go run -ldflags="-extldflags '-L./build/tokenizers'" src/backend/main.go
+# 1. Ensure tokenizers library is built
+cd build/tokenizers
+cargo build --release
+cp target/release/libtokenizers.a .
+cd ../..
+
+# 2. Build the Go binary
+CGO_ENABLED=1 \
+go build \
+  -ldflags="-s -w -extldflags '-L./build/tokenizers'" \
+  -o yaak-proxy \
+  ./src/backend
 ```
 
-### 2. Static Binary Build
-```bash
-# Build static binary
-CGO_ENABLED=1 go build -ldflags="-extldflags '-L./build/tokenizers'" -o yaak-proxy ./src/backend
+### Deployment
+
+Copy these files to your Linux server:
+
+```
+yaak-proxy              # Main executable
+libonnxruntime.so       # ONNX Runtime library
+model/quantized/        # Model files
+├── model_quantized.onnx
+├── tokenizer.json
+├── label_mappings.json
+├── config.json
+├── vocab.txt
+├── tokenizer_config.json
+├── special_tokens_map.json
+└── ort_config.json
 ```
 
-### 3. Complete Distribution Package
+### Running
+
 ```bash
-# Create self-contained distribution
-./build_complete.sh
+# Set environment variables
+export OPENAI_API_KEY="your-api-key"
+export ONNXRUNTIME_SHARED_LIBRARY_PATH=/path/to/libonnxruntime.so
+
+# Run the proxy
+./yaak-proxy
 ```
 
-This creates:
-- `build/dist/yaak-proxy/` - Complete distribution directory
-- `build/dist/yaak-proxy-complete.tar.gz` - Compressed distribution
+### Systemd Service (Optional)
+
+Create `/etc/systemd/system/yaak-proxy.service`:
+
+```ini
+[Unit]
+Description=Yaak PII Detection Proxy
+After=network.target
+
+[Service]
+Type=simple
+User=yaak
+WorkingDirectory=/opt/yaak-proxy
+Environment=OPENAI_API_KEY=your-api-key
+Environment=ONNXRUNTIME_SHARED_LIBRARY_PATH=/opt/yaak-proxy/libonnxruntime.so
+Environment=PROXY_PORT=:8080
+ExecStart=/opt/yaak-proxy/yaak-proxy
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start:
+
+```bash
+sudo systemctl enable yaak-proxy
+sudo systemctl start yaak-proxy
+```
 
 ## 🏗️ Build Requirements
 
 ### System Dependencies
-- **Go 1.21+** with CGO enabled
-- **Rust toolchain** (for tokenizers library)
-- **Python 3.13+** with pip
-- **ONNX Runtime** Python package
+
+| Dependency | Version | Purpose |
+|------------|---------|---------|
+| Go | 1.21+ | Backend compilation |
+| Rust | stable | Tokenizers library |
+| Node.js | 18+ | Electron frontend (macOS only) |
+| Python | 3.11+ | Model training (optional) |
 
 ### External Libraries
-- **Tokenizers**: Rust-based library (built locally)
-- **ONNX Runtime**: Python package for model inference
 
-## 📋 Build Process Details
+| Library | Location | Purpose |
+|---------|----------|---------|
+| libtokenizers.a | `build/tokenizers/` | Tokenization |
+| libonnxruntime.dylib | `build/` | ONNX inference |
 
-### Step 1: Prepare Dependencies
+### Building Tokenizers Library
+
 ```bash
-# Install Python dependencies
-pip install onnxruntime
-
-# Build tokenizers library (if not already built)
 cd build/tokenizers
+
+# Build with Cargo
+cargo build --release
+
+# Copy the static library
+cp target/release/libtokenizers.a .
+```
+
+### Getting ONNX Runtime
+
+**macOS:**
+```bash
+pip install onnxruntime
+# Find and copy the library
+find ~/.local -name "libonnxruntime*.dylib" -exec cp {} build/ \;
+```
+
+**Linux:**
+```bash
+# Download from ONNX Runtime releases
+wget https://github.com/microsoft/onnxruntime/releases/download/v1.23.1/onnxruntime-linux-x64-1.23.1.tgz
+tar -xzf onnxruntime-linux-x64-1.23.1.tgz
+cp onnxruntime-linux-x64-1.23.1/lib/libonnxruntime.so.1.23.1 /opt/yaak-proxy/libonnxruntime.so
+```
+
+## 🔧 Build Flags
+
+### Go Build Flags
+
+| Flag | Purpose |
+|------|---------|
+| `CGO_ENABLED=1` | Enable CGO for C library linking |
+| `-ldflags="-s -w"` | Strip debug symbols (smaller binary) |
+| `-ldflags="-extldflags '-L./build/tokenizers'"` | Link tokenizers library |
+| `-tags embed` | Include embedded files (production) |
+
+### Example Build Commands
+
+```bash
+# Development build (fast, with debug symbols)
+go build -ldflags="-extldflags '-L./build/tokenizers'" -o yaak-proxy ./src/backend
+
+# Production build (optimized, stripped)
+CGO_ENABLED=1 go build \
+  -ldflags="-s -w -extldflags '-L./build/tokenizers'" \
+  -o yaak-proxy \
+  ./src/backend
+
+# Production with embedded files
+CGO_ENABLED=1 go build \
+  -tags embed \
+  -ldflags="-s -w -extldflags '-L./build/tokenizers'" \
+  -o yaak-proxy \
+  ./src/backend
+```
+
+## 📊 Build Artifacts
+
+| Artifact | Size (approx) | Description |
+|----------|---------------|-------------|
+| `yaak-proxy` | 60-90MB | Go binary |
+| `libonnxruntime.dylib` | 26MB | ONNX Runtime |
+| `model_quantized.onnx` | 63MB | Quantized model |
+| DMG (total) | ~400MB | Complete macOS package |
+
+## 🔍 Troubleshooting
+
+### CGO Errors
+
+```bash
+# Ensure CGO is enabled
+export CGO_ENABLED=1
+
+# Check Go environment
+go env CGO_ENABLED
+```
+
+### Tokenizers Library Not Found
+
+```bash
+# Rebuild the library
+cd build/tokenizers
+cargo clean
 cargo build --release
 cp target/release/libtokenizers.a .
 ```
 
-### Step 2: Build Go Binary
-```bash
-# Basic build
-go build -ldflags="-extldflags '-L./build/tokenizers'" ./src/backend
-
-# Static build (Linux)
-CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build \
-  -ldflags="-extldflags '-static'" \
-  -tags netgo \
-  -o yaak-proxy-linux ./src/backend
-```
-
-### Step 3: Create Distribution
-```bash
-# Run the complete build script
-./build_complete.sh
-```
-
-## 🐳 Docker Build
-
-For truly static binaries, use Docker:
+### ONNX Runtime Not Found
 
 ```bash
-# Build Docker image with static binary
-./build_docker.sh
+# Set the library path
+export ONNXRUNTIME_SHARED_LIBRARY_PATH=/path/to/libonnxruntime.dylib
 
-# Run the container
-docker run -p 8080:8080 yaak-proxy-static
-
-# Extract binary from container
-docker create --name temp yaak-proxy-static
-docker cp temp:/usr/local/bin/yaak-proxy ./yaak-proxy-static
-docker rm temp
+# Or copy to build directory
+cp /path/to/libonnxruntime.dylib build/
 ```
 
-## 📁 Distribution Structure
+### Electron Build Fails
 
-The complete distribution includes:
-
-```
-yaak-proxy/
-├── yaak-proxy                    # Main executable
-├── build
-|   └── libonnxruntime.1.23.1.dylib  # ONNX Runtime library
-├── model/quantized/             # ONNX model files
-│   ├── model_quantized.onnx
-│   ├── tokenizer.json
-│   ├── config.json
-│   └── ...
-├── run.sh                       # Startup script
-└── README.md                    # Usage instructions
-```
-
-## 🚀 Deployment
-
-### Local Deployment
 ```bash
-cd build/dist/yaak-proxy
-./run.sh
+# Clean and reinstall
+cd src/frontend
+rm -rf node_modules
+npm install
+
+# Retry build
+npm run electron:pack
 ```
-
-### Remote Deployment
-```bash
-# Copy distribution to remote server
-scp -r build/dist/yaak-proxy/ user@server:/opt/
-
-# Run on remote server
-ssh user@server "cd /opt/yaak-proxy && ./run.sh"
-```
-
-### Docker Deployment
-```bash
-# Build and run with Docker
-docker build -f Dockerfile.static -t yaak-proxy .
-docker run -p 8080:8080 yaak-proxy
-```
-
-## 🔧 Troubleshooting
-
-### Common Issues
-
-1. **Tokenizers library not found**
-   ```bash
-   # Ensure tokenizers library is built
-   cd build/tokenizers && cargo build --release
-   ```
-
-2. **ONNX Runtime library not found**
-   ```bash
-   # Set library path
-   export ONNXRUNTIME_SHARED_LIBRARY_PATH="/path/to/libonnxruntime.dylib"
-   ```
-
-3. **CGO compilation errors**
-   ```bash
-   # Ensure CGO is enabled
-   export CGO_ENABLED=1
-   ```
-
-### Build Flags Explained
-
-- `CGO_ENABLED=1`: Enable CGO for C library linking
-- `-ldflags="-extldflags '-L./build/tokenizers'"`: Link with tokenizers library
-- `-tags netgo`: Use Go's network stack (for static builds)
-- `-static`: Create static binary (Linux only)
-
-## 📊 Build Targets
-
-| Target | Description | Output |
-|--------|-------------|--------|
-| `make build` | Build main binary | `build/yaak-proxy` |
-| `make dist` | Create distribution | `build/dist/yaak-proxy/` |
-| `make docker` | Docker build | Docker image |
-| `make clean` | Clean artifacts | Removes build files |
-
-## 🎯 Performance Notes
-
-- **Binary size**: ~27MB (includes ONNX Runtime)
-- **Startup time**: ~50ms (model loading)
-- **Memory usage**: ~100MB (model + runtime)
-- **Dependencies**: Self-contained (no external deps)
-
-## 🔒 Security Considerations
-
-- The binary includes the ONNX model and tokenizer
-- No external network dependencies for inference
-- All PII detection happens locally
-- No data leaves the local machine
