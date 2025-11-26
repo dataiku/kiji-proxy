@@ -1,6 +1,3 @@
-# If you prefer the allow list template instead of the deny list, see community template:
-# https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
-#
 # Binaries for programs and plugins
 *.exe
 *.exe~
@@ -11,91 +8,56 @@
 # Test binary, built with `go test -c`
 *.test
 
-# Code coverage profiles and other test artifacts
+# Code coverage profiles and test artifacts
 *.out
 coverage.*
 *.coverprofile
 profile.cov
 
-# Dependency directories (remove the comment below to include it)
-# vendor/
-
 # Go workspace file
 go.work
 go.work.sum
 
-# env file
+# Environment variables
 .env
 
-# Editor/IDE
-# .idea/
-# .vscode/
-
-# project specific
-
-# any file in trained model directory
-model/trained/*
-!model/trained/README.md
-
-# Exclude non-quantized ONNX model (use model_quantized.onnx instead)
-pii_onnx_model/model.onnx
+# Python
 .venv/
 __pycache__/
 *.pyc
 .ruff_cache/
 
-# Node.js dependencies
+# Node.js
 node_modules/
-web_ui/node_modules/
 dist/
-!web_ui/dist/
-web_ui/dist/*.js
-web_ui/dist/*.html
-web_ui/dist/*.txt
-web_ui/dist/*.css
-web_ui/dist/*.map
-web_ui/src/
-web_ui/public/
-web_ui/package.json
-web_ui/package-lock.json
-web_ui/yarn.lock
-web_ui/tsconfig.json
-web_ui/vite.config.ts
-web_ui/index.html
-web_ui/tailwind.config.js
-web_ui/postcss.config.js
-!web_ui/dist/.placeholder
-electron_ui/node_modules/
-!electron_ui/dist/
-electron_ui/dist/*.js
-electron_ui/dist/*.html
-electron_ui/dist/*.txt
-electron_ui/dist/*.css
-electron_ui/dist/*.map
-electron_ui/src/
-electron_ui/public/
-electron_ui/yarn.lock
-electron_ui/tsconfig.json
-electron_ui/vite.config.ts
-electron_ui/tailwind.config.js
-electron_ui/postcss.config.js
-!electron_ui/dist/.placeholder
+package-lock.json
 
+# Build artifacts and embedded files
 build/yaak-proxy
-config/config.development.json
 src/backend/model/
 src/backend/frontend/
-electron_ui/release/
-electron_ui/resources/
-electron_ui/dist/
 
-# dataset
+# Electron build outputs
+src/frontend/release/
+src/frontend/resources/
+src/frontend/dist/
+
+# Model files (keep quantized version only)
+model/trained/*
+!model/trained/README.md
+
+# Dataset samples (JSON files only, keep Python code)
 model/dataset/reviewed_samples/*.json
 model/dataset/training_samples/*.json
 model/dataset/samples/*.json
 
-# ignore any .DS_Store
+# Development config (use config.example.json)
+config/config.development.json
+src/backend/config/config.development.json
+
+# macOS
 .DS_Store
 
-src/frontend/release/
-src/frontend/resources/
+# Editor/IDE (uncomment if needed)
+# .idea/
+# .vscode/
