@@ -33,7 +33,7 @@ echo "--------------------------------"
 CGO_ENABLED=1 \
 go build \
   -tags embed \
-  -ldflags="-extldflags '-L./tokenizers'" \
+  -ldflags="-extldflags '-L./build/tokenizers'" \
   -o "$BUILD_DIR/$BINARY_NAME" \
   ./src/backend
 
@@ -58,12 +58,15 @@ ONNX_LIB_NAME="libonnxruntime.1.23.1.dylib"
 
 # Try multiple possible locations
 ONNX_LIB_PATH=""
-if [ -f "$ONNX_LIB_NAME" ]; then
-    # Check project root first
+if [ -f "build/$ONNX_LIB_NAME" ]; then
+    # Check build/ folder first
+    ONNX_LIB_PATH="build/$ONNX_LIB_NAME"
+elif [ -f "build/libonnxruntime.1.23.2.dylib" ]; then
+    # Try version 1.23.2 in build/ folder
+    ONNX_LIB_PATH="build/libonnxruntime.1.23.2.dylib"
+elif [ -f "$ONNX_LIB_NAME" ]; then
+    # Fallback to project root (for backwards compatibility)
     ONNX_LIB_PATH="$ONNX_LIB_NAME"
-elif [ -f "libonnxruntime.1.23.2.dylib" ]; then
-    # Try version 1.23.2
-    ONNX_LIB_PATH="libonnxruntime.1.23.2.dylib"
 elif [ -d ".venv" ]; then
     # Try to find in .venv
     FOUND_LIB=$(find .venv -name "libonnxruntime*.dylib" | head -1)
@@ -77,7 +80,7 @@ if [ -n "$ONNX_LIB_PATH" ] && [ -f "$ONNX_LIB_PATH" ]; then
     echo "✅ ONNX Runtime library copied to $RESOURCES_DIR/$ONNX_LIB_NAME"
 else
     echo "⚠️  ONNX Runtime library not found"
-    echo "   Searched in: project root, .venv/"
+    echo "   Searched in: build/, project root, .venv/"
     echo "   You may need to install onnxruntime or adjust the path"
     echo "   Continuing without ONNX library (may cause runtime errors)"
 fi

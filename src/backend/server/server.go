@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/hannes/yaak-private/config"
+	"github.com/hannes/yaak-private/src/backend/config"
 	"github.com/hannes/yaak-private/src/backend/proxy"
 )
 

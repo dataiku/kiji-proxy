@@ -40,7 +40,7 @@ echo "📦 Step 2: Building Go binary with embedded files..."
 CGO_ENABLED=1 \
 go build \
   -tags embed \
-  -ldflags="-extldflags '-L./tokenizers'" \
+  -ldflags="-extldflags '-L./build/tokenizers'" \
   -o $BUILD_DIR/$BINARY_NAME \
   ./src/backend
 
@@ -62,12 +62,28 @@ mkdir -p "$DIST_ROOT"
 cp $BUILD_DIR/$BINARY_NAME "$DIST_ROOT/"
 
 # Copy ONNX Runtime shared library
-ONNX_LIB_PATH="/Users/hannes/Private/yaak-proxy/.venv/lib/python3.13/site-packages/onnxruntime/capi/libonnxruntime.1.23.1.dylib"
-if [ -f "$ONNX_LIB_PATH" ]; then
-    cp "$ONNX_LIB_PATH" "$DIST_ROOT/"
+ONNX_LIB_NAME="libonnxruntime.1.23.1.dylib"
+ONNX_LIB_PATH=""
+if [ -f "build/$ONNX_LIB_NAME" ]; then
+    # Check build/ folder first
+    ONNX_LIB_PATH="build/$ONNX_LIB_NAME"
+elif [ -f "/Users/hannes/Private/yaak-proxy/.venv/lib/python3.13/site-packages/onnxruntime/capi/$ONNX_LIB_NAME" ]; then
+    # Fallback to hardcoded path (for backwards compatibility)
+    ONNX_LIB_PATH="/Users/hannes/Private/yaak-proxy/.venv/lib/python3.13/site-packages/onnxruntime/capi/$ONNX_LIB_NAME"
+elif [ -d ".venv" ]; then
+    # Try to find in .venv
+    FOUND_LIB=$(find .venv -name "libonnxruntime*.dylib" | head -1)
+    if [ -n "$FOUND_LIB" ]; then
+        ONNX_LIB_PATH="$FOUND_LIB"
+    fi
+fi
+
+if [ -n "$ONNX_LIB_PATH" ] && [ -f "$ONNX_LIB_PATH" ]; then
+    cp "$ONNX_LIB_PATH" "$DIST_ROOT/$ONNX_LIB_NAME"
     echo "✅ ONNX Runtime library copied"
 else
-    echo "⚠️  ONNX Runtime library not found at $ONNX_LIB_PATH"
+    echo "⚠️  ONNX Runtime library not found"
+    echo "   Searched in: build/, hardcoded path, .venv/"
     echo "   You may need to install onnxruntime or adjust the path"
 fi
 

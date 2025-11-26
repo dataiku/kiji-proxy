@@ -15,13 +15,13 @@ RUN go mod download
 
 # Copy source code - exclude frontend/, model-server/, and pii_model/
 COPY src/backend/main.go ./src/backend/
-COPY config/ ./config/
+COPY src/backend/config/ ./src/backend/config/
 COPY src/backend/pii/ ./src/backend/pii/
 COPY src/backend/processor/ ./src/backend/processor/
 COPY src/backend/proxy/ ./src/backend/proxy/
 COPY src/backend/server/ ./src/backend/server/
 COPY pii_onnx_model/ ./pii_onnx_model/
-COPY tokenizers/ ./tokenizers/
+COPY build/tokenizers/ ./build/tokenizers/
 
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main ./src/backend

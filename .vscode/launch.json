@@ -23,9 +23,9 @@
         "LOG_PII_CHANGES": "true",
         "LOG_VERBOSE": "false",
         "CGO_ENABLED": "1",
-        "CGO_LDFLAGS": "-L${workspaceFolder}/tokenizers"
+        "CGO_LDFLAGS": "-L${workspaceFolder}/build/tokenizers"
       },
-      "args": ["-config", "config/config.development.json"],
+      "args": ["-config", "src/backend/config/config.development.json"],
       "showLog": true,
       "trace": "verbose"
     },

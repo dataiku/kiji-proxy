@@ -3,7 +3,7 @@
 # Yaak PII Detection Proxy
 
 <div align="center">
-  <img src="static/yaak.png" alt="Yaak Mascot" width="300">
+  <img src="build/static/yaak.png" alt="Yaak Mascot" width="300">
 </div>
 
 A secure HTTP proxy service that intercepts requests to the OpenAI API, detects and redacts Personally Identifiable Information (PII), and restores original PII in responses. Built with Go and featuring PostgreSQL database support for persistent PII mapping storage.
@@ -34,7 +34,7 @@ make help
 ## 🖥️ UI Screenshot
 
 <div align="center">
-  <img src="static/ui-screenshot.png" alt="Privacy Proxy Service UI" height="600">
+  <img src="build/static/ui-screenshot.png" alt="Privacy Proxy Service UI" height="600">
 </div>
 
 ## 🏗️ Architecture
@@ -427,14 +427,14 @@ ALTER SYSTEM SET effective_cache_size = '1GB';
 ├── frontend/               # React-based web interface
 │   ├── dist/              # Built UI assets
 │   └── privacy-proxy-ui.tsx  # Main UI component
-├── config/                 # Configuration management
+├── src/backend/config/     # Configuration management
 │   ├── config.go          # Configuration structs and defaults
 │   └── config.development.json  # Development configuration
 ├── model/                  # Python ML model training and evaluation
 ├── pii_model/              # Trained DistilBERT model files
 ├── pii_onnx_model/         # ONNX quantized model files
 ├── scripts/                # Setup and utility scripts
-├── static/                 # Static assets (images, etc.)
+├── build/static/           # Static assets (images, etc.)
 ├── dist/                   # Distribution builds
 ├── Makefile               # Development commands (30+ targets)
 ├── pyproject.toml         # Python project configuration with Ruff
@@ -724,7 +724,7 @@ print(response.json())
 ### Documentation
 
 - **Model Directory**: See [pii_model/README.md](pii_model/README.md) for model serving instructions
-- **Configuration Guide**: See [config/README.md](config/README.md)
+- **Configuration Guide**: See [src/backend/config/README.md](src/backend/config/README.md)
 - **Docker Setup**: See [DOCKER_README.md](DOCKER_README.md)
 - **API Docs**: http://localhost:8000/docs (when server is running)
 

@@ -24,13 +24,13 @@ make docker
 ### 1. Local Development Build
 ```bash
 # Build with local dependencies
-go run -ldflags="-extldflags '-L./tokenizers'" src/backend/main.go
+go run -ldflags="-extldflags '-L./build/tokenizers'" src/backend/main.go
 ```
 
 ### 2. Static Binary Build
 ```bash
 # Build static binary
-CGO_ENABLED=1 go build -ldflags="-extldflags '-L./tokenizers'" -o yaak-proxy ./src/backend
+CGO_ENABLED=1 go build -ldflags="-extldflags '-L./build/tokenizers'" -o yaak-proxy ./src/backend
 ```
 
 ### 3. Complete Distribution Package
@@ -63,7 +63,7 @@ This creates:
 pip install onnxruntime
 
 # Build tokenizers library (if not already built)
-cd tokenizers
+cd build/tokenizers
 cargo build --release
 cp target/release/libtokenizers.a .
 ```
@@ -71,7 +71,7 @@ cp target/release/libtokenizers.a .
 ### Step 2: Build Go Binary
 ```bash
 # Basic build
-go build -ldflags="-extldflags '-L./tokenizers'" ./src/backend
+go build -ldflags="-extldflags '-L./build/tokenizers'" ./src/backend
 
 # Static build (Linux)
 CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build \
@@ -110,7 +110,8 @@ The complete distribution includes:
 ```
 yaak-proxy/
 ├── yaak-proxy                    # Main executable
-├── libonnxruntime.1.23.1.dylib  # ONNX Runtime library
+├── build
+|   └── libonnxruntime.1.23.1.dylib  # ONNX Runtime library
 ├── pii_onnx_model/              # ONNX model files
 │   ├── model_quantized.onnx
 │   ├── tokenizer.json
@@ -151,7 +152,7 @@ docker run -p 8080:8080 yaak-proxy
 1. **Tokenizers library not found**
    ```bash
    # Ensure tokenizers library is built
-   cd tokenizers && cargo build --release
+   cd build/tokenizers && cargo build --release
    ```
 
 2. **ONNX Runtime library not found**
@@ -169,7 +170,7 @@ docker run -p 8080:8080 yaak-proxy
 ### Build Flags Explained
 
 - `CGO_ENABLED=1`: Enable CGO for C library linking
-- `-ldflags="-extldflags '-L./tokenizers'"`: Link with tokenizers library
+- `-ldflags="-extldflags '-L./build/tokenizers'"`: Link with tokenizers library
 - `-tags netgo`: Use Go's network stack (for static builds)
 - `-static`: Create static binary (Linux only)
 

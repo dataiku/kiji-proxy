@@ -23,7 +23,7 @@ export DETECTOR_NAME=onnx_model_detector
 export MODEL_BASE_URL=http://localhost:8000
 
 # Set CGO flags for tokenizers library
-export CGO_LDFLAGS="-L./tokenizers"
+export CGO_LDFLAGS="-L./build/tokenizers"
 
 echo "🔧 Configuration:"
 echo "  - Database: Disabled (using in-memory storage)"
@@ -33,4 +33,4 @@ echo "  - Port: 8080"
 echo ""
 
 echo "🚀 Starting Go server..."
-go run src/backend/main.go --config=config/config.development.json
+go run src/backend/main.go --config=src/backend/config/config.development.json

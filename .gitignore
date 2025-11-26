@@ -81,7 +81,7 @@ electron_ui/tailwind.config.js
 electron_ui/postcss.config.js
 !electron_ui/dist/.placeholder
 
-build/
+build/yaak-proxy
 config/config.development.json
 electron_ui/release/
 electron_ui/resources/

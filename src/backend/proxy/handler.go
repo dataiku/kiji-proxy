@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hannes/yaak-private/config"
+	"github.com/hannes/yaak-private/src/backend/config"
 	piiServices "github.com/hannes/yaak-private/src/backend/pii"
 	pii "github.com/hannes/yaak-private/src/backend/pii/detectors"
 	"github.com/hannes/yaak-private/src/backend/processor"

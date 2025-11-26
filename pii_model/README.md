@@ -186,7 +186,7 @@ curl -X POST "http://localhost:8000/detect/batch" \
 
 ## 📚 Additional Resources
 
-- [Configuration Guide](../config/README.md)
+- [Configuration Guide](../src/backend/config/README.md)
 - [Docker Setup Guide](../DOCKER_README.md)
 - [API Documentation](http://localhost:8000/docs) (when server is running)
 

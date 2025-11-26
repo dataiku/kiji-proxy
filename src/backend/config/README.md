@@ -6,7 +6,7 @@ The PII detector can be configured using a JSON configuration file. This provide
 
 ### Configuration File
 
-The detector looks for configuration in: `config/pii_detector_config.json`
+The detector looks for configuration in: `src/backend/config/pii_detector_config.json`
 
 You can override this location by setting the `PII_DETECTOR_CONFIG` environment variable:
 ```bash
@@ -114,9 +114,9 @@ Several preset configurations are available in the `examples/` directory:
 - `examples/high_security.json` - Maximum security settings
 - `examples/fast_performance.json` - Speed-optimized settings
 
-Copy a preset to `config/pii_detector_config.json` to use it:
+Copy a preset to `src/backend/config/pii_detector_config.json` to use it:
 ```bash
-cp examples/high_security.json config/pii_detector_config.json
+cp examples/high_security.json src/backend/config/pii_detector_config.json
 ```
 
 ### Environment Variables
@@ -134,16 +134,16 @@ export PII_LOG_CHANGES=true                      # Log PII changes
 
 ### Migration from Legacy Config
 
-If no `pii_detector_config.json` file is found, the system automatically falls back to the legacy configuration in `config/config.go`.
+If no `pii_detector_config.json` file is found, the system automatically falls back to the legacy configuration in `src/backend/config/config.go`.
 
 To migrate:
 
 1. Copy the template:
    ```bash
-   cp config/pii_detector_config.json config/pii_detector_config.json.backup
+   cp src/backend/config/pii_detector_config.json src/backend/config/pii_detector_config.json.backup
    ```
 
-2. Edit `config/pii_detector_config.json` with your settings
+2. Edit `src/backend/config/pii_detector_config.json` with your settings
 
 3. Test the configuration:
    ```bash
@@ -162,7 +162,7 @@ Test your configuration:
 
 ```bash
 # Run with specific config file
-PII_DETECTOR_CONFIG=config/my_test_config.json make run
+PII_DETECTOR_CONFIG=src/backend/config/my_test_config.json make run
 
 # Check if config is valid
 go run examples/configurable_detector_example.go

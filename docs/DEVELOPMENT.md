@@ -295,20 +295,20 @@ The project uses ONNX Runtime for running the PII detection model. The Go applic
 
    # Copy it to the project root with the expected name
    cp .venv/lib/python3.13/site-packages/onnxruntime/capi/libonnxruntime.1.23.2.dylib \
-      ./libonnxruntime.1.23.1.dylib
+      ./build/libonnxruntime.1.23.1.dylib
    ```
 
-   **Note:** The code expects `libonnxruntime.1.23.1.dylib`, but the installed version may be 1.23.2. This is fine as the API is compatible. Simply copy the file with the expected name.
+   **Note:** The code expects `build/libonnxruntime.1.23.1.dylib`, but the installed version may be 1.23.2. This is fine as the API is compatible. Simply copy the file with the expected name.
 
 4. **Verify the installation:**
 
    ```bash
    # Check that the library file exists
-   ls -lh libonnxruntime.1.23.1.dylib
+   ls -lh build/libonnxruntime.1.23.1.dylib
 
    # Verify it's a valid library (macOS)
-   file libonnxruntime.1.23.1.dylib
-   otool -L libonnxruntime.1.23.1.dylib | head -5
+   file build/libonnxruntime.1.23.1.dylib
+   otool -L build/libonnxruntime.1.23.1.dylib | head -5
    ```
 
    You should see output indicating it's a valid Mach-O shared library for arm64 (Apple Silicon) or x86_64 (Intel).
@@ -318,14 +318,14 @@ The project uses ONNX Runtime for running the PII detection model. The Go applic
 If you prefer not to use Python/UV, you can download pre-built ONNX Runtime libraries:
 
 - **macOS ARM64:** Download from [ONNX Runtime releases](https://github.com/microsoft/onnxruntime/releases)
-- Extract and copy `libonnxruntime.1.23.1.dylib` to the project root
+- Extract and copy `libonnxruntime.1.23.1.dylib` to the build/ folder
 
 ### Troubleshooting
 
 **Issue: "library 'onnxruntime' not found"**
 
-- Ensure the library file is in the project root: `./libonnxruntime.1.23.1.dylib`
-- Check that the file has execute permissions: `chmod +x libonnxruntime.1.23.1.dylib`
+- Ensure the library file is in build/ folder: `./build/libonnxruntime.1.23.1.dylib`
+- Check that the file has execute permissions: `chmod +x build/libonnxruntime.1.23.1.dylib`
 - Verify the library architecture matches your system (arm64 for Apple Silicon, x86_64 for Intel)
 
 **Issue: "Python version not compatible"**
@@ -364,8 +364,8 @@ uv pip install onnxruntime
 echo "Copying ONNX Runtime library..."
 LIB_PATH=$(find .venv -name "libonnxruntime*.dylib" | head -1)
 if [ -n "$LIB_PATH" ]; then
-    cp "$LIB_PATH" ./libonnxruntime.1.23.1.dylib
-    echo "✅ ONNX Runtime library installed at ./libonnxruntime.1.23.1.dylib"
+    cp "$LIB_PATH" ./build/libonnxruntime.1.23.1.dylib
+    echo "✅ ONNX Runtime library installed at ./build/libonnxruntime.1.23.1.dylib"
 else
     echo "❌ Could not find ONNX Runtime library"
     exit 1
@@ -388,7 +388,7 @@ The project uses Rust-based tokenizers that need to be compiled into a static li
 
 1. **Navigate to the tokenizers directory:**
    ```bash
-   cd tokenizers
+   cd build/tokenizers
    ```
 
 2. **Build the static library:**
@@ -481,9 +481,9 @@ The "Launch yaak-proxy" configuration includes:
   - `LOG_RESPONSES`: "true" - Enable response logging
   - `LOG_PII_CHANGES`: "true" - Enable PII change logging
   - `LOG_VERBOSE`: "false" - Verbose logging
-  - `CGO_LDFLAGS`: "-L./tokenizers" - Linker flags for tokenizers
+  - `CGO_LDFLAGS`: "-L./build/tokenizers" - Linker flags for tokenizers
 
-- **Arguments:** `--config=config/config.development.json`
+- **Arguments:** `--config=src/backend/config/config.development.json`
 - **Program:** `${workspaceFolder}/src/backend/main.go`
 
 ### How to Use VS Code Debugging
@@ -516,11 +516,11 @@ Before debugging, ensure:
 
 1. **ONNX Runtime library is installed:**
    - Follow the [Installing ONNX Runtime Library](#installing-onnx-runtime-library) section above
-   - Ensure `libonnxruntime.1.23.1.dylib` is in the project root
+   - Ensure `libonnxruntime.1.23.1.dylib` is in the build/ folder
 
 2. **Tokenizers are compiled:**
    ```bash
-   cd tokenizers && make build
+   cd build/tokenizers && make build
    ```
 
    Or use pre-built binaries (see [Compiling Tokenizers with Rust](#compiling-tokenizers-with-rust))
@@ -533,7 +533,7 @@ Before debugging, ensure:
    **Note:** If using `onnx_model_detector`, the model runs locally and no external server is needed.
 
 4. **Configuration file exists:**
-   - Ensure `config/config.development.json` exists
+   - Ensure `src/backend/config/config.development.json` exists
    - Update API keys and URLs as needed
 
 ### Running Without VS Code Debugger
@@ -541,7 +541,7 @@ Before debugging, ensure:
 If you prefer to run the application directly from the command line:
 
 ```bash
-export CGO_LDFLAGS="-L./tokenizers" && go run src/backend/main.go --config=config/config.development.json
+export CGO_LDFLAGS="-L./build/tokenizers" && go run src/backend/main.go --config=src/backend/config/config.development.json
 ```
 
 This command:
@@ -555,7 +555,7 @@ For remote debugging:
 
 1. **Start the application with debug flags:**
    ```bash
-   go run -gcflags="all=-N -l" src/backend/main.go --config=config/config.development.json
+   go run -gcflags="all=-N -l" src/backend/main.go --config=src/backend/config/config.development.json
    ```
 
 2. **Use the "Connect to Server" configuration:**
@@ -596,7 +596,7 @@ The project includes a script to create a self-contained binary with embedded UI
    cd ..
 
    # Build Go binary
-   CGO_ENABLED=1 go build -ldflags="-extldflags '-L./tokenizers'" -o build/yaak-proxy ./src/backend
+   CGO_ENABLED=1 go build -ldflags="-extldflags '-L./build/tokenizers'" -o build/yaak-proxy ./src/backend
    ```
 
 ### Distribution Structure
@@ -649,7 +649,7 @@ cd yaak-proxy
    - Install onnxruntime: `pip install onnxruntime`
 
 2. **Tokenizers linking errors:**
-   - Ensure tokenizers are compiled: `cd tokenizers && make build`
+   - Ensure tokenizers are compiled: `cd build/tokenizers && make build`
    - Check CGO_LDFLAGS environment variable
 
 3. **Model files not found:**

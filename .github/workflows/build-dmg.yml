@@ -55,7 +55,7 @@ jobs:
         source .venv/bin/activate
         ONNX_LIB=$(find .venv -name "libonnxruntime*.dylib" | head -1)
         if [ -n "$ONNX_LIB" ]; then
-          cp "$ONNX_LIB" ./libonnxruntime.1.23.1.dylib
+          cp "$ONNX_LIB" ./build/libonnxruntime.1.23.1.dylib
           echo "✅ ONNX Runtime library copied"
         else
           echo "⚠️  ONNX Runtime library not found, continuing..."
@@ -114,7 +114,7 @@ jobs:
 
         # Copy ONNX library if it exists
         if [ -f "libonnxruntime.1.23.1.dylib" ]; then
-          cp libonnxruntime.1.23.1.dylib frontend/resources/
+          cp build/libonnxruntime.1.23.1.dylib frontend/resources/
         fi
 
         # Copy model files
