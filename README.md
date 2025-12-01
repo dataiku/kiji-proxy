@@ -19,7 +19,7 @@
       <img src="https://img.shields.io/github/stars/hanneshapke/yaak-proxy?style=social" alt="GitHub Stars">
     </a> -->
     <a href="https://github.com/hanneshapke/yaak-proxy/issues">
-      <img src="https://img.shields.io/github/issues/hanneshapke/yaak-proxy" alt="GitHub Issues">
+      <img src="https://img.shields.io/badge/issues-10%20open-blue" alt="GitHub Issues">
     </a>
   </p>
 
