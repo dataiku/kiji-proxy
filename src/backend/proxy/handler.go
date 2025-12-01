@@ -154,10 +154,24 @@ func (h *Handler) maskPIIInText(text string, logPrefix string) (string, map[stri
 }
 
 // checkRequestPII checks for PII in the request body and creates mappings
+// It only redacts PII from message content, not from other fields like "model"
 func (h *Handler) checkRequestPII(body string) (string, map[string]string, []pii.Entity) {
 	log.Println("[Proxy] Checking for PII in request...")
 
-	maskedBody, maskedToOriginal, entities := h.maskPIIInText(body, "[Proxy]")
+	// Parse the JSON request
+	var requestData map[string]interface{}
+	if err := json.Unmarshal([]byte(body), &requestData); err != nil {
+		// If JSON parsing fails, fall back to treating entire body as text
+		log.Printf("[Proxy] Failed to parse JSON, treating as plain text: %v", err)
+		maskedBody, maskedToOriginal, entities := h.maskPIIInText(body, "[Proxy]")
+		if len(entities) > 0 {
+			h.responseProcessor.SetMaskedToOriginalMapping(maskedToOriginal)
+		}
+		return maskedBody, maskedToOriginal, entities
+	}
+
+	// Use createMaskedRequest to properly mask only message content
+	maskedRequest, maskedToOriginal, entities := h.createMaskedRequest(requestData)
 
 	if len(entities) > 0 {
 		// Set the mapping in the response processor
@@ -167,12 +181,19 @@ func (h *Handler) checkRequestPII(body string) (string, map[string]string, []pii
 			log.Printf("PII masked: %d entities replaced", len(entities))
 			if h.config.Logging.LogVerbose {
 				log.Printf("Original request: %s", body)
-				log.Printf("Masked request: %s", maskedBody)
 			}
 		}
 	}
 
-	return maskedBody, maskedToOriginal, entities
+	// Marshal the masked request back to JSON
+	maskedBodyBytes, err := json.Marshal(maskedRequest)
+	if err != nil {
+		log.Printf("[Proxy] Failed to marshal masked request: %v", err)
+		// Return original body if marshaling fails
+		return body, make(map[string]string), entities
+	}
+
+	return string(maskedBodyBytes), maskedToOriginal, entities
 }
 
 // createAndSendProxyRequest creates and sends the proxy request to OpenAI
@@ -239,14 +260,17 @@ func (h *Handler) buildTargetURL(r *http.Request) (string, error) {
 		return "", err
 	}
 
-	// Remove the /v1 prefix from the path since the base URL already includes it
-	path := strings.TrimPrefix(r.URL.Path, "/v1")
-
-	// Ensure forwardEndpoint doesn't end with /v1 if path already starts with /
-	forwardEndpoint = strings.TrimSuffix(forwardEndpoint, "/v1")
+	// Get the request path
+	path := r.URL.Path
 
 	// Remove trailing slash from forwardEndpoint to avoid double slashes
 	forwardEndpoint = strings.TrimSuffix(forwardEndpoint, "/")
+
+	// If the base URL already includes /v1, strip /v1 from the path to avoid duplication
+	// Otherwise, keep the path as-is (it may include /v1)
+	if strings.HasSuffix(forwardEndpoint, "/v1") {
+		path = strings.TrimPrefix(path, "/v1")
+	}
 
 	targetURL := forwardEndpoint + path
 	if r.URL.RawQuery != "" {
