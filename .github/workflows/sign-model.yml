@@ -1,14 +1,14 @@
 name: Sign Model
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "model/**"
-  pull_request:
-    branches: [main]
-    paths:
-      - "model/**"
+  # push:
+  #   branches: [main]
+  #   paths:
+  #     - "model/**"
+  # pull_request:
+  #   branches: [main]
+  #   paths:
+  #     - "model/**"
   workflow_dispatch:
     inputs:
       model_path:
