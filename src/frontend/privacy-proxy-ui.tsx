@@ -1,29 +1,44 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Shield, Eye, Send, AlertCircle, Settings, Menu, FileText } from 'lucide-react';
-import SettingsModal from './SettingsModal';
-import LoggingModal from './LoggingModal';
-import logoImage from './assets/logo.png';
+import React, { useState, useEffect, useRef } from "react";
+import {
+  Shield,
+  Eye,
+  Send,
+  AlertCircle,
+  Settings,
+  Menu,
+  FileText,
+} from "lucide-react";
+import SettingsModal from "./SettingsModal";
+import LoggingModal from "./LoggingModal";
+import logoImage from "./assets/logo.png";
 
 export default function PrivacyProxyUI() {
-  const [inputData, setInputData] = useState('');
-  const [maskedInput, setMaskedInput] = useState('');
-  const [maskedOutput, setMaskedOutput] = useState('');
-  const [finalOutput, setFinalOutput] = useState('');
+  const [inputData, setInputData] = useState("");
+  const [maskedInput, setMaskedInput] = useState("");
+  const [maskedOutput, setMaskedOutput] = useState("");
+  const [finalOutput, setFinalOutput] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [detectedEntities, setDetectedEntities] = useState([]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isLoggingOpen, setIsLoggingOpen] = useState(false);
-  const [forwardEndpoint, setForwardEndpoint] = useState('https://api.openai.com/v1');
+  const [forwardEndpoint, setForwardEndpoint] = useState(
+    "https://api.openai.com/v1",
+  );
   const [apiKey, setApiKey] = useState<string | null>(null);
-  const [serverStatus, setServerStatus] = useState<'online' | 'offline'>('offline');
+  const [serverStatus, setServerStatus] = useState<"online" | "offline">(
+    "offline",
+  );
+  const [modelSignature, setModelSignature] = useState<string | null>(null);
+  const [showModelTooltip, setShowModelTooltip] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  
+
   // Fixed Go server address - always call the Go server at this address
-  const GO_SERVER_ADDRESS = 'http://localhost:8080';
+  const GO_SERVER_ADDRESS = "http://localhost:8080";
 
   // Detect if running in Electron
-  const isElectron = typeof window !== 'undefined' && window.electronAPI !== undefined;
+  const isElectron =
+    typeof window !== "undefined" && window.electronAPI !== undefined;
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -34,11 +49,11 @@ export default function PrivacyProxyUI() {
     };
 
     if (isMenuOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener("mousedown", handleClickOutside);
     }
 
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [isMenuOpen]);
 
@@ -46,14 +61,14 @@ export default function PrivacyProxyUI() {
   useEffect(() => {
     if (isElectron && window.electronAPI) {
       loadSettings();
-      
+
       // Listen for settings menu command
       if (window.electronAPI.onSettingsOpen) {
         window.electronAPI.onSettingsOpen(() => {
           setIsSettingsOpen(true);
         });
       }
-      
+
       // Cleanup
       return () => {
         if (window.electronAPI?.removeSettingsListener) {
@@ -67,24 +82,48 @@ export default function PrivacyProxyUI() {
   useEffect(() => {
     const checkServerStatus = async () => {
       try {
-        const url = isElectron && window.electronAPI ? GO_SERVER_ADDRESS : 'http://localhost:8080';
+        const url =
+          isElectron && window.electronAPI
+            ? GO_SERVER_ADDRESS
+            : "http://localhost:8080";
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 2000); // 2 second timeout
-        
+
         const response = await fetch(`${url}/health`, {
-          method: 'GET',
+          method: "GET",
           signal: controller.signal,
         });
-        
+
         clearTimeout(timeoutId);
-        setServerStatus(response.ok ? 'online' : 'offline');
+        setServerStatus(response.ok ? "online" : "offline");
       } catch (error) {
-        setServerStatus('offline');
+        setServerStatus("offline");
+      }
+    };
+
+    const loadModelSignature = async () => {
+      try {
+        const apiUrl = isElectron
+          ? "http://localhost:8080/api/model/security" // Direct call to Go server in Electron
+          : "/api/model/security"; // Proxied call in web mode
+
+        const response = await fetch(apiUrl);
+        if (response.ok) {
+          const data = await response.json();
+          const hash = data.hash;
+          if (hash) {
+            setModelSignature(hash.substring(0, 7));
+          }
+        }
+      } catch (error) {
+        // Silently fail - model signature is optional UI enhancement
+        console.warn("Failed to load model signature:", error.message);
       }
     };
 
     // Check immediately
     checkServerStatus();
+    loadModelSignature();
 
     // Check every 5 seconds
     const interval = setInterval(checkServerStatus, 5000);
@@ -98,12 +137,12 @@ export default function PrivacyProxyUI() {
     try {
       const [url, key] = await Promise.all([
         window.electronAPI.getForwardEndpoint(),
-        window.electronAPI.getApiKey()
+        window.electronAPI.getApiKey(),
       ]);
       setForwardEndpoint(url);
       setApiKey(key);
     } catch (error) {
-      console.error('Error loading settings:', error);
+      console.error("Error loading settings:", error);
     }
   };
 
@@ -113,7 +152,7 @@ export default function PrivacyProxyUI() {
       return GO_SERVER_ADDRESS;
     }
     // In web mode, use relative path (proxied)
-    return '';
+    return "";
   };
 
   // Call the real /details endpoint
@@ -129,33 +168,33 @@ export default function PrivacyProxyUI() {
         messages: [
           {
             role: "user",
-            content: inputData
-          }
+            content: inputData,
+          },
         ],
-        max_tokens: 1000
+        max_tokens: 1000,
       };
 
       // Always call the Go server at fixed address - it will forward to forwardEndpoint
       const goServerUrl = getGoServerAddress();
-      const apiUrl = isElectron 
-        ? `${goServerUrl}/details`  // Call Go server, which forwards to forwardEndpoint
-        : '/details';              // Proxied call in web mode
+      const apiUrl = isElectron
+        ? `${goServerUrl}/details` // Call Go server, which forwards to forwardEndpoint
+        : "/details"; // Proxied call in web mode
 
       // Prepare headers
       const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       };
 
       // Add API key header if available in Electron
       if (isElectron && apiKey) {
-        headers['X-OpenAI-API-Key'] = apiKey;
+        headers["X-OpenAI-API-Key"] = apiKey;
       }
 
       // Call the /details endpoint
       const response = await fetch(apiUrl, {
-        method: 'POST',
+        method: "POST",
         headers,
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
@@ -170,28 +209,26 @@ export default function PrivacyProxyUI() {
       setFinalOutput(data.unmasked_response);
 
       // Transform PII entities to match UI format
-      const transformedEntities = data.pii_entities.map(entity => ({
+      const transformedEntities = data.pii_entities.map((entity) => ({
         type: entity.label.toLowerCase(),
         original: entity.text,
         token: entity.masked_text,
-        confidence: entity.confidence
+        confidence: entity.confidence,
       }));
       setDetectedEntities(transformedEntities);
-
     } catch (error) {
-      console.error('Error calling /details endpoint:', error);
+      console.error("Error calling /details endpoint:", error);
       alert(`Error: ${error.message}`);
     } finally {
       setIsProcessing(false);
     }
   };
 
-
   const handleReset = () => {
-    setInputData('');
-    setMaskedInput('');
-    setMaskedOutput('');
-    setFinalOutput('');
+    setInputData("");
+    setMaskedInput("");
+    setMaskedOutput("");
+    setFinalOutput("");
     setDetectedEntities([]);
   };
 
@@ -237,11 +274,11 @@ export default function PrivacyProxyUI() {
               </div>
             )}
             <img src={logoImage} alt="Yaak Logo" className="w-12 h-12" />
-            <h1 className="text-4xl font-bold text-slate-800">Yaak - Privacy Proxy</h1>
+            <h1 className="text-4xl font-bold text-slate-800">
+              Yaak - Privacy Proxy
+            </h1>
           </div>
-          <p className="text-slate-600 text-lg">
-            PII Detection and Masking Diff View
-          </p>
+          <p className="text-slate-600 text-lg">Privacy Proxy</p>
           {isElectron && !apiKey && (
             <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg inline-block">
               <p className="text-sm text-amber-900 flex items-center gap-2">
@@ -265,7 +302,9 @@ export default function PrivacyProxyUI() {
               <Eye className="w-5 h-5" />
               Input Data (A)
             </h2>
-            <span className="text-sm text-slate-500">Original data with PII</span>
+            <span className="text-sm text-slate-500">
+              Original data with PII
+            </span>
           </div>
           <textarea
             value={inputData}
@@ -313,18 +352,24 @@ export default function PrivacyProxyUI() {
                 <div>
                   <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
                     <span>Original (A)</span>
-                    <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs rounded">PII Exposed</span>
+                    <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs rounded">
+                      PII Exposed
+                    </span>
                   </div>
                   <div className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap">
-                    {inputData.split('').map((char, idx) => {
-                      const isPartOfEntity = detectedEntities.some(e =>
-                        inputData.indexOf(e.original) <= idx &&
-                        idx < inputData.indexOf(e.original) + e.original.length
+                    {inputData.split("").map((char, idx) => {
+                      const isPartOfEntity = detectedEntities.some(
+                        (e) =>
+                          inputData.indexOf(e.original) <= idx &&
+                          idx <
+                            inputData.indexOf(e.original) + e.original.length,
                       );
                       return (
                         <span
                           key={idx}
-                          className={isPartOfEntity ? 'bg-red-200 text-red-900' : ''}
+                          className={
+                            isPartOfEntity ? "bg-red-200 text-red-900" : ""
+                          }
                         >
                           {char}
                         </span>
@@ -335,25 +380,33 @@ export default function PrivacyProxyUI() {
                 <div>
                   <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
                     <span>Masked (A')</span>
-                    <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded">PII Protected</span>
+                    <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded">
+                      PII Protected
+                    </span>
                   </div>
                   <div className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap">
                     {(() => {
                       let highlighted = maskedInput;
-                      detectedEntities.forEach(entity => {
+                      detectedEntities.forEach((entity) => {
                         highlighted = highlighted.replace(
                           entity.token,
-                          `<mark class="bg-green-200 text-green-900 font-bold">${entity.token}</mark>`
+                          `<mark class="bg-green-200 text-green-900 font-bold">${entity.token}</mark>`,
                         );
                       });
-                      return <div dangerouslySetInnerHTML={{ __html: highlighted }} />;
+                      return (
+                        <div
+                          dangerouslySetInnerHTML={{ __html: highlighted }}
+                        />
+                      );
                     })()}
                   </div>
                 </div>
               </div>
               <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
                 <p className="text-sm text-amber-900">
-                  <span className="font-semibold">Changes:</span> {detectedEntities.length} PII entities detected and replaced with tokens
+                  <span className="font-semibold">Changes:</span>{" "}
+                  {detectedEntities.length} PII entities detected and replaced
+                  with tokens
                 </p>
               </div>
             </div>
@@ -368,54 +421,74 @@ export default function PrivacyProxyUI() {
                 <div>
                   <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
                     <span>Masked Output (B')</span>
-                    <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded">From OpenAI</span>
+                    <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded">
+                      From OpenAI
+                    </span>
                   </div>
                   <div className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap">
                     {(() => {
                       let highlighted = maskedOutput;
-                      detectedEntities.forEach(entity => {
+                      detectedEntities.forEach((entity) => {
                         highlighted = highlighted.replace(
                           entity.token,
-                          `<mark class="bg-purple-200 text-purple-900 font-bold">${entity.token}</mark>`
+                          `<mark class="bg-purple-200 text-purple-900 font-bold">${entity.token}</mark>`,
                         );
                       });
-                      return <div dangerouslySetInnerHTML={{ __html: highlighted }} />;
+                      return (
+                        <div
+                          dangerouslySetInnerHTML={{ __html: highlighted }}
+                        />
+                      );
                     })()}
                   </div>
                 </div>
                 <div>
                   <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
                     <span>Final Output (B)</span>
-                    <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">Restored</span>
+                    <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">
+                      Restored
+                    </span>
                   </div>
                   <div className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap">
                     {(() => {
                       let highlighted = finalOutput;
-                      detectedEntities.forEach(entity => {
+                      detectedEntities.forEach((entity) => {
                         highlighted = highlighted.replace(
                           entity.original,
-                          `<mark class="bg-blue-200 text-blue-900 font-bold">${entity.original}</mark>`
+                          `<mark class="bg-blue-200 text-blue-900 font-bold">${entity.original}</mark>`,
                         );
                       });
-                      return <div dangerouslySetInnerHTML={{ __html: highlighted }} />;
+                      return (
+                        <div
+                          dangerouslySetInnerHTML={{ __html: highlighted }}
+                        />
+                      );
                     })()}
                   </div>
                 </div>
               </div>
               <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                 <p className="text-sm text-blue-900">
-                  <span className="font-semibold">Changes:</span> {detectedEntities.length} tokens replaced with original PII values
+                  <span className="font-semibold">Changes:</span>{" "}
+                  {detectedEntities.length} tokens replaced with original PII
+                  values
                 </p>
               </div>
             </div>
 
             {/* Transformation Summary */}
             <div className="bg-gradient-to-r from-slate-50 to-slate-100 rounded-xl shadow-lg p-6">
-              <h3 className="text-lg font-semibold text-slate-800 mb-4">Transformation Summary</h3>
+              <h3 className="text-lg font-semibold text-slate-800 mb-4">
+                Transformation Summary
+              </h3>
               <div className="grid md:grid-cols-3 gap-4">
                 <div className="bg-white rounded-lg p-4 border-l-4 border-amber-500">
-                  <div className="text-2xl font-bold text-slate-800">{detectedEntities.length}</div>
-                  <div className="text-sm text-slate-600">Entities Detected</div>
+                  <div className="text-2xl font-bold text-slate-800">
+                    {detectedEntities.length}
+                  </div>
+                  <div className="text-sm text-slate-600">
+                    Entities Detected
+                  </div>
                 </div>
                 <div className="bg-white rounded-lg p-4 border-l-4 border-green-500">
                   <div className="text-2xl font-bold text-slate-800">100%</div>
@@ -424,8 +497,16 @@ export default function PrivacyProxyUI() {
                 <div className="bg-white rounded-lg p-4 border-l-4 border-blue-500">
                   <div className="text-2xl font-bold text-slate-800">
                     {detectedEntities.length > 0
-                      ? ((detectedEntities.reduce((sum, e) => sum + e.confidence, 0) / detectedEntities.length) * 100).toFixed(1)
-                      : 0}%
+                      ? (
+                          (detectedEntities.reduce(
+                            (sum, e) => sum + e.confidence,
+                            0,
+                          ) /
+                            detectedEntities.length) *
+                          100
+                        ).toFixed(1)
+                      : 0}
+                    %
                   </div>
                   <div className="text-sm text-slate-600">Avg. Confidence</div>
                 </div>
@@ -441,18 +522,45 @@ export default function PrivacyProxyUI() {
       </div>
 
       {/* Status Bar */}
-      <div className="fixed bottom-0 left-0 right-0 bg-slate-800 text-slate-200 px-4 py-2 flex items-center gap-3 border-t border-slate-700">
+      <div className="fixed bottom-0 left-0 right-0 bg-slate-800 text-slate-200 px-4 py-2 flex items-center justify-between border-t border-slate-700">
         <div className="flex items-center gap-2">
           <div
             className={`w-3 h-3 rounded-full ${
-              serverStatus === 'online' ? 'bg-green-500' : 'bg-red-500'
-            } ${serverStatus === 'online' ? 'animate-pulse' : ''}`}
-            title={serverStatus === 'online' ? 'Server online' : 'Server offline'}
+              serverStatus === "online" ? "bg-green-500" : "bg-red-500"
+            } ${serverStatus === "online" ? "animate-pulse" : ""}`}
+            title={
+              serverStatus === "online" ? "Server online" : "Server offline"
+            }
           />
           <span className="text-sm">
-            {serverStatus === 'online' ? 'Server online' : 'Server offline'}
+            {serverStatus === "online" ? "Server online" : "Server offline"}
           </span>
         </div>
+        {modelSignature && (
+          <div className="relative">
+            <div
+              className="flex items-center gap-2 cursor-help"
+              role="status"
+              aria-label="Model signature"
+              onMouseEnter={() => setShowModelTooltip(true)}
+              onMouseLeave={() => setShowModelTooltip(false)}
+            >
+              <span className="text-xs text-slate-400">Model:</span>
+              <code
+                className="text-xs font-mono text-slate-300 bg-slate-700/50 px-1 rounded"
+                aria-label={`Model signature ${modelSignature}`}
+              >
+                {modelSignature}
+              </code>
+            </div>
+            {showModelTooltip && (
+              <div className="absolute bottom-full right-0 mb-2 px-2 py-1 text-xs text-white bg-gray-900 border border-gray-700 rounded shadow-lg whitespace-nowrap z-50">
+                Verified model signature
+                <div className="absolute top-full right-2 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Settings Modal */}

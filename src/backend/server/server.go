@@ -1,10 +1,12 @@
 package server
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/hannes/yaak-private/src/backend/config"
@@ -74,6 +76,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/health", s.healthCheck)
 	mux.HandleFunc("/details", s.detailsHandler)
 	mux.HandleFunc("/logs", s.logsHandler)
+	mux.HandleFunc("/api/model/security", s.handleModelSecurity)
 	mux.Handle("/v1/chat/completions", s.handler)
 
 	// Serve UI files
@@ -182,6 +185,33 @@ func (s *Server) logsHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Delegate to the handler's HandleLogs method
 	s.handler.HandleLogs(w, r)
+}
+
+func (s *Server) handleModelSecurity(w http.ResponseWriter, r *http.Request) {
+	// Read model manifest
+	manifestPath := "model/quantized/model_manifest.json"
+	data, err := os.ReadFile(manifestPath)
+	if err != nil {
+		http.Error(w, "Model manifest not found", http.StatusNotFound)
+		return
+	}
+
+	var manifest map[string]interface{}
+	if err := json.Unmarshal(data, &manifest); err != nil {
+		http.Error(w, "Invalid manifest", http.StatusInternalServerError)
+		return
+	}
+
+	response := map[string]interface{}{
+		"hash":     manifest["hashes"].(map[string]interface{})["sha256"],
+		"manifest": manifest,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
 }
 
 // StartWithErrorHandling starts the server with proper error handling

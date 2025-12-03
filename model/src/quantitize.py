@@ -32,6 +32,8 @@ from optimum.onnxruntime.configuration import AutoQuantizationConfig
 from safetensors import safe_open
 from transformers import AutoTokenizer
 
+from model.src.model_signing import sign_trained_model
+
 # Define command-line flags
 FLAGS = flags.FLAGS
 
@@ -354,6 +356,10 @@ def quantize_model(
         logger.info(
             f"   Outputs: {[output.name for output in model_onnx.graph.output]}"
         )
+
+        # signing model
+        model_hash = sign_trained_model(quantized_model_path)
+        logging.info(f"   Model hash: {model_hash}")
 
         # Get model size
         model_size_mb = quantized_model_path.stat().st_size / (1024 * 1024)
