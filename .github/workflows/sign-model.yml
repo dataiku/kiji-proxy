@@ -1,0 +1,153 @@
+name: Sign Model
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "model/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - "model/**"
+  workflow_dispatch:
+    inputs:
+      model_path:
+        description: "Path to model directory"
+        required: false
+        default: "model/quantized"
+      signing_method:
+        description: "Signing method (oidc or private_key)"
+        required: false
+        default: "oidc"
+        type: choice
+        options:
+          - oidc
+          - private_key
+
+# Required for OIDC token generation
+permissions:
+  id-token: write
+  contents: read
+  actions: read
+
+jobs:
+  sign-model:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install model-signing
+          if [ -f model/requirements.txt ]; then pip install -r model/requirements.txt; fi
+
+      - name: Configure signing method
+        run: |
+          echo "Signing method: ${{ inputs.signing_method || 'oidc' }}"
+          if [[ "${{ inputs.signing_method }}" == "private_key" ]]; then
+            echo "Using private key signing"
+            if [[ -z "${{ secrets.SIGNING_PRIVATE_KEY }}" ]]; then
+              echo "Error: SIGNING_PRIVATE_KEY secret not found"
+              exit 1
+            fi
+          else
+            echo "Using OIDC signing"
+            echo "ACTIONS_ID_TOKEN_REQUEST_TOKEN is available: ${{ secrets.GITHUB_TOKEN != '' }}"
+            echo "ACTIONS_ID_TOKEN_REQUEST_URL: $ACTIONS_ID_TOKEN_REQUEST_URL"
+          fi
+
+      - name: Setup private key (if using private key signing)
+        if: inputs.signing_method == 'private_key'
+        run: |
+          mkdir -p keys
+          echo "${{ secrets.SIGNING_PRIVATE_KEY }}" > keys/signing_key.pem
+          chmod 600 keys/signing_key.pem
+
+      - name: Sign model with OIDC
+        if: inputs.signing_method != 'private_key'
+        env:
+          # These are automatically available in GitHub Actions with id-token: write
+          ACTIONS_ID_TOKEN_REQUEST_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTIONS_ID_TOKEN_REQUEST_URL: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
+        run: |
+          cd model
+          python src/model_signing.py ${{ inputs.model_path || 'quantized' }}
+
+      - name: Sign model with private key
+        if: inputs.signing_method == 'private_key'
+        run: |
+          cd model
+          python -c "
+          from src.model_signing import ModelSigner
+          signer = ModelSigner('${{ inputs.model_path || 'quantized' }}')
+          sig_path = signer.sign_model(private_key_path='../keys/signing_key.pem')
+          print(f'Model signed with private key: {sig_path}')
+          "
+
+      - name: Upload signed artifacts
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: signed-model-artifacts-${{ inputs.signing_method || 'oidc' }}
+          path: |
+            model/${{ inputs.model_path || 'quantized' }}*.sig
+            model/${{ inputs.model_path || 'quantized' }}/model_manifest.json
+          retention-days: 30
+
+      - name: Cleanup private key
+        if: always() && inputs.signing_method == 'private_key'
+        run: |
+          rm -f keys/signing_key.pem
+
+      - name: Verify signature
+        run: |
+          cd model
+          python -c "
+          from src.model_signing import ModelSigner
+          import sys
+          signer = ModelSigner('${{ inputs.model_path || 'quantized' }}')
+          sig_path = '${{ inputs.model_path || 'quantized' }}.sig'
+          if signer.verify_signature(sig_path):
+              print('✓ Signature verification successful')
+          else:
+              print('✗ Signature verification failed')
+              sys.exit(1)
+          "
+
+  # Optional: Release job that runs only on tags
+  release-signed-model:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: sign-model
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download signed artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: signed-model-artifacts-oidc
+          path: ./artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            ./artifacts/*.sig
+            ./artifacts/model_manifest.json
+          body: |
+            Signed model release
+
+            **Security Information:**
+            - Model signed with cryptographic signature
+            - Signature files included for verification
+            - Model manifest with file hashes included
+            - Verify signatures using: `python -m model.src.model_signing --verify`

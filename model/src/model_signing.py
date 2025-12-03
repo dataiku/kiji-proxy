@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -23,7 +24,10 @@ class ModelSigner:
         self.model_path = Path(model_path)
 
     def sign_model(
-        self, private_key_path: Optional[str] = None, output_path: Optional[str] = None
+        self,
+        private_key_path: Optional[str] = None,
+        output_path: Optional[str] = None,
+        use_ci_mode: bool = False,
     ):
         """
         Sign the model using either Sigstore (keyless) or a private key.
@@ -31,6 +35,7 @@ class ModelSigner:
         Args:
             private_key_path: Path to private key file (optional, uses Sigstore if not provided)
             output_path: Path for signature file (default: model_path.sig)
+            use_ci_mode: Use CI-friendly signing with OIDC token
 
         Returns:
             Path to signature file
@@ -47,10 +52,49 @@ class ModelSigner:
             )
         else:
             # Use Sigstore (keyless signing)
-            config = signing.Config().use_sigstore_signer()
+            if use_ci_mode:
+                # CI mode: use OIDC token from environment
+                config = self._get_ci_signing_config()
+            else:
+                # Interactive mode: use browser-based authentication
+                config = signing.Config().use_sigstore_signer()
 
         config.sign(str(self.model_path), output_path)
         return output_path
+
+    def _get_ci_signing_config(self):
+        """
+        Get signing configuration for CI environments using OIDC tokens.
+
+        Returns:
+            Signing configuration for CI
+        """
+        # Check for GitHub Actions OIDC token
+        if os.getenv("GITHUB_ACTIONS"):
+            oidc_token = os.getenv("ACTIONS_ID_TOKEN_REQUEST_TOKEN")
+            oidc_url = os.getenv("ACTIONS_ID_TOKEN_REQUEST_URL")
+
+            if oidc_token and oidc_url:
+                # Use GitHub Actions OIDC token
+                config = signing.Config().use_sigstore_signer()
+                # Set environment variables for sigstore-python
+                os.environ["SIGSTORE_ID_TOKEN"] = oidc_token
+                return config
+
+        # Check for GitLab CI OIDC token
+        elif os.getenv("GITLAB_CI"):
+            oidc_token = os.getenv("CI_JOB_JWT")
+
+            if oidc_token:
+                config = signing.Config().use_sigstore_signer()
+                os.environ["SIGSTORE_ID_TOKEN"] = oidc_token
+                return config
+
+        # Fallback to ambient credentials or stored token
+        print(
+            "Warning: No CI OIDC token found, falling back to default Sigstore config"
+        )
+        return signing.Config().use_sigstore_signer()
 
     def verify_signature(self, signature_path: str) -> bool:
         """
@@ -139,14 +183,21 @@ class ModelSigner:
         return manifest
 
 
-def sign_trained_model(model_dir: str = "model/quantized"):
+def sign_trained_model(model_dir: str = "model/quantized", ci_mode: bool = None):
     """
     Sign the trained model and generate manifest.
 
     Args:
         model_dir: Directory containing the trained model
+        ci_mode: Force CI mode (auto-detected if None)
     """
     signer = ModelSigner(model_dir)
+
+    # Auto-detect CI environment if not specified
+    if ci_mode is None:
+        ci_mode = bool(
+            os.getenv("CI") or os.getenv("GITHUB_ACTIONS") or os.getenv("GITLAB_CI")
+        )
 
     # Generate model hash
     model_hash = signer.compute_model_hash()
@@ -156,9 +207,11 @@ def sign_trained_model(model_dir: str = "model/quantized"):
     manifest = signer.generate_model_manifest(f"{model_dir}/model_manifest.json")
     print(f"Generated manifest with {len(manifest['files'])} files")
 
-    # Sign model (using Sigstore by default)
+    # Sign model (using appropriate mode)
     try:
-        sig_path = signer.sign_model()
+        if ci_mode:
+            print("Using CI mode for model signing...")
+        sig_path = signer.sign_model(use_ci_mode=ci_mode)
         print(f"Model signed successfully: {sig_path}")
     except Exception as e:
         print(f"Warning: Model signing failed: {e}")
