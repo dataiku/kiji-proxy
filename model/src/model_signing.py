@@ -4,7 +4,6 @@ import hashlib
 import json
 import os
 from pathlib import Path
-from typing import Optional
 
 try:
     from model_signing import signing
@@ -25,8 +24,8 @@ class ModelSigner:
 
     def sign_model(
         self,
-        private_key_path: Optional[str] = None,
-        output_path: Optional[str] = None,
+        private_key_path: str | None = None,
+        output_path: str | None = None,
         use_ci_mode: bool = False,
     ):
         """
@@ -144,7 +143,7 @@ class ModelSigner:
 
         return hasher.hexdigest()
 
-    def generate_model_manifest(self, output_path: Optional[str] = None) -> dict:
+    def generate_model_manifest(self, output_path: str | None = None) -> dict:
         """
         Generate a manifest with model metadata and hashes.
 
