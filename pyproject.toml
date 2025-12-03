@@ -55,6 +55,11 @@ quantization = [
     "onnxruntime>=1.16.0",
 ]
 
+# Model signing and verification
+signing = [
+    "model-signing>=1.1.1",
+]
+
 # Note: 'all' group removed - use 'dev' instead for development dependencies
 
 [project.urls]
