@@ -24,6 +24,8 @@ dependencies = [
 
     # HTTP client for testing (lightweight)
     "requests>=2.28.0",
+    # misc
+    "absl-py >=2.3.1",
 ]
 
 [project.optional-dependencies]
@@ -46,6 +48,7 @@ training = [
     "pandas>=1.0.0",
     "pyarrow>=1.0.0",
     "sympy>=1.0.0",
+    "datasets>=4.4.1"
 ]
 
 # ONNX quantization dependencies
