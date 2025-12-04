@@ -32,7 +32,11 @@ from optimum.onnxruntime.configuration import AutoQuantizationConfig
 from safetensors import safe_open
 from transformers import AutoTokenizer
 
-from model.src.model_signing import sign_trained_model
+try:
+    from .model_signing import sign_trained_model
+except ImportError:
+    # Fallback for direct execution
+    from model_signing import sign_trained_model
 
 # Define command-line flags
 FLAGS = flags.FLAGS
@@ -357,9 +361,9 @@ def quantize_model(
             f"   Outputs: {[output.name for output in model_onnx.graph.output]}"
         )
 
-        # signing model
-        model_hash = sign_trained_model(quantized_model_path)
-        logging.info(f"   Model hash: {model_hash}")
+        # # signing model
+        # model_hash = sign_trained_model(quantized_model_path)
+        # logging.info(f"   Model hash: {model_hash}")
 
         # Get model size
         model_size_mb = quantized_model_path.stat().st_size / (1024 * 1024)
@@ -382,6 +386,10 @@ def main(argv):
 
         # Export to ONNX
         export_to_onnx(model, tokenizer, FLAGS.output_path, FLAGS.opset)
+        # signing model
+        print(f"__{FLAGS.output_path}__")
+        model_hash = sign_trained_model(FLAGS.output_path)
+        logging.info(f"   Model hash: {model_hash}")
 
         # Save label mappings to output directory
         output_path = Path(FLAGS.output_path)

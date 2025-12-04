@@ -22,13 +22,15 @@ import time
 # Import from local modules
 try:
     from .config import EnvironmentSetup, TrainingConfig
-    from .model_signing import sign_trained_model
+
+    # from .model_signing import sign_trained_model
     from .preprocessing import DatasetProcessor
     from .trainer import PIITrainer
 except ImportError:
     # Fallback for direct execution
     from config import EnvironmentSetup, TrainingConfig
-    from model_signing import sign_trained_model
+
+    # from model_signing import sign_trained_model
     from preprocessing import DatasetProcessor
     from trainer import PIITrainer
 
@@ -100,9 +102,9 @@ def main(
     logger.info("\n6️⃣  Evaluating model...")
     results = trainer.evaluate(val_dataset, trained_trainer)
 
-    # Signing the model
-    model_hash = sign_trained_model(config.output_dir)
-    print(f"\nModel Hash: {model_hash}")
+    # # Signing the model
+    # model_hash = sign_trained_model(config.output_dir)
+    # print(f"\nModel Hash: {model_hash}")
 
     # Save to Google Drive if mounted
     drive_path = None
