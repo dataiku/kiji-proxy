@@ -25,7 +25,7 @@ except ImportError:
 
 # Load .env file from root directory
 # Get the root directory (parent of model/ directory)
-root_dir = Path(__file__).parent.parent
+root_dir = Path(__file__).parent.parent.parent
 env_path = root_dir / ".env"
 load_dotenv(env_path)
 

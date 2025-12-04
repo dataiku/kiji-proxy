@@ -22,13 +22,11 @@ import time
 # Import from local modules
 try:
     from .config import EnvironmentSetup, TrainingConfig
-    from .model_signing import sign_trained_model
     from .preprocessing import DatasetProcessor
     from .trainer import PIITrainer
 except ImportError:
     # Fallback for direct execution
     from config import EnvironmentSetup, TrainingConfig
-    from model_signing import sign_trained_model
     from preprocessing import DatasetProcessor
     from trainer import PIITrainer
 
@@ -45,13 +43,12 @@ def main(
     training_samples_dir: str | None = None,
 ):
     """
-    Main execution function.
+    Orchestrates environment setup, dataset preparation, model training, evaluation, and optional saving to Google Drive.
 
-    Args:
-        use_google_drive: Whether to save model to Google Drive (Colab only)
-        drive_folder: Target folder in Google Drive for saving the model
-        training_samples_dir: Path to training samples directory (default: "model/dataset/reviewed_samples")
-                              Override to use "model/dataset/training_samples" or another directory
+    Parameters:
+        use_google_drive (bool): If True, attempt to mount Google Drive and save the trained model there (Colab context).
+        drive_folder (str): Target folder path in Google Drive where the model will be saved.
+        training_samples_dir (str | None): Optional override for the training samples directory; when provided it is passed to TrainingConfig (e.g., "model/dataset/training_samples" or another custom path).
     """
     logger.info("=" * 60)
     logger.info("Multi-Task PII Detection and Co-reference Detection Training")
@@ -99,10 +96,6 @@ def main(
     # Evaluate model
     logger.info("\n6️⃣  Evaluating model...")
     results = trainer.evaluate(val_dataset, trained_trainer)
-
-    # Signing the model
-    model_hash = sign_trained_model(config.output_dir)
-    print(f"\nModel Hash: {model_hash}")
 
     # Save to Google Drive if mounted
     drive_path = None
