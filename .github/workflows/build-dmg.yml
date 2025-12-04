@@ -210,7 +210,7 @@ jobs:
           chmod +x src/frontend/resources/yaak-proxy
 
           # Copy ONNX library if it exists
-          if [ -f "libonnxruntime.1.23.1.dylib" ]; then
+          if [ -f "build/libonnxruntime.1.23.1.dylib" ]; then
             cp build/libonnxruntime.1.23.1.dylib src/frontend/resources/
           fi
 
