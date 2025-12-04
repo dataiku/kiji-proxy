@@ -305,12 +305,13 @@ def quantize_model(
     quantization_mode: str = "avx512_vnni",
 ):
     """
-    Quantize the ONNX model.
-
-    Args:
-        onnx_path: Path to the ONNX model directory (containing model.onnx)
-        output_path: Path to save the quantized model
-        quantization_mode: Quantization mode (avx512_vnni, avx2, etc.)
+    Quantize an ONNX model directory and save the quantized ONNX model to the specified output directory.
+    
+    Parameters:
+        onnx_path (str): Path to the ONNX model file or to a directory containing ONNX model files. If a file path is provided, its parent directory will be used.
+        output_path (str): Directory where the quantized model and related artifacts will be written. The directory will be created if it does not exist.
+        quantization_mode (str): Quantization configuration to use. Supported values include "avx512_vnni", "avx2", and "q8"; unknown values default to "avx512_vnni".
+    
     """
     logger.info("🔢 Quantizing model...")
 
@@ -373,7 +374,14 @@ def quantize_model(
 
 
 def main(argv):
-    """Main execution function."""
+    """
+    Orchestrates loading a trained multi-task PII detection model, exporting it to ONNX, optionally quantizing the ONNX model, signing and saving artifacts (tokenizer, label mappings, config), and handling errors.
+    
+    This function performs high-level orchestration for the CLI: it loads the trained model and tokenizer from FLAGS.model_path, exports the model to ONNX in FLAGS.output_path, signs the exported model, writes label mappings and (if present) the original config.json to the output directory, and — unless --skip_quantization is set — quantizes the ONNX model. On successful quantization the non-quantized ONNX file is removed. Any unhandled exception is logged and causes process exit with code 1.
+    
+    Parameters:
+        argv: Ignored. Present to match the CLI entrypoint signature.
+    """
     del argv  # Unused
 
     logger.info("=" * 80)
