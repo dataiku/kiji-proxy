@@ -1,6 +1,6 @@
 .PHONY: help install install-dev venv
 .PHONY: format lint lint-go typecheck check ruff-fix ruff-all
-.PHONY: test test-go test-all test-lfs
+.PHONY: test test-go test-all
 .PHONY: clean clean-venv clean-all
 .PHONY: build-dmg
 .PHONY: electron-build electron-run electron electron-dev electron-install
@@ -112,13 +112,7 @@ test-go: ## Run Go tests
 	go test ./... -v
 	@echo "$(GREEN)✅ Go tests complete$(NC)"
 
-test-lfs: ## Test Git LFS setup and model file validation
-	@echo "$(BLUE)Testing Git LFS setup...$(NC)"
-	@chmod +x scripts/test-lfs-setup.sh
-	@./scripts/test-lfs-setup.sh
-	@echo "$(GREEN)✅ LFS test complete$(NC)"
-
-test-all: test test-go test-lfs ## Run all tests (Python, Go, and LFS)
+test-all: test test-go ## Run all tests (Python, Go)
 	@echo "$(GREEN)✅ All tests complete$(NC)"
 
 ##@ Cleanup
