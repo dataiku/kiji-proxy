@@ -11,278 +11,352 @@ jobs:
     runs-on: macos-latest
     name: Build DMG for macOS
     permissions:
-      contents: write  # Required to create releases
+      contents: write # Required to create releases
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Cache LFS objects
+        uses: actions/cache@v4
+        with:
+          path: .git/lfs
+          key: lfs-${{ runner.os }}-${{ hashFiles('.gitattributes') }}
+          restore-keys: |
+            lfs-${{ runner.os }}-
 
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: '1.21'
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          lfs: true
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        cache: 'npm'
-        cache-dependency-path: '**/package-lock.json'
+      - name: Ensure LFS files are downloaded (fallback)
+        run: |
+          echo "Checking LFS status..."
+          git lfs env
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
+          # Pull LFS files explicitly as a fallback
+          echo "Pulling LFS files..."
+          git lfs pull
 
-    - name: Install uv
-      uses: astral-sh/setup-uv@v3
-      with:
-        version: "latest"
+          # Verify LFS files were downloaded
+          echo "Verifying LFS files..."
+          git lfs ls-files --size | head -10
 
-    - name: Set up Rust
-      uses: dtolnay/rust-toolchain@stable
-      with:
-        toolchain: stable
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.21"
 
-    - name: Install Python dependencies
-      run: |
-        uv venv
-        source .venv/bin/activate
-        uv pip install onnxruntime
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: "**/package-lock.json"
 
-    - name: Find and copy ONNX Runtime library
-      run: |
-        source .venv/bin/activate
-        ONNX_LIB=$(find .venv -name "libonnxruntime*.dylib" | head -1)
-        if [ -n "$ONNX_LIB" ]; then
-          cp "$ONNX_LIB" ./build/libonnxruntime.1.23.1.dylib
-          echo "✅ ONNX Runtime library copied"
-        else
-          echo "⚠️  ONNX Runtime library not found, continuing..."
-        fi
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
 
-    - name: Build tokenizers library (if needed)
-      run: |
-        cd build/tokenizers
-        if [ -f "libtokenizers.a" ]; then
-          echo "✅ Using existing libtokenizers.a"
-        elif [ -f "libtokenizers.darwin-arm64.tar.gz" ]; then
-          echo "Extracting pre-built library..."
-          tar -xzf libtokenizers.darwin-arm64.tar.gz
-        elif [ -f "Makefile" ]; then
-          echo "Building with Makefile..."
-          make build || cargo build --release
-          if [ -f "target/release/libtokenizers.a" ]; then
-            cp target/release/libtokenizers.a ./libtokenizers.a
-          fi
-        else
-          echo "Building with cargo..."
-          cargo build --release
-          if [ -f "target/release/libtokenizers.a" ]; then
-            cp target/release/libtokenizers.a ./libtokenizers.a
-          fi
-        fi
-        if [ ! -f "libtokenizers.a" ]; then
-          echo "❌ Failed to obtain libtokenizers.a"
-          exit 1
-        fi
-        cd ..
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
 
-    - name: Install Electron dependencies
-      working-directory: src/frontend
-      run: npm ci
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
 
-    - name: Build Electron app
-      working-directory: src/frontend
-      run: npm run build:electron
+      - name: Install Python dependencies
+        run: |
+          uv venv
+          source .venv/bin/activate
+          uv pip install onnxruntime
 
-    - name: Prepare files for Go embedding
-      run: |
-        # Copy frontend/dist files to src/backend/frontend/dist/ for embedding
-        # Go embed cannot use ../ paths, so we need the files under src/backend/
-        if [ -d "src/frontend/dist" ]; then
-          mkdir -p src/backend/frontend/dist
-          cp -r src/frontend/dist/* src/backend/frontend/dist/
-          echo "✅ Frontend files copied to src/backend/frontend/dist/ for embedding"
-        else
-          echo "❌ Frontend dist directory not found: src/frontend/dist"
-          exit 1
-        fi
-
-        # Copy model files to src/backend/model/quantized/ for embedding
-        if [ -d "model/quantized" ]; then
-          mkdir -p src/backend/model/quantized
-          cp -r model/quantized/* src/backend/model/quantized/
-          echo "✅ Model files copied to src/backend/model/quantized/ for embedding"
-        else
-          echo "⚠️  Model directory not found: model/quantized"
-          echo "   Continuing without model files (may cause runtime errors)"
-        fi
-
-    - name: Build Go binary
-      run: |
-        mkdir -p build
-        CGO_ENABLED=1 \
-        go build \
-          -tags embed \
-          -ldflags="-s -w -extldflags '-L./build/tokenizers'" \
-          -o build/yaak-proxy \
-          ./src/backend
-
-    - name: Prepare Electron resources
-      run: |
-        mkdir -p src/frontend/resources
-        cp build/yaak-proxy src/frontend/resources/yaak-proxy
-        chmod +x src/frontend/resources/yaak-proxy
-
-        # Copy ONNX library if it exists
-        if [ -f "libonnxruntime.1.23.1.dylib" ]; then
-          cp build/libonnxruntime.1.23.1.dylib src/frontend/resources/
-        fi
-
-        # Copy model files
-        if [ -d "model/quantized" ]; then
-          cp -r model/quantized src/frontend/resources/
-        fi
-
-    - name: Package Electron app (DMG)
-      working-directory: src/frontend
-      env:
-        CSC_IDENTITY_AUTO_DISCOVERY: false  # Disable code signing
-      run: npm run electron:pack
-
-    - name: Ad-hoc sign app and rebuild DMG
-      working-directory: src/frontend
-      run: |
-        # Ad-hoc sign the app (no certificate needed) and rebuild DMG
-        # This helps macOS accept the app even without proper code signing
-        DMG_PATH=$(find release -name "*.dmg" | head -1)
-        if [ -n "$DMG_PATH" ]; then
-          echo "Processing DMG: $DMG_PATH"
-
-          # Create temporary directories
-          TEMP_DIR=$(mktemp -d)
-          MOUNT_POINT="$TEMP_DIR/mount"
-          EXTRACT_DIR="$TEMP_DIR/extract"
-          mkdir -p "$MOUNT_POINT" "$EXTRACT_DIR"
-
-          # Mount the DMG
-          hdiutil attach "$DMG_PATH" -mountpoint "$MOUNT_POINT" -quiet -readonly
-
-          # Copy contents to extract directory
-          cp -R "$MOUNT_POINT"/* "$EXTRACT_DIR/"
-
-          # Unmount the DMG
-          hdiutil detach "$MOUNT_POINT" -quiet
-
-          # Find and process the app bundle
-          APP_PATH=$(find "$EXTRACT_DIR" -name "*.app" -type d | head -1)
-          if [ -n "$APP_PATH" ]; then
-            echo "Processing app: $APP_PATH"
-
-            # Remove quarantine attribute
-            xattr -cr "$APP_PATH"
-            find "$APP_PATH" -type f -exec xattr -c {} \; 2>/dev/null || true
-
-            # Ad-hoc sign the app bundle (this helps macOS accept it)
-            # Ad-hoc signing uses "-" which means "sign with ad-hoc identity"
-            codesign --force --deep --sign - "$APP_PATH" 2>&1 || {
-              echo "⚠️  Ad-hoc signing failed, continuing anyway..."
-            }
-
-            # Verify the signing
-            codesign --verify --verbose "$APP_PATH" 2>&1 || echo "⚠️  Code signing verification failed (expected for ad-hoc)"
-
-            echo "✅ App processed and ad-hoc signed"
-
-            # Get DMG metadata
-            DMG_NAME=$(basename "$DMG_PATH" .dmg)
-            DMG_DIR=$(dirname "$DMG_PATH")
-
-            # Remove old DMG
-            rm -f "$DMG_PATH"
-
-            # Create new DMG
-            hdiutil create -volname "$DMG_NAME" -srcfolder "$EXTRACT_DIR" -ov -format UDZO "$DMG_DIR/$DMG_NAME.dmg"
-
-            echo "✅ DMG rebuilt with ad-hoc signed app"
+      - name: Find and copy ONNX Runtime library
+        run: |
+          source .venv/bin/activate
+          ONNX_LIB=$(find .venv -name "libonnxruntime*.dylib" | head -1)
+          if [ -n "$ONNX_LIB" ]; then
+            cp "$ONNX_LIB" ./build/libonnxruntime.1.23.1.dylib
+            echo "✅ ONNX Runtime library copied"
           else
-            echo "⚠️  App bundle not found in DMG"
+            echo "⚠️  ONNX Runtime library not found, continuing..."
           fi
 
-          # Cleanup
-          rm -rf "$TEMP_DIR"
-        else
-          echo "⚠️  DMG not found, skipping processing"
-        fi
+      - name: Build tokenizers library (if needed)
+        run: |
+          cd build/tokenizers
+          if [ -f "libtokenizers.a" ]; then
+            echo "✅ Using existing libtokenizers.a"
+          elif [ -f "libtokenizers.darwin-arm64.tar.gz" ]; then
+            echo "Extracting pre-built library..."
+            tar -xzf libtokenizers.darwin-arm64.tar.gz
+          elif [ -f "Makefile" ]; then
+            echo "Building with Makefile..."
+            make build || cargo build --release
+            if [ -f "target/release/libtokenizers.a" ]; then
+              cp target/release/libtokenizers.a ./libtokenizers.a
+            fi
+          else
+            echo "Building with cargo..."
+            cargo build --release
+            if [ -f "target/release/libtokenizers.a" ]; then
+              cp target/release/libtokenizers.a ./libtokenizers.a
+            fi
+          fi
+          if [ ! -f "libtokenizers.a" ]; then
+            echo "❌ Failed to obtain libtokenizers.a"
+            exit 1
+          fi
+          cd ..
 
-    - name: Upload DMG artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: Privacy-Proxy-DMG
-        path: src/frontend/release/*.dmg
-        retention-days: 30
+      - name: Install Electron dependencies
+        working-directory: src/frontend
+        run: npm ci
 
-    - name: Upload ZIP artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: Privacy-Proxy-ZIP
-        path: src/frontend/release/*.zip
-        retention-days: 30
-      continue-on-error: true # ZIP might not always be created
+      - name: Build Electron app
+        working-directory: src/frontend
+        run: npm run build:electron
 
-    - name: Build summary
-      run: |
-        echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "✅ DMG files created:" >> $GITHUB_STEP_SUMMARY
-        ls -lh src/frontend/release/*.dmg 2>/dev/null | awk '{print "- " $9 " (" $5 ")"}' >> $GITHUB_STEP_SUMMARY || echo "- No DMG files found" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "📦 Artifacts uploaded to workflow run" >> $GITHUB_STEP_SUMMARY
+      - name: Verify LFS files are downloaded
+        run: |
+          echo "Checking if model files are properly downloaded from LFS..."
 
-    - name: Get version
-      id: get_version
-      working-directory: src/frontend
-      run: |
-        VERSION=$(node -p "require('./package.json').version")
-        echo "version=$VERSION" >> $GITHUB_OUTPUT
-        echo "Version: $VERSION"
+          # Check if model file exists
+          if [ ! -f "model/quantized/model_quantized.onnx" ]; then
+            echo "❌ Model file not found: model/quantized/model_quantized.onnx"
+            echo "Available files in model/quantized/:"
+            ls -la model/quantized/ || echo "Directory not found"
+            exit 1
+          fi
 
-    - name: Create Release
-      if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
-      uses: softprops/action-gh-release@v1
-      with:
-        tag_name: v${{ steps.get_version.outputs.version }}-${{ github.run_number }}
-        name: Release v${{ steps.get_version.outputs.version }}-${{ github.run_number }}
-        body: |
-          ## Privacy Proxy v${{ steps.get_version.outputs.version }}
+          # Check file size to ensure it's not an LFS pointer
+          MODEL_SIZE=$(stat -f%z "model/quantized/model_quantized.onnx" 2>/dev/null || stat -c%s "model/quantized/model_quantized.onnx")
+          echo "Model file size: ${MODEL_SIZE} bytes"
 
-          Automated build from commit ${{ github.sha }}
+          if [ "$MODEL_SIZE" -lt 1000 ]; then
+            echo "❌ Model file appears to be an LFS pointer file (too small: ${MODEL_SIZE} bytes)"
+            echo "File contents (first 10 lines):"
+            head -10 "model/quantized/model_quantized.onnx"
+            echo ""
+            echo "Attempting to fix by pulling LFS files again..."
+            git lfs pull --include="model/quantized/*"
 
-          ### Changes
-          - See commit history for details
+            # Re-check after pull
+            NEW_SIZE=$(stat -f%z "model/quantized/model_quantized.onnx" 2>/dev/null || stat -c%s "model/quantized/model_quantized.onnx")
+            if [ "$NEW_SIZE" -lt 1000 ]; then
+              echo "❌ Still appears to be LFS pointer after explicit pull. LFS download failed."
+              exit 1
+            else
+              echo "✅ Fixed! Model file is now ${NEW_SIZE} bytes"
+            fi
+          else
+            echo "✅ Model file appears to be the actual binary (${MODEL_SIZE} bytes)"
+          fi
 
-          ### Downloads
-          - DMG installer for macOS
-          - ZIP archive
+          # Verify other critical model files
+          echo "Verifying other model files..."
+          for file in tokenizer.json vocab.txt model_manifest.json; do
+            if [ -f "model/quantized/$file" ]; then
+              size=$(stat -f%z "model/quantized/$file" 2>/dev/null || stat -c%s "model/quantized/$file")
+              echo "✅ $file: ${size} bytes"
+            else
+              echo "⚠️  Missing: $file"
+            fi
+          done
 
-          ### Installation Notes
+      - name: Prepare files for Go embedding
+        run: |
+          # Copy frontend/dist files to src/backend/frontend/dist/ for embedding
+          # Go embed cannot use ../ paths, so we need the files under src/backend/
+          if [ -d "src/frontend/dist" ]; then
+            mkdir -p src/backend/frontend/dist
+            cp -r src/frontend/dist/* src/backend/frontend/dist/
+            echo "✅ Frontend files copied to src/backend/frontend/dist/ for embedding"
+          else
+            echo "❌ Frontend dist directory not found: src/frontend/dist"
+            exit 1
+          fi
 
-          If you see a "Privacy Proxy is damaged" error when opening the app:
+          # Copy model files to src/backend/model/quantized/ for embedding
+          if [ -d "model/quantized" ]; then
+            mkdir -p src/backend/model/quantized
+            cp -r model/quantized/* src/backend/model/quantized/
 
-          1. **Right-click method**: Right-click the app in Finder → Select "Open" → Click "Open" in the dialog
+            # Verify model files after copying
+            COPIED_MODEL_SIZE=$(stat -f%z "src/backend/model/quantized/model_quantized.onnx" 2>/dev/null || stat -c%s "src/backend/model/quantized/model_quantized.onnx")
+            echo "✅ Model files copied to src/backend/model/quantized/ for embedding (${COPIED_MODEL_SIZE} bytes)"
+          else
+            echo "❌ Model directory not found: model/quantized"
+            echo "   This will cause runtime errors - the app needs the model files"
+            exit 1
+          fi
 
-          2. **Terminal method**: Open Terminal and run:
-             ```bash
-             xattr -cr /Applications/Privacy\ Proxy.app
-             ```
+      - name: Build Go binary
+        run: |
+          mkdir -p build
+          CGO_ENABLED=1 \
+          go build \
+            -tags embed \
+            -ldflags="-s -w -extldflags '-L./build/tokenizers'" \
+            -o build/yaak-proxy \
+            ./src/backend
 
-          This is required because the app is not code-signed with an Apple Developer certificate. The app is safe to use.
-        files: |
-          src/frontend/release/*.dmg
-          src/frontend/release/*.zip
-        draft: false
-        prerelease: ${{ github.ref != 'refs/heads/main' }}
-        generate_release_notes: true
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Prepare Electron resources
+        run: |
+          mkdir -p src/frontend/resources
+          cp build/yaak-proxy src/frontend/resources/yaak-proxy
+          chmod +x src/frontend/resources/yaak-proxy
+
+          # Copy ONNX library if it exists
+          if [ -f "build/libonnxruntime.1.23.1.dylib" ]; then
+            cp build/libonnxruntime.1.23.1.dylib src/frontend/resources/
+          fi
+
+          # Copy model files
+          if [ -d "model/quantized" ]; then
+            cp -r model/quantized src/frontend/resources/
+          fi
+
+      - name: Package Electron app (DMG)
+        working-directory: src/frontend
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false # Disable code signing
+        run: npm run electron:pack
+
+      - name: Ad-hoc sign app and rebuild DMG
+        working-directory: src/frontend
+        run: |
+          # Ad-hoc sign the app (no certificate needed) and rebuild DMG
+          # This helps macOS accept the app even without proper code signing
+          DMG_PATH=$(find release -name "*.dmg" | head -1)
+          if [ -n "$DMG_PATH" ]; then
+            echo "Processing DMG: $DMG_PATH"
+
+            # Create temporary directories
+            TEMP_DIR=$(mktemp -d)
+            MOUNT_POINT="$TEMP_DIR/mount"
+            EXTRACT_DIR="$TEMP_DIR/extract"
+            mkdir -p "$MOUNT_POINT" "$EXTRACT_DIR"
+
+            # Mount the DMG
+            hdiutil attach "$DMG_PATH" -mountpoint "$MOUNT_POINT" -quiet -readonly
+
+            # Copy contents to extract directory
+            cp -R "$MOUNT_POINT"/* "$EXTRACT_DIR/"
+
+            # Unmount the DMG
+            hdiutil detach "$MOUNT_POINT" -quiet
+
+            # Find and process the app bundle
+            APP_PATH=$(find "$EXTRACT_DIR" -name "*.app" -type d | head -1)
+            if [ -n "$APP_PATH" ]; then
+              echo "Processing app: $APP_PATH"
+
+              # Remove quarantine attribute
+              xattr -cr "$APP_PATH"
+              find "$APP_PATH" -type f -exec xattr -c {} \; 2>/dev/null || true
+
+              # Ad-hoc sign the app bundle (this helps macOS accept it)
+              # Ad-hoc signing uses "-" which means "sign with ad-hoc identity"
+              codesign --force --deep --sign - "$APP_PATH" 2>&1 || {
+                echo "⚠️  Ad-hoc signing failed, continuing anyway..."
+              }
+
+              # Verify the signing
+              codesign --verify --verbose "$APP_PATH" 2>&1 || echo "⚠️  Code signing verification failed (expected for ad-hoc)"
+
+              echo "✅ App processed and ad-hoc signed"
+
+              # Get DMG metadata
+              DMG_NAME=$(basename "$DMG_PATH" .dmg)
+              DMG_DIR=$(dirname "$DMG_PATH")
+
+              # Remove old DMG
+              rm -f "$DMG_PATH"
+
+              # Create new DMG
+              hdiutil create -volname "$DMG_NAME" -srcfolder "$EXTRACT_DIR" -ov -format UDZO "$DMG_DIR/$DMG_NAME.dmg"
+
+              echo "✅ DMG rebuilt with ad-hoc signed app"
+            else
+              echo "⚠️  App bundle not found in DMG"
+            fi
+
+            # Cleanup
+            rm -rf "$TEMP_DIR"
+          else
+            echo "⚠️  DMG not found, skipping processing"
+          fi
+
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Privacy-Proxy-DMG
+          path: src/frontend/release/*.dmg
+          retention-days: 30
+
+      - name: Upload ZIP artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Privacy-Proxy-ZIP
+          path: src/frontend/release/*.zip
+          retention-days: 30
+        continue-on-error: true # ZIP might not always be created
+
+      - name: Build summary
+        run: |
+          echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ DMG files created:" >> $GITHUB_STEP_SUMMARY
+          ls -lh src/frontend/release/*.dmg 2>/dev/null | awk '{print "- " $9 " (" $5 ")"}' >> $GITHUB_STEP_SUMMARY || echo "- No DMG files found" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📦 Artifacts uploaded to workflow run" >> $GITHUB_STEP_SUMMARY
+
+      - name: Get version
+        id: get_version
+        working-directory: src/frontend
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: Create Release
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.get_version.outputs.version }}-${{ github.run_number }}
+          name: Release v${{ steps.get_version.outputs.version }}-${{ github.run_number }}
+          body: |
+            ## Privacy Proxy v${{ steps.get_version.outputs.version }}
+
+            Automated build from commit ${{ github.sha }}
+
+            ### Changes
+            - See commit history for details
+
+            ### Downloads
+            - DMG installer for macOS
+            - ZIP archive
+
+            ### Installation Notes
+
+            If you see a "Privacy Proxy is damaged" error when opening the app:
+
+            1. **Right-click method**: Right-click the app in Finder → Select "Open" → Click "Open" in the dialog
+
+            2. **Terminal method**: Open Terminal and run:
+               ```bash
+               xattr -cr /Applications/Privacy\ Proxy.app
+               ```
+
+            This is required because the app is not code-signed with an Apple Developer certificate. The app is safe to use.
+          files: |
+            src/frontend/release/*.dmg
+            src/frontend/release/*.zip
+          draft: false
+          prerelease: ${{ github.ref != 'refs/heads/main' }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

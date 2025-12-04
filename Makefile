@@ -112,7 +112,7 @@ test-go: ## Run Go tests
 	go test ./... -v
 	@echo "$(GREEN)✅ Go tests complete$(NC)"
 
-test-all: test test-go ## Run all tests (Python and Go)
+test-all: test test-go ## Run all tests (Python, Go)
 	@echo "$(GREEN)✅ All tests complete$(NC)"
 
 ##@ Cleanup
