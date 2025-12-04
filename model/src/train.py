@@ -102,10 +102,6 @@ def main(
     logger.info("\n6️⃣  Evaluating model...")
     results = trainer.evaluate(val_dataset, trained_trainer)
 
-    # # Signing the model
-    # model_hash = sign_trained_model(config.output_dir)
-    # print(f"\nModel Hash: {model_hash}")
-
     # Save to Google Drive if mounted
     drive_path = None
     if use_google_drive and drive_mounted:
