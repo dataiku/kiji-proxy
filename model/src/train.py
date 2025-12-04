@@ -44,7 +44,7 @@ def main(
 ):
     """
     Orchestrates environment setup, dataset preparation, model training, evaluation, and optional saving to Google Drive.
-    
+
     Parameters:
         use_google_drive (bool): If True, attempt to mount Google Drive and save the trained model there (Colab context).
         drive_folder (str): Target folder path in Google Drive where the model will be saved.
