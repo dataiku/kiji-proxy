@@ -22,15 +22,11 @@ import time
 # Import from local modules
 try:
     from .config import EnvironmentSetup, TrainingConfig
-
-    # from .model_signing import sign_trained_model
     from .preprocessing import DatasetProcessor
     from .trainer import PIITrainer
 except ImportError:
     # Fallback for direct execution
     from config import EnvironmentSetup, TrainingConfig
-
-    # from model_signing import sign_trained_model
     from preprocessing import DatasetProcessor
     from trainer import PIITrainer
 
