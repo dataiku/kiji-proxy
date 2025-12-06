@@ -209,14 +209,34 @@ jobs:
           cp build/yaak-proxy src/frontend/resources/yaak-proxy
           chmod +x src/frontend/resources/yaak-proxy
 
-          # Copy ONNX library if it exists
+          # Copy ONNX library if it exists (to root of resources for easier access)
           if [ -f "build/libonnxruntime.1.23.1.dylib" ]; then
-            cp build/libonnxruntime.1.23.1.dylib src/frontend/resources/
+            cp build/libonnxruntime.1.23.1.dylib src/frontend/resources/libonnxruntime.1.23.1.dylib
+            echo "✅ ONNX library copied to resources/"
+          else
+            echo "⚠️  ONNX library not found at build/libonnxruntime.1.23.1.dylib"
           fi
 
-          # Copy model files
+          # Copy model files to quantized directory (matches what Go binary expects after extraction)
           if [ -d "model/quantized" ]; then
-            cp -r model/quantized src/frontend/resources/
+            mkdir -p src/frontend/resources/model/quantized
+            cp -r model/quantized/* src/frontend/resources/model/quantized/
+            echo "✅ Model files copied to resources/model/quantized/"
+
+            # Also copy to root quantized directory as fallback
+            cp -r model/quantized src/frontend/resources/quantized
+            echo "✅ Model files also copied to resources/quantized/ as fallback"
+          else
+            echo "❌ Model directory not found: model/quantized"
+          fi
+
+          # Verify files were copied correctly
+          echo "Contents of src/frontend/resources/:"
+          ls -la src/frontend/resources/ || echo "Directory listing failed"
+
+          if [ -d "src/frontend/resources/model/quantized" ]; then
+            echo "Contents of src/frontend/resources/model/quantized/:"
+            ls -la src/frontend/resources/model/quantized/ || echo "Model directory listing failed"
           fi
 
       - name: Package Electron app (DMG)

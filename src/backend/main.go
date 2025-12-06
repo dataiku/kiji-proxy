@@ -57,6 +57,28 @@ func main() {
 
 	// Check if we're in development mode (using config file)
 	// In development, use file system; in production, use embedded files
+	// Debug: Print current working directory and environment
+	if cwd, err := os.Getwd(); err == nil {
+		log.Printf("Current working directory: %s", cwd)
+	}
+	log.Printf("ONNXRUNTIME_SHARED_LIBRARY_PATH: %s", os.Getenv("ONNXRUNTIME_SHARED_LIBRARY_PATH"))
+
+	// Debug: Check for model files in various locations
+	modelPaths := []string{
+		"model/quantized/model_quantized.onnx",
+		"quantized/model_quantized.onnx",
+		"./model_quantized.onnx",
+		"resources/model/quantized/model_quantized.onnx",
+		"resources/quantized/model_quantized.onnx",
+	}
+	for _, path := range modelPaths {
+		if _, err := os.Stat(path); err == nil {
+			log.Printf("Found model file at: %s", path)
+		} else {
+			log.Printf("Model file NOT found at: %s", path)
+		}
+	}
+
 	if *configPath != "" {
 		// Development mode - use file system
 		srv, err = server.NewServer(cfg, *electronConfigPath)
@@ -74,6 +96,12 @@ func main() {
 			log.Println("Falling back to file system model files")
 		} else {
 			log.Println("Model files extracted successfully")
+			// Debug: Verify extracted files
+			if _, err := os.Stat("model/quantized/model_quantized.onnx"); err == nil {
+				log.Println("✅ Extracted model file verified at: model/quantized/model_quantized.onnx")
+			} else {
+				log.Printf("❌ Extracted model file NOT found at: model/quantized/model_quantized.onnx (error: %v)", err)
+			}
 		}
 
 		srv, err = server.NewServerWithEmbedded(cfg, uiFiles, modelFiles, *electronConfigPath)
@@ -237,7 +265,12 @@ func extractEmbeddedModelFiles(modelFS embed.FS) error {
 			return err
 		}
 
-		log.Printf("Extracted: %s", targetPath)
+		// Get file size for verification
+		if info, err := os.Stat(targetPath); err == nil {
+			log.Printf("Extracted: %s (size: %d bytes)", targetPath, info.Size())
+		} else {
+			log.Printf("Extracted: %s (size: unknown)", targetPath)
+		}
 		return nil
 	})
 }
