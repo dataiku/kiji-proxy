@@ -1,15 +1,15 @@
-const { app, BrowserWindow, Menu, ipcMain, safeStorage } = require('electron');
-const path = require('path');
-const fs = require('fs');
-const { spawn } = require('child_process');
-const isDev = process.env.NODE_ENV === 'development';
+const { app, BrowserWindow, Menu, ipcMain, safeStorage } = require("electron");
+const path = require("path");
+const fs = require("fs");
+const { spawn } = require("child_process");
+const isDev = process.env.NODE_ENV === "development";
 
 let mainWindow;
 let goProcess = null;
 
 // Storage for API key (using safeStorage when available, fallback to encrypted file)
 const getStoragePath = () => {
-  return path.join(app.getPath('userData'), 'config.json');
+  return path.join(app.getPath("userData"), "config.json");
 };
 
 // Check if safeStorage is available
@@ -21,7 +21,7 @@ const isEncryptionAvailable = () => {
 const getGoBinaryPath = () => {
   if (isDev) {
     // In development, look for the binary in the project root
-    const devPath = path.join(__dirname, '..', 'build', 'yaak-proxy');
+    const devPath = path.join(__dirname, "..", "build", "yaak-proxy");
     if (fs.existsSync(devPath)) {
       return devPath;
     }
@@ -31,10 +31,10 @@ const getGoBinaryPath = () => {
 
   // In production, the binary is in the app's resources directory
   // For macOS app bundles: Contents/Resources/
-  if (process.platform === 'darwin') {
+  if (process.platform === "darwin") {
     // app.getAppPath() returns the path to the app bundle's Contents/Resources/app.asar or Contents/Resources/app
     const resourcesPath = process.resourcesPath || app.getAppPath();
-    const binaryPath = path.join(resourcesPath, 'resources', 'yaak-proxy');
+    const binaryPath = path.join(resourcesPath, "resources", "yaak-proxy");
 
     // If not found, try alternative paths
     if (fs.existsSync(binaryPath)) {
@@ -42,7 +42,7 @@ const getGoBinaryPath = () => {
     }
 
     // Try without 'resources' subdirectory (if resources are at root)
-    const altPath = path.join(resourcesPath, 'yaak-proxy');
+    const altPath = path.join(resourcesPath, "yaak-proxy");
     if (fs.existsSync(altPath)) {
       return altPath;
     }
@@ -50,16 +50,16 @@ const getGoBinaryPath = () => {
 
   // For other platforms or if not found
   const resourcesPath = process.resourcesPath || app.getAppPath();
-  return path.join(resourcesPath, 'resources', 'yaak-proxy');
+  return path.join(resourcesPath, "resources", "yaak-proxy");
 };
 
 // Get the path to resources directory
 const getResourcesPath = () => {
   if (isDev) {
-    return path.join(__dirname, '..');
+    return path.join(__dirname, "..");
   }
 
-  if (process.platform === 'darwin') {
+  if (process.platform === "darwin") {
     return process.resourcesPath || app.getAppPath();
   }
 
@@ -71,79 +71,125 @@ const launchGoBinary = () => {
   const binaryPath = getGoBinaryPath();
 
   if (!binaryPath || !fs.existsSync(binaryPath)) {
-    console.warn('Go binary not found at:', binaryPath);
-    console.warn('The app will try to connect to an existing backend server.');
+    console.warn("Go binary not found at:", binaryPath);
+    console.warn("The app will try to connect to an existing backend server.");
     return;
   }
 
   // Get resources path for ONNX library and model files
   const resourcesPath = getResourcesPath();
-  const onnxLibPath = path.join(resourcesPath, 'resources', 'libonnxruntime.1.23.1.dylib');
-  const modelPath = path.join(resourcesPath, 'resources', 'quantized');
+  const onnxLibPath = path.join(
+    resourcesPath,
+    "resources",
+    "libonnxruntime.1.23.1.dylib",
+  );
+  const modelPath = path.join(resourcesPath, "resources", "quantized");
 
   // Set up environment variables
   const env = { ...process.env };
 
-  // Set ONNX Runtime library path if it exists
-  if (fs.existsSync(onnxLibPath)) {
-    env.ONNXRUNTIME_SHARED_LIBRARY_PATH = onnxLibPath;
-  } else {
-    // Try alternative location
-    const altOnnxPath = path.join(resourcesPath, 'libonnxruntime.1.23.1.dylib');
-    if (fs.existsSync(altOnnxPath)) {
-      env.ONNXRUNTIME_SHARED_LIBRARY_PATH = altOnnxPath;
+  // Set ONNX Runtime library path - try multiple locations
+  const onnxPaths = [
+    onnxLibPath, // resources/resources/libonnxruntime.1.23.1.dylib
+    path.join(resourcesPath, "libonnxruntime.1.23.1.dylib"), // resources/libonnxruntime.1.23.1.dylib
+    path.join(resourcesPath, "resources", "libonnxruntime.1.23.1.dylib"), // resources/resources/libonnxruntime.1.23.1.dylib
+  ];
+
+  let foundOnnxLib = null;
+  for (const libPath of onnxPaths) {
+    if (fs.existsSync(libPath)) {
+      foundOnnxLib = libPath;
+      env.ONNXRUNTIME_SHARED_LIBRARY_PATH = libPath;
+      break;
     }
   }
 
-  // Set working directory to resources so model files can be found
-  const workingDir = fs.existsSync(modelPath) ? path.join(resourcesPath, 'resources') : resourcesPath;
+  if (!foundOnnxLib) {
+    console.warn(
+      "ONNX Runtime library not found in any of these locations:",
+      onnxPaths,
+    );
+  }
 
-  console.log('Launching Go binary:', binaryPath);
-  console.log('Working directory:', workingDir);
-  console.log('ONNX library path:', env.ONNXRUNTIME_SHARED_LIBRARY_PATH || 'not set');
+  // Set working directory to resources so model files can be found
+  // Try different working directory options based on where model files exist
+  let workingDir = resourcesPath;
+  const modelPaths = [
+    path.join(resourcesPath, "resources", "model", "quantized"),
+    path.join(resourcesPath, "resources", "quantized"),
+    path.join(resourcesPath, "model", "quantized"),
+    path.join(resourcesPath, "quantized"),
+  ];
+
+  for (const testPath of modelPaths) {
+    if (fs.existsSync(testPath)) {
+      // Set working dir to parent of where we found model files
+      if (testPath.includes("resources/model/quantized")) {
+        workingDir = path.join(resourcesPath, "resources");
+      } else if (testPath.includes("resources/quantized")) {
+        workingDir = path.join(resourcesPath, "resources");
+      } else {
+        workingDir = resourcesPath;
+      }
+      break;
+    }
+  }
+
+  console.log("Launching Go binary:", binaryPath);
+  console.log("Working directory:", workingDir);
+  console.log(
+    "ONNX library path:",
+    env.ONNXRUNTIME_SHARED_LIBRARY_PATH || "not set",
+  );
+  console.log("Found ONNX library at:", foundOnnxLib || "not found");
+  console.log("Resource paths checked:", resourcesPath);
+  console.log(
+    "Model paths checked:",
+    modelPaths.map((p) => `${p} (${fs.existsSync(p) ? "exists" : "missing"})`),
+  );
 
   // Spawn the Go process
   goProcess = spawn(binaryPath, [], {
     cwd: workingDir,
     env: env,
-    stdio: ['ignore', 'pipe', 'pipe']
+    stdio: ["ignore", "pipe", "pipe"],
   });
 
   // Handle stdout
-  goProcess.stdout.on('data', (data) => {
+  goProcess.stdout.on("data", (data) => {
     console.log(`[Go Backend] ${data.toString().trim()}`);
   });
 
   // Handle stderr
-  goProcess.stderr.on('data', (data) => {
+  goProcess.stderr.on("data", (data) => {
     console.error(`[Go Backend Error] ${data.toString().trim()}`);
   });
 
   // Handle process exit
-  goProcess.on('exit', (code, signal) => {
+  goProcess.on("exit", (code, signal) => {
     console.log(`Go binary exited with code ${code} and signal ${signal}`);
     goProcess = null;
 
     // If the process exited unexpectedly and we're not shutting down, show an error
     if (code !== 0 && code !== null && !app.isQuitting) {
       if (mainWindow) {
-        mainWindow.webContents.send('backend-error', {
-          message: 'Backend server exited unexpectedly',
-          code: code
+        mainWindow.webContents.send("backend-error", {
+          message: "Backend server exited unexpectedly",
+          code: code,
         });
       }
     }
   });
 
   // Handle process errors
-  goProcess.on('error', (error) => {
-    console.error('Failed to start Go binary:', error);
+  goProcess.on("error", (error) => {
+    console.error("Failed to start Go binary:", error);
     goProcess = null;
 
     if (mainWindow) {
-      mainWindow.webContents.send('backend-error', {
-        message: 'Failed to start backend server',
-        error: error.message
+      mainWindow.webContents.send("backend-error", {
+        message: "Failed to start backend server",
+        error: error.message,
       });
     }
   });
@@ -152,14 +198,14 @@ const launchGoBinary = () => {
 // Stop the Go binary
 const stopGoBinary = () => {
   if (goProcess) {
-    console.log('Stopping Go binary...');
-    goProcess.kill('SIGTERM');
+    console.log("Stopping Go binary...");
+    goProcess.kill("SIGTERM");
 
     // Force kill after 3 seconds if still running
     setTimeout(() => {
       if (goProcess && !goProcess.killed) {
-        console.log('Force killing Go binary...');
-        goProcess.kill('SIGKILL');
+        console.log("Force killing Go binary...");
+        goProcess.kill("SIGKILL");
       }
       goProcess = null;
     }, 3000);
@@ -168,7 +214,7 @@ const stopGoBinary = () => {
 
 function createWindow() {
   // Get icon path (works in both dev and production)
-  const iconPath = path.join(__dirname, 'assets', 'icon.png');
+  const iconPath = path.join(__dirname, "assets", "icon.png");
   const iconExists = fs.existsSync(iconPath);
 
   // Create the browser window
@@ -182,28 +228,30 @@ function createWindow() {
       contextIsolation: true,
       enableRemoteModule: false,
       webSecurity: true,
-      preload: path.join(__dirname, 'electron-preload.js')
+      preload: path.join(__dirname, "electron-preload.js"),
     },
     ...(iconExists && { icon: iconPath }), // App icon (only set if file exists)
-    show: false // Don't show until ready
+    show: false, // Don't show until ready
   });
 
   // Load the app
   const startUrl = isDev
-    ? 'http://localhost:3000' // Use webpack dev server in dev mode (run 'npm run dev' first)
-    : `file://${path.join(__dirname, 'dist', 'index.html')}`; // Use built files in production
+    ? "http://localhost:3000" // Use webpack dev server in dev mode (run 'npm run dev' first)
+    : `file://${path.join(__dirname, "dist", "index.html")}`; // Use built files in production
 
   mainWindow.loadURL(startUrl).catch((err) => {
-    console.error('Failed to load URL:', err);
+    console.error("Failed to load URL:", err);
     // If dev server is not running, fall back to built files
     if (isDev) {
-      console.log('Dev server not available, loading from dist...');
-      mainWindow.loadURL(`file://${path.join(__dirname, 'dist', 'index.html')}`);
+      console.log("Dev server not available, loading from dist...");
+      mainWindow.loadURL(
+        `file://${path.join(__dirname, "dist", "index.html")}`,
+      );
     }
   });
 
   // Show window when ready to prevent visual flash
-  mainWindow.once('ready-to-show', () => {
+  mainWindow.once("ready-to-show", () => {
     mainWindow.show();
 
     // Open DevTools in development mode
@@ -213,14 +261,14 @@ function createWindow() {
   });
 
   // Handle window closed
-  mainWindow.on('closed', () => {
+  mainWindow.on("closed", () => {
     mainWindow = null;
   });
 
   // Handle external links
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    require('electron').shell.openExternal(url);
-    return { action: 'deny' };
+    require("electron").shell.openExternal(url);
+    return { action: "deny" };
   });
 }
 
@@ -228,101 +276,101 @@ function createWindow() {
 function createMenu() {
   const template = [
     {
-      label: 'File',
+      label: "File",
       submenu: [
         {
-          label: 'Quit',
-          accelerator: process.platform === 'darwin' ? 'Cmd+Q' : 'Ctrl+Q',
+          label: "Quit",
+          accelerator: process.platform === "darwin" ? "Cmd+Q" : "Ctrl+Q",
           click: () => {
             app.quit();
-          }
-        }
-      ]
+          },
+        },
+      ],
     },
     {
-      label: 'Edit',
+      label: "Edit",
       submenu: [
-        { role: 'undo', label: 'Undo' },
-        { role: 'redo', label: 'Redo' },
-        { type: 'separator' },
-        { role: 'cut', label: 'Cut' },
-        { role: 'copy', label: 'Copy' },
-        { role: 'paste', label: 'Paste' },
-        { role: 'selectAll', label: 'Select All' }
-      ]
+        { role: "undo", label: "Undo" },
+        { role: "redo", label: "Redo" },
+        { type: "separator" },
+        { role: "cut", label: "Cut" },
+        { role: "copy", label: "Copy" },
+        { role: "paste", label: "Paste" },
+        { role: "selectAll", label: "Select All" },
+      ],
     },
     {
-      label: 'View',
+      label: "View",
       submenu: [
-        { role: 'reload', label: 'Reload' },
-        { role: 'forceReload', label: 'Force Reload' },
-        { role: 'toggleDevTools', label: 'Toggle Developer Tools' },
-        { type: 'separator' },
-        { role: 'resetZoom', label: 'Actual Size' },
-        { role: 'zoomIn', label: 'Zoom In' },
-        { role: 'zoomOut', label: 'Zoom Out' },
-        { type: 'separator' },
-        { role: 'togglefullscreen', label: 'Toggle Fullscreen' }
-      ]
+        { role: "reload", label: "Reload" },
+        { role: "forceReload", label: "Force Reload" },
+        { role: "toggleDevTools", label: "Toggle Developer Tools" },
+        { type: "separator" },
+        { role: "resetZoom", label: "Actual Size" },
+        { role: "zoomIn", label: "Zoom In" },
+        { role: "zoomOut", label: "Zoom Out" },
+        { type: "separator" },
+        { role: "togglefullscreen", label: "Toggle Fullscreen" },
+      ],
     },
     {
-      label: 'Window',
+      label: "Window",
       submenu: [
-        { role: 'minimize', label: 'Minimize' },
-        { role: 'close', label: 'Close' }
-      ]
+        { role: "minimize", label: "Minimize" },
+        { role: "close", label: "Close" },
+      ],
     },
     {
-      label: 'Settings',
+      label: "Settings",
       submenu: [
         {
-          label: 'Preferences...',
-          accelerator: process.platform === 'darwin' ? 'Cmd+,' : 'Ctrl+,',
+          label: "Preferences...",
+          accelerator: process.platform === "darwin" ? "Cmd+," : "Ctrl+,",
           click: () => {
             if (mainWindow) {
-              mainWindow.webContents.send('open-settings');
+              mainWindow.webContents.send("open-settings");
             }
-          }
-        }
-      ]
+          },
+        },
+      ],
     },
     {
-      label: 'Help',
+      label: "Help",
       submenu: [
         {
-          label: 'About',
+          label: "About",
           click: () => {
             // You can add an about dialog here
-          }
-        }
-      ]
-    }
+          },
+        },
+      ],
+    },
   ];
 
   // macOS specific menu adjustments
-  if (process.platform === 'darwin') {
+  if (process.platform === "darwin") {
     template.unshift({
       label: app.getName(),
       submenu: [
-        { role: 'about', label: 'About ' + app.getName() },
-        { type: 'separator' },
-        { role: 'services', label: 'Services' },
-        { type: 'separator' },
-        { role: 'hide', label: 'Hide ' + app.getName() },
-        { role: 'hideOthers', label: 'Hide Others' },
-        { role: 'unhide', label: 'Show All' },
-        { type: 'separator' },
-        { role: 'quit', label: 'Quit ' + app.getName() }
-      ]
+        { role: "about", label: "About " + app.getName() },
+        { type: "separator" },
+        { role: "services", label: "Services" },
+        { type: "separator" },
+        { role: "hide", label: "Hide " + app.getName() },
+        { role: "hideOthers", label: "Hide Others" },
+        { role: "unhide", label: "Show All" },
+        { type: "separator" },
+        { role: "quit", label: "Quit " + app.getName() },
+      ],
     });
 
     // Window menu
     template[4].submenu = [
-      { role: 'close', label: 'Close' },
-      { role: 'minimize', label: 'Minimize' },
-      { role: 'zoom', label: 'Zoom' },
-      { type: 'separator' },
-      { role: 'front', label: 'Bring All to Front' }
+      { role: "close", label: "Close" },
+      { role: "minimize", label: "Minimize" },
+      { role: "zoom", label: "Zoom" },
+      { type: "separator" },
+      { role: "front", label: "Bring All to Front" },
     ];
   }
 
@@ -341,7 +389,7 @@ app.whenReady().then(() => {
     createMenu();
   }, 1000);
 
-  app.on('activate', () => {
+  app.on("activate", () => {
     // On macOS, re-create a window when the dock icon is clicked
     if (BrowserWindow.getAllWindows().length === 0) {
       // Ensure backend is running
@@ -358,38 +406,38 @@ app.whenReady().then(() => {
 });
 
 // Quit when all windows are closed, except on macOS
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") {
     stopGoBinary();
     app.quit();
   }
 });
 
 // Handle app quitting
-app.on('before-quit', () => {
+app.on("before-quit", () => {
   app.isQuitting = true;
   stopGoBinary();
 });
 
 // Handle app will quit (macOS)
-app.on('will-quit', () => {
+app.on("will-quit", () => {
   stopGoBinary();
 });
 
 // IPC handlers for secure storage
-ipcMain.handle('get-api-key', async () => {
+ipcMain.handle("get-api-key", async () => {
   try {
     const storagePath = getStoragePath();
     if (!fs.existsSync(storagePath)) {
       return null;
     }
 
-    const data = fs.readFileSync(storagePath, 'utf8');
+    const data = fs.readFileSync(storagePath, "utf8");
     const config = JSON.parse(data);
 
     if (config.apiKey && config.encrypted && isEncryptionAvailable()) {
       // Decrypt the API key
-      const buffer = Buffer.from(config.apiKey, 'base64');
+      const buffer = Buffer.from(config.apiKey, "base64");
       const decrypted = safeStorage.decryptString(buffer);
       return decrypted;
     } else if (config.apiKey && !config.encrypted) {
@@ -399,19 +447,19 @@ ipcMain.handle('get-api-key', async () => {
 
     return null;
   } catch (error) {
-    console.error('Error reading API key:', error);
+    console.error("Error reading API key:", error);
     return null;
   }
 });
 
-ipcMain.handle('set-api-key', async (event, apiKey) => {
+ipcMain.handle("set-api-key", async (event, apiKey) => {
   try {
     const storagePath = getStoragePath();
     let config = {};
 
     // Read existing config if it exists
     if (fs.existsSync(storagePath)) {
-      const data = fs.readFileSync(storagePath, 'utf8');
+      const data = fs.readFileSync(storagePath, "utf8");
       config = JSON.parse(data);
     }
 
@@ -419,11 +467,11 @@ ipcMain.handle('set-api-key', async (event, apiKey) => {
       if (isEncryptionAvailable()) {
         // Encrypt the API key
         const encrypted = safeStorage.encryptString(apiKey);
-        config.apiKey = encrypted.toString('base64');
+        config.apiKey = encrypted.toString("base64");
         config.encrypted = true;
       } else {
         // Fallback to unencrypted storage (not ideal, but works)
-        console.warn('Encryption not available, storing API key unencrypted');
+        console.warn("Encryption not available, storing API key unencrypted");
         config.apiKey = apiKey;
         config.encrypted = false;
       }
@@ -434,48 +482,48 @@ ipcMain.handle('set-api-key', async (event, apiKey) => {
     }
 
     // Save config
-    fs.writeFileSync(storagePath, JSON.stringify(config, null, 2), 'utf8');
+    fs.writeFileSync(storagePath, JSON.stringify(config, null, 2), "utf8");
     return { success: true };
   } catch (error) {
-    console.error('Error saving API key:', error);
+    console.error("Error saving API key:", error);
     return { success: false, error: error.message };
   }
 });
 
-ipcMain.handle('get-forward-endpoint', async () => {
+ipcMain.handle("get-forward-endpoint", async () => {
   try {
     const storagePath = getStoragePath();
-    const defaultEndpoint = 'https://api.openai.com/v1';
+    const defaultEndpoint = "https://api.openai.com/v1";
 
     if (!fs.existsSync(storagePath)) {
       return defaultEndpoint;
     }
 
-    const data = fs.readFileSync(storagePath, 'utf8');
+    const data = fs.readFileSync(storagePath, "utf8");
     const config = JSON.parse(data);
 
     // Migrate old default value to new default
-    if (config.forwardEndpoint === 'http://localhost:8080') {
+    if (config.forwardEndpoint === "http://localhost:8080") {
       config.forwardEndpoint = defaultEndpoint;
       // Save the updated config
-      fs.writeFileSync(storagePath, JSON.stringify(config, null, 2), 'utf8');
+      fs.writeFileSync(storagePath, JSON.stringify(config, null, 2), "utf8");
     }
 
     return config.forwardEndpoint || defaultEndpoint;
   } catch (error) {
-    console.error('Error reading forward endpoint:', error);
-    return 'https://api.openai.com/v1';
+    console.error("Error reading forward endpoint:", error);
+    return "https://api.openai.com/v1";
   }
 });
 
-ipcMain.handle('set-forward-endpoint', async (event, url) => {
+ipcMain.handle("set-forward-endpoint", async (event, url) => {
   try {
     const storagePath = getStoragePath();
     let config = {};
 
     // Read existing config if it exists
     if (fs.existsSync(storagePath)) {
-      const data = fs.readFileSync(storagePath, 'utf8');
+      const data = fs.readFileSync(storagePath, "utf8");
       config = JSON.parse(data);
     }
 
@@ -486,18 +534,18 @@ ipcMain.handle('set-forward-endpoint', async (event, url) => {
     }
 
     // Save config
-    fs.writeFileSync(storagePath, JSON.stringify(config, null, 2), 'utf8');
+    fs.writeFileSync(storagePath, JSON.stringify(config, null, 2), "utf8");
     return { success: true };
   } catch (error) {
-    console.error('Error saving forward endpoint:', error);
+    console.error("Error saving forward endpoint:", error);
     return { success: false, error: error.message };
   }
 });
 
 // Security: Prevent new window creation
-app.on('web-contents-created', (event, contents) => {
-  contents.on('new-window', (event, navigationUrl) => {
+app.on("web-contents-created", (event, contents) => {
+  contents.on("new-window", (event, navigationUrl) => {
     event.preventDefault();
-    require('electron').shell.openExternal(navigationUrl);
+    require("electron").shell.openExternal(navigationUrl);
   });
 });

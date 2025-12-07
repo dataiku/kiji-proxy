@@ -58,10 +58,14 @@
       {
         "from": "resources",
         "to": "resources",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       }
     ],
-    "electronLanguages": ["en"],
+    "electronLanguages": [
+      "en"
+    ],
     "mac": {
       "category": "public.app-category.utilities",
       "target": [
@@ -79,25 +83,31 @@
     "dmg": {
       "title": "${productName} ${version}",
       "background": "assets/dmg-background.png",
-      "iconSize": 128,
+      "backgroundColor": "#1a2332",
+      "iconSize": 100,
+      "iconTextSize": 12,
       "contents": [
         {
           "x": 410,
-          "y": 150,
+          "y": 180,
           "type": "link",
           "path": "/Applications"
         },
         {
           "x": 130,
-          "y": 150,
+          "y": 180,
           "type": "file"
         }
       ],
       "window": {
-        "width": 540,
-        "height": 380
+        "width": 600,
+        "height": 420,
+        "x": 400,
+        "y": 100
       },
-      "format": "UDZO"
+      "format": "UDZO",
+      "artifactName": "${productName}-${version}.${ext}",
+      "sign": false
     },
     "win": {
       "target": [

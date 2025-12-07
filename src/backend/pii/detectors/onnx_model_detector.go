@@ -29,7 +29,27 @@ type ONNXModelDetectorSimple struct {
 // NewONNXModelDetectorSimple creates a new ONNX model detector
 func NewONNXModelDetectorSimple(modelPath string, tokenizerPath string) (*ONNXModelDetectorSimple, error) {
 	// Set the ONNX Runtime shared library path for macOS
-	onnxruntime.SetSharedLibraryPath("./build/libonnxruntime.1.23.1.dylib")
+	// Try multiple possible locations for the library
+	onnxPaths := []string{
+		"./libonnxruntime.1.23.1.dylib",       // Production: in resources directory
+		"./build/libonnxruntime.1.23.1.dylib", // Development: in build directory
+		"../libonnxruntime.1.23.1.dylib",      // Alternative location
+	}
+
+	var onnxLibPath string
+	for _, path := range onnxPaths {
+		if _, err := os.Stat(path); err == nil {
+			onnxLibPath = path
+			break
+		}
+	}
+
+	if onnxLibPath != "" {
+		onnxruntime.SetSharedLibraryPath(onnxLibPath)
+	} else {
+		// Fall back to default path, might work if library is in system path
+		onnxruntime.SetSharedLibraryPath("./build/libonnxruntime.1.23.1.dylib")
+	}
 
 	// Initialize ONNX Runtime environment only if not already initialized
 	if !onnxruntime.IsInitialized() {
@@ -50,16 +70,30 @@ func NewONNXModelDetectorSimple(modelPath string, tokenizerPath string) (*ONNXMo
 	}
 
 	// Load model configuration
-	configPath := "model/quantized/label_mappings.json"
-	configData, err := os.ReadFile(configPath)
-	if err != nil {
+	// Try multiple possible locations for the config file
+	configPaths := []string{
+		"model/quantized/label_mappings.json", // Default location
+		"quantized/label_mappings.json",       // Alternative: in resources/quantized
+		"./label_mappings.json",               // Alternative: current directory
+	}
+
+	var configData []byte
+	for _, path := range configPaths {
+		data, err := os.ReadFile(path)
+		if err == nil {
+			configData = data
+			break
+		}
+	}
+
+	if configData == nil {
 		if err := tk.Close(); err != nil {
 			fmt.Printf("Warning: failed to close tokenizer during cleanup: %v\n", err)
 		}
 		if err := onnxruntime.DestroyEnvironment(); err != nil {
 			fmt.Printf("Warning: failed to destroy environment during cleanup: %v\n", err)
 		}
-		return nil, fmt.Errorf("failed to read config file: %w", err)
+		return nil, fmt.Errorf("failed to load model configuration from any of the attempted paths: %v", configPaths)
 	}
 
 	var config struct {
