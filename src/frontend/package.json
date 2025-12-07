@@ -47,30 +47,38 @@
       "electron-preload.js",
       "package.json",
       "assets/icon.png",
-      "assets/arrow.png"
+      "assets/arrow.png",
+      "!**/model.onnx",
+      "!**/pii_onnx_model/**/*",
+      "!**/*.map",
+      "!**/.DS_Store"
     ],
     "asar": true,
     "asarUnpack": [
       "resources/**/*"
     ],
-    "compression": "maximum",
+    "compression": "normal",
     "extraFiles": [
       {
         "from": "resources",
         "to": "resources",
         "filter": [
-          "**/*"
+          "**/*",
+          "!**/model.onnx",
+          "!**/pii_onnx_model/**/*",
+          "!**/quantized/**/*"
         ]
       }
     ],
+    "fileAssociations": [],
+    "protocols": [],
     "electronLanguages": [
       "en"
     ],
     "mac": {
       "category": "public.app-category.utilities",
       "target": [
-        "dmg",
-        "zip"
+        "dmg"
       ],
       "hardenedRuntime": false,
       "gatekeeperAssess": false,
@@ -84,6 +92,7 @@
       "title": "${productName} ${version}",
       "background": "assets/dmg-background.png",
       "iconSize": 100,
+      "internetEnabled": false,
       "iconTextSize": 12,
       "contents": [
         {
