@@ -83,7 +83,6 @@
     "dmg": {
       "title": "${productName} ${version}",
       "background": "assets/dmg-background.png",
-      "backgroundColor": "#1a2332",
       "iconSize": 100,
       "iconTextSize": 12,
       "contents": [
