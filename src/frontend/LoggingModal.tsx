@@ -207,29 +207,35 @@ export default function LoggingModal({ isOpen, onClose }: LoggingModalProps) {
           </button>
         </div>
 
-        {/* Toggle Button */}
-        <div className="mb-4 flex items-center gap-2">
+        {/* Toggle Slider */}
+        <div className="mb-4 flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            <MessageSquare className="w-4 h-4 text-slate-600" />
+            <span className="text-sm font-medium text-slate-700">
+              Messages Only
+            </span>
+          </div>
           <button
             onClick={() => setShowFullJson(!showFullJson)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
-              showFullJson
-                ? "bg-blue-600 text-white"
-                : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+              showFullJson ? "bg-blue-600" : "bg-slate-300"
             }`}
+            role="switch"
+            aria-checked={showFullJson}
           >
-            {showFullJson ? (
-              <>
-                <Code className="w-4 h-4" />
-                Full JSON
-              </>
-            ) : (
-              <>
-                <MessageSquare className="w-4 h-4" />
-                Messages Only
-              </>
-            )}
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                showFullJson ? "translate-x-6" : "translate-x-1"
+              }`}
+            />
           </button>
-          <span className="text-sm text-slate-500">
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium text-slate-700">
+              Full JSON
+            </span>
+            <Code className="w-4 h-4 text-slate-600" />
+          </div>
+          <span className="text-sm text-slate-500 ml-2">
             {showFullJson
               ? "Showing complete request/response"
               : "Showing message content only"}
