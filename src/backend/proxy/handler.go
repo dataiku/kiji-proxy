@@ -155,7 +155,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					requestJSON, _ := json.Marshal(maskedRequest)
 					requestStr := string(requestJSON)
 					requestStr = strings.ReplaceAll(requestStr, original, masked)
-					json.Unmarshal([]byte(requestStr), &maskedRequest)
+					if err := json.Unmarshal([]byte(requestStr), &maskedRequest); err != nil {
+						log.Printf("[Proxy] ⚠️  Failed to unmarshal masked request: %v", err)
+					}
 					// Also apply masking to message text
 					maskedMessageText = strings.ReplaceAll(maskedMessageText, original, masked)
 				}
