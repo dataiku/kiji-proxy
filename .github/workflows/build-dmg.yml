@@ -128,17 +128,10 @@ jobs:
       - name: Upload DMG artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Privacy-Proxy-DMG
+          name: Privacy-Proxy-DMG-${{ github.run_number }}
           path: src/frontend/release/*.dmg
-          retention-days: 30
-
-      - name: Upload ZIP artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Privacy-Proxy-ZIP
-          path: src/frontend/release/*.zip
-          retention-days: 30
-        continue-on-error: true # ZIP might not always be created
+          retention-days: 7
+          compression-level: 6
 
       - name: Build summary
         run: |
@@ -173,7 +166,6 @@ jobs:
 
             ### Downloads
             - DMG installer for macOS
-            - ZIP archive
 
             ### Installation Notes
 
@@ -189,7 +181,6 @@ jobs:
             This is required because the app is not code-signed with an Apple Developer certificate. The app is safe to use.
           files: |
             src/frontend/release/*.dmg
-            src/frontend/release/*.zip
           draft: false
           prerelease: ${{ github.ref != 'refs/heads/main' }}
           generate_release_notes: true

@@ -1,0 +1,105 @@
+name: Cleanup Old Artifacts
+
+on:
+  # Run daily at 2 AM UTC
+  schedule:
+    - cron: '0 2 * * *'
+
+  # Allow manual triggering
+  workflow_dispatch:
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    name: Delete old artifacts
+    permissions:
+      actions: write  # Required to delete artifacts
+
+    steps:
+      - name: Delete artifacts older than 7 days
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const daysToKeep = 7;
+            const cutoffDate = new Date();
+            cutoffDate.setDate(cutoffDate.setDate() - daysToKeep);
+
+            console.log(`Deleting artifacts older than ${cutoffDate.toISOString()}`);
+
+            const artifacts = await github.rest.actions.listArtifactsForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 100
+            });
+
+            let deletedCount = 0;
+            let deletedSize = 0;
+
+            for (const artifact of artifacts.data.artifacts) {
+              const createdAt = new Date(artifact.created_at);
+
+              if (createdAt < cutoffDate) {
+                console.log(`Deleting artifact: ${artifact.name} (${artifact.size_in_bytes} bytes, created ${artifact.created_at})`);
+
+                await github.rest.actions.deleteArtifact({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  artifact_id: artifact.id
+                });
+
+                deletedCount++;
+                deletedSize += artifact.size_in_bytes;
+              }
+            }
+
+            const deletedSizeMB = (deletedSize / 1024 / 1024).toFixed(2);
+            console.log(`\n✅ Cleanup complete!`);
+            console.log(`   Deleted ${deletedCount} artifacts`);
+            console.log(`   Freed ${deletedSizeMB} MB of storage`);
+
+            // Add to job summary
+            await core.summary
+              .addHeading('Artifact Cleanup Summary')
+              .addRaw(`- Deleted artifacts: **${deletedCount}**`)
+              .addRaw(`\n- Storage freed: **${deletedSizeMB} MB**`)
+              .addRaw(`\n- Cutoff date: ${cutoffDate.toISOString()}`)
+              .write();
+
+      - name: Delete artifacts from failed runs
+        uses: actions/github-script@v7
+        with:
+          script: |
+            console.log('Deleting artifacts from failed/cancelled runs...');
+
+            const runs = await github.rest.actions.listWorkflowRunsForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              status: 'completed',
+              per_page: 100
+            });
+
+            let deletedCount = 0;
+
+            for (const run of runs.data.workflow_runs) {
+              if (run.conclusion === 'failure' || run.conclusion === 'cancelled') {
+                const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  run_id: run.id
+                });
+
+                for (const artifact of artifacts.data.artifacts) {
+                  console.log(`Deleting artifact from failed run: ${artifact.name}`);
+
+                  await github.rest.actions.deleteArtifact({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    artifact_id: artifact.id
+                  });
+
+                  deletedCount++;
+                }
+              }
+            }
+
+            console.log(`\n✅ Deleted ${deletedCount} artifacts from failed/cancelled runs`);
