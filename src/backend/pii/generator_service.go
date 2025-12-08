@@ -43,7 +43,7 @@ func (s *GeneratorService) getGeneratorForLabel(label string) func(string) strin
 		"CITY":             func(original string) string { return piiGenerators.CityGenerator(s.rng, original) },
 		"STREET":           func(original string) string { return piiGenerators.StreetGenerator(s.rng, original) },
 		"BUILDINGNUM":      func(original string) string { return piiGenerators.BuildingNumGenerator(s.rng, original) },
-		"GIVENNAME":        func(original string) string { return piiGenerators.GivenNameGenerator(s.rng, original) },
+		"FIRSTNAME":        func(original string) string { return piiGenerators.FirstNameGenerator(s.rng, original) },
 		"SURNAME":          func(original string) string { return piiGenerators.SurnameGenerator(s.rng, original) },
 	}
 

@@ -58,6 +58,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Println("--- in ServeHTTP ---")
 	log.Printf("[Proxy] Received %s request to %s", r.Method, r.URL.Path)
 
+	// Check if detailed PII information is requested via query parameter
+	includeDetails := r.URL.Query().Get("details") == "true"
+	if includeDetails {
+		log.Printf("[Proxy] Detailed PII metadata requested")
+	}
+
 	// Read and validate request body
 	body, err := h.readRequestBody(r)
 	if err != nil {
@@ -68,18 +74,30 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("[Proxy] Request body size: %d bytes", len(body))
 
+	// Parse request data for PII details (if needed)
+	var requestData map[string]interface{}
+	var originalText string
+	if includeDetails {
+		if err := json.Unmarshal(body, &requestData); err != nil {
+			log.Printf("[Proxy] ⚠️  Failed to parse request for details: %v", err)
+			// Continue without details rather than failing
+			includeDetails = false
+		} else {
+			// Extract text from messages for logging
+			originalText, _ = h.extractTextFromMessages(requestData)
+		}
+	}
+
 	// Check for PII in the request and get redacted body
-	redactedBody, _, entities := h.checkRequestPII(string(body))
+	redactedBody, maskedToOriginal, entities := h.checkRequestPII(string(body))
 
 	// Log initial request if logging is available
 	if h.loggingDB != nil {
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
-		// Truncate request body if too long (limit to 1000 chars for logging)
+		// Store full request for proper JSON parsing in UI
+		// The UI will handle display truncation and formatting
 		requestMessage := string(body)
-		if len(requestMessage) > 1000 {
-			requestMessage = requestMessage[:1000] + "... (truncated)"
-		}
 		if err := h.loggingDB.InsertLog(ctx, requestMessage, "In", entities, false); err != nil {
 			log.Printf("[Proxy] ⚠️  Failed to log request: %v", err)
 		}
@@ -109,14 +127,93 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if h.loggingDB != nil {
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
-		// Truncate response body if too long (limit to 1000 chars for logging)
+		// Store full response for proper JSON parsing in UI
+		// The UI will handle display truncation and formatting
 		responseMessage := string(modifiedBody)
-		if len(responseMessage) > 1000 {
-			responseMessage = responseMessage[:1000] + "... (truncated)"
-		}
 		// Response doesn't have detected PII (we're restoring, not detecting)
 		if err := h.loggingDB.InsertLog(ctx, responseMessage, "Out", []pii.Entity{}, false); err != nil {
 			log.Printf("[Proxy] ⚠️  Failed to log response: %v", err)
+		}
+	}
+
+	// If details are requested, enhance response with PII metadata
+	if includeDetails && resp.StatusCode == http.StatusOK {
+		// Parse the OpenAI response
+		var responseData map[string]interface{}
+		if err := json.Unmarshal(modifiedBody, &responseData); err != nil {
+			log.Printf("[Proxy] ⚠️  Failed to parse response for details: %v", err)
+			// Continue without details rather than failing
+		} else {
+			// Extract masked request text (full JSON)
+			maskedRequestText := redactedBody
+			// Extract masked message text (just the content)
+			maskedMessageText := originalText
+			if requestData != nil {
+				maskedRequest := requestData
+				// Apply masking to request data
+				for masked, original := range maskedToOriginal {
+					requestJSON, _ := json.Marshal(maskedRequest)
+					requestStr := string(requestJSON)
+					requestStr = strings.ReplaceAll(requestStr, original, masked)
+					if err := json.Unmarshal([]byte(requestStr), &maskedRequest); err != nil {
+						log.Printf("[Proxy] ⚠️  Failed to unmarshal masked request: %v", err)
+					}
+					// Also apply masking to message text
+					maskedMessageText = strings.ReplaceAll(maskedMessageText, original, masked)
+				}
+				maskedRequestJSON, _ := json.Marshal(maskedRequest)
+				maskedRequestText = string(maskedRequestJSON)
+			}
+
+			// Extract response text
+			responseText, _ := h.extractTextFromResponse(responseData)
+
+			// Create masked response text
+			maskedResponseText := responseText
+			for masked, original := range maskedToOriginal {
+				maskedResponseText = strings.ReplaceAll(maskedResponseText, original, masked)
+			}
+
+			// Build PII entities array
+			piiEntities := make([]map[string]interface{}, 0)
+			for _, entity := range entities {
+				// Find the masked text for this entity
+				var maskedText string
+				for masked, original := range maskedToOriginal {
+					if original == entity.Text {
+						maskedText = masked
+						break
+					}
+				}
+
+				piiEntities = append(piiEntities, map[string]interface{}{
+					"text":        entity.Text,
+					"masked_text": maskedText,
+					"label":       entity.Label,
+					"confidence":  entity.Confidence,
+					"start_pos":   entity.StartPos,
+					"end_pos":     entity.EndPos,
+				})
+			}
+
+			// Add PII details to response
+			responseData["x_pii_details"] = map[string]interface{}{
+				"original_request":  originalText,
+				"masked_request":    maskedRequestText,
+				"masked_message":    maskedMessageText,
+				"masked_response":   maskedResponseText,
+				"unmasked_response": responseText,
+				"pii_entities":      piiEntities,
+			}
+
+			// Re-marshal the enhanced response
+			enhancedBody, err := json.Marshal(responseData)
+			if err != nil {
+				log.Printf("[Proxy] ⚠️  Failed to marshal enhanced response: %v", err)
+			} else {
+				modifiedBody = enhancedBody
+				log.Printf("[Proxy] Enhanced response with PII details (%d entities)", len(piiEntities))
+			}
 		}
 	}
 
@@ -345,215 +442,6 @@ func NewHandler(cfg *config.Config, electronConfigPath string) (*Handler, error)
 		electronConfigPath: electronConfigPath,
 		loggingDB:          loggingDB,
 	}, nil
-}
-
-// HandleDetails processes a chat completion request and returns detailed PII analysis
-func (h *Handler) HandleDetails(w http.ResponseWriter, r *http.Request) {
-	// Read request body
-	body, err := h.readRequestBody(r)
-	if err != nil {
-		log.Printf("[Details] ❌ Failed to read request body: %v", err)
-		http.Error(w, "Failed to read request body", http.StatusBadRequest)
-		return
-	}
-
-	// Parse the OpenAI chat completion request
-	var requestData map[string]interface{}
-	if err := json.Unmarshal(body, &requestData); err != nil {
-		log.Printf("[Details] ❌ Failed to parse JSON request: %v", err)
-		http.Error(w, "Invalid JSON request", http.StatusBadRequest)
-		return
-	}
-
-	// Create masked request using the unified logic
-	maskedRequest, maskedToOriginal, entities := h.createMaskedRequest(requestData)
-
-	// Extract original text for logging
-	originalText, _ := h.extractTextFromMessages(requestData)
-
-	// Log initial request if logging is available
-	if h.loggingDB != nil {
-		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-		defer cancel()
-		// Truncate request if too long (limit to 1000 chars for logging)
-		requestMessage := originalText
-		if len(requestMessage) > 1000 {
-			requestMessage = requestMessage[:1000] + "... (truncated)"
-		}
-		if err := h.loggingDB.InsertLog(ctx, requestMessage, "In", entities, false); err != nil {
-			log.Printf("[Details] ⚠️  Failed to log request: %v", err)
-		}
-	}
-
-	// Initialize piiEntities as empty slice to avoid null issues
-	piiEntities := make([]map[string]interface{}, 0)
-	for _, entity := range entities {
-		// Find the masked text for this entity from the mapping
-		var maskedText string
-		for masked, original := range maskedToOriginal {
-			if original == entity.Text {
-				maskedText = masked
-				break
-			}
-		}
-
-		piiEntities = append(piiEntities, map[string]interface{}{
-			"text":        entity.Text, // Original text
-			"masked_text": maskedText,  // Actually used masked text
-			"label":       entity.Label,
-			"confidence":  entity.Confidence,
-			"start_pos":   entity.StartPos,
-			"end_pos":     entity.EndPos,
-		})
-	}
-
-	// Call OpenAI API with masked request
-	maskedRequestBody, err := json.Marshal(maskedRequest)
-	if err != nil {
-		log.Printf("[Details] ❌ Failed to marshal masked request: %v", err)
-		http.Error(w, "Failed to create masked request", http.StatusInternalServerError)
-		return
-	}
-
-	// Get forward endpoint (from Electron config or fallback to config)
-	forwardEndpoint, err := h.getForwardEndpoint()
-	if err != nil {
-		log.Printf("[Details] ❌ Failed to get forward endpoint: %v", err)
-		http.Error(w, fmt.Sprintf("Failed to get forward endpoint: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	// Build target URL - normalize base URL and always append /v1/chat/completions
-	// Remove /v1 and trailing slashes to get the base URL
-	forwardEndpoint = strings.TrimSuffix(forwardEndpoint, "/v1")
-	forwardEndpoint = strings.TrimSuffix(forwardEndpoint, "/")
-	// Always append /v1/chat/completions since HandleDetails always calls this endpoint
-	targetURL := forwardEndpoint + "/v1/chat/completions"
-	log.Printf("[Details] Forward endpoint (normalized): %s", forwardEndpoint)
-	log.Printf("[Details] Target URL: %s", targetURL)
-	proxyReq, err := http.NewRequestWithContext(r.Context(), r.Method, targetURL, bytes.NewReader(maskedRequestBody))
-	if err != nil {
-		log.Printf("[Details] ❌ Failed to create proxy request: %v", err)
-		http.Error(w, "Failed to create proxy request", http.StatusInternalServerError)
-		return
-	}
-
-	// Copy headers from original request
-	h.copyHeaders(r.Header, proxyReq.Header)
-
-	// Add OpenAI API key (from header or config)
-	apiKey := h.getOpenAIAPIKey(r)
-	proxyReq.Header.Set("Authorization", "Bearer "+apiKey)
-
-	// Explicitly set Accept-Encoding to identity to avoid compressed responses
-	proxyReq.Header.Set("Accept-Encoding", "identity")
-
-	// Send request to OpenAI
-	resp, err := h.client.Do(proxyReq)
-	if err != nil {
-		log.Printf("[Details] ❌ Failed to send request to OpenAI: %v", err)
-		http.Error(w, "Failed to call OpenAI API", http.StatusBadGateway)
-		return
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	// Read OpenAI response
-	log.Printf("[Details] OpenAI response status: %s", resp.Status)
-	log.Printf("[Details] OpenAI response headers: %v", resp.Header)
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		log.Printf("[Details] ❌ Failed to read OpenAI response: %v", err)
-		http.Error(w, "Failed to read OpenAI response", http.StatusInternalServerError)
-		return
-	}
-
-	// Check if response is successful (2xx status codes)
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		log.Printf("[Details] ❌ OpenAI API returned error status: %s", resp.Status)
-		log.Printf("[Details] OpenAI error response body: %s", string(respBody))
-
-		// Try to parse as JSON error response, otherwise return the raw body
-		var errorResponse map[string]interface{}
-		if err := json.Unmarshal(respBody, &errorResponse); err == nil {
-			// Successfully parsed as JSON, return it as error
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(resp.StatusCode)
-			if err := json.NewEncoder(w).Encode(map[string]interface{}{
-				"error":       errorResponse,
-				"status_code": resp.StatusCode,
-			}); err != nil {
-				log.Printf("[Details] ❌ Failed to write error response: %v", err)
-			}
-		} else {
-			// Not JSON, return as plain text error
-			w.Header().Set("Content-Type", "text/plain")
-			w.WriteHeader(resp.StatusCode)
-			if _, err := w.Write(respBody); err != nil {
-				log.Printf("[Details] ❌ Failed to write error response: %v", err)
-			}
-		}
-		return
-	}
-
-	// Parse OpenAI response (only for successful responses)
-	log.Printf("[Details] OpenAI response body: %s", string(respBody))
-	var responseData map[string]interface{}
-	if err := json.Unmarshal(respBody, &responseData); err != nil {
-		log.Printf("[Details] ❌ Failed to parse OpenAI response: %v", err)
-		log.Printf("[Details] Response body was: %s", string(respBody))
-		http.Error(w, fmt.Sprintf("Invalid OpenAI response: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	// Extract text content from response
-	textFromResponse, err := h.extractTextFromResponse(responseData)
-	if err != nil {
-		log.Printf("[Details] ❌ Failed to extract text from response: %v", err)
-		http.Error(w, "Invalid response format", http.StatusInternalServerError)
-		return
-	}
-
-	// Create unmasked response by restoring original PII
-	unmaskedResponseText := textFromResponse
-	for masked, original := range maskedToOriginal {
-		unmaskedResponseText = strings.ReplaceAll(unmaskedResponseText, masked, original)
-	}
-
-	// Format masked request as a readable string
-	maskedRequestText, _ := h.extractTextFromMessages(maskedRequest)
-
-	// Log final response if logging is available (before creating response JSON)
-	if h.loggingDB != nil {
-		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-		defer cancel()
-		// Truncate response if too long (limit to 1000 chars for logging)
-		responseMessage := unmaskedResponseText
-		if len(responseMessage) > 1000 {
-			responseMessage = responseMessage[:1000] + "... (truncated)"
-		}
-		// Response doesn't have detected PII (we're restoring, not detecting)
-		if err := h.loggingDB.InsertLog(ctx, responseMessage, "Out", []pii.Entity{}, false); err != nil {
-			log.Printf("[Details] ⚠️  Failed to log response: %v", err)
-		}
-	}
-
-	// Create response
-	detailsResponse := map[string]interface{}{
-		"original_request":  originalText,
-		"masked_request":    maskedRequestText,
-		"masked_response":   textFromResponse,
-		"unmasked_response": unmaskedResponseText,
-		"pii_entities":      piiEntities,
-	}
-
-	// Set response headers
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-
-	// Write response
-	if err := json.NewEncoder(w).Encode(detailsResponse); err != nil {
-		log.Printf("[Details] ❌ Failed to write response: %v", err)
-	}
 }
 
 // extractTextFromMessages extracts text content from OpenAI messages array

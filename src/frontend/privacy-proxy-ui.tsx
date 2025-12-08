@@ -162,7 +162,7 @@ export default function PrivacyProxyUI() {
     setIsProcessing(true);
 
     try {
-      // Create OpenAI chat completion request format
+      // Create OpenAI chat completion request format (standard format)
       const requestBody = {
         model: "gpt-3.5-turbo",
         messages: [
@@ -174,23 +174,23 @@ export default function PrivacyProxyUI() {
         max_tokens: 1000,
       };
 
-      // Always call the Go server at fixed address - it will forward to forwardEndpoint
+      // Call standard OpenAI proxy endpoint with details parameter for PII metadata
       const goServerUrl = getGoServerAddress();
       const apiUrl = isElectron
-        ? `${goServerUrl}/details` // Call Go server, which forwards to forwardEndpoint
-        : "/details"; // Proxied call in web mode
+        ? `${goServerUrl}/v1/chat/completions?details=true` // Standard proxy with PII details
+        : "/v1/chat/completions?details=true"; // Proxied call in web mode
 
-      // Prepare headers
+      // Prepare headers with standard Authorization format
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
       };
 
-      // Add API key header if available in Electron
+      // Add API key as Bearer token (standard OpenAI format)
       if (isElectron && apiKey) {
-        headers["X-OpenAI-API-Key"] = apiKey;
+        headers["Authorization"] = `Bearer ${apiKey}`;
       }
 
-      // Call the /details endpoint
+      // Call the standard OpenAI-compatible endpoint
       const response = await fetch(apiUrl, {
         method: "POST",
         headers,
@@ -203,21 +203,34 @@ export default function PrivacyProxyUI() {
 
       const data = await response.json();
 
-      // Update state with real data from the API
-      setMaskedInput(data.masked_request);
-      setMaskedOutput(data.masked_response);
-      setFinalOutput(data.unmasked_response);
+      // Extract standard OpenAI response
+      const assistantMessage = data.choices?.[0]?.message?.content || "";
+      setFinalOutput(assistantMessage);
 
-      // Transform PII entities to match UI format
-      const transformedEntities = data.pii_entities.map((entity) => ({
-        type: entity.label.toLowerCase(),
-        original: entity.text,
-        token: entity.masked_text,
-        confidence: entity.confidence,
-      }));
-      setDetectedEntities(transformedEntities);
+      // Extract PII details from custom field (if available)
+      if (data.x_pii_details) {
+        // Use masked_message for display (just the content, not full JSON)
+        setMaskedInput(data.x_pii_details.masked_message || "");
+        setMaskedOutput(data.x_pii_details.masked_response || "");
+
+        // Transform PII entities to match UI format
+        const transformedEntities = (data.x_pii_details.pii_entities || []).map(
+          (entity) => ({
+            type: entity.label.toLowerCase(),
+            original: entity.text,
+            token: entity.masked_text,
+            confidence: entity.confidence,
+          }),
+        );
+        setDetectedEntities(transformedEntities);
+      } else {
+        // No PII details available (shouldn't happen with ?details=true)
+        setMaskedInput("");
+        setMaskedOutput("");
+        setDetectedEntities([]);
+      }
     } catch (error) {
-      console.error("Error calling /details endpoint:", error);
+      console.error("Error calling OpenAI proxy endpoint:", error);
       alert(`Error: ${error.message}`);
     } finally {
       setIsProcessing(false);

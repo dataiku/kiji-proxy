@@ -132,8 +132,8 @@ func BuildingNumGenerator(rng *rand.Rand, original string) string {
 	return fmt.Sprintf("%d", number)
 }
 
-// GivenNameGenerator generates dummy first names
-func GivenNameGenerator(rng *rand.Rand, original string) string {
+// FirstNameGenerator generates dummy first names
+func FirstNameGenerator(rng *rand.Rand, original string) string {
 	names := []string{"John", "Jane", "Michael", "Sarah", "David", "Emily", "James", "Emma", "Robert", "Olivia"}
 	return names[rng.Intn(len(names))]
 }
