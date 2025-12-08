@@ -51,4 +51,3 @@ func ReadForwardEndpoint(configPath string) (string, error) {
 
 	return electronConfig.ForwardEndpoint, nil
 }
-
