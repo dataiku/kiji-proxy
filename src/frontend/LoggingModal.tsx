@@ -1,9 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { X, FileText, ArrowDownCircle, ArrowUpCircle } from 'lucide-react';
+import React, { useState, useEffect } from "react";
+import {
+  X,
+  FileText,
+  ArrowDownCircle,
+  ArrowUpCircle,
+  Code,
+  MessageSquare,
+} from "lucide-react";
 
 interface LogEntry {
   id: string;
-  direction: 'In' | 'Out';
+  direction: "In" | "Out";
   message: string;
   detectedPII: string;
   blocked: boolean;
@@ -18,6 +25,7 @@ interface LoggingModalProps {
 export default function LoggingModal({ isOpen, onClose }: LoggingModalProps) {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [showFullJson, setShowFullJson] = useState(false);
 
   // TODO: Replace with actual API call to fetch logs
   useEffect(() => {
@@ -30,24 +38,25 @@ export default function LoggingModal({ isOpen, onClose }: LoggingModalProps) {
     setIsLoading(true);
     try {
       // Determine the API URL
-      const isElectron = typeof window !== 'undefined' && window.electronAPI !== undefined;
-      const apiUrl = isElectron 
-        ? 'http://localhost:8080/logs'  // Direct call to Go server in Electron
-        : '/logs';                       // Proxied call in web mode
+      const isElectron =
+        typeof window !== "undefined" && window.electronAPI !== undefined;
+      const apiUrl = isElectron
+        ? "http://localhost:8080/logs" // Direct call to Go server in Electron
+        : "/logs"; // Proxied call in web mode
 
       const response = await fetch(apiUrl);
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
-      
+
       // Transform the API response to match LogEntry format
       const transformedLogs: LogEntry[] = (data.logs || []).map((log: any) => {
         // Parse timestamp - handle both string and Date formats
         let timestamp: Date;
-        if (typeof log.timestamp === 'string') {
+        if (typeof log.timestamp === "string") {
           timestamp = new Date(log.timestamp);
         } else if (log.timestamp instanceof Date) {
           timestamp = log.timestamp;
@@ -57,9 +66,9 @@ export default function LoggingModal({ isOpen, onClose }: LoggingModalProps) {
 
         return {
           id: String(log.id),
-          direction: log.direction || 'Unknown',
-          message: log.message || '',
-          detectedPII: log.detected_pii || 'None',
+          direction: log.direction || "Unknown",
+          message: log.message || "",
+          detectedPII: log.detected_pii || "None",
           blocked: log.blocked || false,
           timestamp: timestamp,
         };
@@ -67,7 +76,7 @@ export default function LoggingModal({ isOpen, onClose }: LoggingModalProps) {
 
       setLogs(transformedLogs);
     } catch (error) {
-      console.error('Error loading logs:', error);
+      console.error("Error loading logs:", error);
       // Set empty logs on error
       setLogs([]);
     } finally {
@@ -76,15 +85,107 @@ export default function LoggingModal({ isOpen, onClose }: LoggingModalProps) {
   };
 
   const formatTimestamp = (date: Date) => {
-    return date.toLocaleString('en-US', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
+    return date.toLocaleString("en-US", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
       hour12: false,
     });
+  };
+
+  const extractMessageFromJson = (message: string): string => {
+    try {
+      const parsed = JSON.parse(message);
+
+      // Check if it's an OpenAI chat completion request (In message)
+      if (parsed.messages && Array.isArray(parsed.messages)) {
+        const messages = parsed.messages
+          .map((msg: any) => {
+            const role = msg.role ? `[${msg.role}]` : "";
+            const content = msg.content || "";
+            return role ? `${role} ${content}` : content;
+          })
+          .filter((content: string) => content.trim())
+          .join("\n\n");
+        return messages || message;
+      }
+
+      // Check if it's an OpenAI response (Out message)
+      if (parsed.choices && Array.isArray(parsed.choices)) {
+        const messages = parsed.choices
+          .map((choice: any, index: number) => {
+            // Handle chat completion format
+            if (choice.message?.content) {
+              const role = choice.message.role
+                ? `[${choice.message.role}]`
+                : "[assistant]";
+              return `${role} ${choice.message.content}`;
+            }
+            // Handle legacy completion format
+            if (choice.text) {
+              return `[completion] ${choice.text}`;
+            }
+            return "";
+          })
+          .filter((content: string) => content.trim())
+          .join("\n\n");
+        return messages || message;
+      }
+
+      // Return the original if we can't parse it
+      return message;
+    } catch (error) {
+      // Not JSON or parsing failed, return as-is
+      return message;
+    }
+  };
+
+  const formatMessage = (message: string): string => {
+    if (!showFullJson) {
+      // Messages Only mode - extract and show just the message content
+      const extracted = extractMessageFromJson(message);
+      // Truncate very long messages for display (5000 chars)
+      if (extracted.length > 5000) {
+        return (
+          extracted.substring(0, 5000) +
+          "\n\n... [Message truncated for display]"
+        );
+      }
+      return extracted;
+    }
+
+    // Full JSON mode - pretty-print the entire JSON
+    try {
+      const parsed = JSON.parse(message);
+      const formatted = JSON.stringify(parsed, null, 2);
+      // Truncate very long JSON for display (10000 chars)
+      if (formatted.length > 10000) {
+        return (
+          formatted.substring(0, 10000) + "\n\n... [JSON truncated for display]"
+        );
+      }
+      return formatted;
+    } catch {
+      // Not valid JSON, show as-is with truncation
+      if (message.length > 5000) {
+        return (
+          message.substring(0, 5000) + "\n\n... [Message truncated for display]"
+        );
+      }
+      return message;
+    }
+  };
+
+  const isJson = (message: string): boolean => {
+    try {
+      JSON.parse(message);
+      return true;
+    } catch {
+      return false;
+    }
   };
 
   if (!isOpen) return null;
@@ -104,6 +205,35 @@ export default function LoggingModal({ isOpen, onClose }: LoggingModalProps) {
           >
             <X className="w-6 h-6" />
           </button>
+        </div>
+
+        {/* Toggle Button */}
+        <div className="mb-4 flex items-center gap-2">
+          <button
+            onClick={() => setShowFullJson(!showFullJson)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+              showFullJson
+                ? "bg-blue-600 text-white"
+                : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+            }`}
+          >
+            {showFullJson ? (
+              <>
+                <Code className="w-4 h-4" />
+                Full JSON
+              </>
+            ) : (
+              <>
+                <MessageSquare className="w-4 h-4" />
+                Messages Only
+              </>
+            )}
+          </button>
+          <span className="text-sm text-slate-500">
+            {showFullJson
+              ? "Showing complete request/response"
+              : "Showing message content only"}
+          </span>
         </div>
 
         {/* Table */}
@@ -147,7 +277,7 @@ export default function LoggingModal({ isOpen, onClose }: LoggingModalProps) {
                     >
                       <td className="px-4 py-3 text-sm">
                         <div className="flex items-center gap-2">
-                          {log.direction === 'In' ? (
+                          {log.direction === "In" ? (
                             <ArrowDownCircle className="w-4 h-4 text-blue-600" />
                           ) : (
                             <ArrowUpCircle className="w-4 h-4 text-green-600" />
@@ -155,8 +285,25 @@ export default function LoggingModal({ isOpen, onClose }: LoggingModalProps) {
                           <span className="font-medium">{log.direction}</span>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-sm text-slate-700 font-mono">
-                        {log.message}
+                      <td className="px-4 py-3 text-sm text-slate-700">
+                        <div className="relative">
+                          {!showFullJson && isJson(log.message) && (
+                            <div className="absolute -top-1 -right-1 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full font-medium">
+                              {log.direction === "In" ? "Request" : "Response"}
+                            </div>
+                          )}
+                          <pre
+                            className={`font-mono text-xs whitespace-pre-wrap break-words ${
+                              showFullJson && isJson(log.message)
+                                ? "bg-slate-50 p-2 rounded border border-slate-200"
+                                : !showFullJson && isJson(log.message)
+                                  ? "p-2 rounded bg-gradient-to-br from-blue-50 to-slate-50 border border-blue-100"
+                                  : ""
+                            }`}
+                          >
+                            {formatMessage(log.message)}
+                          </pre>
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-sm text-slate-700">
                         {log.detectedPII}
@@ -165,11 +312,11 @@ export default function LoggingModal({ isOpen, onClose }: LoggingModalProps) {
                         <span
                           className={`px-2 py-1 rounded text-xs font-medium ${
                             log.blocked
-                              ? 'bg-red-100 text-red-700'
-                              : 'bg-green-100 text-green-700'
+                              ? "bg-red-100 text-red-700"
+                              : "bg-green-100 text-green-700"
                           }`}
                         >
-                          {log.blocked ? 'Yes' : 'No'}
+                          {log.blocked ? "Yes" : "No"}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-sm text-slate-600">
@@ -186,7 +333,7 @@ export default function LoggingModal({ isOpen, onClose }: LoggingModalProps) {
         {/* Footer */}
         <div className="mt-4 pt-4 border-t border-slate-200 flex items-center justify-between">
           <p className="text-sm text-slate-500">
-            {logs.length} log {logs.length === 1 ? 'entry' : 'entries'}
+            {logs.length} log {logs.length === 1 ? "entry" : "entries"}
           </p>
           <button
             onClick={onClose}
@@ -199,4 +346,3 @@ export default function LoggingModal({ isOpen, onClose }: LoggingModalProps) {
     </div>
   );
 }
-

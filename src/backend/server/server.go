@@ -74,7 +74,6 @@ func (s *Server) Start() error {
 	// Add health check endpoint
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", s.healthCheck)
-	mux.HandleFunc("/details", s.detailsHandler)
 	mux.HandleFunc("/logs", s.logsHandler)
 	mux.HandleFunc("/api/model/security", s.handleModelSecurity)
 	mux.Handle("/v1/chat/completions", s.handler)
@@ -139,30 +138,6 @@ func (s *Server) corsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-OpenAI-API-Key")
 	w.Header().Set("Access-Control-Max-Age", "3600")
-}
-
-// detailsHandler provides the details endpoint for PII analysis
-func (s *Server) detailsHandler(w http.ResponseWriter, r *http.Request) {
-	log.Println("--- in detailsHandler ---")
-
-	// Handle CORS preflight OPTIONS request
-	if r.Method == http.MethodOptions {
-		s.corsHandler(w, r)
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-
-	// Add CORS headers to all responses
-	s.corsHandler(w, r)
-
-	// Only allow POST requests
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	// Delegate to the handler's HandleDetails method
-	s.handler.HandleDetails(w, r)
 }
 
 // logsHandler provides the logs endpoint for retrieving log entries
