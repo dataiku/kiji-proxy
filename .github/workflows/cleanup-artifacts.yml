@@ -3,17 +3,23 @@ name: Cleanup Old Artifacts
 on:
   # Run daily at 2 AM UTC
   schedule:
-    - cron: '0 2 * * *'
+    - cron: "0 2 * * *"
 
   # Allow manual triggering
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run mode (will not actually delete artifacts)"
+        required: false
+        default: "true"
+        type: boolean
 
 jobs:
   cleanup:
     runs-on: ubuntu-latest
     name: Delete old artifacts
     permissions:
-      actions: write  # Required to delete artifacts
+      actions: write # Required to delete artifacts
 
     steps:
       - name: Delete artifacts older than 7 days
@@ -22,9 +28,10 @@ jobs:
           script: |
             const daysToKeep = 7;
             const cutoffDate = new Date();
-            cutoffDate.setDate(cutoffDate.setDate() - daysToKeep);
+            cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
+            const dryRun = ${{ github.event.inputs.dry_run || 'true' }};
 
-            console.log(`Deleting artifacts older than ${cutoffDate.toISOString()}`);
+            console.log(`${dryRun ? '[DRY RUN] ' : ''}Deleting artifacts older than ${cutoffDate.toISOString()}`);
 
             const artifacts = await github.rest.actions.listArtifactsForRepo({
               owner: context.repo.owner,
@@ -39,13 +46,15 @@ jobs:
               const createdAt = new Date(artifact.created_at);
 
               if (createdAt < cutoffDate) {
-                console.log(`Deleting artifact: ${artifact.name} (${artifact.size_in_bytes} bytes, created ${artifact.created_at})`);
+                console.log(`${dryRun ? '[DRY RUN] Would delete' : 'Deleting'} artifact: ${artifact.name} (${artifact.size_in_bytes} bytes, created ${artifact.created_at})`);
 
-                await github.rest.actions.deleteArtifact({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  artifact_id: artifact.id
-                });
+                if (!dryRun) {
+                  await github.rest.actions.deleteArtifact({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    artifact_id: artifact.id
+                  });
+                }
 
                 deletedCount++;
                 deletedSize += artifact.size_in_bytes;
@@ -54,14 +63,14 @@ jobs:
 
             const deletedSizeMB = (deletedSize / 1024 / 1024).toFixed(2);
             console.log(`\n✅ Cleanup complete!`);
-            console.log(`   Deleted ${deletedCount} artifacts`);
-            console.log(`   Freed ${deletedSizeMB} MB of storage`);
+            console.log(`   ${dryRun ? 'Would delete' : 'Deleted'} ${deletedCount} artifacts`);
+            console.log(`   ${dryRun ? 'Would free' : 'Freed'} ${deletedSizeMB} MB of storage`);
 
             // Add to job summary
             await core.summary
-              .addHeading('Artifact Cleanup Summary')
-              .addRaw(`- Deleted artifacts: **${deletedCount}**`)
-              .addRaw(`\n- Storage freed: **${deletedSizeMB} MB**`)
+              .addHeading(`Artifact Cleanup Summary${dryRun ? ' (DRY RUN)' : ''}`)
+              .addRaw(`- ${dryRun ? 'Would delete' : 'Deleted'} artifacts: **${deletedCount}**`)
+              .addRaw(`\n- Storage ${dryRun ? 'that would be freed' : 'freed'}: **${deletedSizeMB} MB**`)
               .addRaw(`\n- Cutoff date: ${cutoffDate.toISOString()}`)
               .write();
 
@@ -69,7 +78,8 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            console.log('Deleting artifacts from failed/cancelled runs...');
+            const dryRun = ${{ github.event.inputs.dry_run || 'true' }};
+            console.log(`${dryRun ? '[DRY RUN] ' : ''}Deleting artifacts from failed/cancelled runs...`);
 
             const runs = await github.rest.actions.listWorkflowRunsForRepo({
               owner: context.repo.owner,
@@ -89,17 +99,19 @@ jobs:
                 });
 
                 for (const artifact of artifacts.data.artifacts) {
-                  console.log(`Deleting artifact from failed run: ${artifact.name}`);
+                  console.log(`${dryRun ? '[DRY RUN] Would delete' : 'Deleting'} artifact from failed run: ${artifact.name}`);
 
-                  await github.rest.actions.deleteArtifact({
-                    owner: context.repo.owner,
-                    repo: context.repo.repo,
-                    artifact_id: artifact.id
-                  });
+                  if (!dryRun) {
+                    await github.rest.actions.deleteArtifact({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      artifact_id: artifact.id
+                    });
+                  }
 
                   deletedCount++;
                 }
               }
             }
 
-            console.log(`\n✅ Deleted ${deletedCount} artifacts from failed/cancelled runs`);
+            console.log(`\n✅ ${dryRun ? 'Would delete' : 'Deleted'} ${deletedCount} artifacts from failed/cancelled runs`);
