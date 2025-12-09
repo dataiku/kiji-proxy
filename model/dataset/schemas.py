@@ -9,6 +9,14 @@ def get_pii_sample_schema() -> dict:
             "type": "object",
             "properties": {
                 "text": {"type": "string"},
+                "language": {
+                    "type": "string",
+                    "description": "Language of the text sample (e.g., 'English', 'Spanish', 'French')",
+                },
+                "country": {
+                    "type": "string",
+                    "description": "Geographic area/country for the text sample (e.g., 'United States', 'France', 'Japan')",
+                },
                 "privacy_mask": {
                     "type": "array",
                     "items": {
@@ -46,7 +54,7 @@ def get_pii_sample_schema() -> dict:
                     "description": "Coreference clusters grouping mentions that refer to the same entity",
                 },
             },
-            "required": ["text", "privacy_mask", "coreferences"],
+            "required": ["text", "privacy_mask", "coreferences", "language", "country"],
             "additionalProperties": False,
         },
     }
@@ -58,6 +66,14 @@ def get_review_sample_schema() -> dict:
         "type": "object",
         "properties": {
             "text": {"type": "string"},
+            "language": {
+                "type": "string",
+                "description": "Language of the text sample (e.g., 'English', 'Spanish', 'French')",
+            },
+            "country": {
+                "type": "string",
+                "description": "Geographic area/country for the text sample (e.g., 'United States', 'France', 'Japan')",
+            },
             "privacy_mask": {
                 "type": "array",
                 "items": {
@@ -95,6 +111,6 @@ def get_review_sample_schema() -> dict:
                 "description": "Coreference clusters grouping mentions that refer to the same entity",
             },
         },
-        "required": ["text", "privacy_mask", "coreferences"],
+        "required": ["text", "privacy_mask", "coreferences", "language", "country"],
         "additionalProperties": False,
     }
