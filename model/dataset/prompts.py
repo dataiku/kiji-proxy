@@ -90,7 +90,9 @@ class PromptBuilder:
 
     @staticmethod
     def build_generation_prompt(
-        labels: dict[str, str], languages: list[str], sample_index: int = 0
+        labels: dict[str, str],
+        languages_countries: list[tuple[str, str]],
+        sample_index: int = 0,
     ) -> str:
         """
         Build a prompt for generating PII samples.
@@ -108,7 +110,11 @@ class PromptBuilder:
         """
 
         # Pick one language randomly from the list
-        selected_language = random.choice(languages) if languages else "English"
+        selected_language_country = (
+            random.choice(languages_countries)
+            if languages_countries
+            else ("English", "United States")
+        )
 
         # Add variety in writing style and context
         writing_styles = [
@@ -141,13 +147,15 @@ class PromptBuilder:
         correct_firstname_only = '{"value": "Ravi", "label": "FIRSTNAME"}'
         correct_both = '{"value": "Ravi", "label": "FIRSTNAME"} {"value": "Patel", "label": "SURNAME"}'
 
+        language = selected_language_country[0]
+        country = selected_language_country[1]
         labels_list = ", ".join(labels.values())
         return f"""
         Generate one text sample in the style of a {style} that contains the following PII types:
         {labels_list}
 
         Instructions:
-            1. Generate the sample in {selected_language} language and make the text as well as the PII data as realistic to the language (e.g. use German, Swiss or Austrian addresses, phone numbers, dates, etc. for German).
+            1. Generate the sample in `{language}` and make the text as well as the PII data as realistic to the geographic area of `{country}`.
             2. Use only the PII types listed above
             3. Write in the style of a {style} - make it realistic and contextually appropriate
             4. {complexity}

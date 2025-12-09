@@ -1,3 +1,4 @@
+import random
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
@@ -56,52 +57,47 @@ class TrainingSetConfig:
     output_dir: str = "model/dataset"
     model_name: str = "distilbert-base-cased"  # Tokenizer model name
 
-    def get_languages(
-        self, language_count: int = 10, seed: int | None = 42, is_testing: bool = False
-    ) -> list[str]:
-        languages = (
-            "English",
-            "German",
-            "French",
-            "Spanish",
-            "Dutch",
-            "Danish",
-            # "Italian",
-            # "Portuguese",
-            # "Swedish",
-            # "Norwegian",
-            # "Finnish",
-            # "Estonian",
-            # "Latvian",
-            # "Lithuanian",
-            # "Polish",
-            # "Romanian",
-            # "Russian",
-            # "Turkish",
-            # "Ukrainian",
-            # "Chinese",
-            # "Swahili",
-            # "Arabic",
-            # "Hausa",
-            # "Yoruba",
-            # "Zulu",
-            # "Amharic",
-            # "Afrikaans",
-            # "Thai",
-            # "Vietnamese",
-            # "Indonesian",
-            # "Malay",
-            # "Tagalog",
-            # "Burmese",
-            # "Malayalam",
-            # "Lao",
-            # "Khmer",
-        )
+    def get_languages_countries(
+        self, language_count: int = 10, is_testing: bool = False
+    ) -> list[tuple[str, str]]:
+        """Get a list of languages and their countries.
+
+        TODO: Expand list of countries to generate more diverse dataset.
+        Suggested Countries:
+            "Italian", "Portuguese", "Swedish", "Norwegian", "Finnish", "Estonian", "Latvian",
+            "Lithuanian", "Polish", "Romanian", "Russian", "Turkish", "Ukrainian", "Chinese", "Swahili",
+            "Arabic", "Hausa", "Yoruba", "Zulu", "Amharic", "Afrikaans", "Thai", "Vietnamese", "Indonesian",
+            "Malay", "Tagalog", "Burmese", "Malayalam", "Lao", "Khmer",
+        """
+        LANGUAGES_COUNTRIES = {
+            "English": [
+                "United States",
+                "United Kingdom",
+                "Canada",
+                "Australia",
+                "Ireland",
+                "New Zealand",
+            ],
+            "German": ["Germany", "Austria", "Switzerland"],
+            "French": ["France", "Belgium", "Canada", "Switzerland", "Luxembourg"],
+            "Spanish": ["Spain", "Mexico", "Argentina", "Colombia", "Peru", "Chile"],
+            "Dutch": [
+                "Netherlands",
+                "Belgium",
+            ],  # excl. "Suriname", "Aruba", "Curaçao", "Sint Maarten" for now
+            "Danish": ["Denmark"],  # excl. "Greenland", "Faroe Islands" for now
+        }
 
         if is_testing:
-            return [languages[0]]
+            return [("English", "United States")]
         else:
-            return languages
+            rs = []
+            for _ in range(language_count):
+                # pick a random key, value
+                key = random.choice(list(LANGUAGES_COUNTRIES.keys()))
+                value = random.choice(LANGUAGES_COUNTRIES[key])
+                rs.append((key, value))
+            return rs
 
     def get_pii_labels(
         self, all_labels: bool = False, return_count: int = 10, seed: int | None = None
@@ -131,6 +127,7 @@ class TrainingSetGenerator:
         llm_client: LLMClient | None = None,
         file_manager: FileManager | None = None,
         is_testing: bool = False,
+        language_count: int = 5,
     ):
         """
         Initialize the training set generator.
@@ -140,9 +137,11 @@ class TrainingSetGenerator:
             llm_client: LLM client to use (if None, creates based on config.use_ollama)
             file_manager: File manager for saving samples (if None, creates default)
             is_testing: Whether running in testing mode
+            language_count: Number of languages to include in the training set
         """
         self.config = config
         self.is_testing = is_testing
+        self.language_count = language_count
 
         # Initialize LLM client
         if llm_client is None:
@@ -171,15 +170,15 @@ class TrainingSetGenerator:
         # Use sample_index as seed to ensure different randomness per sample
         sample_seed = sample_index if not self.is_testing else 42
 
-        languages = self.config.get_languages(
-            is_testing=self.is_testing, seed=sample_seed
+        languages_countries = self.config.get_languages_countries(
+            is_testing=self.is_testing, language_count=self.language_count
         )
 
         # Pass seed to label selection for variation
         labels = self.config.get_pii_labels(return_count=4, seed=sample_seed)
 
         prompt = PromptBuilder.build_generation_prompt(
-            labels, languages, sample_index=sample_index
+            labels, languages_countries, sample_index=sample_index
         )
         json_schema = get_pii_sample_schema()
 
