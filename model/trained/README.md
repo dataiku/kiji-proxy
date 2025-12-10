@@ -100,7 +100,7 @@ The model configuration includes:
 - **Architecture**: DistilBERT for token classification
 - **Hidden Size**: 768 dimensions
 - **Vocabulary Size**: 28,996 tokens
-- **Max Sequence Length**: 512 tokens
+- **Max Sequence Length**: 4096 tokens
 - **Number of Labels**: 33 (including "O" for non-PII)
 
 ### Label Mappings (`label_mappings.json`)

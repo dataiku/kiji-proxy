@@ -17,7 +17,7 @@ class TrainingConfig:
     """Configuration for PII detection model training."""
 
     # Model settings
-    model_name: str = "distilbert-base-cased"  # 66M params, fast
+    model_name: str = "answerdotai/ModernBERT-base"  # 149M params, modern architecture
 
     # Training parameters
     num_epochs: int = 5
@@ -41,7 +41,7 @@ class TrainingConfig:
 
     # Dataset settings
     eval_size_ratio: float = 0.1  # Validation set size as ratio of training
-    max_sequence_length: int = 512
+    max_sequence_length: int = 4096
     training_samples_dir: str = (
         "model/dataset/reviewed_samples"  # Use reviewed_samples by default
     )

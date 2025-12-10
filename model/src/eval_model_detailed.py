@@ -127,15 +127,15 @@ class DetailedPIIModelLoader:
                 model_config = json.load(f)
             # Try to get base model name from config
             base_model_name = model_config.get("_name_or_path") or model_config.get(
-                "model_type", "distilbert"
+                "model_type", "modernbert"
             )
             # Convert model_type to full model name if needed
-            if base_model_name == "distilbert":
-                base_model_name = "distilbert-base-cased"
+            if base_model_name == "modernbert":
+                base_model_name = "answerdotai/ModernBERT-base"
         else:
-            base_model_name = "distilbert-base-cased"
+            base_model_name = "answerdotai/ModernBERT-base"
             logger.warning(
-                "⚠️  config.json not found, using default: distilbert-base-cased"
+                "⚠️  config.json not found, using default: answerdotai/ModernBERT-base"
             )
 
         # Determine number of labels
@@ -279,7 +279,7 @@ class DetailedPIIModelLoader:
             text,
             return_tensors="pt",
             truncation=True,
-            max_length=512,
+            max_length=4096,
             return_offsets_mapping=True,
         )
 
