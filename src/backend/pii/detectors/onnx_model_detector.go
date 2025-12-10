@@ -327,7 +327,7 @@ func (d *ONNXModelDetectorSimple) finalizeEntity(entity *Entity, tokenIndices []
 // initializeSession initializes the ONNX session and tensors
 func (d *ONNXModelDetectorSimple) initializeSession() error {
 	// Create input tensors with maximum sequence length
-	maxSeqLen := int64(512) // Based on config max_position_embeddings
+	maxSeqLen := int64(4096) // Based on config max_position_embeddings
 	batchSize := int64(1)
 
 	inputShape := onnxruntime.NewShape(batchSize, maxSeqLen)
