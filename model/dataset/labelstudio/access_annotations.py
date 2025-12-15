@@ -2,7 +2,7 @@ import os
 
 from label_studio_sdk.client import LabelStudio
 
-# Initalize the Label Studio client
+# Initialize the Label Studio client
 base_url = os.environ.get("LABEL_STUDIO_URL", "http://localhost:8080")
 api_key = os.environ["LABEL_STUDIO_API_KEY"]
 project_id = os.environ["LABEL_STUDIO_PROJECT_ID"]
