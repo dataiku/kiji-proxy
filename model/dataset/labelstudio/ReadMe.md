@@ -35,7 +35,7 @@ Once you're logged into Label Studio, click on the `Create Project` button, show
 
 On the next screen, give your new project a name that reflects the work you'll be doing. (We'd reccomend something like PII-< your label types here >). You can also provide a description, which is a great place to add extra information about your project's purpose or data set. When you're ready, click on the Data Import tab to move to the next step.
 
-![screenshot of Label Studio create project widget, step 1: naming your project and giving project description](assets/create_project_1.png)
+![screenshot of Label Studio create project widget, step 1: naming your project and giving project description](assets/create_project.png)
 
 On the data import screen, there are a number of ways to upload data. For this project, we'll use the CSV file we created in step 2. All we need to do is drag it into the blue box, or click on the upload files button and select it from our file explorer. You'll be prompted to select whether you want to treat the CSV/TSV as a list of tasks or a Time Series or Whole Text File -- select "list of task". Click on the Labeling Setup button when you're ready to move to the next step. 
 
