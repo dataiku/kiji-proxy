@@ -3,7 +3,7 @@ name = "yaak-proxy"
 version = "0.1.0"
 description = "PII Detection and Masking Proxy - Minimal Production"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.14"
 license = {text = "MIT"}
 authors = [
     {name = "Yaak Team"},
@@ -46,9 +46,9 @@ training = [
     "accelerate>=0.26.0",
     "scipy>=1.0.0",
     "pandas>=1.0.0",
-    "pyarrow>=1.0.0",
+    "pyarrow>=18.1.0,<19.0.0",
     "sympy>=1.0.0",
-    "datasets>=4.4.1"
+    "datasets>=2.0.0"
 ]
 
 # ONNX quantization dependencies
@@ -61,6 +61,11 @@ quantization = [
 # Model signing and verification
 signing = [
     "model-signing>=1.1.1",
+]
+
+# Label Studio dependencies
+labelstudio = [
+    "Label-studio==1.21.0",
 ]
 
 # Note: 'all' group removed - use 'dev' instead for development dependencies
