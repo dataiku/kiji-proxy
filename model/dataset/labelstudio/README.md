@@ -26,7 +26,23 @@ This will launch Label Studio in your browser at `http://localhost:8080`.
 ## Step 2: Preparing your data
 Label Studio accepts a wide variety of data formats. For this project, you'll need a set of texts containing the types of PII that you're looking to train Yaak to replace. 
 
-For this project, we'd recommend using a CSV file to store all of the data you'd like to label, with a row title "text". You can save this file with any name you'd like -- for this demo, we'll call it `sample_pii.csv`. This sample file is available in the same folder as this README for your convenience.
+### Option A: Import with Pre-annotations (Recommended)
+To speed up the labeling process, you can import data that already includes predictions from your existing model. This allows you to review and correct predictions rather than labeling from scratch.
+
+Use the `sample_predictions.json` file format provided in this folder as a template. The JSON structure includes:
+- `data`: The text content to be labeled
+- `predictions`: Pre-annotated entities and relations from your model
+  - `model_version`: Version identifier for your model
+  - `score`: Confidence score for the predictions
+  - `result`: Array of labeled entities (Person, Email, Pronoun, etc.) and their relations
+
+To import this format:
+1. Prepare your JSON file following the `sample_predictions.json` structure
+2. In Label Studio's Data Import screen (Step 3), upload your JSON file
+3. Label Studio will automatically load the predictions, which you can then review and correct
+
+### Option B: Import Plain Text
+Alternatively, you can use a CSV file to store all of the data you'd like to label, with a row title "text". You can save this file with any name you'd like -- for this demo, we'll call it `sample_pii.csv`. This sample file is available in the same folder as this README for your convenience.
 
 ## Step 3: Creating a Project
 Once you're logged into Label Studio, click on the `Create Project` button, shown here on the welcome screen of the Open Source edition, or available in the Projects tab, located in the hamburger menu in the left corner next to the Label Studio logo. 
@@ -37,7 +53,11 @@ On the next screen, give your new project a name that reflects the work you'll b
 
 ![screenshot of Label Studio create project widget, step 1: naming your project and giving project description](assets/create_project.png)
 
-On the data import screen, there are a number of ways to upload data. For this project, we'll use the CSV file we created in step 2. All we need to do is drag it into the blue box, or click on the upload files button and select it from our file explorer. You'll be prompted to select whether you want to treat the CSV/TSV as a list of tasks or a Time Series or Whole Text File -- select "list of task". Click on the Labeling Setup button when you're ready to move to the next step. 
+On the data import screen, there are a number of ways to upload data. For this project, you can either:
+- **With pre-annotations (recommended)**: Upload the JSON file with predictions (like `sample_predictions.json`) by dragging it into the blue box or clicking the upload files button
+- **Without pre-annotations**: Upload a CSV file and you'll be prompted to select whether you want to treat the CSV/TSV as a list of tasks or a Time Series or Whole Text File -- select "list of tasks"
+
+Click on the Labeling Setup button when you're ready to move to the next step.
 
 ![screenshot of Label Studio's prompt after uploading a CSV](assets/csv_import.png)
 
@@ -54,7 +74,7 @@ In lines 5-11, we define all of the PII types that we'll be looking for in this 
 In lines 15-18 of the original file, we define the relations that we'll use in this project for coreference resolution (identifying what pronouns refer to what nouns). In the demo, we only use one Relation, `refers-to`, to capture all of these. If you'd like to be more granular, you can add more in the same fashion that you add more labels to the Labels area of the config. When you're done, click on the blue save button.
 
 ## Step 4: Labeling your data
-Now, you're ready to label! You can label individual tasks by clicking on them directly, but we'll use the `Label All Tasks` button (circled in red on the screenshot below). Simply click it to enter the labeling process.
+Now, you're ready to label! If you imported data with pre-annotations, you'll see that entities and relations are already marked up - your job is to review and correct them. You can label individual tasks by clicking on them directly, but we'll use the `Label All Tasks` button (circled in red on the screenshot below). Simply click it to enter the labeling process.
 
 ![screenshot of Label Studio Data manager, with the Label All Tasks button circled in red](assets/label_all_tasks.png)
 
