@@ -15,17 +15,18 @@ dependencies = [
     "torch>=1.9.0",
     "transformers>=4.20.0",
     "numpy>=1.21.0",
-
     # FastAPI server dependencies (essential for API)
     "fastapi>=0.104.0",
     "uvicorn[standard]>=0.24.0",
     "pydantic>=2.0.0",
     "python-multipart>=0.0.6",
-
     # HTTP client for testing (lightweight)
     "requests>=2.28.0",
     # misc
     "absl-py >=2.3.1",
+    "httpx>=0.28.1",
+    "huggingface-hub>=0.35.3",
+    "datasets>=4.4.1",
 ]
 
 [project.optional-dependencies]
