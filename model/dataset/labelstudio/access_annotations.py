@@ -1,11 +1,9 @@
 from label_studio_sdk.client import LabelStudio
 
 # Initalize the Label Studio client
-# NOTE: what's the URL when hosted in the uv env?
-
 ls = LabelStudio(
     base_url="http://localhost:8080",
-    api_key="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6ODA3MzAxNDc5NywiaWF0IjoxNzY1ODE0Nzk3LCJqdGkiOiIxZDA5NWE5NDg5YTY0YWJiYTliZDM5ODNmMjk1NWYyOSIsInVzZXJfaWQiOiIxIn0.FOiuCILa5N7QOvmrIZ9fs-JjFnbt-7wSqE4DtqE8zus"
+    api_key="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6ODA3MzAxNDc5NywiaWF0IjoxNzY1ODE0Nzk3LCJqdGkiOiIxZDA5NWE5NDg5YTY0YWJiYTliZDM5ODNmMjk1NWYyOSIsInVzZXJfaWQiOiIxIn0.FOiuCILa5N7QOvmrIZ9fs-JjFnbt-7wSqE4DtqE8zus",
 )
 
 tasks = ls.tasks.list(project=3)
@@ -23,10 +21,7 @@ for t in tasks:
                 id = ann["id"]
                 text = ann["value"]["text"]
                 label = ann["value"]["labels"][0]
-                annotations[id] = {
-                    "text": text,
-                    "label": label
-                }
+                annotations[id] = {"text": text, "label": label}
             # if the from_id field is present, we have a relation annotation. Add this to the from_id key.
             elif "from_id" in ann:
                 from_text = annotations[ann["from_id"]]["text"]
