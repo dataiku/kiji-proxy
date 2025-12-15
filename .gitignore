@@ -61,3 +61,4 @@ src/backend/config/config.development.json
 # Editor/IDE (uncomment if needed)
 # .idea/
 # .vscode/
+dataset.zip
