@@ -1,12 +1,15 @@
+import os
+
 from label_studio_sdk.client import LabelStudio
 
 # Initalize the Label Studio client
-ls = LabelStudio(
-    base_url="http://localhost:8080",
-    api_key="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6ODA3MzAxNDc5NywiaWF0IjoxNzY1ODE0Nzk3LCJqdGkiOiIxZDA5NWE5NDg5YTY0YWJiYTliZDM5ODNmMjk1NWYyOSIsInVzZXJfaWQiOiIxIn0.FOiuCILa5N7QOvmrIZ9fs-JjFnbt-7wSqE4DtqE8zus",
-)
+base_url = os.environ.get("LABEL_STUDIO_URL", "http://localhost:8080")
+api_key = os.environ["LABEL_STUDIO_API_KEY"]
+project_id = os.environ["LABEL_STUDIO_PROJECT_ID"]
 
-tasks = ls.tasks.list(project=3)
+ls = LabelStudio(base_url=base_url, api_key=api_key)
+
+tasks = ls.tasks.list(project=project_id)
 
 # create a list of dictionaries to store all the annotations
 all_annotations = []
