@@ -1,6 +1,6 @@
 from label_studio_sdk.client import LabelStudio
 
-# Initalize the Label Studio client 
+# Initalize the Label Studio client
 # NOTE: what's the URL when hosted in the uv env?
 
 ls = LabelStudio(
@@ -14,12 +14,12 @@ tasks = ls.tasks.list(project=3)
 all_annotations = []
 for t in tasks:
     annotations = {}
-    # we need to check to see if there are annotations for the task. If not, we skip it. 
-    if t.annotations: 
+    # we need to check to see if there are annotations for the task. If not, we skip it.
+    if t.annotations:
         # Access the annotation results for each task.
         for ann in t.annotations[0]["result"]:
             # if the value field is present, we have an entity annotation.
-            if "value" in ann: 
+            if "value" in ann:
                 id = ann["id"]
                 text = ann["value"]["text"]
                 label = ann["value"]["labels"][0]
@@ -33,5 +33,5 @@ for t in tasks:
                 to_text = annotations[ann["to_id"]]["text"]
                 relation = ann["type"]
                 annotations[ann["from_id"]].update({"refers_to": to_text})
-        all_annotations.append(annotations) 
+        all_annotations.append(annotations)
 print(all_annotations)
