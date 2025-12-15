@@ -31,8 +31,6 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=6.0",
-]
-lint = [
     "ruff>=0.1.0",
 ]
 
