@@ -1,7 +1,7 @@
 """Tokenization utilities for training samples."""
 
 import re
-from typing import Any
+from typing import Any, Dict, List, Optional, Union
 
 from transformers import AutoTokenizer
 
@@ -12,16 +12,16 @@ class TokenizationProcessor:
     def __init__(
         self,
         tokenizer: AutoTokenizer,
-        label2id: dict[str, int],
-        id2label: dict[int, str],
+        label2id: Dict[str, int],
+        id2label: Dict[int, str],
     ):
         self.tokenizer = tokenizer
         self.label2id = label2id
         self.id2label = id2label
 
     def _find_privacy_mask_positions(
-        self, text: str, privacy_mask: list[dict[str, str]]
-    ) -> list[dict[str, Any]]:
+        self, text: str, privacy_mask: List[Dict[str, str]]
+    ) -> List[Dict[str, Any]]:
         """Find start and end positions for each privacy mask item."""
         privacy_mask_with_positions = []
         for item in privacy_mask:
@@ -50,8 +50,8 @@ class TokenizationProcessor:
         )
 
     def _create_word_labels(
-        self, text: str, privacy_mask_with_positions: list[dict[str, Any]]
-    ) -> list[str]:
+        self, text: str, privacy_mask_with_positions: List[Dict[str, Any]]
+    ) -> List[str]:
         """Create word-level labels from privacy mask positions."""
         # Replace sensitive text with label placeholders
         text_with_labels = text
@@ -99,8 +99,8 @@ class TokenizationProcessor:
         self,
         punct_text: str,
         word_idx: int,
-        words_original: list[str] | None,
-        privacy_mask_with_positions: list[dict[str, Any]] | None,
+        words_original: Optional[List[str]],
+        privacy_mask_with_positions: Optional[List[Dict[str, Any]]],
     ) -> bool:
         """Check if punctuation is part of an entity value (e.g., comma in 'Google, Inc.')."""
         if (
@@ -131,12 +131,12 @@ class TokenizationProcessor:
 
     def _align_labels_with_tokens(
         self,
-        word_labels: list[str],
-        word_ids: list[int | None],
-        token_texts: list[str] | None = None,
-        words_original: list[str] | None = None,
-        privacy_mask_with_positions: list[dict[str, Any]] | None = None,
-    ) -> list[int]:
+        word_labels: List[str],
+        word_ids: List[Optional[int]],
+        token_texts: Optional[List[str]] = None,
+        words_original: Optional[List[str]] = None,
+        privacy_mask_with_positions: Optional[List[Dict[str, Any]]] = None,
+    ) -> List[int]:
         """Align word-level labels with token IDs."""
         label_ids = []
         prev_word_idx = None
@@ -182,8 +182,8 @@ class TokenizationProcessor:
         return label_ids
 
     def create_pii_sample(
-        self, text: str, privacy_mask: list[dict[str, str]]
-    ) -> dict[str, Any]:
+        self, text: str, privacy_mask: List[Dict[str, str]]
+    ) -> Dict[str, Any]:
         """Create a PII training sample with tokenized input and labels."""
         # Find positions for privacy mask items
         privacy_mask_with_positions = self._find_privacy_mask_positions(
@@ -268,8 +268,8 @@ class TokenizationProcessor:
         }
 
     def create_coreference_sample(
-        self, text: str, coreferences: list[dict[str, Any]]
-    ) -> dict[str, Any]:
+        self, text: str, coreferences: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
         """Create a coreference detection training sample."""
         # Tokenize the text
         words_original = text.split()

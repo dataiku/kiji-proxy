@@ -3,7 +3,7 @@ import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 from absl import flags, logging
 from dotenv import load_dotenv
@@ -35,6 +35,9 @@ FLAGS = flags.FLAGS
 flags.DEFINE_integer("num_samples", 5, "Number of samples to generate")
 flags.DEFINE_boolean("use_ollama", False, "Whether to use Ollama instead of OpenAI")
 flags.DEFINE_string(
+    "api_url", None, "API URL for the LLM client. If OpenAI, don't touch it. This is needed for vLLM backend with OpenAI-compatible API."
+)
+flags.DEFINE_string(
     "output_dir", "model/dataset", "Output directory for generated samples"
 )
 flags.DEFINE_string(
@@ -46,7 +49,6 @@ flags.DEFINE_integer(
     "Maximum number of parallel workers (default: min(32, num_samples + 4))",
 )
 
-
 @dataclass
 class TrainingSetConfig:
     """Configuration for training set."""
@@ -55,7 +57,7 @@ class TrainingSetConfig:
     split: str = "train"
     num_samples: int = 5
     output_dir: str = "model/dataset"
-    model_name: str = "distilbert-base-cased"  # Tokenizer model name
+    api_url: Optional[str] = None # generator API URL
 
     def get_languages_countries(
         self, language_count: int = 10, is_testing: bool = False
@@ -100,8 +102,8 @@ class TrainingSetConfig:
             return rs
 
     def get_pii_labels(
-        self, all_labels: bool = False, return_count: int = 10, seed: int | None = None
-    ) -> dict[str, str]:
+        self, all_labels: bool = False, return_count: int = 10, seed: Optional[int] = None
+    ) -> Dict[str, str]:
         """
         Get PII labels with their human-readable descriptions.
 
@@ -124,8 +126,8 @@ class TrainingSetGenerator:
     def __init__(
         self,
         config: TrainingSetConfig,
-        llm_client: LLMClient | None = None,
-        file_manager: FileManager | None = None,
+        llm_client: Optional[LLMClient] = None,
+        file_manager: Optional[FileManager] = None,
         is_testing: bool = False,
         language_count: int = 5,
     ):
@@ -148,7 +150,11 @@ class TrainingSetGenerator:
             if config.use_ollama:
                 self.llm_client = OllamaClient()
             else:
-                self.llm_client = OpenAIClient()
+                if config.api_url:
+                    model = "openai/gpt-oss-120b" # FIXME (Eddie): magic number vibez. Should generalize to any HF model that vllm serve <> eats on the server.
+                    self.llm_client = OpenAIClient(api_url=config.api_url, model=model)
+                else:
+                    self.llm_client = OpenAIClient()
         else:
             self.llm_client = llm_client
 
@@ -160,7 +166,7 @@ class TrainingSetGenerator:
         # Create standard label mappings once
         self.label2id, self.id2label = LabelUtils.create_standard_label2id()
 
-    def generate_pii_samples(self, sample_index: int = 0) -> dict[str, Any]:
+    def generate_pii_samples(self, sample_index: int = 0) -> Dict[str, Any]:
         """
         Generate PII samples for a given language.
 
@@ -205,7 +211,7 @@ class TrainingSetGenerator:
 
         raise ValueError(f"Unexpected response format: {type(result)}")
 
-    def review_sample(self, sample: dict[str, Any]) -> dict[str, Any]:
+    def review_sample(self, sample: Dict[str, Any]) -> Dict[str, Any]:
         """Review a sample using LLM and return corrected JSON if needed."""
         all_labels = self.config.get_pii_labels(all_labels=True)
         expected_labels = ", ".join(all_labels.keys())
@@ -216,8 +222,8 @@ class TrainingSetGenerator:
         return self.llm_client.review(prompt, json_schema)
 
     def convert_to_training_sample(
-        self, result: dict[str, Any], tokenizer: AutoTokenizer | None = None
-    ) -> dict[str, Any]:
+        self, result: Dict[str, Any], tokenizer: Optional[AutoTokenizer] = None
+    ) -> Dict[str, Any]:
         """
         Convert the result to a training sample format.
 
@@ -245,8 +251,8 @@ class TrainingSetGenerator:
 def process_single_sample(
     sample_index: int,
     gen: TrainingSetGenerator,
-    tokenizer: AutoTokenizer | None = None,
-) -> tuple[int, str]:
+    tokenizer: Optional[AutoTokenizer] = None,
+) -> "tuple[int, str]":
     """
     Process a single training sample (generate, review, convert, save).
     Args:
@@ -291,6 +297,7 @@ def main():
         use_ollama=FLAGS.use_ollama,
         num_samples=FLAGS.num_samples,
         output_dir=FLAGS.output_dir,
+        api_url=FLAGS.api_url,
     )
     # Use testing mode only if generating very few samples (for quick testing)
     # Otherwise use full diversity
