@@ -1,0 +1,87 @@
+[
+    {
+      "data": {
+        "text": "John Smith met Mary at the park. He greeted her warmly. Email john.smith@example.com."
+      },
+      "predictions": [
+        {
+          "model_version": "coref-v1",
+          "score": 0.95,
+          "result": [
+            {
+              "id": "ent-1",
+              "from_name": "entities",
+              "to_name": "text",
+              "type": "labels",
+              "value": {
+                "start": 0,
+                "end": 10,
+                "text": "John Smith",
+                "labels": ["Person"]
+              }
+            },
+            {
+              "id": "ent-2",
+              "from_name": "entities",
+              "to_name": "text",
+              "type": "labels",
+              "value": {
+                "start": 15,
+                "end": 19,
+                "text": "Mary",
+                "labels": ["Person"]
+              }
+            },
+            {
+              "id": "ent-3",
+              "from_name": "entities",
+              "to_name": "text",
+              "type": "labels",
+              "value": {
+                "start": 33,
+                "end": 35,
+                "text": "He",
+                "labels": ["Pronoun"]
+              }
+            },
+            {
+              "id": "ent-4",
+              "from_name": "entities",
+              "to_name": "text",
+              "type": "labels",
+              "value": {
+                "start": 44,
+                "end": 47,
+                "text": "her",
+                "labels": ["Pronoun"]
+              }
+            },
+            {
+              "id": "ent-5",
+              "from_name": "entities",
+              "to_name": "text",
+              "type": "labels",
+              "value": {
+                "start": 68,
+                "end": 90,
+                "text": "john.smith@example.com",
+                "labels": ["Email"]
+              }
+            },
+            {
+                "from_id": "ent-3",
+                "to_id": "ent-1",
+                "type": "relation",
+                "direction": "right"
+            },
+            {
+              "from_id": "ent-4",
+              "to_id": "ent-2",
+              "type": "relation",
+              "direction": "right"
+            }
+          ]
+        }
+      ]
+    }
+  ]
