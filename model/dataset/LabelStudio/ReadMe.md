@@ -46,4 +46,9 @@ To label entities, simply click on the label you'd like to apply and then select
 ![GIF showing the process for labeling a sample of data for PII and relations in Label Studio](/labeling_pii.gif)
 
 ## Step 5: Retraining the Yaak Model 
-< To Do >
+Now that you've competed your annotations, you're ready to retrain your model! Use the `access_annotation.py` script to gather the annotations you made in Label Studio. 
+
+1. Make sure you set the `base_url` value in line 7 to the url of your label studio instance! 
+2. To get your API key: in Label Studio, click on the circle with your initals in the top right corner, and then click `Account & Settings`. Then, select `Personal Access Token` from the left sidebar and click `Create New Token`.copy the token and paste it between the quotes on line 8, in the `api_key` variable.  
+3. To get your Project ID, navigate back to your project screen. In the URL, you'll see something like `https://localhost:8080/projects/3/data?tab=2`. The number in the slashes after projets but before data is the id of your project -- so in my case, it's 3. Fill this in in the `YOUR_PROJECT_ID` section on line 11. 
+
