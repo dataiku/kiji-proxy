@@ -36,7 +36,7 @@ if str(project_root) not in sys.path:
 try:
     from model.model import MultiTaskPIIDetectionModel
 except ImportError:
-    from .model import MultiTaskPIIDetectionModel
+    from model import MultiTaskPIIDetectionModel
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)

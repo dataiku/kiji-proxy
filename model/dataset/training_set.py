@@ -3,7 +3,7 @@ import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from absl import flags, logging
 from dotenv import load_dotenv
@@ -57,7 +57,7 @@ class TrainingSetConfig:
     split: str = "train"
     num_samples: int = 5
     output_dir: str = "model/dataset"
-    api_url: Optional[str] = None # generator API URL
+    api_url: str | None = None # generator API URL
 
     def get_languages_countries(
         self, language_count: int = 10, is_testing: bool = False
@@ -102,8 +102,8 @@ class TrainingSetConfig:
             return rs
 
     def get_pii_labels(
-        self, all_labels: bool = False, return_count: int = 10, seed: Optional[int] = None
-    ) -> Dict[str, str]:
+        self, all_labels: bool = False, return_count: int = 10, seed: int | None = None
+    ) -> dict[str, str]:
         """
         Get PII labels with their human-readable descriptions.
 
@@ -126,8 +126,8 @@ class TrainingSetGenerator:
     def __init__(
         self,
         config: TrainingSetConfig,
-        llm_client: Optional[LLMClient] = None,
-        file_manager: Optional[FileManager] = None,
+        llm_client: LLMClient | None = None,
+        file_manager: FileManager | None = None,
         is_testing: bool = False,
         language_count: int = 5,
     ):
@@ -166,7 +166,7 @@ class TrainingSetGenerator:
         # Create standard label mappings once
         self.label2id, self.id2label = LabelUtils.create_standard_label2id()
 
-    def generate_pii_samples(self, sample_index: int = 0) -> Dict[str, Any]:
+    def generate_pii_samples(self, sample_index: int = 0) -> dict[str, Any]:
         """
         Generate PII samples for a given language.
 
@@ -211,7 +211,7 @@ class TrainingSetGenerator:
 
         raise ValueError(f"Unexpected response format: {type(result)}")
 
-    def review_sample(self, sample: Dict[str, Any]) -> Dict[str, Any]:
+    def review_sample(self, sample: dict[str, Any]) -> dict[str, Any]:
         """Review a sample using LLM and return corrected JSON if needed."""
         all_labels = self.config.get_pii_labels(all_labels=True)
         expected_labels = ", ".join(all_labels.keys())
@@ -222,8 +222,8 @@ class TrainingSetGenerator:
         return self.llm_client.review(prompt, json_schema)
 
     def convert_to_training_sample(
-        self, result: Dict[str, Any], tokenizer: Optional[AutoTokenizer] = None
-    ) -> Dict[str, Any]:
+        self, result: dict[str, Any], tokenizer: AutoTokenizer | None = None
+    ) -> dict[str, Any]:
         """
         Convert the result to a training sample format.
 
@@ -251,8 +251,8 @@ class TrainingSetGenerator:
 def process_single_sample(
     sample_index: int,
     gen: TrainingSetGenerator,
-    tokenizer: Optional[AutoTokenizer] = None,
-) -> "tuple[int, str]":
+    tokenizer: AutoTokenizer | None = None,
+) -> tuple[int, str]:
     """
     Process a single training sample (generate, review, convert, save).
     Args:

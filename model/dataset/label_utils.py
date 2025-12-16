@@ -1,7 +1,7 @@
 """Label utilities for PII detection."""
 
 import random
-from typing import ClassVar, Dict, List, Optional
+from typing import ClassVar
 
 
 class LabelUtils:
@@ -81,8 +81,8 @@ class LabelUtils:
 
     @classmethod
     def select_label_subset(
-        cls, labels: Dict[str, str], return_count: int, seed: Optional[int] = None
-    ) -> Dict[str, str]:
+        cls, labels: dict[str, str], return_count: int, seed: int | None = None
+    ) -> dict[str, str]:
         """
         Select a subset of labels with special handling for address labels.
         If any address-related label is selected, all address labels are included.

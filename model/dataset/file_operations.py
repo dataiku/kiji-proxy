@@ -5,7 +5,7 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 
 class FileManager:
@@ -15,7 +15,7 @@ class FileManager:
         self.base_output_dir = base_output_dir
 
     def save_sample(
-        self, result: Dict[str, Any], subfolder: str, file_name: Optional[str] = None
+        self, result: dict[str, Any], subfolder: str, file_name: str | None = None
     ) -> str:
         """
         Save a sample to a JSON file.
