@@ -122,16 +122,27 @@ class DatasetProcessor:
         logger.info(f"✅ Loaded {len(samples)} training samples")
         return samples
 
-    def prepare_datasets(self) -> tuple[Dataset, Dataset, dict, dict]:
+    def prepare_datasets(self, subsample_count: int = 0) -> tuple[Dataset, Dataset, dict, dict]:
         """
         Prepare training and validation datasets from local JSON files.
         Tokenization is performed on-the-fly during dataset preparation.
+
+        Args:
+            subsample_count: Limit to N samples (0 = use all)
 
         Returns:
             Tuple of (train_dataset, val_dataset, label_mappings, coref_mappings)
         """
         # Load all samples (raw text, privacy_mask, coreferences)
         all_samples = self.load_training_samples()
+
+        # Filter out None samples
+        all_samples = [s for s in all_samples if s is not None]
+
+        # Subsample if requested
+        if subsample_count > 0 and len(all_samples) > subsample_count:
+            logger.info(f"📉 Subsampling from {len(all_samples)} to {subsample_count} samples")
+            all_samples = all_samples[:subsample_count]
 
         if len(all_samples) == 0:
             raise ValueError("No training samples found!")
