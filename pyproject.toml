@@ -2,7 +2,6 @@
 name = "yaak-proxy"
 version = "0.1.0"
 description = "PII Detection and Masking Proxy - Minimal Production"
-readme = "README.md"
 requires-python = ">=3.11,<3.14"
 license = {text = "MIT"}
 authors = [
@@ -26,7 +25,7 @@ dependencies = [
     "absl-py >=2.3.1",
     "httpx>=0.28.1",
     "huggingface-hub>=0.35.3",
-    "datasets>=4.4.1",
+    "datasets>=2.0.0",
 ]
 
 [project.optional-dependencies]
@@ -48,7 +47,8 @@ training = [
     "pyarrow>=18.1.0,<19.0.0",
     "sympy>=1.0.0",
     "datasets>=2.0.0",
-    "metaflow>=2.19.14"
+    "outerbounds>=0.10.31"
+    # "metaflow>=2.19.14"
 ]
 
 # ONNX quantization dependencies
@@ -56,6 +56,7 @@ quantization = [
     "optimum[onnxruntime]>=1.15.0",
     "onnx>=1.15.0",
     "onnxruntime>=1.16.0",
+    # "ml_dtypes>=0.5.0" # https://github.com/onnx/onnx/issues/7249  - Commented out to give precedence to labelstudio.
 ]
 
 # Model signing and verification
@@ -63,7 +64,7 @@ signing = [
     "model-signing>=1.1.1",
 ]
 
-# Label Studio dependencies
+# Label Studio dependencies (NOTE - requires numpy<2.0 conflicting with quantization.ml_dtypes on Python 3.13)
 labelstudio = [
     "Label-studio==1.21.0",
 ]
