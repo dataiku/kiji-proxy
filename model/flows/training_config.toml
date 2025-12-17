@@ -1,7 +1,5 @@
 # PII Detection Model Training Configuration
-# This file defines default training hyperparameters.
-# These are baked into the flow at deployment time.
-# Use CLI parameters to override at runtime.
+# All pipeline settings are controlled via this file.
 
 [model]
 name = "distilbert-base-cased"
@@ -15,14 +13,6 @@ learning_rate = 3e-5
 training_samples_dir = "model/dataset/reviewed_samples"
 output_dir = "model/trained"
 
-[resources]
-# Resource allocations for cloud execution
-preprocess_memory = 8000
-preprocess_cpu = 4
-train_memory = 16000
-train_cpu = 8
-train_gpu = 1
-eval_memory = 8000
-eval_cpu = 4
-quantize_memory = 16000
-quantize_cpu = 8
+[data]
+# Limit samples for quick iteration (0 = use all)
+subsample_count = 160
