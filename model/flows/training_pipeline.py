@@ -86,6 +86,7 @@ SIGNING_PACKAGES = {
 }
 ##################################################################
 
+
 class PIITrainingPipeline(FlowSpec):
     """
     End-to-end ML pipeline for PII detection model training.
@@ -96,14 +97,16 @@ class PIITrainingPipeline(FlowSpec):
 
     config_file = Config(
         "config-file",
-        default= os.path.join(os.path.dirname(__file__), "training_config.toml"),
+        default=os.path.join(os.path.dirname(__file__), "training_config.toml"),
         parser=tomllib.loads,
         help="TOML config file with training hyperparameters",
     )
 
     dataset_zip = IncludeFile(
         "dataset-zip",
-        default=os.path.join("dataset.zip"), # FIXME: On full-scale / production runs, set this to None and configure S3.
+        default=os.path.join(
+            "dataset.zip"
+        ),  # FIXME: On full-scale / production runs, set this to None and configure S3.
         is_text=False,
         help="Zipped dataset file (dataset.zip) to include with the flow. The directory should relative to the directory the flow is launched from.",
     )
@@ -126,7 +129,9 @@ class PIITrainingPipeline(FlowSpec):
             num_epochs=cfg.get("training", {}).get("num_epochs", 5),
             batch_size=cfg.get("training", {}).get("batch_size", 16),
             learning_rate=cfg.get("training", {}).get("learning_rate", 3e-5),
-            training_samples_dir=cfg.get("paths", {}).get("training_samples_dir", "model/dataset/samples"),
+            training_samples_dir=cfg.get("paths", {}).get(
+                "training_samples_dir", "model/dataset/samples"
+            ),
             output_dir=cfg.get("paths", {}).get("output_dir", "model/trained"),
         )
         self.skip_quantization = cfg.get("pipeline", {}).get("skip_quantization", False)
@@ -135,7 +140,9 @@ class PIITrainingPipeline(FlowSpec):
         self.pipeline_start_time = datetime.utcnow().isoformat()
 
         print(f"Model: {self.config.model_name}")
-        print(f"Epochs: {self.config.num_epochs}, Batch: {self.config.batch_size}, LR: {self.config.learning_rate}")
+        print(
+            f"Epochs: {self.config.num_epochs}, Batch: {self.config.batch_size}, LR: {self.config.learning_rate}"
+        )
         print(f"Data: {self.config.training_samples_dir}")
 
         self.next(self.preprocess_data)
@@ -164,7 +171,9 @@ class PIITrainingPipeline(FlowSpec):
             # Extract the zip and list contents
             with zipfile.ZipFile(zip_path, "r") as zf:
                 namelist = zf.namelist()
-                print(f"Zip contains {len(namelist)} entries, first 10: {namelist[:10]}")
+                print(
+                    f"Zip contains {len(namelist)} entries, first 10: {namelist[:10]}"
+                )
                 zf.extractall(extract_dir)
 
             # Find directory containing JSON files by walking the extracted tree
@@ -247,7 +256,9 @@ class PIITrainingPipeline(FlowSpec):
             self.trained_model = current.checkpoint.save(
                 str(model_dir),
                 metadata={
-                    "pii_f1_weighted": self.training_metrics.get("eval_pii_f1_weighted"),
+                    "pii_f1_weighted": self.training_metrics.get(
+                        "eval_pii_f1_weighted"
+                    ),
                     "training_time_seconds": training_time,
                 },
                 name="trained_model",
@@ -257,7 +268,11 @@ class PIITrainingPipeline(FlowSpec):
             self.trained_model = None
 
         pii_f1 = self.training_metrics.get("eval_pii_f1_weighted")
-        print(f"Training: {training_time / 60:.1f}min, PII F1: {pii_f1:.4f}" if pii_f1 else "Training complete")
+        print(
+            f"Training: {training_time / 60:.1f}min, PII F1: {pii_f1:.4f}"
+            if pii_f1
+            else "Training complete"
+        )
 
         self.next(self.evaluate_model)
 
@@ -291,7 +306,9 @@ class PIITrainingPipeline(FlowSpec):
         self.avg_inference_time_ms = sum(inference_times) / len(inference_times)
         self.evaluation_results = [{"inference_time_ms": t} for t in inference_times]
 
-        print(f"Avg inference: {self.avg_inference_time_ms:.2f}ms ({1000/self.avg_inference_time_ms:.0f} texts/sec)")
+        print(
+            f"Avg inference: {self.avg_inference_time_ms:.2f}ms ({1000 / self.avg_inference_time_ms:.0f} texts/sec)"
+        )
 
         self.is_linux = sys.platform == "linux"
         if not self.is_linux:
@@ -299,7 +316,9 @@ class PIITrainingPipeline(FlowSpec):
             self.quantized_model_path = None
             self.quantized_model = None
 
-        self.next({True: self.quantize_model, False: self.sign_model}, condition='is_linux')
+        self.next(
+            {True: self.quantize_model, False: self.sign_model}, condition="is_linux"
+        )
 
     # @pypi(packages=QUANTIZATION_PACKAGES, python="3.13")
     # @kubernetes(memory=10000, cpu=6)
@@ -352,7 +371,7 @@ class PIITrainingPipeline(FlowSpec):
 
             # Try to load quantized model if it exists
             quantized_path = None
-            if getattr(self, 'quantized_model', None) is not None:
+            if getattr(self, "quantized_model", None) is not None:
                 try:
                     quantized_path = current.checkpoint.load(self.quantized_model)
                     print("Loaded quantized model from checkpoint")

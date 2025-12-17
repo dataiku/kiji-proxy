@@ -131,7 +131,9 @@ ds = load_dataset("{repo_id}")
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="Upload PII samples to HuggingFace Hub")
+    parser = argparse.ArgumentParser(
+        description="Upload PII samples to HuggingFace Hub"
+    )
     parser.add_argument(
         "--samples-dir",
         default="model/dataset/reviewed_samples",

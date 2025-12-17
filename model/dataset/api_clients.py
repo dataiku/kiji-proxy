@@ -25,7 +25,12 @@ class LLMClient(ABC):
 class OpenAIClient(LLMClient):
     """OpenAI API client."""
 
-    def __init__(self, model: str = "gpt-4.1-2025-04-14", api_key: str | None = None, api_url: str | None = None):
+    def __init__(
+        self,
+        model: str = "gpt-4.1-2025-04-14",
+        api_key: str | None = None,
+        api_url: str | None = None,
+    ):
         self.model = model
         self.api_key = api_key or os.getenv("OPENAI_API_KEY")
         if not api_url and not self.api_key:

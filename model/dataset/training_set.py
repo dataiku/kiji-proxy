@@ -35,7 +35,9 @@ FLAGS = flags.FLAGS
 flags.DEFINE_integer("num_samples", 5, "Number of samples to generate")
 flags.DEFINE_boolean("use_ollama", False, "Whether to use Ollama instead of OpenAI")
 flags.DEFINE_string(
-    "api_url", None, "API URL for the LLM client. If OpenAI, don't touch it. This is needed for vLLM backend with OpenAI-compatible API."
+    "api_url",
+    None,
+    "API URL for the LLM client. If OpenAI, don't touch it. This is needed for vLLM backend with OpenAI-compatible API.",
 )
 flags.DEFINE_string(
     "output_dir", "model/dataset", "Output directory for generated samples"
@@ -49,6 +51,7 @@ flags.DEFINE_integer(
     "Maximum number of parallel workers (default: min(32, num_samples + 4))",
 )
 
+
 @dataclass
 class TrainingSetConfig:
     """Configuration for training set."""
@@ -57,7 +60,7 @@ class TrainingSetConfig:
     split: str = "train"
     num_samples: int = 5
     output_dir: str = "model/dataset"
-    api_url: str | None = None # generator API URL
+    api_url: str | None = None  # generator API URL
 
     def get_languages_countries(
         self, language_count: int = 10, is_testing: bool = False
@@ -151,7 +154,7 @@ class TrainingSetGenerator:
                 self.llm_client = OllamaClient()
             else:
                 if config.api_url:
-                    model = "openai/gpt-oss-120b" # FIXME (Eddie): magic number vibez. Should generalize to any HF model that vllm serve <> eats on the server.
+                    model = "openai/gpt-oss-120b"  # FIXME (Eddie): magic number vibez. Should generalize to any HF model that vllm serve <> eats on the server.
                     self.llm_client = OpenAIClient(api_url=config.api_url, model=model)
                 else:
                     self.llm_client = OpenAIClient()
