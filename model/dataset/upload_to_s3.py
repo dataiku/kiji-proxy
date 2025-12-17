@@ -1,6 +1,8 @@
-import os
 import argparse
+import os
+
 from tqdm import tqdm
+
 
 def get_datastore_root() -> tuple[str, str]:
     """
@@ -38,7 +40,7 @@ def upload_dir_to_s3(local_dir_path: str, s3_root: str, batch_size: int = 1000) 
 
     # Collect all file paths, filtering to .json only
     key_paths = []
-    for root, dirs, files in os.walk(local_dir_path):
+    for root, _, files in os.walk(local_dir_path):
         for file in files:
             if file.endswith(".json"):
                 local_path = os.path.join(root, file)

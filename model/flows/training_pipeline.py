@@ -25,10 +25,9 @@ import json
 import os
 import sys
 import time
+import tomllib
 from datetime import datetime
 from pathlib import Path
-import tomllib
-
 
 from metaflow import (
     Config,
@@ -37,12 +36,10 @@ from metaflow import (
     card,
     checkpoint,
     current,
+    environment,
     model,
-    pypi,
-    kubernetes,
     retry,
     step,
-    environment
 )
 
 ##################################################################
@@ -151,6 +148,7 @@ class PIITrainingPipeline(FlowSpec):
         """Load and preprocess training data."""
         import tempfile
         import zipfile
+
         from src.preprocessing import DatasetProcessor
 
         # Extract dataset from included zip file
@@ -171,7 +169,7 @@ class PIITrainingPipeline(FlowSpec):
 
             # Find directory containing JSON files by walking the extracted tree
             samples_dir = None
-            for root, dirs, files in os.walk(extract_dir):
+            for root, _, files in os.walk(extract_dir):
                 json_files = [f for f in files if f.endswith(".json")]
                 if json_files:
                     samples_dir = root
@@ -181,7 +179,7 @@ class PIITrainingPipeline(FlowSpec):
             if not samples_dir:
                 # List what we extracted for debugging
                 all_files = []
-                for root, dirs, files in os.walk(extract_dir):
+                for root, _, files in os.walk(extract_dir):
                     all_files.extend([os.path.join(root, f) for f in files[:5]])
                 print(f"No JSON files found! Extracted contents: {all_files[:10]}")
                 raise ValueError("No JSON files found in extracted zip")
@@ -357,7 +355,7 @@ class PIITrainingPipeline(FlowSpec):
             if getattr(self, 'quantized_model', None) is not None:
                 try:
                     quantized_path = current.checkpoint.load(self.quantized_model)
-                    print(f"Loaded quantized model from checkpoint")
+                    print("Loaded quantized model from checkpoint")
                 except Exception as e:
                     print(f"Could not load quantized model: {e}")
 
