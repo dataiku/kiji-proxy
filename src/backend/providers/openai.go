@@ -29,17 +29,6 @@ func (p *OpenAIProvider) GetType() ProviderType {
 	return ProviderTypeOpenAI
 }
 
-// edited to here
-
-func (p *OpenAIProvider) BuildURL(endpoint string) string {
-	return p.baseURL + endpoint
-}
-
-func (p *OpenAIProvider) SetAuthHeaders(req *http.Request, apiKey string) {
-	req.Header.Set("Authorization", "Bearer "+apiKey)
-	req.Header.Set("Content-Type", "application/json")
-}
-
 func (p *OpenAIProvider) ExtractRequestText(data map[string]interface{}) (string, error) {
 	messages, ok := data["messages"].([]interface{})
 	if !ok {
@@ -57,6 +46,21 @@ func (p *OpenAIProvider) ExtractRequestText(data map[string]interface{}) (string
 		}
 	}
 	return result, nil
+}
+
+func (p *OpenAIProvider) CreateMaskedRequest(data map[string]interface{}) (string, error) {
+	return "", nil
+}
+
+// edited / verfified to here
+
+func (p *OpenAIProvider) BuildURL(endpoint string) string {
+	return p.baseURL + endpoint
+}
+
+func (p *OpenAIProvider) SetAuthHeaders(req *http.Request, apiKey string) {
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+	req.Header.Set("Content-Type", "application/json")
 }
 
 func (p *OpenAIProvider) ExtractResponseText(data map[string]interface{}) (string, error) {

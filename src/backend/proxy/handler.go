@@ -97,12 +97,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var originalText string
 	if includeDetails {
 		if err := json.Unmarshal(body, &requestData); err != nil {
-			log.Printf("[Proxy] ⚠️  Failed to parse request for details: %v", err)
+			log.Printf("[Proxy] ⚠️ Failed to parse request for details: %v", err)
 			// Continue without details rather than failing
 			includeDetails = false
 		} else {
 			// Extract text from messages for logging
-			originalText, _ = h.extractTextFromMessages(requestData)
+			originalText, _ = provider.ExtractRequestText(requestData)
 		}
 	}
 
