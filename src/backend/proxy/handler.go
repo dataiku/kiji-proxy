@@ -331,7 +331,8 @@ func (h *Handler) getOpenAIAPIKey(r *http.Request) string {
 		return apiKey
 	}
 	// Fall back to config
-	return h.config.OpenAIAPIKey
+	// TODO: this is a temporary fix!
+	return h.config.OpenAIProviderConfig.APIKey
 }
 
 // getForwardEndpoint reads the forward endpoint from Electron config file
@@ -346,7 +347,8 @@ func (h *Handler) getForwardEndpoint() (string, error) {
 		return forwardEndpoint, nil
 	}
 	// Fall back to config if electron config path is not set
-	return h.config.OpenAIBaseURL, nil
+	// TODO: this is a temporary fix
+	return h.config.OpenAIProviderConfig.BaseURL, nil
 }
 
 // buildTargetURL builds the target URL for the proxy request
