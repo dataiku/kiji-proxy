@@ -50,7 +50,7 @@ type Config struct {
 // DefaultConfig returns the default configuration
 func DefaultConfig() *Config {
 	defaultOpenAIProviderConfig := ProviderConfig{
-		BaseURL: "https://api.openai.com/v1",
+		BaseURL: "https://api.openai.com",
 	}
 	defaultAnthropicProviderConfig := ProviderConfig{
 		BaseURL: "https://api.anthropic.com",

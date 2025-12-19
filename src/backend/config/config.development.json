@@ -1,6 +1,6 @@
 {
   "OpenAIProviderConfig": {
-    "BaseURL": "https://api.openai.com/v1"
+    "BaseURL": "https://api.openai.com"
   },
   "AnthropicProviderConfig": {
     "BaseURL": "https://api.anthropic.com"
