@@ -78,9 +78,9 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/health", s.healthCheck)
 	mux.HandleFunc("/logs", s.logsHandler)
 	mux.HandleFunc("/api/model/security", s.handleModelSecurity)
-	mux.Handle(providers.ProviderSubpathOpenAI, s.handler) // OpenAI
-	mux.Handle(providers.ProviderTypeAnthropic, s.handler) // Anthropic
-	mux.Handle("/dummy", s.handler)                        // Unkown provider, for testing
+	mux.Handle(providers.ProviderSubpathOpenAI, s.handler)
+	mux.Handle(providers.ProviderSubpathAnthropic, s.handler)
+	mux.Handle("/dummy", s.handler) // Unkown provider, for testing purposes
 
 	// Serve UI files
 	if s.uiFS != nil {

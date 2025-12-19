@@ -23,6 +23,8 @@ import (
 type Handler struct {
 	client             *http.Client
 	config             *config.Config
+	openAIProvider     *providers.OpenAIProvider
+	anthropicProvider  *providers.AnthropicProvider
 	detector           *pii.Detector
 	responseProcessor  *processor.ResponseProcessor
 	maskingService     *piiServices.MaskingService
@@ -59,19 +61,20 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Println("--- in ServeHTTP ---")
 	log.Printf("[Proxy] Received %s request to %s", r.Method, r.URL.Path)
 
-	// Determine LLM provider; fail if provider not recognized
-	var provider string
+	// Determine provider for current request
+	var provider providers.Provider
+
 	switch path := r.URL.Path; path {
 	case providers.ProviderSubpathOpenAI:
-		provider = providers.ProviderTypeOpenAI
+		provider = h.openAIProvider
 	case providers.ProviderSubpathAnthropic:
-		provider = providers.ProviderTypeAnthropic
+		provider = h.anthropicProvider
 	default:
 		log.Printf("[Proxy] Unknown provider detected, cannot proxy request.")
 		http.Error(w, "Unknown provider detected, cannot proxy request", http.StatusBadRequest)
 		return
 	}
-	log.Printf("[Proxy] %s provider detected", provider)
+	log.Printf("[Proxy] %s provider detected", provider.GetName())
 
 	// Check if detailed PII information is requested via query parameter
 	includeDetails := r.URL.Query().Get("details") == "true"
@@ -414,6 +417,17 @@ func NewHandler(cfg *config.Config, electronConfigPath string) (*Handler, error)
 		return nil, fmt.Errorf("failed to get detector: %w", err)
 	}
 
+	// Create providers
+	openAIProvider := providers.NewOpenAIProvider(
+		cfg.OpenAIProviderConfig.BaseURL,
+		cfg.OpenAIProviderConfig.APIKey,
+	)
+	anthropicProvider := providers.NewAnthropicProvider(
+		cfg.AnthropicProviderConfig.BaseURL,
+		cfg.AnthropicProviderConfig.APIKey,
+		cfg.AnthropicProviderConfig.RequiredHeaders,
+	)
+
 	// Create services
 	generatorService := piiServices.NewGeneratorService()
 	maskingService := piiServices.NewMaskingService(detector, generatorService)
@@ -453,6 +467,8 @@ func NewHandler(cfg *config.Config, electronConfigPath string) (*Handler, error)
 	return &Handler{
 		client:             &http.Client{},
 		config:             cfg,
+		openAIProvider:     openAIProvider,
+		anthropicProvider:  anthropicProvider,
 		detector:           &detector,
 		responseProcessor:  responseProcessor,
 		maskingService:     maskingService,
