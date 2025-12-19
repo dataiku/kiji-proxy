@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/hannes/yaak-private/src/backend/config"
+	"github.com/hannes/yaak-private/src/backend/providers"
 	"github.com/hannes/yaak-private/src/backend/proxy"
 )
 
@@ -77,7 +78,9 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/health", s.healthCheck)
 	mux.HandleFunc("/logs", s.logsHandler)
 	mux.HandleFunc("/api/model/security", s.handleModelSecurity)
-	mux.Handle("/v1/chat/completions", s.handler)
+	mux.Handle(providers.ProviderSubpathOpenAI, s.handler) // OpenAI
+	mux.Handle(providers.ProviderTypeAnthropic, s.handler) // Anthropic
+	mux.Handle("/dummy", s.handler)                        // Unkown provider, for testing
 
 	// Serve UI files
 	if s.uiFS != nil {

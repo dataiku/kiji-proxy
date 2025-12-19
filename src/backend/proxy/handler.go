@@ -16,6 +16,7 @@ import (
 	piiServices "github.com/hannes/yaak-private/src/backend/pii"
 	pii "github.com/hannes/yaak-private/src/backend/pii/detectors"
 	"github.com/hannes/yaak-private/src/backend/processor"
+	"github.com/hannes/yaak-private/src/backend/providers"
 )
 
 // Handler handles HTTP requests and proxies them to OpenAI API
@@ -57,6 +58,20 @@ func (h *Handler) GetDetector() (pii.Detector, error) {
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Println("--- in ServeHTTP ---")
 	log.Printf("[Proxy] Received %s request to %s", r.Method, r.URL.Path)
+
+	// Determine LLM provider; fail if provider not recognized
+	var provider string
+	switch path := r.URL.Path; path {
+	case providers.ProviderSubpathOpenAI:
+		provider = providers.ProviderTypeOpenAI
+	case providers.ProviderSubpathAnthropic:
+		provider = providers.ProviderTypeAnthropic
+	default:
+		log.Printf("[Proxy] Unknown provider detected, cannot proxy request.")
+		http.Error(w, "Unknown provider detected, cannot proxy request", http.StatusBadRequest)
+		return
+	}
+	log.Printf("[Proxy] %s provider detected", provider)
 
 	// Check if detailed PII information is requested via query parameter
 	includeDetails := r.URL.Query().Get("details") == "true"
