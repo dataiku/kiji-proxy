@@ -192,14 +192,26 @@ func loadApplicationConfig(cfg *config.Config) {
 		cfg.ProxyPort = proxyPort
 	}
 
+	// Override OpenAI provider config with environment variables
 	if openAIURL := os.Getenv("OPENAI_BASE_URL"); openAIURL != "" {
-		cfg.OpenAIBaseURL = openAIURL
+		cfg.OpenAIProviderConfig.BaseURL = openAIURL
 	}
 	if apiKey := os.Getenv("OPENAI_API_KEY"); apiKey != "" {
-		cfg.OpenAIAPIKey = apiKey
+		cfg.OpenAIProviderConfig.APIKey = apiKey
 		log.Printf("Loaded OPENAI_API_KEY from environment (length: %d)", len(apiKey))
 	} else {
 		log.Printf("Warning: OPENAI_API_KEY is empty or not set")
+	}
+
+	// Override Anthropic provider config with environment variables
+	if openAIURL := os.Getenv("ANTHROPIC_BASE_URL"); openAIURL != "" {
+		cfg.AnthropicProviderConfig.BaseURL = openAIURL
+	}
+	if apiKey := os.Getenv("ANTHROPIC_API_KEY"); apiKey != "" {
+		cfg.AnthropicProviderConfig.APIKey = apiKey
+		log.Printf("Loaded ANTHROPIC_API_KEY from environment (length: %d)", len(apiKey))
+	} else {
+		log.Printf("Warning: ANTHROPIC_API_KEY is empty or not set")
 	}
 }
 

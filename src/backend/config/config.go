@@ -24,10 +24,19 @@ type DatabaseConfig struct {
 	CleanupHours int    // Hours after which to cleanup old mappings
 }
 
+// Provider config
+type ProviderConfig struct {
+	BaseURL         string
+	APIKey          string
+	RequiredHeaders map[string]string
+}
+
 // Config holds all configuration for the PII proxy service
 type Config struct {
-	OpenAIBaseURL string
-	OpenAIAPIKey  string
+	OpenAIProviderConfig    *ProviderConfig
+	AnthropicProviderConfig *ProviderConfig
+	//OpenAIBaseURL string
+	//OpenAIAPIKey  string
 	ProxyPort     string
 	DetectorName  string
 	ModelBaseURL  string
@@ -40,8 +49,16 @@ type Config struct {
 
 // DefaultConfig returns the default configuration
 func DefaultConfig() *Config {
+	defaultOpenAIProviderConfig := ProviderConfig{
+		BaseURL: "https://api.openai.com/v1",
+	}
+	defaultAnthropicProviderConfig := ProviderConfig{
+		BaseURL: "https://api.anthropic.com",
+	}
 	return &Config{
-		OpenAIBaseURL: "https://api.openai.com/v1",
+		OpenAIProviderConfig:    &defaultOpenAIProviderConfig,
+		AnthropicProviderConfig: &defaultAnthropicProviderConfig,
+		//OpenAIBaseURL: "https://api.openai.com/v1",
 		ProxyPort:     ":8080",
 		DetectorName:  "onnx_model_detector",
 		ModelBaseURL:  "http://localhost:8000",

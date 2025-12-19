@@ -1,7 +1,12 @@
 {
+  "OpenAIProviderConfig": {
+    "BaseURL": "https://api.openai.com/v1"
+  },
+  "AnthropicProviderConfig": {
+    "BaseURL": "https://api.anthropic.com"
+  },
   "ProxyPort": ":8080",
-  "DetectorName": "onnx_model_detector",
-  "ModelBaseURL": "https://api.openai.com/v1",
+  "DetectorName": "regex_detector",
   "Database": {
     "Enabled": false
   },
