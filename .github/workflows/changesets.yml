@@ -22,7 +22,9 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: src/frontend/package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            src/frontend/package-lock.json
 
       - name: Check for changesets
         id: check_changesets
@@ -45,22 +47,25 @@ jobs:
       - name: Install Dependencies
         if: steps.check_changesets.outputs.has_changesets == 'true'
         run: |
-          cd src/frontend
-          npm ci
+          # Install root dependencies (includes @changesets/cli)
+          npm install
+
+          # Install workspace dependencies
+          npm install --workspace=src/frontend
 
       - name: Create Version PR
         if: steps.check_changesets.outputs.has_changesets == 'true'
         id: changesets
         run: |
-          cd src/frontend
-
-          # Run changeset version to update package.json and CHANGELOG
+          # Run changeset version from root (where .changeset folder is)
+          # It will update src/frontend/package.json based on workspace config
           npx changeset version
 
           # Check if there are changes
-          cd ..
           if [[ -n $(git status --porcelain) ]]; then
             echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "Changes detected:"
+            git status --short
           else
             echo "has_changes=false" >> $GITHUB_OUTPUT
             echo "No changes were made by changesets"
