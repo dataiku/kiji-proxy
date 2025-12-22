@@ -373,15 +373,45 @@ make test-all
 
 - [Build Guide](docs/BUILD.md) - Detailed build instructions
 - [Development Guide](docs/DEVELOPMENT.md) - Development workflow
+- [Release Guide](docs/RELEASE.md) - Release process with Changesets
+
+## 📦 Releases
+
+We use [Changesets](https://github.com/changesets/changesets) for version management with automated DMG builds.
+
+### Creating a Release
+
+1. **Make changes and add a changeset:**
+   ```bash
+   cd src/frontend
+   npm run changeset
+   # Follow prompts to describe your changes
+   ```
+
+2. **Merge your PR** - Changesets will automatically create a "Version PR"
+
+3. **Review and merge the Version PR** - This bumps the version
+
+4. **Tag the release:**
+   ```bash
+   git tag -a v1.2.0 -m "Release 1.2.0"
+   git push origin v1.2.0
+   ```
+
+5. **GitHub Actions** automatically builds and releases the DMG
+
+See [docs/RELEASE.md](docs/RELEASE.md) for detailed instructions.
 
 ## 🤝 Contributing
 
 1. Fork the repository
-2. Create a feature branch
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
 3. Make your changes
-4. Run tests: `make test-all`
-5. Run code quality checks: `make check`
-6. Submit a pull request
+4. Add a changeset: `cd src/frontend && npm run changeset`
+5. Run tests: `make test-all`
+6. Run code quality checks: `make check`
+7. Commit your changes (including the changeset)
+8. Push to your fork and submit a pull request
 
 ## 📄 License
 
