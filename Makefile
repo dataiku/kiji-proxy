@@ -15,6 +15,9 @@ GREEN := \033[0;32m
 YELLOW := \033[1;33m
 NC := \033[0m # No Color
 
+# Version from package.json
+VERSION := $(shell cd src/frontend && node -p "require('./package.json').version" 2>/dev/null || echo "0.0.0")
+
 ##@ General
 
 help: ## Display this help message
@@ -25,7 +28,9 @@ help: ## Display this help message
 info: ## Show project info
 	@echo "$(BLUE)Project Information$(NC)"
 	@echo "Name:    $(GREEN)yaak-pii-detection$(NC)"
-	@echo "Version: $(GREEN)0.1.0$(NC)"
+	@echo -n "Version: $(GREEN)"
+	@cd src/frontend && node -p "require('./package.json').version" 2>/dev/null || echo "unknown"
+	@echo "$(NC)"
 	@echo "Python:  $(GREEN)$(shell python --version 2>&1)$(NC)"
 	@echo "UV:      $(GREEN)$(shell uv --version 2>&1)$(NC)"
 	@echo ""

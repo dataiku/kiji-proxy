@@ -10,7 +10,10 @@
     "start": "node server.js",
     "electron": "npm run build:electron && electron .",
     "electron:dev": "NODE_ENV=development electron .",
-    "electron:pack": "npm run build:electron && electron-builder"
+    "electron:pack": "npm run build:electron && electron-builder",
+    "changeset": "changeset",
+    "version": "changeset version",
+    "release": "changeset publish"
   },
   "dependencies": {
     "react": "^18.2.0",
@@ -24,6 +27,7 @@
     "@babel/preset-env": "^7.22.0",
     "@babel/preset-react": "^7.22.0",
     "@babel/preset-typescript": "^7.22.0",
+    "@changesets/cli": "^2.27.1",
     "babel-loader": "^9.1.0",
     "css-loader": "^6.8.0",
     "electron": "^28.0.0",
