@@ -21,12 +21,15 @@ jobs:
     name: Build DMG for Release
     # Only run when:
     # 1. A tag starting with 'v' is pushed
-    # 2. A PR is merged to main (typically the changesets version PR)
+    # 2. A Version PR (from changesets) is merged to main
     # 3. Manually triggered
     if: |
       (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
       (github.event_name == 'pull_request' &&
-       github.event.pull_request.merged == true) ||
+       github.event.pull_request.merged == true &&
+       (startsWith(github.event.pull_request.title, 'chore: version packages') ||
+        github.event.pull_request.head.ref == 'changeset-release/main' ||
+        contains(github.event.pull_request.labels.*.name, 'release'))) ||
       github.event_name == 'workflow_dispatch'
 
     runs-on: macos-latest
