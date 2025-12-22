@@ -42,9 +42,14 @@ This directory contains all CI/CD workflows for the Yaak Privacy Proxy project.
 **Purpose:** Builds DMG packages and creates GitHub releases
 
 **Triggers:**
-- Version PR merged to `main` (automatic)
+- Version PR merged to `main` (automatic) - detected by:
+  - PR title: "chore: version packages"
+  - PR branch: "changeset-release/main"
+  - PR label: "release"
 - Tag starting with `v*` pushed (e.g., `v1.2.0`)
 - Manual via Actions UI
+
+**Note:** Regular PRs do NOT trigger this workflow - only Version PRs from Changesets!
 
 **What it does:**
 1. **Setup Environment:**
