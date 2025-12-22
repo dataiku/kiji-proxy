@@ -1,0 +1,16 @@
+{
+  "name": "yaak-proxy-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "src/frontend"
+  ],
+  "scripts": {
+    "changeset": "changeset",
+    "version": "changeset version",
+    "release": "changeset publish"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.27.1"
+  }
+}
