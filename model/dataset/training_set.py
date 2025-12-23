@@ -40,6 +40,9 @@ flags.DEFINE_string(
     "API URL for the LLM client. If OpenAI, don't touch it. This is needed for vLLM backend with OpenAI-compatible API.",
 )
 flags.DEFINE_string(
+    "api_model", "openai/gpt-oss-120b", "Model name to use when api_url is specified (e.g., 'openai/gpt-oss-120b')"
+)
+flags.DEFINE_string(
     "output_dir", "model/dataset", "Output directory for generated samples"
 )
 flags.DEFINE_string(
@@ -61,6 +64,7 @@ class TrainingSetConfig:
     num_samples: int = 5
     output_dir: str = "model/dataset"
     api_url: str | None = None  # generator API URL
+    api_model: str = "openai/gpt-oss-120b"
 
     def get_languages_countries(
         self, language_count: int = 10, is_testing: bool = False
@@ -154,7 +158,7 @@ class TrainingSetGenerator:
                 self.llm_client = OllamaClient()
             else:
                 if config.api_url:
-                    model = "openai/gpt-oss-120b"  # FIXME (Eddie): magic number vibez. Should generalize to any HF model that vllm serve <> eats on the server.
+                    model = config.api_model  # FIXME (Eddie): magic number vibez. Should generalize to any HF model that vllm serve <> eats on the server.
                     self.llm_client = OpenAIClient(api_url=config.api_url, model=model)
                 else:
                     self.llm_client = OpenAIClient()
@@ -301,6 +305,7 @@ def main():
         num_samples=FLAGS.num_samples,
         output_dir=FLAGS.output_dir,
         api_url=FLAGS.api_url,
+        api_model=FLAGS.api_model,
     )
     # Use testing mode only if generating very few samples (for quick testing)
     # Otherwise use full diversity
