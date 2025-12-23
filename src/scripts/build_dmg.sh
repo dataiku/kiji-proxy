@@ -269,15 +269,19 @@ echo ""
 echo "📦 Step 8: Building Go binary..."
 echo "--------------------------------"
 
-# Build the Go binary with embedded files (strip symbols for smaller size)
+# Extract version from package.json
+VERSION=$(cd src/frontend && node -p "require('./package.json').version" 2>/dev/null || echo "0.0.0")
+echo "Building version: $VERSION"
+
+# Build the Go binary with embedded files and version injection
 mkdir -p build
 
-# Use parallel compilation
+# Use parallel compilation with version injection
 CGO_ENABLED=1 \
 GOMAXPROCS=$PARALLEL_JOBS \
 go build \
   -tags embed \
-  -ldflags="-s -w -extldflags '-L./build/tokenizers'" \
+  -ldflags="-s -w -X main.version=$VERSION -extldflags '-L./build/tokenizers'" \
   -o build/yaak-proxy \
   ./src/backend
 

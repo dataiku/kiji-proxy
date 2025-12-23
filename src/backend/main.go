@@ -17,7 +17,25 @@ import (
 
 const TRUE = "true"
 
+// version is set by ldflags during build
+var version = "dev"
+
 func main() {
+	// Handle version flag
+	versionFlag := flag.Bool("version", false, "Print version and exit")
+	versionFlagShort := flag.Bool("v", false, "Print version and exit")
+
+	// Check for config file path from command-line flag
+	configPath := flag.String("config", "", "Path to JSON config file")
+	electronConfigPath := flag.String("electron-config", "", "Path to Electron's config.json file")
+	flag.Parse()
+
+	// Print version if requested
+	if *versionFlag || *versionFlagShort {
+		log.Printf("Yaak Privacy Proxy version %s", version)
+		os.Exit(0)
+	}
+
 	// Load .env file if it exists
 	// Try loading from current directory and workspace root
 	if err := godotenv.Load(); err == nil {
@@ -28,13 +46,11 @@ func main() {
 		log.Printf("Note: .env file not found or could not be loaded: %v", err)
 	}
 
+	// Log version at startup
+	log.Printf("Starting Yaak Privacy Proxy version %s", version)
+
 	// Load configuration
 	cfg := config.DefaultConfig()
-
-	// Check for config file path from command-line flag
-	configPath := flag.String("config", "", "Path to JSON config file")
-	electronConfigPath := flag.String("electron-config", "", "Path to Electron's config.json file")
-	flag.Parse()
 
 	if *configPath != "" {
 		loadConfigFromFile(*configPath, cfg)

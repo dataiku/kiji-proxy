@@ -58,3 +58,30 @@ jobs:
 
     - name: golangci-lint
       uses: golangci/golangci-lint-action@v6
+
+  frontend-lint:
+    runs-on: ubuntu-latest
+    name: Frontend Lint & Type Check
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: 'src/frontend/package-lock.json'
+
+    - name: Install dependencies
+      working-directory: src/frontend
+      run: npm ci
+
+    - name: Run ESLint
+      working-directory: src/frontend
+      run: npm run lint
+
+    - name: Run TypeScript type check
+      working-directory: src/frontend
+      run: npm run type-check

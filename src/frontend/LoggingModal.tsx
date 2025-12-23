@@ -116,7 +116,7 @@ export default function LoggingModal({ isOpen, onClose }: LoggingModalProps) {
       // Check if it's an OpenAI response (Out message)
       if (parsed.choices && Array.isArray(parsed.choices)) {
         const messages = parsed.choices
-          .map((choice: any, index: number) => {
+          .map((choice: any) => {
             // Handle chat completion format
             if (choice.message?.content) {
               const role = choice.message.role

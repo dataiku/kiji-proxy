@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, ipcMain, safeStorage } = require("electron");
+const { app, BrowserWindow, Menu, Tray, nativeImage, ipcMain, safeStorage } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const { spawn } = require("child_process");
@@ -6,6 +6,7 @@ const isDev = process.env.NODE_ENV === "development";
 
 let mainWindow;
 let goProcess = null;
+let tray = null;
 
 // Storage for API key (using safeStorage when available, fallback to encrypted file)
 const getStoragePath = () => {
@@ -83,7 +84,6 @@ const launchGoBinary = () => {
     "resources",
     "libonnxruntime.1.23.1.dylib",
   );
-  const modelPath = path.join(resourcesPath, "resources", "quantized");
 
   // Set up environment variables
   const env = { ...process.env };
@@ -212,6 +212,77 @@ const stopGoBinary = () => {
   }
 };
 
+// Show or create main window
+function showMainWindow() {
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) {
+      mainWindow.restore();
+    }
+    mainWindow.show();
+    mainWindow.focus();
+  } else {
+    createWindow();
+  }
+}
+
+// Create system tray icon
+function createTray() {
+  // Use icon-16.png for the menu bar
+  const iconPath = path.join(__dirname, "assets", "icon-16.png");
+
+  if (!fs.existsSync(iconPath)) {
+    console.warn("Tray icon not found at:", iconPath);
+    return;
+  }
+
+  const icon = nativeImage.createFromPath(iconPath);
+
+  // For macOS, resize to 16x16 and mark as template image for dark mode support
+  if (process.platform === "darwin") {
+    tray = new Tray(icon.resize({ width: 16, height: 16 }));
+    tray.setToolTip("Yaak Privacy Proxy");
+  } else {
+    tray = new Tray(icon);
+    tray.setToolTip("Yaak Privacy Proxy");
+  }
+
+  // Build context menu
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: "Open Yaak Proxy",
+      click: () => {
+        showMainWindow();
+      },
+    },
+    {
+      label: "Settings",
+      click: () => {
+        showMainWindow();
+        // Send IPC to open settings after a short delay to ensure window is ready
+        setTimeout(() => {
+          if (mainWindow) {
+            mainWindow.webContents.send("open-settings");
+          }
+        }, 100);
+      },
+    },
+    { type: "separator" },
+    {
+      label: "Quit Yaak Proxy",
+      click: () => {
+        app.quit();
+      },
+    },
+  ]);
+
+  tray.setContextMenu(contextMenu);
+
+  // Optional: Click tray icon to show window (single click on macOS)
+  tray.on("click", () => {
+    showMainWindow();
+  });
+}
+
 function createWindow() {
   // Get icon path (works in both dev and production)
   const iconPath = path.join(__dirname, "assets", "icon.png");
@@ -257,6 +328,15 @@ function createWindow() {
     // Open DevTools in development mode
     if (isDev) {
       mainWindow.webContents.openDevTools();
+    }
+  });
+
+  // Hide window on close (don't quit app) - allows background running
+  mainWindow.on("close", (event) => {
+    if (!app.isQuitting) {
+      event.preventDefault();
+      mainWindow.hide();
+      return false;
     }
   });
 
@@ -383,6 +463,9 @@ app.whenReady().then(() => {
   // Launch the Go binary backend first
   launchGoBinary();
 
+  // Create the system tray icon
+  createTray();
+
   // Wait a moment for the backend to start, then create the window
   setTimeout(() => {
     createWindow();
@@ -401,22 +484,29 @@ app.whenReady().then(() => {
       } else {
         createWindow();
       }
+    } else if (mainWindow) {
+      // If window exists but is hidden, show it
+      showMainWindow();
     }
   });
 });
 
-// Quit when all windows are closed, except on macOS
+// Keep app running in menu bar even when all windows are closed
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
-    stopGoBinary();
-    app.quit();
-  }
+  // Don't quit - the tray icon keeps the app running
+  // Users must explicitly choose "Quit Yaak Proxy" from the tray menu
 });
 
 // Handle app quitting
 app.on("before-quit", () => {
   app.isQuitting = true;
   stopGoBinary();
+
+  // Cleanup tray icon
+  if (tray) {
+    tray.destroy();
+    tray = null;
+  }
 });
 
 // Handle app will quit (macOS)
