@@ -1,0 +1,6 @@
+node_modules/
+dist/
+release/
+webpack.config.js
+server.js
+*.d.ts
