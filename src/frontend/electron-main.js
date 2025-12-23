@@ -84,7 +84,6 @@ const launchGoBinary = () => {
     "resources",
     "libonnxruntime.1.23.1.dylib",
   );
-  const modelPath = path.join(resourcesPath, "resources", "quantized");
 
   // Set up environment variables
   const env = { ...process.env };

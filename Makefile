@@ -1,5 +1,5 @@
 .PHONY: help install install-dev venv
-.PHONY: format lint lint-go typecheck check ruff-fix ruff-all
+.PHONY: format lint lint-go lint-frontend lint-frontend-fix lint-all typecheck typecheck-frontend check check-all ruff-fix ruff-all
 .PHONY: test test-go test-all
 .PHONY: clean clean-venv clean-all
 .PHONY: build-dmg
@@ -87,12 +87,44 @@ lint-go: ## Lint Go code with golangci-lint
 	fi
 	@echo "$(GREEN)✅ Go linting complete$(NC)"
 
+lint-frontend: ## Lint frontend code with ESLint
+	@echo "$(BLUE)Linting frontend code...$(NC)"
+	@if [ ! -d "src/frontend/node_modules" ]; then \
+		echo "$(YELLOW)⚠️  Frontend dependencies not installed. Run 'make electron-install' first.$(NC)"; \
+		exit 1; \
+	fi
+	@cd src/frontend && npm run lint
+	@echo "$(GREEN)✅ Frontend linting complete$(NC)"
+
+lint-frontend-fix: ## Lint and auto-fix frontend code with ESLint
+	@echo "$(BLUE)Auto-fixing frontend code...$(NC)"
+	@if [ ! -d "src/frontend/node_modules" ]; then \
+		echo "$(YELLOW)⚠️  Frontend dependencies not installed. Run 'make electron-install' first.$(NC)"; \
+		exit 1; \
+	fi
+	@cd src/frontend && npm run lint:fix
+	@echo "$(GREEN)✅ Frontend auto-fix complete$(NC)"
+
+lint-all: lint lint-go lint-frontend ## Run all linters (Python, Go, Frontend)
+	@echo "$(GREEN)✅ All linting complete$(NC)"
+
 typecheck: ## Run type checker with ruff
 	@echo "$(BLUE)Running type checker...$(NC)"
 	uv run ruff check model/ --select TYP
 	@echo "$(GREEN)✅ Type checking complete$(NC)"
 
-check: format lint typecheck ## Run all code quality checks
+typecheck-frontend: ## Run TypeScript type checking
+	@echo "$(BLUE)Running TypeScript type checker...$(NC)"
+	@if [ ! -d "src/frontend/node_modules" ]; then \
+		echo "$(YELLOW)⚠️  Frontend dependencies not installed. Run 'make electron-install' first.$(NC)"; \
+		exit 1; \
+	fi
+	@cd src/frontend && npm run type-check
+	@echo "$(GREEN)✅ TypeScript type checking complete$(NC)"
+
+check: format lint typecheck ## Run Python code quality checks
+
+check-all: format lint-all typecheck typecheck-frontend ## Run all code quality checks (Python, Go, Frontend)
 
 ruff-fix: ## Auto-fix ruff issues
 	@echo "$(BLUE)Auto-fixing ruff issues...$(NC)"
