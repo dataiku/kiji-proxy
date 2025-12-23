@@ -40,7 +40,9 @@ flags.DEFINE_string(
     "API URL for the LLM client. If OpenAI, don't touch it. This is needed for vLLM backend with OpenAI-compatible API.",
 )
 flags.DEFINE_string(
-    "api_model", "openai/gpt-oss-120b", "Model name to use when api_url is specified (e.g., 'openai/gpt-oss-120b')"
+    "api_model",
+    "openai/gpt-oss-120b",
+    "Model name to use when api_url is specified (e.g., 'openai/gpt-oss-120b')",
 )
 flags.DEFINE_string(
     "output_dir", "model/dataset", "Output directory for generated samples"
