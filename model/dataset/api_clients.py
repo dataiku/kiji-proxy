@@ -25,14 +25,22 @@ class LLMClient(ABC):
 class OpenAIClient(LLMClient):
     """OpenAI API client."""
 
-    def __init__(self, model: str = "gpt-4.1-2025-04-14", api_key: str | None = None):
+    def __init__(
+        self,
+        model: str = "gpt-4.1-2025-04-14",
+        api_key: str | None = None,
+        api_url: str | None = None,
+    ):
         self.model = model
         self.api_key = api_key or os.getenv("OPENAI_API_KEY")
-        if not self.api_key:
+        if not api_url and not self.api_key:
             raise ValueError(
                 "OPENAI_API_KEY not found in environment variables. Please set it in .env file."
             )
-        self.url = "https://api.openai.com/v1/chat/completions"
+        if api_url:
+            self.url = api_url
+        else:
+            self.url = "https://api.openai.com/v1/chat/completions"
         self.timeout = httpx.Timeout(300.0, connect=10.0)
         self.headers = {
             "Authorization": f"Bearer {self.api_key}",

@@ -40,12 +40,14 @@ yarn-error.log*
 package-lock.json
 
 # IDEs
-.vscode/
+# .vscode/
+# .zed/
 .idea/
 *.swp
 *.swo
 *~
 .DS_Store
+Thumbs.db
 
 # Build artifacts
 yaak-proxy
@@ -69,7 +71,3 @@ release/
 # But ignore any accidentally added large files
 *.onnx.bak
 *.safetensors.bak
-
-# OS
-.DS_Store
-Thumbs.db
