@@ -148,14 +148,14 @@ Generated samples follow this JSON structure:
 | `COUNTRY` | Country names |
 | `IBAN` | International Bank Account Numbers |
 | `DRIVERLICENSENUM` | Driver's license numbers |
-| `PASSPORTNUM` | Passport numbers |
-| `NATIONALID` | National ID numbers |
+| `PASSPORTID` | Passport ID |
+| `NATIONALID` | National ID |
 | `TAXNUM` | Tax identification numbers |
 | `COMPANYNAME` | Company/organization names |
 | `URL` | Website URLs |
 | `USERNAME` | Usernames |
 | `PASSWORD` | Passwords |
-| `LICENSEPLATE` | Vehicle license plates |
+| `LICENSEPLATENUM` | Vehicle license plates |
 | `AGE` | Age values |
 
 ## 🔄 Generation Pipeline
