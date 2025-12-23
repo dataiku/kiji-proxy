@@ -1,6 +1,6 @@
 {
   "name": "yaak-privacy-proxy",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Yaak Privacy Proxy",
   "main": "electron-main.js",
   "scripts": {
@@ -10,7 +10,13 @@
     "start": "node server.js",
     "electron": "npm run build:electron && electron .",
     "electron:dev": "NODE_ENV=development electron .",
-    "electron:pack": "npm run build:electron && electron-builder"
+    "electron:pack": "npm run build:electron && electron-builder",
+    "lint": "eslint . --ext .ts,.tsx,.js,.jsx",
+    "lint:fix": "eslint . --ext .ts,.tsx,.js,.jsx --fix",
+    "type-check": "tsc --noEmit",
+    "changeset": "changeset",
+    "version": "changeset version",
+    "release": "changeset publish"
   },
   "dependencies": {
     "react": "^18.2.0",
@@ -24,12 +30,21 @@
     "@babel/preset-env": "^7.22.0",
     "@babel/preset-react": "^7.22.0",
     "@babel/preset-typescript": "^7.22.0",
+    "@changesets/cli": "^2.27.1",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
     "babel-loader": "^9.1.0",
     "css-loader": "^6.8.0",
     "electron": "^28.0.0",
     "electron-builder": "^24.9.1",
+    "eslint": "^8.50.0",
+    "eslint-plugin-react": "^7.33.0",
+    "eslint-plugin-react-hooks": "^4.6.0",
     "html-webpack-plugin": "^5.5.0",
     "style-loader": "^3.3.0",
+    "typescript": "^5.2.0",
     "webpack": "^5.88.0",
     "webpack-cli": "^5.1.0",
     "webpack-dev-server": "^4.15.0"

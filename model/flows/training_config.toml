@@ -1,0 +1,18 @@
+# PII Detection Model Training Configuration
+# All pipeline settings are controlled via this file.
+
+[model]
+name = "distilbert-base-cased"
+
+[training]
+num_epochs = 5
+batch_size = 16
+learning_rate = 3e-5
+
+[paths]
+training_samples_dir = "model/dataset/reviewed_samples"
+output_dir = "model/trained"
+
+[data]
+# Limit samples for quick iteration (0 = use all)
+subsample_count = 160
