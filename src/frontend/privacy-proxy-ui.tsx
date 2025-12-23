@@ -20,7 +20,7 @@ export default function PrivacyProxyUI() {
   const [detectedEntities, setDetectedEntities] = useState([]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isLoggingOpen, setIsLoggingOpen] = useState(false);
-  const [forwardEndpoint, setForwardEndpoint] = useState(
+  const [_, setForwardEndpoint] = useState(
     "https://api.openai.com/v1",
   );
   const [apiKey, setApiKey] = useState<string | null>(null);
