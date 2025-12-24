@@ -87,12 +87,16 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.uv]
-# The issue: labelstudio requires numpy<2.0, but quantization (via ml_dtypes on py3.13) requires numpy>=2.1
+# The issue: labelstudio requires numpy<2.0, but training/quantization require numpy>=2.1
 # Solution: Don't try to create a universal lock for all extras - only resolve what's requested
 conflicts = [
-    # Declare that quantization and labelstudio cannot be used together
+    # Declare that quantization, training, and labelstudio cannot be used together
     [
         {extra = "quantization"},
+        {extra = "labelstudio"},
+    ],
+    [
+        {extra = "training"},
         {extra = "labelstudio"},
     ],
 ]
