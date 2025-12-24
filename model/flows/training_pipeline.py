@@ -32,7 +32,6 @@ from pathlib import Path
 from metaflow import (
     Config,
     FlowSpec,
-    IncludeFile,
     card,
     checkpoint,
     current,

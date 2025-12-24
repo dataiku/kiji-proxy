@@ -3,9 +3,7 @@ Convert the reviewed samples to Label Studio format.
 """
 
 import json
-
 from pathlib import Path
-
 from typing import Any
 
 from absl import app, flags
@@ -227,7 +225,7 @@ def convert_to_labelstudio(samples_dir: str, output_dir: str) -> None:
     for json_file in json_files:
         print(f"Converting {json_file.name}...")
 
-        with open(json_file, 'r', encoding='utf-8') as f:
+        with open(json_file, encoding='utf-8') as f:
             sample = json.load(f)
 
         try:

@@ -91,7 +91,6 @@ def main():
 
     total_files = 0
     total_changes = 0
-    modified_files = 0
 
     print("=" * 80)
     print("Rename DOB labels to DATEOFBIRTH")

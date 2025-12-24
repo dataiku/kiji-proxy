@@ -24,12 +24,6 @@ import os
 import sys
 from pathlib import Path
 
-# Add project root to path for imports BEFORE any local imports
-# __file__ is model/src/quantitize.py, so parent.parent.parent is the project root
-project_root = Path(__file__).parent.parent.parent
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
-
 import onnx
 import torch
 from absl import app, flags
@@ -37,6 +31,12 @@ from optimum.onnxruntime import ORTQuantizer
 from optimum.onnxruntime.configuration import AutoQuantizationConfig
 from safetensors import safe_open
 from transformers import AutoTokenizer
+
+# Add project root to path for imports BEFORE any local imports
+# __file__ is model/src/quantitize.py, so parent.parent.parent is the project root
+project_root = Path(__file__).parent.parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 
 try:
     from model.src.model_signing import sign_trained_model
