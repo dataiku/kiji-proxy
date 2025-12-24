@@ -196,9 +196,44 @@ def convert_sample_to_labelstudio(sample: dict[str, Any]) -> dict[str, Any]:
     return labelstudio_format
 
 
-def convert_to_labelstudio(samples_dir: str, output_dir: str) -> None:
+def convert_to_labelstudio(
+    sample: dict[str, Any],
+    language: str | None = None,
+    country: str | None = None
+) -> dict[str, Any]:
     """
-    Convert all reviewed samples to Label Studio format.
+    Convert a single reviewed sample to Label Studio format with metadata.
+
+    Args:
+        sample: Dictionary with 'text', 'privacy_mask', and 'coreferences' keys
+        language: Optional language code to add to data section
+        country: Optional country to add to data section
+
+    Returns:
+        Label Studio format dictionary with 'data' and 'predictions',
+        including language and country metadata if provided
+    """
+    # Convert sample using the base conversion function
+    converted = convert_sample_to_labelstudio(sample)
+
+    # Add metadata from the sample if not explicitly provided
+    if language is None and "language" in sample:
+        language = sample["language"]
+    if country is None and "country" in sample:
+        country = sample["country"]
+
+    # Add metadata to the data section
+    if language is not None:
+        converted["data"]["language"] = language
+    if country is not None:
+        converted["data"]["country"] = country
+
+    return converted
+
+
+def convert_all_samples_to_labelstudio(samples_dir: str, output_dir: str) -> None:
+    """
+    Convert all reviewed samples in a directory to Label Studio format.
 
     Args:
         samples_dir: Directory containing reviewed sample JSON files
@@ -219,28 +254,30 @@ def convert_to_labelstudio(samples_dir: str, output_dir: str) -> None:
 
     # Ensure output directory exists
     output_path = Path(output_dir)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.mkdir(parents=True, exist_ok=True)
 
     counter = 0
     for json_file in json_files:
         print(f"Converting {json_file.name}...")
 
-        with open(json_file, encoding='utf-8') as f:
-            sample = json.load(f)
-
         try:
-            converted = convert_sample_to_labelstudio(sample)
-            # carry forward the language, country, and text to the output file
-            converted["data"]["language"] = sample["language"]
-            converted["data"]["country"] = sample["country"]
-            # converted["data"]["text"] = sample["text"]
-            with open(output_path / f"{json_file.name}", 'w', encoding='utf-8') as f:
-                json.dump(converted, f, indent=2)
+            # Read the sample
+            with open(json_file, encoding='utf-8') as f:
+                sample = json.load(f)
+
+            # Convert to Label Studio format
+            converted = convert_to_labelstudio(sample)
+
+            # Write to output directory
+            output_file = output_path / json_file.name
+            with open(output_file, 'w', encoding='utf-8') as f:
+                json.dump(converted, f, indent=2, ensure_ascii=False)
+
             counter += 1
+
         except Exception as e:
             print(f"Error converting {json_file.name}: {e}")
             continue
-        break  # TODO: Remove this
 
     print(f"\nSuccessfully converted {counter} samples")
     print(f"Output written to: {output_dir}")
@@ -250,7 +287,7 @@ def main(argv):
     """Main function to convert reviewed samples to Label Studio format."""
     del argv  # Unused
 
-    convert_to_labelstudio(FLAGS.samples_dir, FLAGS.output_dir)
+    convert_all_samples_to_labelstudio(FLAGS.samples_dir, FLAGS.output_dir)
 
 
 if __name__ == "__main__":

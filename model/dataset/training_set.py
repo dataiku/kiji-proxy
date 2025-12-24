@@ -16,6 +16,7 @@ try:
     from .label_utils import LabelUtils
     from .prompts import PromptBuilder
     from .schemas import get_pii_sample_schema, get_review_sample_schema
+    from ..dataset.to_labelstudio import convert_to_labelstudio
 except ImportError:
     # Allow running as a script
     from api_clients import LLMClient, OllamaClient, OpenAIClient
@@ -23,6 +24,7 @@ except ImportError:
     from label_utils import LabelUtils
     from prompts import PromptBuilder
     from schemas import get_pii_sample_schema, get_review_sample_schema
+    from dataset.to_labelstudio import convert_to_labelstudio
 
 # Load .env file from root directory
 # Get the root directory (parent of model/ directory)
@@ -283,12 +285,10 @@ def process_single_sample(
     file_name = gen.file_manager.save_sample(result, "reviewed_samples", file_name)
     logging.info(f"Sample {sample_index}: Reviewed sample")
 
-    # # Convert to training sample (tokenization now happens during training)
-    # training_sample = gen.convert_to_training_sample(result, tokenizer=None)
-    # file_name = gen.file_manager.save_sample(
-    #     training_sample, "training_samples", file_name
-    # )
-    # logging.info(f"Sample {sample_index}: Saved training sample to {file_name}")
+    # Convert to training sample by calling convert_to_labelstudio from to_labelstudio.py
+    training_sample = convert_to_labelstudio(result)
+    file_name = gen.file_manager.save_sample(training_sample, "training_samples", file_name)
+    logging.info(f"Sample {sample_index}: Converted to training sample")
 
     return sample_index, file_name
 
