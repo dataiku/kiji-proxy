@@ -7,20 +7,29 @@ from pathlib import Path
 from typing import Any
 
 from absl import app, flags
+from absl.flags import DuplicateFlagError
+
+# Export the main conversion functions
+__all__ = ["convert_to_labelstudio", "convert_all_samples_to_labelstudio", "convert_sample_to_labelstudio"]
 
 FLAGS = flags.FLAGS
 
-flags.DEFINE_string(
-    "samples_dir",
-    "model/dataset/reviewed_samples",
-    "Directory containing reviewed sample JSON files",
-)
+# Guard flag definitions to prevent duplicates when module is imported
+try:
+    flags.DEFINE_string(
+        "samples_dir",
+        "model/dataset/reviewed_samples",
+        "Directory containing reviewed sample JSON files",
+    )
 
-flags.DEFINE_string(
-    "output_dir",
-    "model/dataset/annotation_samples",
-    "Directory to output Label Studio JSON files",
-)
+    flags.DEFINE_string(
+        "output_dir",
+        "model/dataset/annotation_samples",
+        "Directory to output Label Studio JSON files",
+    )
+except DuplicateFlagError:
+    # Flags already defined (module imported multiple times)
+    pass
 
 def find_all_occurrences(text: str, value: str) -> list[int]:
     """Find all start positions of value in text."""
