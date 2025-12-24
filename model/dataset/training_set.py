@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from absl import flags, logging
+from absl.flags import DuplicateFlagError
 from dotenv import load_dotenv
 from tqdm import tqdm
 from transformers import AutoTokenizer
@@ -35,31 +36,37 @@ root_dir = Path(__file__).parent.parent.parent
 env_path = root_dir / ".env"
 load_dotenv(env_path)
 
-# Define absl flags
+# Define absl flags (only if not already defined - avoid conflicts with __init__.py imports)
 FLAGS = flags.FLAGS
-flags.DEFINE_integer("num_samples", 5, "Number of samples to generate")
-flags.DEFINE_boolean("use_ollama", False, "Whether to use Ollama instead of OpenAI")
-flags.DEFINE_string(
-    "api_url",
-    None,
-    "API URL for the LLM client. If OpenAI, don't touch it. This is needed for vLLM backend with OpenAI-compatible API.",
-)
-flags.DEFINE_string(
-    "api_model",
-    "openai/gpt-oss-120b",
-    "Model name to use when api_url is specified (e.g., 'openai/gpt-oss-120b')",
-)
-flags.DEFINE_string(
-    "output_dir", "model/dataset", "Output directory for generated samples"
-)
-flags.DEFINE_string(
-    "log_level", "WARNING", "Logging level (DEBUG, INFO, WARNING, ERROR)"
-)
-flags.DEFINE_integer(
-    "max_workers",
-    None,
-    "Maximum number of parallel workers (default: min(32, num_samples + 4))",
-)
+
+# Guard flag definitions to prevent duplicates when module is imported multiple times
+try:
+    flags.DEFINE_integer("num_samples", 5, "Number of samples to generate")
+    flags.DEFINE_boolean("use_ollama", False, "Whether to use Ollama instead of OpenAI")
+    flags.DEFINE_string(
+        "api_url",
+        None,
+        "API URL for the LLM client. If OpenAI, don't touch it. This is needed for vLLM backend with OpenAI-compatible API.",
+    )
+    flags.DEFINE_string(
+        "api_model",
+        "openai/gpt-oss-120b",
+        "Model name to use when api_url is specified (e.g., 'openai/gpt-oss-120b')",
+    )
+    flags.DEFINE_string(
+        "output_dir", "model/dataset", "Output directory for generated samples"
+    )
+    flags.DEFINE_string(
+        "log_level", "WARNING", "Logging level (DEBUG, INFO, WARNING, ERROR)"
+    )
+    flags.DEFINE_integer(
+        "max_workers",
+        None,
+        "Maximum number of parallel workers (default: min(32, num_samples + 4))",
+    )
+except DuplicateFlagError:
+    # Flags already defined (module imported multiple times)
+    pass
 
 
 @dataclass
