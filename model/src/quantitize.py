@@ -24,6 +24,12 @@ import os
 import sys
 from pathlib import Path
 
+# Add project root to path for imports BEFORE any local imports
+# __file__ is model/src/quantitize.py, so parent.parent.parent is the project root
+project_root = Path(__file__).parent.parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
 import onnx
 import torch
 from absl import app, flags
@@ -33,9 +39,10 @@ from safetensors import safe_open
 from transformers import AutoTokenizer
 
 try:
-    from .model_signing import sign_trained_model
+    from model.src.model_signing import sign_trained_model
 except ImportError:
-    # Fallback for direct execution
+    # Fallback for direct execution - import from same directory
+    sys.path.insert(0, str(Path(__file__).parent))
     from model_signing import sign_trained_model
 
 # Define command-line flags
@@ -62,15 +69,12 @@ flags.DEFINE_boolean(
     "skip_quantization", False, "Skip quantization, only export to ONNX"
 )
 
-# Add project root to path for imports
-project_root = Path(__file__).parent.parent
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
-
 try:
-    from model.model import MultiTaskPIIDetectionModel
+    from model.src.model import MultiTaskPIIDetectionModel
 except ImportError:
-    from .model import MultiTaskPIIDetectionModel
+    # Fallback to importing from same directory
+    sys.path.insert(0, str(Path(__file__).parent))
+    from model import MultiTaskPIIDetectionModel
 
 # Set up logging
 logging.basicConfig(

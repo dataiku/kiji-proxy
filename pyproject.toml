@@ -52,11 +52,15 @@ training = [
 ]
 
 # ONNX quantization dependencies
+# Note: On Python 3.13, ml_dtypes requires numpy>=2.1, which conflicts with labelstudio
+# Do not install both quantization and labelstudio extras together on Python 3.13
 quantization = [
     "optimum[onnxruntime]>=1.15.0",
     "onnx>=1.15.0",
     "onnxruntime>=1.16.0",
-    # "ml_dtypes>=0.5.0" # https://github.com/onnx/onnx/issues/7249  - Commented out to give precedence to labelstudio.
+    "onnxscript>=0.1.0",  # Required by torch.onnx.export
+    "ml_dtypes>=0.5.0; python_version < '3.13'", # For Python <3.13, use any ml_dtypes>=0.5.0
+    "ml_dtypes>=0.5.0; python_version >= '3.13'", # For Python 3.13+, requires numpy>=2.1
 ]
 
 # Model signing and verification
@@ -65,6 +69,7 @@ signing = [
 ]
 
 # Label Studio dependencies (NOTE - requires numpy<2.0 conflicting with quantization.ml_dtypes on Python 3.13)
+# Only use on Python <3.13, or in a separate environment from quantization
 labelstudio = [
     "Label-studio==1.21.0",
 ]
@@ -79,6 +84,17 @@ Documentation = "https://github.com/yaak/pii-detection/blob/main/README.md"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.uv]
+# The issue: labelstudio requires numpy<2.0, but quantization (via ml_dtypes on py3.13) requires numpy>=2.1
+# Solution: Don't try to create a universal lock for all extras - only resolve what's requested
+conflicts = [
+    # Declare that quantization and labelstudio cannot be used together
+    [
+        {extra = "quantization"},
+        {extra = "labelstudio"},
+    ],
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["model", ]
