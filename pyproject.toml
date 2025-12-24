@@ -47,8 +47,9 @@ training = [
     "pyarrow>=18.1.0,<19.0.0",
     "sympy>=1.0.0",
     "datasets>=2.0.0",
-    "outerbounds>=0.10.31"
+    "outerbounds>=0.10.31",
     # "metaflow>=2.19.14"
+    "numpy>=2.2,<2.3"
 ]
 
 # ONNX quantization dependencies
