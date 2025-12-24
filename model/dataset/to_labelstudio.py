@@ -10,7 +10,11 @@ from absl import app, flags
 from absl.flags import DuplicateFlagError
 
 # Export the main conversion functions
-__all__ = ["convert_to_labelstudio", "convert_all_samples_to_labelstudio", "convert_sample_to_labelstudio"]
+__all__ = [
+    "convert_to_labelstudio",
+    "convert_all_samples_to_labelstudio",
+    "convert_sample_to_labelstudio",
+]
 
 FLAGS = flags.FLAGS
 
@@ -30,6 +34,7 @@ try:
 except DuplicateFlagError:
     # Flags already defined (module imported multiple times)
     pass
+
 
 def find_all_occurrences(text: str, value: str) -> list[int]:
     """Find all start positions of value in text."""
@@ -84,18 +89,20 @@ def convert_sample_to_labelstudio(sample: dict[str, Any]) -> dict[str, Any]:
             end_pos = start_pos + len(value)
             entity_id = f"ent-{entity_id_counter}"
 
-            entities.append({
-                "id": entity_id,
-                "from_name": "entities",
-                "to_name": "text",
-                "type": "labels",
-                "value": {
-                    "start": start_pos,
-                    "end": end_pos,
-                    "text": value,
-                    "labels": [label]
+            entities.append(
+                {
+                    "id": entity_id,
+                    "from_name": "entities",
+                    "to_name": "text",
+                    "type": "labels",
+                    "value": {
+                        "start": start_pos,
+                        "end": end_pos,
+                        "text": value,
+                        "labels": [label],
+                    },
                 }
-            })
+            )
 
             # Store mapping for coreference resolution
             value_to_entity_id[(value, start_pos)] = entity_id
@@ -134,18 +141,20 @@ def convert_sample_to_labelstudio(sample: dict[str, Any]) -> dict[str, Any]:
                     else:
                         label = "MENTION"  # Generic mention
 
-                    entities.append({
-                        "id": entity_id,
-                        "from_name": "entities",
-                        "to_name": "text",
-                        "type": "labels",
-                        "value": {
-                            "start": pos,
-                            "end": end_pos,
-                            "text": mention,
-                            "labels": [label]
+                    entities.append(
+                        {
+                            "id": entity_id,
+                            "from_name": "entities",
+                            "to_name": "text",
+                            "type": "labels",
+                            "value": {
+                                "start": pos,
+                                "end": end_pos,
+                                "text": mention,
+                                "labels": [label],
+                            },
                         }
-                    })
+                    )
 
                     value_to_entity_id[key] = entity_id
                     used_positions.add(pos)
@@ -178,37 +187,31 @@ def convert_sample_to_labelstudio(sample: dict[str, Any]) -> dict[str, Any]:
             main_entity_id = mention_entity_ids[0][0]
 
             for ref_entity_id, _ in mention_entity_ids[1:]:
-                relations.append({
-                    "from_id": ref_entity_id,
-                    "to_id": main_entity_id,
-                    "type": "relation",
-                    "direction": "right"
-                })
+                relations.append(
+                    {
+                        "from_id": ref_entity_id,
+                        "to_id": main_entity_id,
+                        "type": "relation",
+                        "direction": "right",
+                    }
+                )
 
     # Combine entities and relations in the result
     result = entities + relations
 
     # Create the Label Studio format
     labelstudio_format = {
-        "data": {
-            "text": text
-        },
+        "data": {"text": text},
         "predictions": [
-            {
-                "model_version": "reviewed-v1",
-                "score": 1.0,
-                "result": result
-            }
-        ]
+            {"model_version": "reviewed-v1", "score": 1.0, "result": result}
+        ],
     }
 
     return labelstudio_format
 
 
 def convert_to_labelstudio(
-    sample: dict[str, Any],
-    language: str | None = None,
-    country: str | None = None
+    sample: dict[str, Any], language: str | None = None, country: str | None = None
 ) -> dict[str, Any]:
     """
     Convert a single reviewed sample to Label Studio format with metadata.
@@ -271,7 +274,7 @@ def convert_all_samples_to_labelstudio(samples_dir: str, output_dir: str) -> Non
 
         try:
             # Read the sample
-            with open(json_file, encoding='utf-8') as f:
+            with open(json_file, encoding="utf-8") as f:
                 sample = json.load(f)
 
             # Convert to Label Studio format
@@ -279,7 +282,7 @@ def convert_all_samples_to_labelstudio(samples_dir: str, output_dir: str) -> Non
 
             # Write to output directory
             output_file = output_path / json_file.name
-            with open(output_file, 'w', encoding='utf-8') as f:
+            with open(output_file, "w", encoding="utf-8") as f:
                 json.dump(converted, f, indent=2, ensure_ascii=False)
 
             counter += 1

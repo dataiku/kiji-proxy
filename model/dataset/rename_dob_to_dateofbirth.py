@@ -123,9 +123,7 @@ def main():
                 dir_changes += changes
 
                 status = "Would rename" if args.dry_run else "Renamed"
-                print(
-                    f"  ✓ {status} {changes} DOB label(s) in: {json_file.name}"
-                )
+                print(f"  ✓ {status} {changes} DOB label(s) in: {json_file.name}")
 
         print(
             f"\n  Summary for {directory.name}/: "
