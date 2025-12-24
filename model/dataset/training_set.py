@@ -10,13 +10,17 @@ from dotenv import load_dotenv
 from tqdm import tqdm
 from transformers import AutoTokenizer
 
+# Add project root to sys.path for imports when running as a script
+project_root = Path(__file__).parent.parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
 try:
     from .api_clients import LLMClient, OllamaClient, OpenAIClient
     from .file_operations import FileManager
     from .label_utils import LabelUtils
     from .prompts import PromptBuilder
     from .schemas import get_pii_sample_schema, get_review_sample_schema
-    from ..dataset.to_labelstudio import convert_to_labelstudio
 except ImportError:
     # Allow running as a script
     from api_clients import LLMClient, OllamaClient, OpenAIClient
@@ -24,7 +28,6 @@ except ImportError:
     from label_utils import LabelUtils
     from prompts import PromptBuilder
     from schemas import get_pii_sample_schema, get_review_sample_schema
-    from dataset.to_labelstudio import convert_to_labelstudio
 
 # Load .env file from root directory
 # Get the root directory (parent of model/ directory)
@@ -273,6 +276,12 @@ def process_single_sample(
     Returns:
         Tuple of (sample_index, file_name) for the saved training sample
     """
+    # Import here to avoid circular imports and flag conflicts
+    try:
+        from .to_labelstudio import convert_to_labelstudio
+    except ImportError:
+        from model.dataset.to_labelstudio import convert_to_labelstudio
+
     # Generate sample with index for seed variation
     result = gen.generate_pii_samples(sample_index=sample_index)
     logging.info(f"Sample {sample_index}: Generated PII sample")
