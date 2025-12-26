@@ -41,6 +41,9 @@
     <!-- Security Information -->
     <Label value="PASSWORD" background="#f44336"/>       <!-- Bright red -->
 
+    <!-- Other -->
+    <Label value="OTHER" background="#D3D3D3" />
+
   </Labels>
 
   <Text name="text" value="$text" granularity="word"/>

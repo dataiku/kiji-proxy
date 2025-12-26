@@ -240,6 +240,8 @@ def convert_to_labelstudio(
     if country is not None:
         converted["data"]["country"] = country
 
+    converted["data"]["file_name"] = sample["file_name"]
+
     return converted
 
 

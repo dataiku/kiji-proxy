@@ -1,9 +1,9 @@
 # Using LabelStudio with Yaak
-Looking to add your own types to the Yaak PII replacement tool? Label Studio Provides an easy way to train the model for whatever types of data you might care about. 
+Looking to add your own types to the Yaak PII replacement tool? Label Studio Provides an easy way to train the model for whatever types of data you might care about.
 
 To learn more about Label Studio, visit our [website](https://labelstud.io)
 
-## Step 1: Install Label Studio 
+## Step 1: Install Label Studio
 To install Label Studio and its dependencies, use `uv` to install the labelstudio optional dependency group from the project root:
 
 ```bash
@@ -24,7 +24,7 @@ uv run label-studio start
 This will launch Label Studio in your browser at `http://localhost:8080`.
 
 ## Step 2: Preparing your data
-Label Studio accepts a wide variety of data formats. For this project, you'll need a set of texts containing the types of PII that you're looking to train Yaak to replace. 
+Label Studio accepts a wide variety of data formats. For this project, you'll need a set of texts containing the types of PII that you're looking to train Yaak to replace.
 
 ### Option A: Import with Pre-annotations (Recommended)
 To speed up the labeling process, you can import data that already includes predictions from your existing model. This allows you to review and correct predictions rather than labeling from scratch.
@@ -45,7 +45,7 @@ To import this format:
 Alternatively, you can use a CSV file to store all of the data you'd like to label, with a row title "text". You can save this file with any name you'd like -- for this demo, we'll call it `sample_pii.csv`. This sample file is available in the same folder as this README for your convenience.
 
 ## Step 3: Creating a Project
-Once you're logged into Label Studio, click on the `Create Project` button, shown here on the welcome screen of the Open Source edition, or available in the Projects tab, located in the hamburger menu in the left corner next to the Label Studio logo. 
+Once you're logged into Label Studio, click on the `Create Project` button, shown here on the welcome screen of the Open Source edition, or available in the Projects tab, located in the hamburger menu in the left corner next to the Label Studio logo.
 
 ![screenshot of Label Studio welcome page, showing the create project button and the hamburger menu](assets/LSO_welcome.png)
 
@@ -61,11 +61,11 @@ Click on the Labeling Setup button when you're ready to move to the next step.
 
 ![screenshot of Label Studio's prompt after uploading a CSV](assets/csv_import.png)
 
-Now, we're ready to set up the UI that we'll use to label our data in Label Studio. Click on the Custom template button, found at the bottom of the list of templates on the left hand side of the screen, and circled in red on the screenshot below. 
+Now, we're ready to set up the UI that we'll use to label our data in Label Studio. Click on the Custom template button, found at the bottom of the list of templates on the left hand side of the screen, and circled in red on the screenshot below.
 
 ![screenshot of Label Studio's template page, with `custom template` circled in red](assets/custom_template.png)
 
-You should now see the Labeling Interface's code editor on your screen. Label Studio uses a custom XML-style interface to define all the elements of the UI used for labeling. We've provided a template for you to use. Find the `LabelingConfig.txt` file in this folder, and copy-paste it into the editor on Label Studio. We've included the  < View > tags in this version, so you can delete anything in the Code editor. You can see what this looks like in the screenshot below. 
+You should now see the Labeling Interface's code editor on your screen. Label Studio uses a custom XML-style interface to define all the elements of the UI used for labeling. We've provided a template for you to use. Find the `LabelingConfig.txt` file in this folder, and copy-paste it into the editor on Label Studio. We've included the  < View > tags in this version, so you can delete anything in the Code editor. You can see what this looks like in the screenshot below.
 
 ![screenshot of the updated labeling config in Label Studio](assets/labeling_config.png)
 
@@ -78,13 +78,65 @@ Now, you're ready to label! If you imported data with pre-annotations, you'll se
 
 ![screenshot of Label Studio Data manager, with the Label All Tasks button circled in red](assets/label_all_tasks.png)
 
-To label entities, simply click on the label you'd like to apply and then select the appropriate text. Do this for as many labels as are applicable to your sample. Make sure to use the Pronouns tag to label your pronouns! Then, to add relations, select the pronoun from the regions list on the bottom right corner of the screen, and then from the Info tab on the top right of the screen, select the "create relation between regions" button, which looks like two squares connected by an arrow. Then click on the noun that the pronoun refers to. You'll see an arrow populate on the screen to show this relation. When you're done, click `Submit` to save your annotation. If you're using the `Label All Tasks` view, this will automatically bring you to the next task. You can see this whole process in action in the gif below! 
+To label entities, simply click on the label you'd like to apply and then select the appropriate text. Do this for as many labels as are applicable to your sample. Make sure to use the Pronouns tag to label your pronouns! Then, to add relations, select the pronoun from the regions list on the bottom right corner of the screen, and then from the Info tab on the top right of the screen, select the "create relation between regions" button, which looks like two squares connected by an arrow. Then click on the noun that the pronoun refers to. You'll see an arrow populate on the screen to show this relation. When you're done, click `Submit` to save your annotation. If you're using the `Label All Tasks` view, this will automatically bring you to the next task. You can see this whole process in action in the gif below!
 
 ![GIF showing the process for labeling a sample of data for PII and relations in Label Studio](assets/labeling_pii.gif)
 
-## Step 5: Retraining the Yaak Model 
-Now that you've completed your annotations, you're ready to retrain your model! Use the `access_annotations.py` script to gather the annotations you made in Label Studio.
+## Step 5: Importing Annotation Samples to Label Studio
 
-1. Make sure you set the `base_url` value in line 7 to the url of your label studio instance! 
-2. To get your API key: in Label Studio, click on the circle with your initials in the top right corner, and then click `Account & Settings`. Then, select `Personal Access Token` from the left sidebar and click `Create New Token`. Copy the token and paste it between the quotes on line 8, in the `api_key` variable.
-3. To get your Project ID, navigate back to your project screen. In the URL, you'll see something like `https://localhost:8080/projects/3/data?tab=2`. The number in the slashes after projects but before data is the id of your project -- so in my case, it's 3. Fill this in the `YOUR_PROJECT_ID` section on line 11.
+If you have pre-generated annotation samples in `model/dataset/annotation_samples/`, you can import them to Label Studio for review and correction using the `import_predictions.py` script.
+
+### Setting up environment variables
+
+First, set up your environment variables:
+
+1. **Get your API key**: In Label Studio, click on the circle with your initials in the top right corner, and then click `Account & Settings`. Then, select `Personal Access Token` from the left sidebar and click `Create New Token`.
+
+2. **Get your Project ID**: Navigate to your project screen. In the URL, you'll see something like `http://localhost:8080/projects/3/data?tab=2`. The number after `projects/` is your project ID (in this example, it's `3`).
+
+3. **Set environment variables**:
+```bash
+export LABEL_STUDIO_API_KEY='your-api-key-here'
+export LABEL_STUDIO_PROJECT_ID='your-project-id-here'
+# Optional: if not using default URL
+export LABEL_STUDIO_URL='http://localhost:8080'
+```
+
+### Running the import script
+
+The script will automatically:
+- Check if Label Studio is running
+- Show instructions if it's not running
+- Import all JSON files from `model/dataset/annotation_samples/`
+- Display progress and a summary
+
+To run it:
+
+```bash
+cd model/dataset/labelstudio
+python import_predictions.py
+```
+
+The script will import all annotation files with their predictions, which you can then review and correct in Label Studio.
+
+## Step 6: Exporting Annotations from Label Studio
+
+After you've reviewed and corrected annotations in Label Studio, use the `export_annotations.py` script to export them back to the `training_samples` folder.
+
+The script will:
+- Export all tasks (both annotated and unannotated)
+- Convert annotations to the training format
+- Save each task as a separate JSON file
+
+Make sure your environment variables are still set (API key and project ID), then run:
+
+```bash
+cd model/dataset/labelstudio
+python export_annotations.py
+```
+
+The exported samples will be saved to `model/dataset/training_samples/` in a format ready for training.
+
+## Step 7: Retraining the Yaak Model
+
+Now that you've completed your annotations and exported them, you're ready to retrain your model using the samples in the `training_samples` folder!
