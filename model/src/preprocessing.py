@@ -94,9 +94,138 @@ class DatasetProcessor:
             self.tokenizer, self.label2id, self.id2label
         )
 
+    def convert_labelstudio_to_training_format(self, ls_sample: dict) -> dict | None:
+        """
+        Convert Label Studio format to training format.
+
+        Args:
+            ls_sample: Label Studio format sample with 'data', 'annotations', and/or 'predictions'
+
+        Returns:
+            Training format sample with 'text', 'privacy_mask', and 'coreferences'
+            Returns None if the sample cannot be converted
+        """
+        try:
+            # Extract text from data
+            text = ls_sample.get("data", {}).get("text", "")
+            if not text:
+                logger.warning("⚠️  Sample missing text")
+                return None
+
+            # Get annotations or predictions (prefer annotations if available)
+            result = None
+            if ls_sample.get("annotations") and len(ls_sample["annotations"]) > 0:
+                result = ls_sample["annotations"][0].get("result", [])
+                logger.debug("Using annotations")
+            elif ls_sample.get("predictions") and len(ls_sample["predictions"]) > 0:
+                result = ls_sample["predictions"][0].get("result", [])
+                logger.debug("Using predictions")
+            else:
+                logger.warning("⚠️  Sample has no annotations or predictions")
+                return None
+
+            # Parse entities and relations from result
+            entities = {}  # entity_id -> entity info
+            relations = []  # list of relations
+
+            for item in result:
+                # Entity annotation (has "value" field)
+                if "value" in item:
+                    entity_id = item["id"]
+                    value = item.get("value", {})
+                    entities[entity_id] = {
+                        "text": value.get("text", ""),
+                        "label": value.get("labels", [None])[0],
+                        "start": value.get("start"),
+                        "end": value.get("end"),
+                    }
+                # Relation annotation (has "from_id" field)
+                elif "from_id" in item:
+                    relations.append(
+                        {
+                            "from_id": item["from_id"],
+                            "to_id": item["to_id"],
+                            "type": item.get("type", "relation"),
+                        }
+                    )
+
+            # Build privacy_mask from entities
+            privacy_mask = []
+
+            # Build coreferences from relations
+            # Group entities by their target (to_id)
+            entity_references = {}  # to_id -> list of from_ids
+            for relation in relations:
+                to_id = relation["to_id"]
+                from_id = relation["from_id"]
+                if to_id not in entity_references:
+                    entity_references[to_id] = []
+                entity_references[to_id].append(from_id)
+
+            # Track which entities are part of coreference clusters
+            processed_entities = set()
+            coreferences = []
+
+            # Build coreference clusters
+            for main_entity_id, referencing_ids in entity_references.items():
+                if main_entity_id not in entities:
+                    continue
+
+                main_entity = entities[main_entity_id]
+
+                # Add main entity to privacy_mask
+                if main_entity_id not in processed_entities:
+                    privacy_mask.append(
+                        {
+                            "value": main_entity["text"],
+                            "label": main_entity["label"],
+                        }
+                    )
+                    processed_entities.add(main_entity_id)
+
+                # Build coreference cluster with mentions
+                mentions = [main_entity["text"]]
+                for ref_id in referencing_ids:
+                    if ref_id in entities:
+                        mentions.append(entities[ref_id]["text"])
+                        processed_entities.add(ref_id)
+
+                # Add coreference cluster if there are multiple mentions
+                if len(mentions) > 1:
+                    coreferences.append(
+                        {
+                            "mentions": mentions,
+                            "entity_type": main_entity["label"],
+                        }
+                    )
+
+            # Add remaining entities (not part of coreferences) to privacy_mask
+            for entity_id, entity in entities.items():
+                if entity_id not in processed_entities:
+                    privacy_mask.append(
+                        {
+                            "value": entity["text"],
+                            "label": entity["label"],
+                        }
+                    )
+
+            # Return converted sample
+            return {
+                "text": text,
+                "privacy_mask": privacy_mask,
+                "coreferences": coreferences,
+                "language": ls_sample.get("data", {}).get("language"),
+                "country": ls_sample.get("data", {}).get("country"),
+            }
+
+        except Exception as e:
+            logger.warning(f"⚠️  Failed to convert Label Studio sample: {e}")
+            return None
+
     def load_training_samples(self) -> list[dict]:
         """
         Load training samples from local JSON files.
+        Supports both Label Studio format and legacy training format.
 
         Returns:
             List of training samples
@@ -115,7 +244,21 @@ class DatasetProcessor:
             try:
                 with json_file.open() as f:
                     sample = json.load(f)
-                    samples.append(sample)
+
+                    # Detect format: Label Studio has 'data', 'annotations', or 'predictions'
+                    if "data" in sample and (
+                        "annotations" in sample or "predictions" in sample
+                    ):
+                        # Label Studio format - convert it
+                        converted = self.convert_labelstudio_to_training_format(sample)
+                        if converted:
+                            samples.append(converted)
+                    elif "text" in sample and "privacy_mask" in sample:
+                        # Legacy training format - use as-is
+                        samples.append(sample)
+                    else:
+                        logger.warning(f"⚠️  Unknown format in {json_file.name}")
+
             except Exception as e:
                 logger.warning(f"⚠️  Failed to load {json_file}: {e}")
 

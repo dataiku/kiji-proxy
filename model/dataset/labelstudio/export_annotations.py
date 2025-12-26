@@ -132,7 +132,7 @@ def export_annotations(
             # Build task in Label Studio format
             task_export = {
                 "id": t.id,
-                "data": dict(t.data) if hasattr(t.data, '__dict__') else t.data,
+                "data": dict(t.data) if hasattr(t.data, "__dict__") else t.data,
             }
 
             has_annotations = False
@@ -143,14 +143,24 @@ def export_annotations(
                 task_export["annotations"] = []
                 for ann in t.annotations:
                     # Convert annotation object to dict
-                    if hasattr(ann, '__dict__'):
+                    if hasattr(ann, "__dict__"):
                         ann_dict = {
-                            "id": ann.id if hasattr(ann, 'id') else None,
-                            "completed_by": ann.completed_by if hasattr(ann, 'completed_by') else None,
-                            "result": ann.result if hasattr(ann, 'result') else ann.get("result", []),
-                            "was_cancelled": ann.was_cancelled if hasattr(ann, 'was_cancelled') else False,
-                            "created_at": serialize_datetime(ann.created_at) if hasattr(ann, 'created_at') else None,
-                            "updated_at": serialize_datetime(ann.updated_at) if hasattr(ann, 'updated_at') else None,
+                            "id": ann.id if hasattr(ann, "id") else None,
+                            "completed_by": ann.completed_by
+                            if hasattr(ann, "completed_by")
+                            else None,
+                            "result": ann.result
+                            if hasattr(ann, "result")
+                            else ann.get("result", []),
+                            "was_cancelled": ann.was_cancelled
+                            if hasattr(ann, "was_cancelled")
+                            else False,
+                            "created_at": serialize_datetime(ann.created_at)
+                            if hasattr(ann, "created_at")
+                            else None,
+                            "updated_at": serialize_datetime(ann.updated_at)
+                            if hasattr(ann, "updated_at")
+                            else None,
                         }
                     else:
                         ann_dict = ann
@@ -162,14 +172,22 @@ def export_annotations(
                 task_export["predictions"] = []
                 for pred in t.predictions:
                     # Convert prediction object to dict
-                    if hasattr(pred, '__dict__'):
+                    if hasattr(pred, "__dict__"):
                         pred_dict = {
-                            "id": pred.id if hasattr(pred, 'id') else None,
-                            "model_version": pred.model_version if hasattr(pred, 'model_version') else None,
-                            "score": pred.score if hasattr(pred, 'score') else None,
-                            "result": pred.result if hasattr(pred, 'result') else pred.get("result", []),
-                            "created_at": serialize_datetime(pred.created_at) if hasattr(pred, 'created_at') else None,
-                            "updated_at": serialize_datetime(pred.updated_at) if hasattr(pred, 'updated_at') else None,
+                            "id": pred.id if hasattr(pred, "id") else None,
+                            "model_version": pred.model_version
+                            if hasattr(pred, "model_version")
+                            else None,
+                            "score": pred.score if hasattr(pred, "score") else None,
+                            "result": pred.result
+                            if hasattr(pred, "result")
+                            else pred.get("result", []),
+                            "created_at": serialize_datetime(pred.created_at)
+                            if hasattr(pred, "created_at")
+                            else None,
+                            "updated_at": serialize_datetime(pred.updated_at)
+                            if hasattr(pred, "updated_at")
+                            else None,
                         }
                     else:
                         pred_dict = pred
