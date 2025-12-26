@@ -64,7 +64,7 @@ python model/dataset/upload_to_hf.py --repo-id "username/pii-training-data" --pu
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--repo-id` | (required) | HuggingFace repo ID (e.g., `username/dataset-name`) |
-| `--samples-dir` | `model/dataset/reviewed_samples` | Directory containing JSON samples |
+| `--samples-dir` | `model/dataset/training_samples` | Directory containing JSON samples |
 | `--public` | False | Make dataset public (default: private) |
 
 ## 🔧 Using vLLM Backend

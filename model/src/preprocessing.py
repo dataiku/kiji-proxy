@@ -110,6 +110,20 @@ class DatasetProcessor:
             text = ls_sample.get("data", {}).get("text", "")
             if not text:
                 logger.warning("⚠️  Sample missing text")
+                import pprint
+                print(f"file name: {ls_sample.get('file_name', 'unknown')}")
+                print("ls_sample: type", type(ls_sample))
+                print("ls_sample: keys", ls_sample.keys())
+                print("ls_sample: data", ls_sample.get("data", {}))
+                print("ls_sample: data: text", ls_sample.get("data", {}).get("text", ""))
+                print("ls_sample: data: language", ls_sample.get("data", {}).get("language", ""))
+                print("ls_sample: data: country", ls_sample.get("data", {}).get("country", ""))
+                print("ls_sample: annotations", ls_sample.get("annotations", []))
+                print("ls_sample: predictions", ls_sample.get("predictions", []))
+                print("-" * 100)
+                pprint.pprint(ls_sample)
+                print("-" * 100)
+                exit()
                 return None
 
             # Get annotations or predictions (prefer annotations if available)
@@ -121,7 +135,8 @@ class DatasetProcessor:
                 result = ls_sample["predictions"][0].get("result", [])
                 logger.debug("Using predictions")
             else:
-                logger.warning("⚠️  Sample has no annotations or predictions")
+                # No annotations or predictions - return None without warning
+                # (the calling code will track this statistic)
                 return None
 
             # Parse entities and relations from result
@@ -165,6 +180,7 @@ class DatasetProcessor:
             # Track which entities are part of coreference clusters
             processed_entities = set()
             coreferences = []
+            cluster_id = 0  # Start cluster IDs at 0
 
             # Build coreference clusters
             for main_entity_id, referencing_ids in entity_references.items():
@@ -196,8 +212,10 @@ class DatasetProcessor:
                         {
                             "mentions": mentions,
                             "entity_type": main_entity["label"],
+                            "cluster_id": cluster_id,
                         }
                     )
+                    cluster_id += 1
 
             # Add remaining entities (not part of coreferences) to privacy_mask
             for entity_id, entity in entities.items():
@@ -240,6 +258,13 @@ class DatasetProcessor:
         logger.info(f"\n📥 Loading training samples from {samples_dir}...")
         logger.info(f"Found {len(json_files)} JSON files")
 
+        # Track conversion statistics
+        labelstudio_converted = 0
+        labelstudio_failed = 0
+        legacy_format = 0
+        unknown_format = 0
+        no_annotations = 0
+
         for json_file in json_files:
             try:
                 with json_file.open() as f:
@@ -253,16 +278,36 @@ class DatasetProcessor:
                         converted = self.convert_labelstudio_to_training_format(sample)
                         if converted:
                             samples.append(converted)
+                            labelstudio_converted += 1
+                        else:
+                            labelstudio_failed += 1
+                            # Check if it's because of missing annotations/predictions
+                            has_annotations = sample.get("annotations") and len(sample["annotations"]) > 0
+                            has_predictions = sample.get("predictions") and len(sample["predictions"]) > 0
+                            if not has_annotations and not has_predictions:
+                                no_annotations += 1
                     elif "text" in sample and "privacy_mask" in sample:
                         # Legacy training format - use as-is
                         samples.append(sample)
+                        legacy_format += 1
                     else:
                         logger.warning(f"⚠️  Unknown format in {json_file.name}")
+                        unknown_format += 1
 
             except Exception as e:
                 logger.warning(f"⚠️  Failed to load {json_file}: {e}")
 
+        # Print detailed statistics
+        logger.info("\n📊 Loading Statistics:")
+        logger.info(f"  Total files: {len(json_files)}")
+        logger.info(f"  Label Studio converted: {labelstudio_converted}")
+        logger.info(f"  Label Studio failed: {labelstudio_failed}")
+        if no_annotations > 0:
+            logger.info(f"    - No annotations/predictions: {no_annotations}")
+        logger.info(f"  Legacy format: {legacy_format}")
+        logger.info(f"  Unknown format: {unknown_format}")
         logger.info(f"✅ Loaded {len(samples)} training samples")
+
         return samples
 
     def prepare_datasets(
@@ -294,16 +339,10 @@ class DatasetProcessor:
         if len(all_samples) == 0:
             raise ValueError("No training samples found!")
 
-        # Check if samples are already tokenized (backward compatibility)
-        first_sample = all_samples[0]
-        is_already_tokenized = (
-            "input_ids" in first_sample and "pii_sample" in first_sample
-        )
-
-        if is_already_tokenized:
-            logger.info("⚠️  Found pre-tokenized samples. Using existing tokenization.")
-            # Use old code path for backward compatibility
-            return self._prepare_datasets_legacy(all_samples)
+        # convert labelstudio format to training format
+        all_samples = [self.convert_labelstudio_to_training_format(sample) for sample in all_samples]
+        # filter out None samples
+        all_samples = [sample for sample in all_samples if sample is not None]
 
         # New code path: tokenize on-the-fly
         logger.info("🔄 Tokenizing samples on-the-fly during dataset preparation...")
@@ -360,6 +399,8 @@ class DatasetProcessor:
                 if (i + 1) % 100 == 0:
                     logger.info(f"  Tokenized {i + 1}/{len(all_samples)} samples...")
             except Exception as e:
+                raise ValueError(f"Failed to tokenize sample {i}: {e}")
+                print (f"file: {json_file.name}")
                 logger.warning(f"⚠️  Failed to tokenize sample {i}: {e}")
                 continue
 
@@ -383,86 +424,6 @@ class DatasetProcessor:
         coref_id2label = {0: "NO_COREF"}
         for i in range(1, num_coref_labels):
             coref_id2label[i] = f"CLUSTER_{i - 1}"
-
-        # Save label mappings
-        mappings_path = Path(self.config.output_dir) / "label_mappings.json"
-        mappings = {
-            "pii": {
-                "label2id": pii_label2id,
-                "id2label": {str(k): v for k, v in pii_id2label.items()},
-            },
-            "coref": {
-                "id2label": {str(k): v for k, v in coref_id2label.items()},
-            },
-        }
-        with mappings_path.open("w") as f:
-            json.dump(mappings, f, indent=2)
-        logger.info(f"✅ Label mappings saved to {mappings_path}")
-
-        logger.info("\n📊 Dataset Summary:")
-        logger.info(f"  Training samples: {len(train_dataset)}")
-        logger.info(f"  Validation samples: {len(val_dataset)}")
-        logger.info(f"  PII labels: {len(pii_label2id)}")
-        logger.info(f"  Co-reference labels: {num_coref_labels}")
-
-        return (
-            train_dataset,
-            val_dataset,
-            mappings,
-            {"num_coref_labels": num_coref_labels},
-        )
-
-    def _prepare_datasets_legacy(
-        self, all_samples: list[dict]
-    ) -> tuple[Dataset, Dataset, dict, dict]:
-        """
-        Legacy method for handling pre-tokenized samples (backward compatibility).
-
-        Returns:
-            Tuple of (train_dataset, val_dataset, label_mappings, coref_mappings)
-        """
-        # Extract label mappings from first sample (they should be consistent)
-        first_sample = all_samples[0]
-        pii_label2id = first_sample["pii_sample"]["label2id"]
-        pii_id2label = {
-            int(k): v for k, v in first_sample["pii_sample"]["id2label"].items()
-        }
-        coref_id2label = {
-            int(k): v
-            for k, v in first_sample["coreference_sample"]["cluster_id2label"].items()
-        }
-
-        # Determine number of coreference classes (max cluster ID + 1 for NO_COREF)
-        # Find max cluster ID from all samples to get accurate count
-        max_coref_id = 0
-        for sample in all_samples:
-            coref_labels = sample["coreference_sample"]["coreference_labels"]
-            max_in_sample = max(
-                (label for label in coref_labels if label >= 0), default=0
-            )
-            max_coref_id = max(max_coref_id, max_in_sample)
-        num_coref_labels = max_coref_id + 1
-
-        # Prepare dataset format
-        def format_sample(sample: dict) -> dict:
-            """Format a single sample for training."""
-            return {
-                "input_ids": sample["input_ids"],
-                "attention_mask": sample["attention_mask"],
-                "pii_labels": sample["pii_sample"]["labels"],
-                "coref_labels": sample["coreference_sample"]["coreference_labels"],
-            }
-
-        formatted_samples = [format_sample(s) for s in all_samples]
-
-        # Split into train and validation
-        split_idx = int(len(formatted_samples) * (1 - self.config.eval_size_ratio))
-        train_samples = formatted_samples[:split_idx]
-        val_samples = formatted_samples[split_idx:]
-
-        # Create HuggingFace datasets
-        train_dataset = Dataset.from_list(train_samples)
-        val_dataset = Dataset.from_list(val_samples)
 
         # Save label mappings
         mappings_path = Path(self.config.output_dir) / "label_mappings.json"

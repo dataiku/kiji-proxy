@@ -10,7 +10,7 @@ batch_size = 16
 learning_rate = 3e-5
 
 [paths]
-training_samples_dir = "model/dataset/reviewed_samples"
+training_samples_dir = "model/dataset/training_samples"
 output_dir = "model/trained"
 
 [data]

@@ -2,7 +2,7 @@
 Metaflow pipeline for PII detection model training.
 
 This pipeline orchestrates:
-1. Dataset loading and preprocessing from model/dataset/reviewed_samples/
+1. Dataset loading and preprocessing from model/dataset/training_samples/
 2. Model training with multi-task learning
 3. Model evaluation
 4. Model quantization (ONNX)
@@ -101,7 +101,7 @@ class PIITrainingPipeline(FlowSpec):
         help="TOML config file with training hyperparameters",
     )
 
-    # Dataset is now directly accessed from model/dataset/reviewed_samples/
+    # Dataset is now directly accessed from model/dataset/training_samples/
 
     # @pypi(packages=BASE_PACKAGES, python="3.13")
     @step
@@ -122,7 +122,7 @@ class PIITrainingPipeline(FlowSpec):
             batch_size=cfg.get("training", {}).get("batch_size", 16),
             learning_rate=cfg.get("training", {}).get("learning_rate", 3e-5),
             training_samples_dir=cfg.get("paths", {}).get(
-                "training_samples_dir", "model/dataset/reviewed_samples"
+                "training_samples_dir", "model/dataset/training_samples"
             ),
             output_dir=cfg.get("paths", {}).get("output_dir", "model/trained"),
         )
@@ -144,31 +144,31 @@ class PIITrainingPipeline(FlowSpec):
     @environment(vars={"TOKENIZERS_PARALLELISM": "false"})
     @step
     def preprocess_data(self):
-        """Load and preprocess training data from reviewed_samples directory."""
+        """Load and preprocess training data from training_samples directory."""
         from src.preprocessing import DatasetProcessor
 
-        # Use the reviewed_samples directory directly
+        # Use the training_samples directory directly
         # This is the curated, high-quality dataset for training
-        reviewed_samples_dir = Path("model/dataset/reviewed_samples")
+        training_samples_dir = Path("model/dataset/training_samples")
 
         # Verify the dataset directory exists and contains data
-        if not reviewed_samples_dir.exists():
+        if not training_samples_dir.exists():
             raise ValueError(
-                f"Dataset directory not found: {reviewed_samples_dir}. "
-                "Please ensure the reviewed_samples directory is present."
+                f"Dataset directory not found: {training_samples_dir}. "
+                "Please ensure the training_samples directory is present."
             )
 
-        json_files = list(reviewed_samples_dir.glob("*.json"))
+        json_files = list(training_samples_dir.glob("*.json"))
         if not json_files:
             raise ValueError(
-                f"No JSON files found in {reviewed_samples_dir}. "
+                f"No JSON files found in {training_samples_dir}. "
                 "Please ensure the dataset is properly populated."
             )
 
-        print(f"Found {len(json_files)} reviewed samples in {reviewed_samples_dir}")
+        print(f"Found {len(json_files)} training samples in {training_samples_dir}")
 
-        # Update config to use reviewed_samples directory
-        self.config.training_samples_dir = str(reviewed_samples_dir)
+        # Update config to use training_samples directory
+        self.config.training_samples_dir = str(training_samples_dir)
 
         # Ensure output directory exists
         Path(self.config.output_dir).mkdir(parents=True, exist_ok=True)
