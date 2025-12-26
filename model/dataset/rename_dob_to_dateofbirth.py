@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """
+TODO: Remove this script after the dataset is updated.
+
 Rename DOB labels to DATEOFBIRTH in dataset files.
 
 This script searches through all JSON files in the samples/ and reviewed_samples/
