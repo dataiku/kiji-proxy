@@ -15,4 +15,4 @@ output_dir = "model/trained"
 
 [data]
 # Limit samples for quick iteration (0 = use all)
-subsample_count = 160
+subsample_count = 0

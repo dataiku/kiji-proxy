@@ -94,12 +94,15 @@ class DatasetProcessor:
             self.tokenizer, self.label2id, self.id2label
         )
 
-    def convert_labelstudio_to_training_format(self, ls_sample: dict) -> dict | None:
+    def convert_labelstudio_to_training_format(
+        self, ls_sample: dict, file_name: str
+    ) -> dict | None:
         """
         Convert Label Studio format to training format.
 
         Args:
             ls_sample: Label Studio format sample with 'data', 'annotations', and/or 'predictions'
+            file_name: Name of the file being processed (for error messages)
 
         Returns:
             Training format sample with 'text', 'privacy_mask', and 'coreferences'
@@ -109,34 +112,21 @@ class DatasetProcessor:
             # Extract text from data
             text = ls_sample.get("data", {}).get("text", "")
             if not text:
-                logger.warning("⚠️  Sample missing text")
-                import pprint
-                print(f"file name: {ls_sample.get('file_name', 'unknown')}")
-                print("ls_sample: type", type(ls_sample))
-                print("ls_sample: keys", ls_sample.keys())
-                print("ls_sample: data", ls_sample.get("data", {}))
-                print("ls_sample: data: text", ls_sample.get("data", {}).get("text", ""))
-                print("ls_sample: data: language", ls_sample.get("data", {}).get("language", ""))
-                print("ls_sample: data: country", ls_sample.get("data", {}).get("country", ""))
-                print("ls_sample: annotations", ls_sample.get("annotations", []))
-                print("ls_sample: predictions", ls_sample.get("predictions", []))
-                print("-" * 100)
-                pprint.pprint(ls_sample)
-                print("-" * 100)
-                exit()
+                logger.debug(f"Sample missing text in file: {file_name}")
                 return None
 
             # Get annotations or predictions (prefer annotations if available)
             result = None
             if ls_sample.get("annotations") and len(ls_sample["annotations"]) > 0:
                 result = ls_sample["annotations"][0].get("result", [])
-                logger.debug("Using annotations")
             elif ls_sample.get("predictions") and len(ls_sample["predictions"]) > 0:
                 result = ls_sample["predictions"][0].get("result", [])
-                logger.debug("Using predictions")
             else:
-                # No annotations or predictions - return None without warning
-                # (the calling code will track this statistic)
+                # No annotations or predictions
+                return None
+
+            # Skip if result is empty
+            if not result:
                 return None
 
             # Parse entities and relations from result
@@ -237,13 +227,13 @@ class DatasetProcessor:
             }
 
         except Exception as e:
-            logger.warning(f"⚠️  Failed to convert Label Studio sample: {e}")
+            logger.debug(f"Failed to convert Label Studio sample in {file_name}: {e}")
             return None
 
     def load_training_samples(self) -> list[dict]:
         """
         Load training samples from local JSON files.
-        Supports both Label Studio format and legacy training format.
+        Supports the Label Studio format.
 
         Returns:
             List of training samples
@@ -259,54 +249,42 @@ class DatasetProcessor:
         logger.info(f"Found {len(json_files)} JSON files")
 
         # Track conversion statistics
-        labelstudio_converted = 0
-        labelstudio_failed = 0
-        legacy_format = 0
-        unknown_format = 0
-        no_annotations = 0
+        converted_count = 0
+        skipped_count = 0
 
         for json_file in json_files:
             try:
                 with json_file.open() as f:
                     sample = json.load(f)
 
-                    # Detect format: Label Studio has 'data', 'annotations', or 'predictions'
-                    if "data" in sample and (
-                        "annotations" in sample or "predictions" in sample
-                    ):
-                        # Label Studio format - convert it
-                        converted = self.convert_labelstudio_to_training_format(sample)
-                        if converted:
-                            samples.append(converted)
-                            labelstudio_converted += 1
-                        else:
-                            labelstudio_failed += 1
-                            # Check if it's because of missing annotations/predictions
-                            has_annotations = sample.get("annotations") and len(sample["annotations"]) > 0
-                            has_predictions = sample.get("predictions") and len(sample["predictions"]) > 0
-                            if not has_annotations and not has_predictions:
-                                no_annotations += 1
-                    elif "text" in sample and "privacy_mask" in sample:
-                        # Legacy training format - use as-is
-                        samples.append(sample)
-                        legacy_format += 1
-                    else:
-                        logger.warning(f"⚠️  Unknown format in {json_file.name}")
-                        unknown_format += 1
+                # Convert to training format
+                converted = self.convert_labelstudio_to_training_format(
+                    sample, file_name=json_file.name
+                )
+                if converted:
+                    samples.append(converted)
+                    converted_count += 1
+                else:
+                    skipped_count += 1
 
+            except json.JSONDecodeError as e:
+                logger.warning(f"⚠️  JSON decode error in {json_file.name}: {e}")
+                skipped_count += 1
             except Exception as e:
-                logger.warning(f"⚠️  Failed to load {json_file}: {e}")
+                logger.warning(f"⚠️  Error loading {json_file.name}: {e}")
+                skipped_count += 1
 
-        # Print detailed statistics
-        logger.info("\n📊 Loading Statistics:")
-        logger.info(f"  Total files: {len(json_files)}")
-        logger.info(f"  Label Studio converted: {labelstudio_converted}")
-        logger.info(f"  Label Studio failed: {labelstudio_failed}")
-        if no_annotations > 0:
-            logger.info(f"    - No annotations/predictions: {no_annotations}")
-        logger.info(f"  Legacy format: {legacy_format}")
-        logger.info(f"  Unknown format: {unknown_format}")
-        logger.info(f"✅ Loaded {len(samples)} training samples")
+        # Print statistics
+        logger.info(f"✅ Loaded {converted_count} training samples")
+        if skipped_count > 0:
+            logger.info(f"⚠️  Skipped {skipped_count} files")
+
+        if len(samples) == 0:
+            raise ValueError(
+                f"No samples could be loaded from {len(json_files)} files. "
+                "Please check that files are in Label Studio format with 'data', 'text', "
+                "and 'annotations' or 'predictions' fields."
+            )
 
         return samples
 
@@ -338,11 +316,6 @@ class DatasetProcessor:
 
         if len(all_samples) == 0:
             raise ValueError("No training samples found!")
-
-        # convert labelstudio format to training format
-        all_samples = [self.convert_labelstudio_to_training_format(sample) for sample in all_samples]
-        # filter out None samples
-        all_samples = [sample for sample in all_samples if sample is not None]
 
         # New code path: tokenize on-the-fly
         logger.info("🔄 Tokenizing samples on-the-fly during dataset preparation...")
@@ -399,10 +372,8 @@ class DatasetProcessor:
                 if (i + 1) % 100 == 0:
                     logger.info(f"  Tokenized {i + 1}/{len(all_samples)} samples...")
             except Exception as e:
-                raise ValueError(f"Failed to tokenize sample {i}: {e}")
-                print (f"file: {json_file.name}")
-                logger.warning(f"⚠️  Failed to tokenize sample {i}: {e}")
-                continue
+                logger.error(f"❌ Failed to tokenize sample {i}: {e}")
+                raise  # Re-raise the original exception with full traceback
 
         if len(formatted_samples) == 0:
             raise ValueError("No samples could be tokenized!")
