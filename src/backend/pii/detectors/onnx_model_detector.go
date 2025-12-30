@@ -29,18 +29,24 @@ type ONNXModelDetectorSimple struct {
 // NewONNXModelDetectorSimple creates a new ONNX model detector
 func NewONNXModelDetectorSimple(modelPath string, tokenizerPath string) (*ONNXModelDetectorSimple, error) {
 	// Set the ONNX Runtime shared library path for macOS
-	// Try multiple possible locations for the library
-	onnxPaths := []string{
-		"./libonnxruntime.1.23.1.dylib",       // Production: in resources directory
-		"./build/libonnxruntime.1.23.1.dylib", // Development: in build directory
-		"../libonnxruntime.1.23.1.dylib",      // Alternative location
-	}
+	// 1. Check if environment variable is set
+	onnxLibPath := os.Getenv("ONNXRUNTIME_SHARED_LIBRARY_PATH")
 
-	var onnxLibPath string
-	for _, path := range onnxPaths {
-		if _, err := os.Stat(path); err == nil {
-			onnxLibPath = path
-			break
+	// 2. If not set, try multiple possible locations and versions
+	if onnxLibPath == "" {
+		onnxPaths := []string{
+			"./libonnxruntime.1.23.1.dylib",       // Production: in resources directory
+			"./build/libonnxruntime.1.23.1.dylib", // Development: in build directory
+			"./libonnxruntime.1.23.2.dylib",       // Newer version
+			"./build/libonnxruntime.1.23.2.dylib", // Newer version in build
+			"../libonnxruntime.1.23.1.dylib",      // Alternative location
+		}
+
+		for _, path := range onnxPaths {
+			if _, err := os.Stat(path); err == nil {
+				onnxLibPath = path
+				break
+			}
 		}
 	}
 
