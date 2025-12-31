@@ -3,6 +3,7 @@ Convert the reviewed samples to Label Studio format.
 """
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -36,17 +37,37 @@ except DuplicateFlagError:
     pass
 
 
-def find_all_occurrences(text: str, value: str) -> list[int]:
-    """Find all start positions of value in text."""
-    positions = []
-    start = 0
-    while True:
-        pos = text.find(value, start)
-        if pos == -1:
-            break
-        positions.append(pos)
-        start = pos + 1
-    return positions
+def find_all_occurrences(text: str, value: str, use_word_boundaries: bool = False) -> list[int]:
+    """
+    Find all start positions of value in text.
+
+    Args:
+        text: The text to search in
+        value: The value to search for
+        use_word_boundaries: If True, only match complete words (prevents "her" matching "here")
+
+    Returns:
+        List of start positions where value appears
+    """
+    if use_word_boundaries:
+        # Use regex to find word boundaries - escape special regex characters in value
+        escaped_value = re.escape(value)
+        pattern = r'\b' + escaped_value + r'\b'
+        positions = []
+        for match in re.finditer(pattern, text):
+            positions.append(match.start())
+        return positions
+    else:
+        # Original simple substring matching (for privacy_mask values that might be part of words)
+        positions = []
+        start = 0
+        while True:
+            pos = text.find(value, start)
+            if pos == -1:
+                break
+            positions.append(pos)
+            start = pos + 1
+        return positions
 
 
 def convert_sample_to_labelstudio(sample: dict[str, Any]) -> dict[str, Any]:
@@ -113,22 +134,139 @@ def convert_sample_to_labelstudio(sample: dict[str, Any]) -> dict[str, Any]:
             break
 
     # Now add entities for coreference mentions that aren't in privacy_mask
+    # Also track which mentions map to which entity IDs for relation creation
+    mention_to_entity_ids = {}  # Maps mention text to list of (entity_id, position) tuples
+
     for coref_cluster in coreferences:
-        mentions = coref_cluster["mentions"]
+        mentions_raw = coref_cluster["mentions"]
         entity_type = coref_cluster.get("entity_type", "mention")
 
-        for mention in mentions:
-            # Find all occurrences of this mention in the text
-            positions = find_all_occurrences(text, mention)
+        # Normalize mentions: handle both old format (list of strings) and new format (list of objects)
+        mentions = []
+        for mention_item in mentions_raw:
+            if isinstance(mention_item, str):
+                # Old format: just a string
+                mentions.append({
+                    "text": mention_item,
+                    "type": "pronoun" if mention_item.lower() in ["i", "me", "my", "he", "she", "him", "her", "they", "them", "their", "it", "its", "we", "us", "our", "you", "your"] else "reference"
+                })
+            else:
+                # New format: object with text, type, and optionally privacy_mask_labels
+                mentions.append(mention_item)
+
+        for mention_obj in mentions:
+            mention = mention_obj["text"]
+            mention_type = mention_obj.get("type", "reference")
+            privacy_mask_labels = mention_obj.get("privacy_mask_labels", [])
+            # Find all occurrences of this mention in the text using word boundaries
+            # This prevents false matches (e.g., "her" matching "here")
+            # First try exact match with word boundaries
+            positions = find_all_occurrences(text, mention, use_word_boundaries=True)
+
+            # If no exact match, try case-insensitive search with word boundaries
+            if not positions:
+                mention_lower = mention.lower()
+                # Use regex for case-insensitive word boundary matching
+                escaped_mention = re.escape(mention_lower)
+                pattern = r'\b' + escaped_mention + r'\b'
+                positions = []
+                for match in re.finditer(pattern, text, re.IGNORECASE):
+                    positions.append(match.start())
+
+            # Track entity IDs for this mention (may be multiple if split)
+            mention_entity_ids_for_mention = []
+
+            # If privacy_mask_labels are provided, use them to find the corresponding entities
+            # This helps when names are split (e.g., "Aroha Patel" → ["FIRSTNAME", "SURNAME"])
+            if privacy_mask_labels and positions:
+                for pos in positions:
+                    key = (mention, pos)
+                    if key not in value_to_entity_id:
+                        # Find the first entity in privacy_mask that matches one of the labels at this position
+                        matching_entity_id = None
+                        for mask_item in privacy_mask:
+                            if mask_item["label"] in privacy_mask_labels:
+                                # Check if this value appears at or near the mention position
+                                mask_value = mask_item["value"]
+                                mask_positions = find_all_occurrences(text, mask_value)
+                                for mask_pos in mask_positions:
+                                    # Allow some flexibility for split names (e.g., "Aroha" at pos 4, "Patel" at pos 10)
+                                    if abs(mask_pos - pos) < 20:
+                                        mask_key = (mask_value, mask_pos)
+                                        if mask_key in value_to_entity_id:
+                                            matching_entity_id = value_to_entity_id[mask_key]
+                                            break
+                                if matching_entity_id:
+                                    break
+
+                        if matching_entity_id:
+                            # Create a new entity for the full mention to link everything together
+                            end_pos = pos + len(mention)
+                            entity_id = f"ent-{entity_id_counter}"
+
+                            entities.append(
+                                {
+                                    "id": entity_id,
+                                    "from_name": "entities",
+                                    "to_name": "text",
+                                    "type": "labels",
+                                    "value": {
+                                        "start": pos,
+                                        "end": end_pos,
+                                        "text": mention,
+                                        "labels": [],  # No label - just for coreference relationships
+                                    },
+                                }
+                            )
+
+                            value_to_entity_id[key] = entity_id
+                            mention_entity_ids_for_mention.append((entity_id, pos))
+                            entity_id_counter += 1
+                            continue
 
             for pos in positions:
-                # Skip if already used
-                if pos in used_positions:
-                    continue
-
                 # Check if this mention is already in value_to_entity_id
                 key = (mention, pos)
                 if key not in value_to_entity_id:
+                    # Check if this is a multi-word mention that might be split into separate entities
+                    # For example, "Aroha Patel" might be split into "Aroha" (FIRSTNAME) and "Patel" (SURNAME)
+                    words = mention.split()
+                    if len(words) > 1:
+                        # Check if the first word exists as an entity at this position
+                        first_word = words[0]
+                        first_word_key = (first_word, pos)
+                        if first_word_key in value_to_entity_id:
+                            # Create a new entity for the full mention (without a label) for coreference relationships
+                            # This allows pronouns/references to point to the full name entity
+                            # Note: We allow this even if pos is in used_positions because it's a different span
+                            end_pos = pos + len(mention)
+                            entity_id = f"ent-{entity_id_counter}"
+
+                            entities.append(
+                                {
+                                    "id": entity_id,
+                                    "from_name": "entities",
+                                    "to_name": "text",
+                                    "type": "labels",
+                                    "value": {
+                                        "start": pos,
+                                        "end": end_pos,
+                                        "text": mention,
+                                        "labels": [],  # No label - just for coreference relationships
+                                    },
+                                }
+                            )
+
+                            value_to_entity_id[key] = entity_id
+                            mention_entity_ids_for_mention.append((entity_id, pos))
+                            # Don't add to used_positions since this is for coreference, not privacy masking
+                            entity_id_counter += 1
+                            continue
+
+                    # Skip if already used (for single-word mentions that aren't split entities)
+                    if pos in used_positions:
+                        continue
+
                     # This is a new mention (likely a pronoun or reference)
                     end_pos = pos + len(mention)
                     entity_id = f"ent-{entity_id_counter}"
@@ -157,32 +295,72 @@ def convert_sample_to_labelstudio(sample: dict[str, Any]) -> dict[str, Any]:
                     )
 
                     value_to_entity_id[key] = entity_id
+                    mention_entity_ids_for_mention.append((entity_id, pos))
                     used_positions.add(pos)
                     entity_id_counter += 1
+                else:
+                    # Already exists, add to tracking
+                    mention_entity_ids_for_mention.append((value_to_entity_id[key], pos))
 
-                # Only use first occurrence
-                break
+            # Store mapping for relation creation
+            if mention_entity_ids_for_mention:
+                if mention not in mention_to_entity_ids:
+                    mention_to_entity_ids[mention] = []
+                mention_to_entity_ids[mention].extend(mention_entity_ids_for_mention)
 
     # Create relation annotations for coreferences
     relations = []
 
     for coref_cluster in coreferences:
-        mentions = coref_cluster["mentions"]
+        mentions_raw = coref_cluster["mentions"]
+
+        # Normalize mentions: handle both old format (list of strings) and new format (list of objects)
+        mentions = []
+        for mention_item in mentions_raw:
+            if isinstance(mention_item, str):
+                # Old format: just a string
+                mentions.append({"text": mention_item})
+            else:
+                # New format: object with text, type, etc.
+                mentions.append(mention_item)
 
         # Find entity IDs for all mentions in this cluster
         mention_entity_ids = []
 
-        for mention in mentions:
-            # Find this mention in the text
-            positions = find_all_occurrences(text, mention)
+        for mention_obj in mentions:
+            # Extract text from mention object (handles both old string format and new object format)
+            if isinstance(mention_obj, dict):
+                mention = mention_obj["text"]
+            else:
+                mention = mention_obj
+            # First check if we already tracked this mention
+            if mention in mention_to_entity_ids:
+                # Use ALL entity IDs for this mention (handles multiple occurrences)
+                for entity_id, _ in mention_to_entity_ids[mention]:
+                    mention_entity_ids.append((entity_id, mention))
+            else:
+                # Fallback: try to find in value_to_entity_id using word boundaries
+                # Try exact match first with word boundaries
+                positions = find_all_occurrences(text, mention, use_word_boundaries=True)
 
-            for pos in positions:
-                key = (mention, pos)
-                if key in value_to_entity_id:
-                    mention_entity_ids.append((value_to_entity_id[key], mention))
-                    break
+                # If no exact match, try case-insensitive with word boundaries
+                if not positions:
+                    mention_lower = mention.lower()
+                    # Use regex for case-insensitive word boundary matching
+                    escaped_mention = re.escape(mention_lower)
+                    pattern = r'\b' + escaped_mention + r'\b'
+                    positions = []
+                    for match in re.finditer(pattern, text, re.IGNORECASE):
+                        positions.append(match.start())
+
+                for pos in positions:
+                    key = (mention, pos)
+                    if key in value_to_entity_id:
+                        mention_entity_ids.append((value_to_entity_id[key], mention))
+                        # Continue to find all occurrences, not just the first one
 
         # Create relations from pronouns/references to the main entity (first mention)
+        # The main entity is typically the first mention in the cluster (usually the full name)
         if len(mention_entity_ids) > 1:
             main_entity_id = mention_entity_ids[0][0]
 
