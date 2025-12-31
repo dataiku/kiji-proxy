@@ -26,11 +26,8 @@ class PromptBuilder:
                 {"value": "https://www.techcorp.com", "label": "URL"},
             ],
             "coreferences": [
-                {
-                    "cluster_id": 0,
-                    "mentions": ["Michael Chen", "I", "my"],
-                    "entity_type": "person",
-                }
+                {"cluster_id": 0, "mentions": ["Michael Chen", "I", "my"], "entity_type": "person"},
+                {"cluster_id": 1, "mentions": ["Sarah", "you", "your"], "entity_type": "person"},
             ],
         },
         {
@@ -50,7 +47,7 @@ class PromptBuilder:
             "coreferences": [
                 {
                     "cluster_id": 0,
-                    "mentions": ["Maria Santos", "Her", "Ms. Santos", "her"],
+                    "mentions": ["the patient", "Maria Santos", "Her", "Ms. Santos", "her"],
                     "entity_type": "person",
                 }
             ],
@@ -213,10 +210,18 @@ Each sample contains:
 - `privacy_mask`: Array of PII entities with their values and labels
 - `coreferences`: Array of coreference clusters grouping mentions that refer to the same entity
 
+**Coreference Review Guidelines:**
+When reviewing coreferences, ensure:
+- All mentions within a cluster refer to the same real-world entity
+- Clusters are correctly separated (different entities should not be in the same cluster)
+- All relevant mentions are included (pronouns, definite descriptions, proper names, possessive forms)
+- The `entity_type` field accurately describes the type of entity (options are "person", "organization")
+- Coreference clusters are meaningful and help identify relationships between PII mentions
+
 **Sample to Review:**
 ```json
 {sample_json}
 ```
 
 **Your Task:**
-Please review and correct the dataset example! Return the correct JSON if it needs correction. Just return the JSON structure, no explanation, no extra text."""
+Please review and correct the dataset example! Check both the privacy_mask annotations and the coreference clusters. Return the correct JSON if it needs correction. Just return the JSON structure, no explanation, no extra text."""
