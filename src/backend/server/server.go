@@ -33,10 +33,10 @@ func NewServer(cfg *config.Config, electronConfigPath string) (*Server, error) {
 		return nil, fmt.Errorf("failed to create proxy handler: %w", err)
 	}
 
-	// Create transparent proxy if enabled
+	// Create transparent proxy if enabled (reuse the existing handler)
 	var transparentProxy *proxy.TransparentProxy
 	if cfg.Proxy.TransparentEnabled {
-		transparentProxy, err = proxy.NewTransparentProxyFromConfig(cfg, electronConfigPath)
+		transparentProxy, err = proxy.NewTransparentProxyFromConfig(cfg, handler)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create transparent proxy: %w", err)
 		}
@@ -56,10 +56,10 @@ func NewServerWithEmbedded(cfg *config.Config, uiFS, modelFS fs.FS, electronConf
 		return nil, fmt.Errorf("failed to create proxy handler: %w", err)
 	}
 
-	// Create transparent proxy if enabled
+	// Create transparent proxy if enabled (reuse the existing handler)
 	var transparentProxy *proxy.TransparentProxy
 	if cfg.Proxy.TransparentEnabled {
-		transparentProxy, err = proxy.NewTransparentProxyFromConfig(cfg, electronConfigPath)
+		transparentProxy, err = proxy.NewTransparentProxyFromConfig(cfg, handler)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create transparent proxy: %w", err)
 		}

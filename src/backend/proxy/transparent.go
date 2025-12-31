@@ -3,6 +3,7 @@ package proxy
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/tls"
 	"fmt"
 	"io"
@@ -15,13 +16,14 @@ import (
 	"time"
 
 	"github.com/hannes/yaak-private/src/backend/config"
+	pii "github.com/hannes/yaak-private/src/backend/pii/detectors"
 )
 
 // TransparentProxy handles transparent HTTP/HTTPS proxying with PII processing
 type TransparentProxy struct {
 	router       *Router
 	certManager  *CertManager
-	piiProcessor *PIIProcessor
+	handler      *Handler // Reuse existing Handler for PII processing
 	config       *config.Config
 	client       *http.Client
 	reverseProxy *httputil.ReverseProxy
@@ -31,7 +33,7 @@ type TransparentProxy struct {
 func NewTransparentProxy(
 	router *Router,
 	certManager *CertManager,
-	piiProcessor *PIIProcessor,
+	handler *Handler, // Reuse existing Handler
 	cfg *config.Config,
 ) *TransparentProxy {
 	// Create HTTP client with timeout
@@ -55,7 +57,7 @@ func NewTransparentProxy(
 	return &TransparentProxy{
 		router:       router,
 		certManager:  certManager,
-		piiProcessor: piiProcessor,
+		handler:      handler,
 		config:       cfg,
 		client:       client,
 		reverseProxy: reverseProxy,
@@ -104,33 +106,43 @@ func (tp *TransparentProxy) interceptHTTP(w http.ResponseWriter, r *http.Request
 	}
 	r.Body.Close()
 
-	// Process request for PII
-	ctx := r.Context()
-	result, err := tp.piiProcessor.ProcessRequest(body, "[TransparentProxy]")
-	if err != nil {
-		log.Printf("[TransparentProxy] ❌ Failed to process request: %v", err)
-		http.Error(w, "Failed to process request", http.StatusInternalServerError)
-		return
-	}
+	// Use Handler's existing PII processing methods
+	// Check for PII in the request and get redacted body
+	redactedBody, _, entities := tp.handler.checkRequestPII(string(body))
 
-	// Log request
-	tp.piiProcessor.LogRequest(ctx, result.OriginalBody, result.Entities)
+	// Log initial request if logging is available
+	ctx := r.Context()
+	if tp.handler.loggingDB != nil {
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		requestMessage := string(body)
+		if err := tp.handler.loggingDB.InsertLog(ctx, requestMessage, "In", entities, false); err != nil {
+			log.Printf("[TransparentProxy] ⚠️  Failed to log request: %v", err)
+		}
+	}
 
 	// Build target URL
 	targetURL := tp.buildTargetURL(r, targetHost)
 
-	// Get API key
-	apiKey := tp.getAPIKey(r)
+	// Create a temporary request for forwarding (Handler's method expects *http.Request)
+	proxyReq, err := http.NewRequestWithContext(ctx, r.Method, targetURL, bytes.NewReader([]byte(redactedBody)))
+	if err != nil {
+		log.Printf("[TransparentProxy] ❌ Failed to create proxy request: %v", err)
+		http.Error(w, "Failed to create proxy request", http.StatusBadGateway)
+		return
+	}
 
-	// Forward request with masked body
-	resp, err := tp.piiProcessor.ForwardRequest(
-		ctx,
-		r.Method,
-		targetURL,
-		result.MaskedBody,
-		r.Header,
-		apiKey,
-	)
+	// Copy headers
+	tp.handler.copyHeaders(r.Header, proxyReq.Header)
+
+	// Add API key
+	apiKey := tp.getAPIKey(r)
+	if apiKey != "" {
+		proxyReq.Header.Set("Authorization", "Bearer "+apiKey)
+	}
+
+	// Forward request using Handler's client
+	resp, err := tp.handler.client.Do(proxyReq)
 	if err != nil {
 		log.Printf("[TransparentProxy] ❌ Failed to forward request: %v", err)
 		http.Error(w, fmt.Sprintf("Failed to forward request: %v", err), http.StatusBadGateway)
@@ -139,18 +151,25 @@ func (tp *TransparentProxy) interceptHTTP(w http.ResponseWriter, r *http.Request
 	defer resp.Body.Close()
 
 	// Read response body
-	respBody, err := tp.piiProcessor.ReadResponseBody(resp)
+	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		log.Printf("[TransparentProxy] ❌ Failed to read response: %v", err)
 		http.Error(w, "Failed to read response", http.StatusBadGateway)
 		return
 	}
 
-	// Process response to restore PII
-	modifiedBody := tp.piiProcessor.ProcessResponse(respBody, resp.Header.Get("Content-Type"))
+	// Process response to restore PII using Handler's response processor
+	modifiedBody := tp.handler.responseProcessor.ProcessResponse(respBody, resp.Header.Get("Content-Type"))
 
-	// Log response
-	tp.piiProcessor.LogResponse(ctx, modifiedBody)
+	// Log response if logging is available
+	if tp.handler.loggingDB != nil {
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		responseMessage := string(modifiedBody)
+		if err := tp.handler.loggingDB.InsertLog(ctx, responseMessage, "Out", []pii.Entity{}, false); err != nil {
+			log.Printf("[TransparentProxy] ⚠️  Failed to log response: %v", err)
+		}
+	}
 
 	// Copy response headers
 	for key, values := range resp.Header {
@@ -334,32 +353,42 @@ func (tp *TransparentProxy) interceptHTTPOverTLS(conn net.Conn, r *http.Request,
 	}
 	r.Body.Close()
 
-	// Process request for PII
-	ctx := r.Context()
-	result, err := tp.piiProcessor.ProcessRequest(body, "[TransparentProxy]")
-	if err != nil {
-		log.Printf("[TransparentProxy] ❌ Failed to process request: %v", err)
-		return
-	}
+	// Use Handler's existing PII processing methods
+	// Check for PII in the request and get redacted body
+	redactedBody, _, entities := tp.handler.checkRequestPII(string(body))
 
-	// Log request
-	tp.piiProcessor.LogRequest(ctx, result.OriginalBody, result.Entities)
+	// Log initial request if logging is available
+	ctx := r.Context()
+	if tp.handler.loggingDB != nil {
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		requestMessage := string(body)
+		if err := tp.handler.loggingDB.InsertLog(ctx, requestMessage, "In", entities, false); err != nil {
+			log.Printf("[TransparentProxy] ⚠️  Failed to log request: %v", err)
+		}
+	}
 
 	// Build target URL
 	targetURL := tp.buildTargetURL(r, targetHost)
 
-	// Get API key
-	apiKey := tp.getAPIKey(r)
+	// Create a temporary request for forwarding
+	proxyReq, err := http.NewRequestWithContext(ctx, r.Method, targetURL, bytes.NewReader([]byte(redactedBody)))
+	if err != nil {
+		log.Printf("[TransparentProxy] ❌ Failed to create proxy request: %v", err)
+		return
+	}
 
-	// Forward request with masked body
-	resp, err := tp.piiProcessor.ForwardRequest(
-		ctx,
-		r.Method,
-		targetURL,
-		result.MaskedBody,
-		r.Header,
-		apiKey,
-	)
+	// Copy headers
+	tp.handler.copyHeaders(r.Header, proxyReq.Header)
+
+	// Add API key
+	apiKey := tp.getAPIKey(r)
+	if apiKey != "" {
+		proxyReq.Header.Set("Authorization", "Bearer "+apiKey)
+	}
+
+	// Forward request using Handler's client
+	resp, err := tp.handler.client.Do(proxyReq)
 	if err != nil {
 		log.Printf("[TransparentProxy] ❌ Failed to forward request: %v", err)
 		return
@@ -367,17 +396,24 @@ func (tp *TransparentProxy) interceptHTTPOverTLS(conn net.Conn, r *http.Request,
 	defer resp.Body.Close()
 
 	// Read response body
-	respBody, err := tp.piiProcessor.ReadResponseBody(resp)
+	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		log.Printf("[TransparentProxy] ❌ Failed to read response: %v", err)
 		return
 	}
 
-	// Process response to restore PII
-	modifiedBody := tp.piiProcessor.ProcessResponse(respBody, resp.Header.Get("Content-Type"))
+	// Process response to restore PII using Handler's response processor
+	modifiedBody := tp.handler.responseProcessor.ProcessResponse(respBody, resp.Header.Get("Content-Type"))
 
-	// Log response
-	tp.piiProcessor.LogResponse(ctx, modifiedBody)
+	// Log response if logging is available
+	if tp.handler.loggingDB != nil {
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		responseMessage := string(modifiedBody)
+		if err := tp.handler.loggingDB.InsertLog(ctx, responseMessage, "Out", []pii.Entity{}, false); err != nil {
+			log.Printf("[TransparentProxy] ⚠️  Failed to log response: %v", err)
+		}
+	}
 
 	// Create new response with modified body
 	newResp := &http.Response{
