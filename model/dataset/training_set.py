@@ -101,14 +101,14 @@ class TrainingSetConfig:
                 "Ireland",
                 "New Zealand",
             ],
-            "German": ["Germany", "Austria", "Switzerland"],
-            "French": ["France", "Belgium", "Canada", "Switzerland", "Luxembourg"],
-            "Spanish": ["Spain", "Mexico", "Argentina", "Colombia", "Peru", "Chile"],
-            "Dutch": [
-                "Netherlands",
-                "Belgium",
-            ],  # excl. "Suriname", "Aruba", "Curaçao", "Sint Maarten" for now
-            "Danish": ["Denmark"],  # excl. "Greenland", "Faroe Islands" for now
+            # "German": ["Germany", "Austria", "Switzerland"],
+            # "French": ["France", "Belgium", "Canada", "Switzerland", "Luxembourg"],
+            # "Spanish": ["Spain", "Mexico", "Argentina", "Colombia", "Peru", "Chile"],
+            # "Dutch": [
+            #     "Netherlands",
+            #     "Belgium",
+            # ],  # excl. "Suriname", "Aruba", "Curaçao", "Sint Maarten" for now
+            # "Danish": ["Denmark"],  # excl. "Greenland", "Faroe Islands" for now
         }
 
         if is_testing:
