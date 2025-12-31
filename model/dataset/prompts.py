@@ -30,20 +30,28 @@ class PromptBuilder:
                     "cluster_id": 0,
                     "entity_type": "person",
                     "mentions": [
-                        {"text": "Michael Chen", "type": "name", "privacy_mask_labels": ["FIRSTNAME", "SURNAME"]},
+                        {
+                            "text": "Michael Chen",
+                            "type": "name",
+                            "privacy_mask_labels": ["FIRSTNAME", "SURNAME"],
+                        },
                         {"text": "I", "type": "pronoun"},
-                        {"text": "my", "type": "pronoun"}
-                    ]
+                        {"text": "my", "type": "pronoun"},
+                    ],
                 },
                 {
                     "cluster_id": 1,
                     "entity_type": "person",
                     "mentions": [
-                        {"text": "Sarah", "type": "name", "privacy_mask_labels": ["FIRSTNAME"]},
+                        {
+                            "text": "Sarah",
+                            "type": "name",
+                            "privacy_mask_labels": ["FIRSTNAME"],
+                        },
                         {"text": "you", "type": "pronoun"},
-                        {"text": "your", "type": "pronoun"}
-                    ]
-                }
+                        {"text": "your", "type": "pronoun"},
+                    ],
+                },
             ],
         },
         {
@@ -66,11 +74,15 @@ class PromptBuilder:
                     "entity_type": "person",
                     "mentions": [
                         {"text": "the patient", "type": "reference"},
-                        {"text": "Maria Santos", "type": "name", "privacy_mask_labels": ["FIRSTNAME", "SURNAME"]},
+                        {
+                            "text": "Maria Santos",
+                            "type": "name",
+                            "privacy_mask_labels": ["FIRSTNAME", "SURNAME"],
+                        },
                         {"text": "Her", "type": "pronoun"},
                         {"text": "Ms. Santos", "type": "reference"},
-                        {"text": "her", "type": "pronoun"}
-                    ]
+                        {"text": "her", "type": "pronoun"},
+                    ],
                 }
             ],
         },
@@ -103,8 +115,8 @@ class PromptBuilder:
                     "entity_type": "person",
                     "mentions": [
                         {"text": "My", "type": "pronoun"},
-                        {"text": "I", "type": "pronoun"}
-                    ]
+                        {"text": "I", "type": "pronoun"},
+                    ],
                 }
             ],
         },

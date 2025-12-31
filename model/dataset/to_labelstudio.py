@@ -37,7 +37,9 @@ except DuplicateFlagError:
     pass
 
 
-def find_all_occurrences(text: str, value: str, use_word_boundaries: bool = False) -> list[int]:
+def find_all_occurrences(
+    text: str, value: str, use_word_boundaries: bool = False
+) -> list[int]:
     """
     Find all start positions of value in text.
 
@@ -52,7 +54,7 @@ def find_all_occurrences(text: str, value: str, use_word_boundaries: bool = Fals
     if use_word_boundaries:
         # Use regex to find word boundaries - escape special regex characters in value
         escaped_value = re.escape(value)
-        pattern = r'\b' + escaped_value + r'\b'
+        pattern = r"\b" + escaped_value + r"\b"
         positions = []
         for match in re.finditer(pattern, text):
             positions.append(match.start())
@@ -146,17 +148,40 @@ def convert_sample_to_labelstudio(sample: dict[str, Any]) -> dict[str, Any]:
         for mention_item in mentions_raw:
             if isinstance(mention_item, str):
                 # Old format: just a string
-                mentions.append({
-                    "text": mention_item,
-                    "type": "pronoun" if mention_item.lower() in ["i", "me", "my", "he", "she", "him", "her", "they", "them", "their", "it", "its", "we", "us", "our", "you", "your"] else "reference"
-                })
+                mentions.append(
+                    {
+                        "text": mention_item,
+                        "type": "pronoun"
+                        if mention_item.lower()
+                        in [
+                            "i",
+                            "me",
+                            "my",
+                            "he",
+                            "she",
+                            "him",
+                            "her",
+                            "they",
+                            "them",
+                            "their",
+                            "it",
+                            "its",
+                            "we",
+                            "us",
+                            "our",
+                            "you",
+                            "your",
+                        ]
+                        else "reference",
+                    }
+                )
             else:
                 # New format: object with text, type, and optionally privacy_mask_labels
                 mentions.append(mention_item)
 
         for mention_obj in mentions:
             mention = mention_obj["text"]
-            mention_type = mention_obj.get("type", "reference")
+            # mention_type = mention_obj.get("type", "reference")
             privacy_mask_labels = mention_obj.get("privacy_mask_labels", [])
             # Find all occurrences of this mention in the text using word boundaries
             # This prevents false matches (e.g., "her" matching "here")
@@ -168,7 +193,7 @@ def convert_sample_to_labelstudio(sample: dict[str, Any]) -> dict[str, Any]:
                 mention_lower = mention.lower()
                 # Use regex for case-insensitive word boundary matching
                 escaped_mention = re.escape(mention_lower)
-                pattern = r'\b' + escaped_mention + r'\b'
+                pattern = r"\b" + escaped_mention + r"\b"
                 positions = []
                 for match in re.finditer(pattern, text, re.IGNORECASE):
                     positions.append(match.start())
@@ -194,7 +219,9 @@ def convert_sample_to_labelstudio(sample: dict[str, Any]) -> dict[str, Any]:
                                     if abs(mask_pos - pos) < 20:
                                         mask_key = (mask_value, mask_pos)
                                         if mask_key in value_to_entity_id:
-                                            matching_entity_id = value_to_entity_id[mask_key]
+                                            matching_entity_id = value_to_entity_id[
+                                                mask_key
+                                            ]
                                             break
                                 if matching_entity_id:
                                     break
@@ -300,7 +327,9 @@ def convert_sample_to_labelstudio(sample: dict[str, Any]) -> dict[str, Any]:
                     entity_id_counter += 1
                 else:
                     # Already exists, add to tracking
-                    mention_entity_ids_for_mention.append((value_to_entity_id[key], pos))
+                    mention_entity_ids_for_mention.append(
+                        (value_to_entity_id[key], pos)
+                    )
 
             # Store mapping for relation creation
             if mention_entity_ids_for_mention:
@@ -341,14 +370,16 @@ def convert_sample_to_labelstudio(sample: dict[str, Any]) -> dict[str, Any]:
             else:
                 # Fallback: try to find in value_to_entity_id using word boundaries
                 # Try exact match first with word boundaries
-                positions = find_all_occurrences(text, mention, use_word_boundaries=True)
+                positions = find_all_occurrences(
+                    text, mention, use_word_boundaries=True
+                )
 
                 # If no exact match, try case-insensitive with word boundaries
                 if not positions:
                     mention_lower = mention.lower()
                     # Use regex for case-insensitive word boundary matching
                     escaped_mention = re.escape(mention_lower)
-                    pattern = r'\b' + escaped_mention + r'\b'
+                    pattern = r"\b" + escaped_mention + r"\b"
                     positions = []
                     for match in re.finditer(pattern, text, re.IGNORECASE):
                         positions.append(match.start())
