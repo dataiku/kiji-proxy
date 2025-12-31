@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/hannes/yaak-private/src/backend/config"
@@ -15,10 +16,12 @@ import (
 
 // Server represents the HTTP server
 type Server struct {
-	config  *config.Config
-	handler *proxy.Handler
-	uiFS    fs.FS
-	modelFS fs.FS
+	config            *config.Config
+	handler           *proxy.Handler
+	transparentProxy  *proxy.TransparentProxy
+	transparentServer *http.Server
+	uiFS              fs.FS
+	modelFS           fs.FS
 }
 
 // NewServer creates a new server instance
@@ -30,9 +33,19 @@ func NewServer(cfg *config.Config, electronConfigPath string) (*Server, error) {
 		return nil, fmt.Errorf("failed to create proxy handler: %w", err)
 	}
 
+	// Create transparent proxy if enabled
+	var transparentProxy *proxy.TransparentProxy
+	if cfg.Proxy.TransparentEnabled {
+		transparentProxy, err = proxy.NewTransparentProxyFromConfig(cfg, electronConfigPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create transparent proxy: %w", err)
+		}
+	}
+
 	return &Server{
-		config:  cfg,
-		handler: handler,
+		config:           cfg,
+		handler:          handler,
+		transparentProxy: transparentProxy,
 	}, nil
 }
 
@@ -43,11 +56,21 @@ func NewServerWithEmbedded(cfg *config.Config, uiFS, modelFS fs.FS, electronConf
 		return nil, fmt.Errorf("failed to create proxy handler: %w", err)
 	}
 
+	// Create transparent proxy if enabled
+	var transparentProxy *proxy.TransparentProxy
+	if cfg.Proxy.TransparentEnabled {
+		transparentProxy, err = proxy.NewTransparentProxyFromConfig(cfg, electronConfigPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create transparent proxy: %w", err)
+		}
+	}
+
 	return &Server{
-		config:  cfg,
-		handler: handler,
-		uiFS:    uiFS,
-		modelFS: modelFS,
+		config:           cfg,
+		handler:          handler,
+		transparentProxy: transparentProxy,
+		uiFS:             uiFS,
+		modelFS:          modelFS,
 	}, nil
 }
 
@@ -71,11 +94,17 @@ func (s *Server) Start() error {
 		log.Println("Using in-memory storage")
 	}
 
+	// Start transparent proxy if enabled
+	if s.transparentProxy != nil {
+		go s.startTransparentProxy()
+	}
+
 	// Add health check endpoint
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", s.healthCheck)
 	mux.HandleFunc("/logs", s.logsHandler)
 	mux.HandleFunc("/api/model/security", s.handleModelSecurity)
+	mux.HandleFunc("/api/proxy/ca-cert", s.handleCACert)
 	mux.Handle("/v1/chat/completions", s.handler)
 
 	// Serve UI files
@@ -108,6 +137,30 @@ func (s *Server) Start() error {
 	}
 
 	return server.ListenAndServe()
+}
+
+// startTransparentProxy starts the transparent proxy server
+func (s *Server) startTransparentProxy() {
+	proxyPort := s.config.Proxy.ProxyPort
+	if proxyPort == "" {
+		proxyPort = ":8080"
+	}
+
+	log.Printf("Starting transparent proxy on port %s", proxyPort)
+	log.Printf("Intercepting domains: %v", s.config.Proxy.InterceptDomains)
+	log.Printf("CA certificate path: %s", s.config.Proxy.CAPath)
+
+	s.transparentServer = &http.Server{
+		Addr:         proxyPort,
+		Handler:      s.transparentProxy,
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		IdleTimeout:  120 * time.Second,
+	}
+
+	if err := s.transparentServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		log.Fatalf("Failed to start transparent proxy: %v", err)
+	}
 }
 
 // healthCheck provides a simple health check endpoint
@@ -186,6 +239,35 @@ func (s *Server) handleModelSecurity(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 		return
+	}
+}
+
+// handleCACert returns the CA certificate for installation
+func (s *Server) handleCACert(w http.ResponseWriter, r *http.Request) {
+	if s.transparentProxy == nil {
+		http.Error(w, "Transparent proxy not enabled", http.StatusServiceUnavailable)
+		return
+	}
+
+	// Get CA certificate from the transparent proxy's cert manager
+	// We need to access the cert manager - for now, read from disk
+	caPath := s.config.Proxy.CAPath
+	if caPath == "" {
+		homeDir, _ := os.UserHomeDir()
+		caPath = filepath.Join(homeDir, ".yaak-proxy", "ca-cert.pem")
+	}
+
+	data, err := os.ReadFile(caPath)
+	if err != nil {
+		http.Error(w, "CA certificate not found. Start the transparent proxy first to generate it.", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/x-pem-file")
+	w.Header().Set("Content-Disposition", "attachment; filename=yaak-proxy-ca-cert.pem")
+	w.WriteHeader(http.StatusOK)
+	if _, err := w.Write(data); err != nil {
+		log.Printf("Failed to write CA certificate: %v", err)
 	}
 }
 

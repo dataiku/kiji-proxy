@@ -1,5 +1,10 @@
 package config
 
+import (
+	"os"
+	"path/filepath"
+)
+
 // LoggingConfig holds logging configuration options
 type LoggingConfig struct {
 	LogRequests   bool // Log request content
@@ -24,6 +29,15 @@ type DatabaseConfig struct {
 	CleanupHours int    // Hours after which to cleanup old mappings
 }
 
+// ProxyConfig holds transparent proxy configuration
+type ProxyConfig struct {
+	TransparentEnabled bool     `json:"transparent_enabled"`
+	InterceptDomains   []string `json:"intercept_domains"`
+	ProxyPort          string   `json:"proxy_port"`
+	CAPath             string   `json:"ca_path"`
+	KeyPath            string   `json:"key_path"`
+}
+
 // Config holds all configuration for the PII proxy service
 type Config struct {
 	OpenAIBaseURL string
@@ -36,10 +50,15 @@ type Config struct {
 	ONNXModelPath string
 	TokenizerPath string
 	UIPath        string
+	Proxy         ProxyConfig `json:"Proxy"`
 }
 
 // DefaultConfig returns the default configuration
 func DefaultConfig() *Config {
+	homeDir, _ := os.UserHomeDir()
+	caPath := filepath.Join(homeDir, ".yaak-proxy", "ca-cert.pem")
+	keyPath := filepath.Join(homeDir, ".yaak-proxy", "ca-key.pem")
+
 	return &Config{
 		OpenAIBaseURL: "https://api.openai.com/v1",
 		ProxyPort:     ":8080",
@@ -67,6 +86,13 @@ func DefaultConfig() *Config {
 			LogResponses:  true,
 			LogPIIChanges: true,
 			LogVerbose:    true,
+		},
+		Proxy: ProxyConfig{
+			TransparentEnabled: false,
+			InterceptDomains:   []string{"api.openai.com", "openai.com"},
+			ProxyPort:          ":8080",
+			CAPath:             caPath,
+			KeyPath:            keyPath,
 		},
 	}
 }

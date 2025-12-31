@@ -1,0 +1,490 @@
+package proxy
+
+import (
+	"bufio"
+	"bytes"
+	"crypto/tls"
+	"fmt"
+	"io"
+	"log"
+	"net"
+	"net/http"
+	"net/http/httputil"
+	"net/url"
+	"strings"
+	"time"
+
+	"github.com/hannes/yaak-private/src/backend/config"
+)
+
+// TransparentProxy handles transparent HTTP/HTTPS proxying with PII processing
+type TransparentProxy struct {
+	router       *Router
+	certManager  *CertManager
+	piiProcessor *PIIProcessor
+	config       *config.Config
+	client       *http.Client
+	reverseProxy *httputil.ReverseProxy
+}
+
+// NewTransparentProxy creates a new transparent proxy
+func NewTransparentProxy(
+	router *Router,
+	certManager *CertManager,
+	piiProcessor *PIIProcessor,
+	cfg *config.Config,
+) *TransparentProxy {
+	// Create HTTP client with timeout
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: false,
+			},
+		},
+	}
+
+	// Create reverse proxy for passthrough
+	reverseProxy := &httputil.ReverseProxy{
+		Director: func(req *http.Request) {
+			// Keep original URL
+		},
+		Transport: client.Transport,
+	}
+
+	return &TransparentProxy{
+		router:       router,
+		certManager:  certManager,
+		piiProcessor: piiProcessor,
+		config:       cfg,
+		client:       client,
+		reverseProxy: reverseProxy,
+	}
+}
+
+// ServeHTTP implements http.Handler interface
+func (tp *TransparentProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodConnect {
+		tp.handleCONNECT(w, r)
+		return
+	}
+
+	tp.handleHTTPRequest(w, r)
+}
+
+// handleHTTPRequest handles standard HTTP requests
+func (tp *TransparentProxy) handleHTTPRequest(w http.ResponseWriter, r *http.Request) {
+	// Extract target host from request
+	targetHost := r.Host
+	if targetHost == "" {
+		targetHost = r.URL.Host
+	}
+
+	// Check if we should intercept
+	if !tp.router.ShouldIntercept(targetHost) {
+		// Passthrough - forward directly
+		tp.passthroughHTTP(w, r)
+		return
+	}
+
+	// Intercept and process with PII masking
+	tp.interceptHTTP(w, r, targetHost)
+}
+
+// interceptHTTP intercepts and processes HTTP requests with PII masking
+func (tp *TransparentProxy) interceptHTTP(w http.ResponseWriter, r *http.Request, targetHost string) {
+	log.Printf("[TransparentProxy] Intercepting HTTP request to %s", targetHost)
+
+	// Read request body
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		log.Printf("[TransparentProxy] ❌ Failed to read request body: %v", err)
+		http.Error(w, "Failed to read request body", http.StatusBadRequest)
+		return
+	}
+	r.Body.Close()
+
+	// Process request for PII
+	ctx := r.Context()
+	result, err := tp.piiProcessor.ProcessRequest(body, "[TransparentProxy]")
+	if err != nil {
+		log.Printf("[TransparentProxy] ❌ Failed to process request: %v", err)
+		http.Error(w, "Failed to process request", http.StatusInternalServerError)
+		return
+	}
+
+	// Log request
+	tp.piiProcessor.LogRequest(ctx, result.OriginalBody, result.Entities)
+
+	// Build target URL
+	targetURL := tp.buildTargetURL(r, targetHost)
+
+	// Get API key
+	apiKey := tp.getAPIKey(r)
+
+	// Forward request with masked body
+	resp, err := tp.piiProcessor.ForwardRequest(
+		ctx,
+		r.Method,
+		targetURL,
+		result.MaskedBody,
+		r.Header,
+		apiKey,
+	)
+	if err != nil {
+		log.Printf("[TransparentProxy] ❌ Failed to forward request: %v", err)
+		http.Error(w, fmt.Sprintf("Failed to forward request: %v", err), http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+
+	// Read response body
+	respBody, err := tp.piiProcessor.ReadResponseBody(resp)
+	if err != nil {
+		log.Printf("[TransparentProxy] ❌ Failed to read response: %v", err)
+		http.Error(w, "Failed to read response", http.StatusBadGateway)
+		return
+	}
+
+	// Process response to restore PII
+	modifiedBody := tp.piiProcessor.ProcessResponse(respBody, resp.Header.Get("Content-Type"))
+
+	// Log response
+	tp.piiProcessor.LogResponse(ctx, modifiedBody)
+
+	// Copy response headers
+	for key, values := range resp.Header {
+		for _, value := range values {
+			w.Header().Add(key, value)
+		}
+	}
+
+	// Update Content-Length
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(modifiedBody)))
+
+	// Write response
+	w.WriteHeader(resp.StatusCode)
+	if _, err := w.Write(modifiedBody); err != nil {
+		log.Printf("[TransparentProxy] Failed to write response: %v", err)
+	}
+
+	log.Printf("[TransparentProxy] Processed %s %s - Status: %d", r.Method, r.URL.Path, resp.StatusCode)
+}
+
+// passthroughHTTP passes through HTTP requests without processing
+func (tp *TransparentProxy) passthroughHTTP(w http.ResponseWriter, r *http.Request) {
+	log.Printf("[TransparentProxy] Passing through HTTP request to %s", r.Host)
+
+	// Create a new request with the original URL
+	targetURL := r.URL
+	if !targetURL.IsAbs() {
+		scheme := "http"
+		if r.TLS != nil {
+			scheme = "https"
+		}
+		targetURL = &url.URL{
+			Scheme: scheme,
+			Host:   r.Host,
+			Path:   r.URL.Path,
+		}
+	}
+
+	// Create new request
+	proxyReq, err := http.NewRequestWithContext(r.Context(), r.Method, targetURL.String(), r.Body)
+	if err != nil {
+		log.Printf("[TransparentProxy] ❌ Failed to create proxy request: %v", err)
+		http.Error(w, "Failed to create proxy request", http.StatusBadGateway)
+		return
+	}
+
+	// Copy headers
+	for key, values := range r.Header {
+		for _, value := range values {
+			proxyReq.Header.Add(key, value)
+		}
+	}
+
+	// Forward request
+	resp, err := tp.client.Do(proxyReq)
+	if err != nil {
+		log.Printf("[TransparentProxy] ❌ Failed to forward request: %v", err)
+		http.Error(w, "Failed to forward request", http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+
+	// Copy response headers
+	for key, values := range resp.Header {
+		for _, value := range values {
+			w.Header().Add(key, value)
+		}
+	}
+
+	// Write response
+	w.WriteHeader(resp.StatusCode)
+	if _, err := io.Copy(w, resp.Body); err != nil {
+		log.Printf("[TransparentProxy] Failed to copy response: %v", err)
+	}
+}
+
+// handleCONNECT handles HTTPS CONNECT requests for tunneling
+func (tp *TransparentProxy) handleCONNECT(w http.ResponseWriter, r *http.Request) {
+	target := r.URL.Host
+
+	// Check if we should intercept
+	if !tp.router.ShouldIntercept(target) {
+		// Passthrough - establish direct connection
+		tp.passthroughCONNECT(w, r, target)
+		return
+	}
+
+	// Intercept - establish MITM connection
+	tp.interceptCONNECT(w, r, target)
+}
+
+// interceptCONNECT establishes a MITM connection for intercepted HTTPS traffic
+func (tp *TransparentProxy) interceptCONNECT(w http.ResponseWriter, r *http.Request, target string) {
+	log.Printf("[TransparentProxy] Intercepting HTTPS CONNECT to %s", target)
+
+	// Extract hostname (remove port)
+	host, _, err := net.SplitHostPort(target)
+	if err != nil {
+		host = target
+	}
+
+	// Get certificate for this hostname
+	cert, err := tp.certManager.GetCert(host)
+	if err != nil {
+		log.Printf("[TransparentProxy] ❌ Failed to get certificate: %v", err)
+		http.Error(w, "Failed to get certificate", http.StatusInternalServerError)
+		return
+	}
+
+	// Hijack the connection
+	hijacker, ok := w.(http.Hijacker)
+	if !ok {
+		http.Error(w, "Hijacking not supported", http.StatusInternalServerError)
+		return
+	}
+
+	clientConn, _, err := hijacker.Hijack()
+	if err != nil {
+		log.Printf("[TransparentProxy] ❌ Failed to hijack connection: %v", err)
+		http.Error(w, "Failed to hijack connection", http.StatusInternalServerError)
+		return
+	}
+	defer clientConn.Close()
+
+	// Send 200 Connection Established
+	_, err = clientConn.Write([]byte("HTTP/1.1 200 Connection Established\r\n\r\n"))
+	if err != nil {
+		log.Printf("[TransparentProxy] ❌ Failed to write response: %v", err)
+		return
+	}
+
+	// Create TLS config for MITM
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{*cert},
+	}
+
+	// Establish TLS connection with client
+	tlsConn := tls.Server(clientConn, tlsConfig)
+	if err := tlsConn.Handshake(); err != nil {
+		log.Printf("[TransparentProxy] ❌ TLS handshake failed: %v", err)
+		return
+	}
+	defer tlsConn.Close()
+
+	// Create HTTP connection from TLS connection
+	conn := &mitmConn{
+		Conn: tlsConn,
+	}
+
+	// Handle HTTP requests over the TLS connection
+	for {
+		// Set read deadline
+		conn.SetReadDeadline(time.Now().Add(30 * time.Second))
+
+		// Read HTTP request
+		req, err := http.ReadRequest(bufio.NewReader(conn))
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			log.Printf("[TransparentProxy] ❌ Failed to read request: %v", err)
+			break
+		}
+
+		// Build full URL
+		req.URL.Scheme = "https"
+		req.URL.Host = host
+
+		// Process the request
+		tp.interceptHTTPOverTLS(conn, req, host)
+	}
+}
+
+// interceptHTTPOverTLS handles HTTP requests over a TLS connection
+func (tp *TransparentProxy) interceptHTTPOverTLS(conn net.Conn, r *http.Request, targetHost string) {
+	// Read request body
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		log.Printf("[TransparentProxy] ❌ Failed to read request body: %v", err)
+		return
+	}
+	r.Body.Close()
+
+	// Process request for PII
+	ctx := r.Context()
+	result, err := tp.piiProcessor.ProcessRequest(body, "[TransparentProxy]")
+	if err != nil {
+		log.Printf("[TransparentProxy] ❌ Failed to process request: %v", err)
+		return
+	}
+
+	// Log request
+	tp.piiProcessor.LogRequest(ctx, result.OriginalBody, result.Entities)
+
+	// Build target URL
+	targetURL := tp.buildTargetURL(r, targetHost)
+
+	// Get API key
+	apiKey := tp.getAPIKey(r)
+
+	// Forward request with masked body
+	resp, err := tp.piiProcessor.ForwardRequest(
+		ctx,
+		r.Method,
+		targetURL,
+		result.MaskedBody,
+		r.Header,
+		apiKey,
+	)
+	if err != nil {
+		log.Printf("[TransparentProxy] ❌ Failed to forward request: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	// Read response body
+	respBody, err := tp.piiProcessor.ReadResponseBody(resp)
+	if err != nil {
+		log.Printf("[TransparentProxy] ❌ Failed to read response: %v", err)
+		return
+	}
+
+	// Process response to restore PII
+	modifiedBody := tp.piiProcessor.ProcessResponse(respBody, resp.Header.Get("Content-Type"))
+
+	// Log response
+	tp.piiProcessor.LogResponse(ctx, modifiedBody)
+
+	// Create new response with modified body
+	newResp := &http.Response{
+		StatusCode:    resp.StatusCode,
+		Status:        resp.Status,
+		Proto:         resp.Proto,
+		ProtoMajor:    resp.ProtoMajor,
+		ProtoMinor:    resp.ProtoMinor,
+		Header:        resp.Header,
+		Body:          io.NopCloser(bytes.NewReader(modifiedBody)),
+		ContentLength: int64(len(modifiedBody)),
+	}
+
+	// Update Content-Length header
+	newResp.Header.Set("Content-Length", fmt.Sprintf("%d", len(modifiedBody)))
+
+	// Write response over TLS connection
+	respWriter := bufio.NewWriter(conn)
+	if err := newResp.Write(respWriter); err != nil {
+		log.Printf("[TransparentProxy] ❌ Failed to write response: %v", err)
+		return
+	}
+	respWriter.Flush()
+
+	log.Printf("[TransparentProxy] Processed %s %s - Status: %d", r.Method, r.URL.Path, resp.StatusCode)
+}
+
+// passthroughCONNECT passes through CONNECT requests without interception
+func (tp *TransparentProxy) passthroughCONNECT(w http.ResponseWriter, r *http.Request, target string) {
+	log.Printf("[TransparentProxy] Passing through HTTPS CONNECT to %s", target)
+
+	// Connect to target
+	targetConn, err := net.DialTimeout("tcp", target, 10*time.Second)
+	if err != nil {
+		log.Printf("[TransparentProxy] ❌ Failed to connect to target: %v", err)
+		http.Error(w, "Failed to connect to target", http.StatusBadGateway)
+		return
+	}
+	defer targetConn.Close()
+
+	// Hijack the connection
+	hijacker, ok := w.(http.Hijacker)
+	if !ok {
+		http.Error(w, "Hijacking not supported", http.StatusInternalServerError)
+		return
+	}
+
+	clientConn, _, err := hijacker.Hijack()
+	if err != nil {
+		log.Printf("[TransparentProxy] ❌ Failed to hijack connection: %v", err)
+		http.Error(w, "Failed to hijack connection", http.StatusInternalServerError)
+		return
+	}
+	defer clientConn.Close()
+
+	// Send 200 Connection Established
+	_, err = clientConn.Write([]byte("HTTP/1.1 200 Connection Established\r\n\r\n"))
+	if err != nil {
+		log.Printf("[TransparentProxy] ❌ Failed to write response: %v", err)
+		return
+	}
+
+	// Copy data between connections
+	go func() {
+		io.Copy(targetConn, clientConn)
+		targetConn.Close()
+	}()
+	io.Copy(clientConn, targetConn)
+}
+
+// buildTargetURL builds the target URL for a request
+func (tp *TransparentProxy) buildTargetURL(r *http.Request, targetHost string) string {
+	scheme := "https"
+	if r.TLS == nil {
+		scheme = "http"
+	}
+
+	path := r.URL.Path
+	if path == "" {
+		path = "/"
+	}
+
+	targetURL := fmt.Sprintf("%s://%s%s", scheme, targetHost, path)
+	if r.URL.RawQuery != "" {
+		targetURL += "?" + r.URL.RawQuery
+	}
+
+	return targetURL
+}
+
+// getAPIKey gets the API key from request header or config
+func (tp *TransparentProxy) getAPIKey(r *http.Request) string {
+	// Check for API key in custom header
+	if apiKey := r.Header.Get("X-OpenAI-API-Key"); apiKey != "" {
+		return apiKey
+	}
+	// Check for standard Authorization header
+	if auth := r.Header.Get("Authorization"); auth != "" {
+		if strings.HasPrefix(auth, "Bearer ") {
+			return strings.TrimPrefix(auth, "Bearer ")
+		}
+	}
+	// Fall back to config
+	return tp.config.OpenAIAPIKey
+}
+
+// mitmConn wraps a TLS connection to implement net.Conn for HTTP reading
+type mitmConn struct {
+	*tls.Conn
+}

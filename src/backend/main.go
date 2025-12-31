@@ -157,6 +157,7 @@ func loadConfigFromEnv(cfg *config.Config) {
 	loadApplicationConfig(cfg)
 	loadPIIDetectorConfig(cfg)
 	loadLoggingConfig(cfg)
+	loadProxyConfig(cfg)
 }
 
 // loadDatabaseConfig loads database configuration from environment variables
@@ -247,6 +248,28 @@ func loadLoggingConfig(cfg *config.Config) {
 	if logResponses := os.Getenv("LOG_RESPONSES"); logResponses != "" {
 		cfg.Logging.LogResponses = logResponses == TRUE
 	}
+}
+
+// loadProxyConfig loads transparent proxy configuration from environment variables
+func loadProxyConfig(cfg *config.Config) {
+	if transparentEnabled := os.Getenv("TRANSPARENT_PROXY_ENABLED"); transparentEnabled != "" {
+		cfg.Proxy.TransparentEnabled = transparentEnabled == TRUE
+	}
+
+	if proxyPort := os.Getenv("TRANSPARENT_PROXY_PORT"); proxyPort != "" {
+		cfg.Proxy.ProxyPort = proxyPort
+	}
+
+	if caPath := os.Getenv("TRANSPARENT_PROXY_CA_PATH"); caPath != "" {
+		cfg.Proxy.CAPath = caPath
+	}
+
+	if keyPath := os.Getenv("TRANSPARENT_PROXY_KEY_PATH"); keyPath != "" {
+		cfg.Proxy.KeyPath = keyPath
+	}
+
+	// Note: intercept_domains is not easily set via env vars (would need comma-separated parsing)
+	// It's better to set via JSON config file
 }
 
 // extractEmbeddedModelFiles extracts embedded model files to the current directory
