@@ -301,6 +301,9 @@ def process_single_sample(
     file_name = gen.file_manager.save_sample(result, "reviewed_samples", file_name)
     logging.info(f"Sample {sample_index}: Reviewed sample")
 
+    # Add file_name to result for convert_to_labelstudio
+    result["file_name"] = file_name
+
     # Convert to training sample by calling convert_to_labelstudio from to_labelstudio.py
     training_sample = convert_to_labelstudio(result)
     file_name = gen.file_manager.save_sample(
