@@ -168,7 +168,9 @@ class PIITrainingPipeline(FlowSpec):
         # Export data
         results = processor.export_data()
 
-        print(f"✅ Exported {results['exported_count']} samples to {results['output_dir']}")
+        print(
+            f"✅ Exported {results['exported_count']} samples to {results['output_dir']}"
+        )
 
         self.next(self.preprocess_data)
 

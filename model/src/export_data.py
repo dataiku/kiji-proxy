@@ -3,7 +3,6 @@
 import os
 import sys
 from pathlib import Path
-from typing import Optional
 
 from absl import logging
 
@@ -20,7 +19,7 @@ except ImportError:
 class ExportDataProcessor:
     """Handles data export from Label Studio to local files."""
 
-    def __init__(self, config, raw_config: Optional[dict] = None):
+    def __init__(self, config, raw_config: dict | None = None):
         """
         Initialize export data processor.
 
@@ -33,22 +32,22 @@ class ExportDataProcessor:
 
         # Get Label Studio settings from config file, with env var fallback
         # Base URL: config file -> env var -> default
-        self.base_url = (
-            self.raw_config.get("labelstudio", {}).get("base_url")
-            or os.environ.get("LABEL_STUDIO_URL", "http://localhost:8080")
-        )
+        self.base_url = self.raw_config.get("labelstudio", {}).get(
+            "base_url"
+        ) or os.environ.get("LABEL_STUDIO_URL", "http://localhost:8080")
 
         # API Key: config file -> env var
-        self.api_key = (
-            self.raw_config.get("labelstudio", {}).get("api_key")
-            or os.environ.get("LABEL_STUDIO_API_KEY")
-        )
+        self.api_key = self.raw_config.get("labelstudio", {}).get(
+            "api_key"
+        ) or os.environ.get("LABEL_STUDIO_API_KEY")
 
         # Project ID: config file ([labelstudio].project_id or [data].labelstudio_project) -> env var
         # Convert to string if it's an int from config
         project_id_from_config = (
             self.raw_config.get("labelstudio", {}).get("project_id")
-            or self.raw_config.get("data", {}).get("labelstudio_project")  # Backward compatibility
+            or self.raw_config.get("data", {}).get(
+                "labelstudio_project"
+            )  # Backward compatibility
         )
         if project_id_from_config is not None:
             self.project_id = str(project_id_from_config)
@@ -57,10 +56,10 @@ class ExportDataProcessor:
 
     def export_data(
         self,
-        output_dir: Optional[str] = None,
-        base_url: Optional[str] = None,
-        api_key: Optional[str] = None,
-        project_id: Optional[str] = None,
+        output_dir: str | None = None,
+        base_url: str | None = None,
+        api_key: str | None = None,
+        project_id: str | None = None,
     ) -> dict:
         """
         Export annotations from Label Studio to local files.
@@ -101,7 +100,7 @@ class ExportDataProcessor:
         output_path = Path(output_dir)
         output_path.mkdir(parents=True, exist_ok=True)
 
-        logging.info(f"\n📤 Exporting data from Label Studio...")
+        logging.info("\n📤 Exporting data from Label Studio...")
         logging.info(f"  Base URL: {base_url}")
         logging.info(f"  Project ID: {project_id}")
         logging.info(f"  Output directory: {output_path}")
@@ -119,7 +118,9 @@ class ExportDataProcessor:
             json_files = list(output_path.glob("*.json"))
             exported_count = len(json_files)
 
-            logging.info(f"✅ Successfully exported {exported_count} samples to {output_path}")
+            logging.info(
+                f"✅ Successfully exported {exported_count} samples to {output_path}"
+            )
 
             return {
                 "exported_count": exported_count,

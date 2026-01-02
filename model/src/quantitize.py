@@ -130,7 +130,9 @@ def load_multitask_model(
             base_model_name = "distilbert-base-cased"
     else:
         base_model_name = "distilbert-base-cased"
-        logging.warning("⚠️  config.json not found, using default: distilbert-base-cased")
+        logging.warning(
+            "⚠️  config.json not found, using default: distilbert-base-cased"
+        )
 
     # Determine number of labels
     num_pii_labels = len(pii_label2id)
@@ -425,7 +427,9 @@ def main(argv):
         logging.info("=" * 80)
         logging.info(f"Model saved to: {FLAGS.output_path}")
         if FLAGS.skip_quantization:
-            logging.info(f"saved non-quantized ONNX model: {output_path / 'model.onnx'}")
+            logging.info(
+                f"saved non-quantized ONNX model: {output_path / 'model.onnx'}"
+            )
         else:
             os.remove(output_path / "model.onnx")
             logging.info(

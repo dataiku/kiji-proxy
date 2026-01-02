@@ -589,7 +589,9 @@ class PIITrainer:
         # Save
         trainer.save_model()
         self.tokenizer.save_pretrained(self.config.output_dir)
-        logging.info(f"\n✅ Training completed. Model saved to {self.config.output_dir}")
+        logging.info(
+            f"\n✅ Training completed. Model saved to {self.config.output_dir}"
+        )
 
         return trainer
 
