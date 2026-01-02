@@ -44,17 +44,14 @@ training = [
     "accelerate>=0.26.0",
     "scipy>=1.0.0",
     "pandas>=1.0.0",
-    "pyarrow>=18.1.0,<19.0.0",
     "sympy>=1.0.0",
     "datasets>=2.0.0",
     "outerbounds>=0.10.31",
     # "metaflow>=2.19.14"
-    "numpy>=2.2,<2.3"
+
 ]
 
 # ONNX quantization dependencies
-# Note: On Python 3.13, ml_dtypes requires numpy>=2.1, which conflicts with labelstudio
-# Do not install both quantization and labelstudio extras together on Python 3.13
 quantization = [
     "optimum[onnxruntime]>=1.15.0",
     "onnx>=1.15.0",
@@ -69,10 +66,9 @@ signing = [
     "model-signing>=1.1.1",
 ]
 
-# Label Studio dependencies (NOTE - requires numpy<2.0 conflicting with quantization.ml_dtypes on Python 3.13)
-# Only use on Python <3.13, or in a separate environment from quantization
+# Label Studio dependencies
 labelstudio = [
-    "Label-studio==1.21.0",
+    "Label-studio==1.22.0",
 ]
 
 # Note: 'all' group removed - use 'dev' instead for development dependencies
@@ -87,19 +83,11 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.uv]
-# The issue: labelstudio requires numpy<2.0, but training/quantization require numpy>=2.1
-# Solution: Don't try to create a universal lock for all extras - only resolve what's requested
-conflicts = [
-    # Declare that quantization, training, and labelstudio cannot be used together
-    [
-        {extra = "quantization"},
-        {extra = "labelstudio"},
-    ],
-    [
-        {extra = "training"},
-        {extra = "labelstudio"},
-    ],
-]
+# All extras are now compatible:
+# - labelstudio: numpy>=2.2.6,<3.0.0, pyarrow>=22.0.0,<23.0.0
+# - training: no pyarrow constraint (removed), numpy constraint commented out
+# - quantization: numpy>=2.1 (via ml_dtypes on Python 3.13+)
+# All can be used together
 
 [tool.hatch.build.targets.wheel]
 packages = ["model", ]
