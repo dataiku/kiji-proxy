@@ -20,17 +20,40 @@ except ImportError:
 class ExportDataProcessor:
     """Handles data export from Label Studio to local files."""
 
-    def __init__(self, config):
+    def __init__(self, config, raw_config: Optional[dict] = None):
         """
         Initialize export data processor.
 
         Args:
-            config: Training configuration (or export configuration)
+            config: Training configuration object (TrainingConfig)
+            raw_config: Optional raw config dict from TOML file (for accessing labelstudio settings)
         """
         self.config = config
-        self.base_url = os.environ.get("LABEL_STUDIO_URL", "http://localhost:8080")
-        self.api_key = os.environ.get("LABEL_STUDIO_API_KEY")
-        self.project_id = os.environ.get("LABEL_STUDIO_PROJECT_ID")
+        self.raw_config = raw_config or {}
+
+        # Get Label Studio settings from config file, with env var fallback
+        # Base URL: config file -> env var -> default
+        self.base_url = (
+            self.raw_config.get("labelstudio", {}).get("base_url")
+            or os.environ.get("LABEL_STUDIO_URL", "http://localhost:8080")
+        )
+
+        # API Key: config file -> env var
+        self.api_key = (
+            self.raw_config.get("labelstudio", {}).get("api_key")
+            or os.environ.get("LABEL_STUDIO_API_KEY")
+        )
+
+        # Project ID: config file ([labelstudio].project_id or [data].labelstudio_project) -> env var
+        # Convert to string if it's an int from config
+        project_id_from_config = (
+            self.raw_config.get("labelstudio", {}).get("project_id")
+            or self.raw_config.get("data", {}).get("labelstudio_project")  # Backward compatibility
+        )
+        if project_id_from_config is not None:
+            self.project_id = str(project_id_from_config)
+        else:
+            self.project_id = os.environ.get("LABEL_STUDIO_PROJECT_ID")
 
     def export_data(
         self,
@@ -63,13 +86,15 @@ class ExportDataProcessor:
         if not api_key:
             raise ValueError(
                 "Label Studio API key is required. "
-                "Set LABEL_STUDIO_API_KEY environment variable or pass api_key parameter."
+                "Set it in training_config.toml under [labelstudio].api_key "
+                "or LABEL_STUDIO_API_KEY environment variable, or pass api_key parameter."
             )
 
         if not project_id:
             raise ValueError(
                 "Label Studio project ID is required. "
-                "Set LABEL_STUDIO_PROJECT_ID environment variable or pass project_id parameter."
+                "Set it in training_config.toml under [labelstudio].project_id "
+                "or LABEL_STUDIO_PROJECT_ID environment variable, or pass project_id parameter."
             )
 
         # Ensure output directory exists

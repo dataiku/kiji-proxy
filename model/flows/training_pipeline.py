@@ -2,11 +2,12 @@
 Metaflow pipeline for PII detection model training.
 
 This pipeline orchestrates:
-1. Dataset loading and preprocessing from model/dataset/training_samples/
-2. Model training with multi-task learning
-3. Model evaluation
-4. Model quantization (ONNX)
-5. Model signing (cryptographic hash)
+1. Data export from Label Studio (optional, can be skipped)
+2. Dataset loading and preprocessing from model/dataset/training_samples/
+3. Model training with multi-task learning
+4. Model evaluation
+5. Model quantization (ONNX)
+6. Model signing (cryptographic hash)
 
 Usage:
     # Run locally (with uv extras)
@@ -62,6 +63,13 @@ BASE_PACKAGES = {
     "safetensors": ">=0.3.0",
     "absl-py": ">=2.0.0",
     "python-dotenv": ">=1.0.0",
+}
+###############################
+EXPORT_PACKAGES = {
+    **BASE_PACKAGES,
+    "label-studio-sdk": ">=0.0.24",
+    "requests": ">=2.28.0",
+    "tqdm": ">=4.64.0",
 }
 ###############################
 TRAINING_PACKAGES = {
@@ -126,16 +134,41 @@ class PIITrainingPipeline(FlowSpec):
             ),
             output_dir=cfg.get("paths", {}).get("output_dir", "model/trained"),
         )
+        self.skip_export = cfg.get("pipeline", {}).get("skip_export", False)
         self.skip_quantization = cfg.get("pipeline", {}).get("skip_quantization", False)
         self.skip_signing = cfg.get("pipeline", {}).get("skip_signing", False)
         self.subsample_count = cfg.get("data", {}).get("subsample_count", 0)
         self.pipeline_start_time = datetime.utcnow().isoformat()
+        # Store raw config for export step
+        self.raw_config = cfg
 
         print(f"Model: {self.config.model_name}")
         print(
             f"Epochs: {self.config.num_epochs}, Batch: {self.config.batch_size}, LR: {self.config.learning_rate}"
         )
         print(f"Data: {self.config.training_samples_dir}")
+
+        self.next(
+            {True: self.preprocess_data, False: self.export_data},
+            condition="skip_export",
+        )
+
+    # @pypi(packages=EXPORT_PACKAGES, python="3.13")
+    @step
+    def export_data(self):
+        """Export data from Label Studio to local files."""
+        from src.export_data import ExportDataProcessor
+
+        print("Exporting data from Label Studio...")
+        print("-" * 40)
+
+        # Initialize export processor with config
+        processor = ExportDataProcessor(self.config, raw_config=self.raw_config)
+
+        # Export data
+        results = processor.export_data()
+
+        print(f"✅ Exported {results['exported_count']} samples to {results['output_dir']}")
 
         self.next(self.preprocess_data)
 
