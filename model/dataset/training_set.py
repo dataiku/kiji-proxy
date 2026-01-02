@@ -242,7 +242,9 @@ class TrainingSetGenerator:
 
         language = sample["language"]
         country = sample["country"]
-        prompt = PromptBuilder.build_review_prompt(sample, expected_labels, language=language, country=country)
+        prompt = PromptBuilder.build_review_prompt(
+            sample, expected_labels, language=language, country=country
+        )
         json_schema = get_review_sample_schema()
 
         result = self.llm_client.review(prompt, json_schema)

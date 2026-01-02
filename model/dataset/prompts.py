@@ -184,7 +184,8 @@ class PromptBuilder:
         language = selected_language_country[0]
         country = selected_language_country[1]
         labels_list = ", ".join(labels.values())
-        return f"""
+        return (
+            f"""
         Generate one text sample in the style of a {style} that contains the following PII types:
         {labels_list}
 
@@ -234,10 +235,15 @@ class PromptBuilder:
 
         Here is an example:
         {example_string}
-        """.strip(), language, country
+        """.strip(),
+            language,
+            country,
+        )
 
     @staticmethod
-    def build_review_prompt(sample: dict[str, Any], expected_labels: str, language: str, country: str) -> str:
+    def build_review_prompt(
+        sample: dict[str, Any], expected_labels: str, language: str, country: str
+    ) -> str:
         """Build a prompt for reviewing a sample."""
         sample_json = json.dumps(sample, indent=2)
         return f"""You are reviewing a dataset for training a PII (Personally Identifiable Information) detection model. The dataset contains text samples with privacy mask annotations and coreference information.
@@ -275,7 +281,7 @@ When reviewing coreferences, ensure:
 
 **Sample to Review:**
 ```json
-{json.dumps(sample, indent=2)}
+{sample_json}
 ```
 
 **Your Task:**
