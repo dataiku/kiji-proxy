@@ -1,17 +1,16 @@
 """Data preprocessing and dataset loading."""
 
 import json
-import logging
+import sys
 from pathlib import Path
 from typing import ClassVar
 
+from absl import logging
 from datasets import Dataset
 from transformers import AutoTokenizer
 
 # Import label utilities
 try:
-    import sys
-
     project_root = Path(__file__).parent.parent
     if str(project_root) not in sys.path:
         sys.path.insert(0, str(project_root))
@@ -20,8 +19,6 @@ try:
 except ImportError:
     from dataset.label_utils import LabelUtils
     from dataset.tokenization import TokenizationProcessor
-
-logger = logging.getLogger(__name__)
 
 
 class PIILabels:
@@ -61,7 +58,7 @@ class PIILabels:
         mappings = {"label2id": label2id, "id2label": id2label}
         with Path(filepath).open("w") as f:
             json.dump(mappings, f, indent=2)
-        logger.info(f"✅ Label mappings saved to {filepath}")
+        logging.info(f"✅ Label mappings saved to {filepath}")
 
     @classmethod
     def load_mappings(cls, filepath: str) -> tuple[dict[str, int], dict[int, str]]:
@@ -112,7 +109,7 @@ class DatasetProcessor:
             # Extract text from data
             text = ls_sample.get("data", {}).get("text", "")
             if not text:
-                logger.debug(f"Sample missing text in file: {file_name}")
+                logging.debug(f"Sample missing text in file: {file_name}")
                 return None
 
             # Get annotations or predictions (prefer annotations if available)
@@ -227,7 +224,7 @@ class DatasetProcessor:
             }
 
         except Exception as e:
-            logger.debug(f"Failed to convert Label Studio sample in {file_name}: {e}")
+            logging.debug(f"Failed to convert Label Studio sample in {file_name}: {e}")
             return None
 
     def load_training_samples(self) -> list[dict]:
@@ -245,8 +242,8 @@ class DatasetProcessor:
         samples = []
         json_files = list(samples_dir.glob("*.json"))
 
-        logger.info(f"\n📥 Loading training samples from {samples_dir}...")
-        logger.info(f"Found {len(json_files)} JSON files")
+        logging.info(f"\n📥 Loading training samples from {samples_dir}...")
+        logging.info(f"Found {len(json_files)} JSON files")
 
         # Track conversion statistics
         converted_count = 0
@@ -268,16 +265,16 @@ class DatasetProcessor:
                     skipped_count += 1
 
             except json.JSONDecodeError as e:
-                logger.warning(f"⚠️  JSON decode error in {json_file.name}: {e}")
+                logging.warning(f"⚠️  JSON decode error in {json_file.name}: {e}")
                 skipped_count += 1
             except Exception as e:
-                logger.warning(f"⚠️  Error loading {json_file.name}: {e}")
+                logging.warning(f"⚠️  Error loading {json_file.name}: {e}")
                 skipped_count += 1
 
         # Print statistics
-        logger.info(f"✅ Loaded {converted_count} training samples")
+        logging.info(f"✅ Loaded {converted_count} training samples")
         if skipped_count > 0:
-            logger.info(f"⚠️  Skipped {skipped_count} files")
+            logging.info(f"⚠️  Skipped {skipped_count} files")
 
         if len(samples) == 0:
             raise ValueError(
@@ -309,7 +306,7 @@ class DatasetProcessor:
 
         # Subsample if requested
         if subsample_count > 0 and len(all_samples) > subsample_count:
-            logger.info(
+            logging.info(
                 f"📉 Subsampling from {len(all_samples)} to {subsample_count} samples"
             )
             all_samples = all_samples[:subsample_count]
@@ -318,7 +315,7 @@ class DatasetProcessor:
             raise ValueError("No training samples found!")
 
         # New code path: tokenize on-the-fly
-        logger.info("🔄 Tokenizing samples on-the-fly during dataset preparation...")
+        logging.info("🔄 Tokenizing samples on-the-fly during dataset preparation...")
 
         # Determine max coreference cluster ID from all samples
         max_coref_id = 0
@@ -364,15 +361,15 @@ class DatasetProcessor:
             }
 
         # Tokenize all samples
-        logger.info("📝 Tokenizing samples...")
+        logging.info("📝 Tokenizing samples...")
         formatted_samples = []
         for i, sample in enumerate(all_samples):
             try:
                 formatted_samples.append(format_sample(sample))
                 if (i + 1) % 100 == 0:
-                    logger.info(f"  Tokenized {i + 1}/{len(all_samples)} samples...")
+                    logging.info(f"  Tokenized {i + 1}/{len(all_samples)} samples...")
             except Exception as e:
-                logger.error(f"❌ Failed to tokenize sample {i}: {e}")
+                logging.error(f"❌ Failed to tokenize sample {i}: {e}")
                 raise  # Re-raise the original exception with full traceback
 
         if len(formatted_samples) == 0:
@@ -409,13 +406,13 @@ class DatasetProcessor:
         }
         with mappings_path.open("w") as f:
             json.dump(mappings, f, indent=2)
-        logger.info(f"✅ Label mappings saved to {mappings_path}")
+        logging.info(f"✅ Label mappings saved to {mappings_path}")
 
-        logger.info("\n📊 Dataset Summary:")
-        logger.info(f"  Training samples: {len(train_dataset)}")
-        logger.info(f"  Validation samples: {len(val_dataset)}")
-        logger.info(f"  PII labels: {len(pii_label2id)}")
-        logger.info(f"  Co-reference labels: {num_coref_labels}")
+        logging.info("\n📊 Dataset Summary:")
+        logging.info(f"  Training samples: {len(train_dataset)}")
+        logging.info(f"  Validation samples: {len(val_dataset)}")
+        logging.info(f"  PII labels: {len(pii_label2id)}")
+        logging.info(f"  Co-reference labels: {num_coref_labels}")
 
         return (
             train_dataset,

@@ -16,8 +16,9 @@ Usage:
     main(use_google_drive=False)
 """
 
-import logging
 import time
+
+from absl import logging
 
 # Import from local modules
 try:
@@ -29,12 +30,6 @@ except ImportError:
     from config import EnvironmentSetup, TrainingConfig
     from preprocessing import DatasetProcessor
     from trainer import PIITrainer
-
-# Set up logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
 
 
 def main(
@@ -50,12 +45,12 @@ def main(
         drive_folder (str): Target folder path in Google Drive where the model will be saved.
         training_samples_dir (str | None): Optional override for the training samples directory; when provided it is passed to TrainingConfig (e.g., "model/dataset/training_samples" or another custom path).
     """
-    logger.info("=" * 60)
-    logger.info("Multi-Task PII Detection and Co-reference Detection Training")
-    logger.info("=" * 60)
+    logging.info("=" * 60)
+    logging.info("Multi-Task PII Detection and Co-reference Detection Training")
+    logging.info("=" * 60)
 
     # Setup environment
-    logger.info("\n1️⃣  Setting up environment...")
+    logging.info("\n1️⃣  Setting up environment...")
     EnvironmentSetup.disable_wandb()
 
     # Mount Google Drive if requested
@@ -66,7 +61,7 @@ def main(
     EnvironmentSetup.check_gpu()
 
     # Load configuration
-    logger.info("\n2️⃣  Loading configuration...")
+    logging.info("\n2️⃣  Loading configuration...")
     config_kwargs = {}
     if training_samples_dir is not None:
         config_kwargs["training_samples_dir"] = training_samples_dir
@@ -74,83 +69,83 @@ def main(
     config.print_summary()
 
     # Prepare datasets
-    logger.info("\n3️⃣  Preparing datasets...")
+    logging.info("\n3️⃣  Preparing datasets...")
     dataset_processor = DatasetProcessor(config)
     train_dataset, val_dataset, mappings, coref_info = (
         dataset_processor.prepare_datasets()
     )
 
     # Initialize trainer
-    logger.info("\n4️⃣  Initializing trainer...")
+    logging.info("\n4️⃣  Initializing trainer...")
     trainer = PIITrainer(config)
     trainer.load_label_mappings(mappings, coref_info)
     trainer.initialize_model()
 
     # Train model
-    logger.info("\n5️⃣  Training model...")
+    logging.info("\n5️⃣  Training model...")
     start_time = time.time()
     trained_trainer = trainer.train(train_dataset, val_dataset)
     training_time = time.time() - start_time
-    logger.info(f"\n⏱️  Training completed in {training_time / 60:.1f} minutes")
+    logging.info(f"\n⏱️  Training completed in {training_time / 60:.1f} minutes")
 
     # Evaluate model
-    logger.info("\n6️⃣  Evaluating model...")
+    logging.info("\n6️⃣  Evaluating model...")
     results = trainer.evaluate(val_dataset, trained_trainer)
 
     # Save to Google Drive if mounted
     drive_path = None
     if use_google_drive and drive_mounted:
-        logger.info("\n7️⃣  Saving to Google Drive...")
+        logging.info("\n7️⃣  Saving to Google Drive...")
         try:
             drive_path = trainer.save_to_google_drive(drive_folder)
         except Exception as e:
-            logger.warning(f"⚠️  Failed to save to Google Drive: {e}")
-            logger.info(f"   Model is still available locally at: {config.output_dir}")
+            logging.warning(f"⚠️  Failed to save to Google Drive: {e}")
+            logging.info(f"   Model is still available locally at: {config.output_dir}")
 
     # Final summary
-    logger.info("\n" + "=" * 60)
-    logger.info("🎉 TRAINING COMPLETE!")
-    logger.info("=" * 60)
-    logger.info("\n📊 PII Detection Metrics:")
-    logger.info(
+    logging.info("\n" + "=" * 60)
+    logging.info("🎉 TRAINING COMPLETE!")
+    logging.info("=" * 60)
+    logging.info("\n📊 PII Detection Metrics:")
+    logging.info(
         f"  F1 (weighted): {results.get('eval_pii_f1_weighted', results.get('eval_pii_f1', 'N/A')):.4f}"
     )
-    logger.info(f"  F1 (macro): {results.get('eval_pii_f1_macro', 'N/A'):.4f}")
-    logger.info(
+    logging.info(f"  F1 (macro): {results.get('eval_pii_f1_macro', 'N/A'):.4f}")
+    logging.info(
         f"  Precision (weighted): {results.get('eval_pii_precision_weighted', 'N/A'):.4f}"
     )
-    logger.info(
+    logging.info(
         f"  Precision (macro): {results.get('eval_pii_precision_macro', 'N/A'):.4f}"
     )
-    logger.info(
+    logging.info(
         f"  Recall (weighted): {results.get('eval_pii_recall_weighted', 'N/A'):.4f}"
     )
-    logger.info(f"  Recall (macro): {results.get('eval_pii_recall_macro', 'N/A'):.4f}")
+    logging.info(f"  Recall (macro): {results.get('eval_pii_recall_macro', 'N/A'):.4f}")
 
     if "eval_coref_f1" in results or "eval_coref_f1_weighted" in results:
-        logger.info("\n📊 Co-reference Detection Metrics:")
-        logger.info(
+        logging.info("\n📊 Co-reference Detection Metrics:")
+        logging.info(
             f"  F1 (weighted): {results.get('eval_coref_f1_weighted', results.get('eval_coref_f1', 'N/A')):.4f}"
         )
-        logger.info(f"  F1 (macro): {results.get('eval_coref_f1_macro', 'N/A'):.4f}")
-        logger.info(
+        logging.info(f"  F1 (macro): {results.get('eval_coref_f1_macro', 'N/A'):.4f}")
+        logging.info(
             f"  Precision (weighted): {results.get('eval_coref_precision_weighted', 'N/A'):.4f}"
         )
-        logger.info(
+        logging.info(
             f"  Precision (macro): {results.get('eval_coref_precision_macro', 'N/A'):.4f}"
         )
-        logger.info(
+        logging.info(
             f"  Recall (weighted): {results.get('eval_coref_recall_weighted', 'N/A'):.4f}"
         )
-        logger.info(
+        logging.info(
             f"  Recall (macro): {results.get('eval_coref_recall_macro', 'N/A'):.4f}"
         )
 
-    logger.info(f"\n💾 Model saved locally to: {config.output_dir}")
+    logging.info(f"\n💾 Model saved locally to: {config.output_dir}")
     if drive_path:
-        logger.info(f"💾 Model saved to Google Drive: {drive_path}")
+        logging.info(f"💾 Model saved to Google Drive: {drive_path}")
 
-    logger.info("=" * 60)
+    logging.info("=" * 60)
 
 
 if __name__ == "__main__":
