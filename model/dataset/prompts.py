@@ -127,7 +127,7 @@ class PromptBuilder:
         labels: dict[str, str],
         languages_countries: list[tuple[str, str]],
         sample_index: int = 0,
-    ) -> str:
+    ) -> tuple[str, str, str]:
         """
         Build a prompt for generating PII samples.
 
@@ -234,10 +234,10 @@ class PromptBuilder:
 
         Here is an example:
         {example_string}
-        """.strip()
+        """.strip(), language, country
 
     @staticmethod
-    def build_review_prompt(sample: dict[str, Any], expected_labels: str) -> str:
+    def build_review_prompt(sample: dict[str, Any], expected_labels: str, language: str, country: str) -> str:
         """Build a prompt for reviewing a sample."""
         sample_json = json.dumps(sample, indent=2)
         return f"""You are reviewing a dataset for training a PII (Personally Identifiable Information) detection model. The dataset contains text samples with privacy mask annotations and coreference information.
@@ -258,6 +258,7 @@ Each sample contains:
 When reviewing coreferences, ensure:
 - All mentions within a cluster refer to the same real-world entity
 - Clusters are correctly separated (different entities should not be in the same cluster)
+- The text is in `{language}` and is realistic to the geographic area of `{country}`
 - All relevant mentions are included (pronouns, definite descriptions, proper names, possessive forms)
 - The `entity_type` field accurately describes the type of entity (options are "person", "organization")
 - Coreference clusters are meaningful and help identify relationships between PII mentions
@@ -274,7 +275,7 @@ When reviewing coreferences, ensure:
 
 **Sample to Review:**
 ```json
-{sample_json}
+{json.dumps(sample, indent=2)}
 ```
 
 **Your Task:**

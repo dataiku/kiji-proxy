@@ -204,7 +204,7 @@ class TrainingSetGenerator:
         # Pass seed to label selection for variation
         labels = self.config.get_pii_labels(return_count=4, seed=sample_seed)
 
-        prompt = PromptBuilder.build_generation_prompt(
+        prompt, language, country = PromptBuilder.build_generation_prompt(
             labels, languages_countries, sample_index=sample_index
         )
         json_schema = get_pii_sample_schema()
@@ -222,12 +222,15 @@ class TrainingSetGenerator:
                 logging.warning(
                     f"LLM returned {len(result)} samples, using the first one"
                 )
+            result[0].update({"language": language, "country": country})
             return result[0]
         elif isinstance(result, dict) and "samples" in result:
             samples = result["samples"]
             if isinstance(samples, list) and len(samples) > 0:
+                samples[0].update({"language": language, "country": country})
                 return samples[0]
         elif isinstance(result, dict):
+            result.update({"language": language, "country": country})
             return result
 
         raise ValueError(f"Unexpected response format: {type(result)}")
@@ -237,10 +240,14 @@ class TrainingSetGenerator:
         all_labels = self.config.get_pii_labels(all_labels=True)
         expected_labels = ", ".join(all_labels.keys())
 
-        prompt = PromptBuilder.build_review_prompt(sample, expected_labels)
+        language = sample["language"]
+        country = sample["country"]
+        prompt = PromptBuilder.build_review_prompt(sample, expected_labels, language=language, country=country)
         json_schema = get_review_sample_schema()
 
-        return self.llm_client.review(prompt, json_schema)
+        result = self.llm_client.review(prompt, json_schema)
+        result.update({"language": language, "country": country})
+        return result
 
     def convert_to_training_sample(
         self, result: dict[str, Any], tokenizer: AutoTokenizer | None = None
