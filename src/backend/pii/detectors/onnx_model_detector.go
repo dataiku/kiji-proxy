@@ -14,16 +14,18 @@ import (
 
 // ONNXModelDetectorSimple implements DetectorClass using an internal ONNX model
 type ONNXModelDetectorSimple struct {
-	tokenizer     *tokenizers.Tokenizer
-	session       *onnxruntime.AdvancedSession
-	inputTensor   *onnxruntime.Tensor[int64]
-	maskTensor    *onnxruntime.Tensor[int64]
-	outputTensor  *onnxruntime.Tensor[float32]
-	id2label      map[string]string
-	label2id      map[string]int
-	corefID2Label map[string]string
-	numPIILabels  int
-	modelPath     string
+	tokenizer         *tokenizers.Tokenizer
+	session           *onnxruntime.AdvancedSession
+	inputTensor       *onnxruntime.Tensor[int64]
+	maskTensor        *onnxruntime.Tensor[int64]
+	outputTensor      *onnxruntime.Tensor[float32]
+	corefOutputTensor *onnxruntime.Tensor[float32]
+	id2label          map[string]string
+	label2id          map[string]int
+	corefID2Label     map[string]string
+	numPIILabels      int
+	numCorefLabels    int
+	modelPath         string
 }
 
 // NewONNXModelDetectorSimple creates a new ONNX model detector
@@ -141,14 +143,28 @@ func NewONNXModelDetectorSimple(modelPath string, tokenizerPath string) (*ONNXMo
 		numPIILabels = len(config.PII.Label2ID)
 	}
 	fmt.Printf("Loaded %d PII labels (expected 49)\n", numPIILabels)
+	// Calculate number of Coref labels
+	numCorefLabels := 0
+	for idStr := range config.Coref.ID2Label {
+		var id int
+		if _, err := fmt.Sscanf(idStr, "%d", &id); err == nil {
+			if id >= numCorefLabels {
+				numCorefLabels = id + 1
+			}
+		}
+	}
+	if numCorefLabels == 0 {
+		numCorefLabels = len(config.Coref.ID2Label)
+	}
 
 	detector := &ONNXModelDetectorSimple{
-		tokenizer:     tk,
-		id2label:      config.PII.ID2Label,
-		label2id:      config.PII.Label2ID,
-		corefID2Label: config.Coref.ID2Label,
-		numPIILabels:  numPIILabels,
-		modelPath:     modelPath,
+		tokenizer:      tk,
+		id2label:       config.PII.ID2Label,
+		label2id:       config.PII.Label2ID,
+		corefID2Label:  config.Coref.ID2Label,
+		numPIILabels:   numPIILabels,
+		numCorefLabels: numCorefLabels,
+		modelPath:      modelPath,
 	}
 
 	// Initialize tensors and session will be done on first use
@@ -190,18 +206,29 @@ func (d *ONNXModelDetectorSimple) Detect(ctx context.Context, input DetectorInpu
 	}
 
 	// Process results inline to avoid the compilation issue
-	entities := d.processOutputInline(input.Text, tokenIDs, encoding.Offsets)
+	entities, corefClusters := d.processOutputInline(input.Text, tokenIDs, encoding.Offsets)
+	for _, entity := range entities {
+		fmt.Printf("Detected entity: %s, Label: %s, Confidence: %.4f, Range: [%d:%d]\n",
+			entity.Text, entity.Label, entity.Confidence, entity.StartPos, entity.EndPos)
+	}
+
+	for clusterID, mentions := range corefClusters {
+		fmt.Printf("Coref cluster %d: %v\n", clusterID, mentions)
+	}
 
 	return DetectorOutput{
-		Text:     input.Text,
-		Entities: entities,
+		Text:          input.Text,
+		Entities:      entities,
+		CorefClusters: corefClusters,
 	}, nil
 }
 
-// processOutputInline converts model output to entities (inline to avoid compilation issues)
-func (d *ONNXModelDetectorSimple) processOutputInline(originalText string, tokenIDs []uint32, offsets []tokenizers.Offset) []Entity {
+// processOutputInline converts model output to entities and coref clusters
+func (d *ONNXModelDetectorSimple) processOutputInline(originalText string, tokenIDs []uint32, offsets []tokenizers.Offset) ([]Entity, map[int][]EntityMention) {
 	outputData := d.outputTensor.GetData()
+	corefData := d.corefOutputTensor.GetData()
 	entities := []Entity{}
+	corefClusters := make(map[int][]EntityMention)
 
 	// Ensure we don't process more tokens than we have
 	numTokens := len(tokenIDs)
@@ -254,6 +281,33 @@ func (d *ONNXModelDetectorSimple) processOutputInline(originalText string, token
 			label = "O"
 		}
 
+		// --- Coref Extraction ---
+		corefStartIdx := i * d.numCorefLabels
+		corefEndIdx := (i + 1) * d.numCorefLabels
+		if corefEndIdx <= len(corefData) {
+			tokenCorefLogits := corefData[corefStartIdx:corefEndIdx]
+			maxCorefProb := float32(-math.MaxFloat32)
+			bestCluster := 0
+			for j, logit := range tokenCorefLogits {
+				if logit > maxCorefProb {
+					maxCorefProb = logit
+					bestCluster = j
+				}
+			}
+
+			if bestCluster > 0 { // Skip cluster 0
+				startOffset := offsets[i]
+				mention := EntityMention{
+					Text:     originalText[startOffset[0]:startOffset[1]],
+					StartPos: int(startOffset[0]),
+					EndPos:   int(startOffset[1]),
+					IsEntity: label != "O",
+				}
+				corefClusters[bestCluster] = append(corefClusters[bestCluster], mention)
+			}
+		}
+		// ------------------------
+
 		// Handle B-PREFIX (beginning) and I-PREFIX (inside) labels
 		isBeginning := strings.HasPrefix(label, "B-")
 		isInside := strings.HasPrefix(label, "I-")
@@ -299,7 +353,25 @@ func (d *ONNXModelDetectorSimple) processOutputInline(originalText string, token
 		entities = append(entities, *currentEntity)
 	}
 
-	return entities
+	// Assign cluster IDs to entities
+	for i := range entities {
+		entities[i].ClusterID = d.findClusterForEntity(&entities[i], corefClusters)
+	}
+
+	return entities, corefClusters
+}
+
+// findClusterForEntity finds the best matching cluster ID for a detected PII entity
+func (d *ONNXModelDetectorSimple) findClusterForEntity(entity *Entity, clusters map[int][]EntityMention) int {
+	for clusterID, mentions := range clusters {
+		for _, mention := range mentions {
+			// If our entity perfectly overlaps or contains/is contained by a mention that is marked as isEntity
+			if mention.StartPos == entity.StartPos && mention.EndPos == entity.EndPos {
+				return clusterID
+			}
+		}
+	}
+	return 0
 }
 
 // finalizeEntity extracts the actual text from the original string using token offsets
@@ -350,7 +422,7 @@ func (d *ONNXModelDetectorSimple) initializeSession() error {
 		return fmt.Errorf("failed to create mask tensor: %w", err)
 	}
 
-	// Create output tensor
+	// Create output tensors
 	outputShape := onnxruntime.NewShape(batchSize, maxSeqLen, int64(d.numPIILabels))
 	outputTensor, err := onnxruntime.NewEmptyTensor[float32](outputShape)
 	if err != nil {
@@ -363,14 +435,29 @@ func (d *ONNXModelDetectorSimple) initializeSession() error {
 		return fmt.Errorf("failed to create output tensor: %w", err)
 	}
 
+	corefOutputShape := onnxruntime.NewShape(batchSize, maxSeqLen, int64(d.numCorefLabels))
+	corefOutputTensor, err := onnxruntime.NewEmptyTensor[float32](corefOutputShape)
+	if err != nil {
+		if err := inputTensor.Destroy(); err != nil {
+			fmt.Printf("Warning: failed to destroy input tensor during cleanup: %v\n", err)
+		}
+		if err := maskTensor.Destroy(); err != nil {
+			fmt.Printf("Warning: failed to destroy mask tensor during cleanup: %v\n", err)
+		}
+		if err := outputTensor.Destroy(); err != nil {
+			fmt.Printf("Warning: failed to destroy output tensor during cleanup: %v\n", err)
+		}
+		return fmt.Errorf("failed to create coref output tensor: %w", err)
+	}
+
 	// Create session
 	// d.modelPath already contains the full path to the model file
-	// Model outputs both pii_logits and coref_logits, but we only use pii_logits for now
+	// Model outputs both pii_logits and coref_logits, but we now use both
 	session, err := onnxruntime.NewAdvancedSession(d.modelPath,
 		[]string{"input_ids", "attention_mask"},
-		[]string{"pii_logits"},
+		[]string{"pii_logits", "coref_logits"},
 		[]onnxruntime.Value{inputTensor, maskTensor},
-		[]onnxruntime.Value{outputTensor},
+		[]onnxruntime.Value{outputTensor, corefOutputTensor},
 		nil)
 	if err != nil {
 		if err := inputTensor.Destroy(); err != nil {
@@ -382,6 +469,9 @@ func (d *ONNXModelDetectorSimple) initializeSession() error {
 		if err := outputTensor.Destroy(); err != nil {
 			fmt.Printf("Warning: failed to destroy output tensor during cleanup: %v\n", err)
 		}
+		if err := corefOutputTensor.Destroy(); err != nil {
+			fmt.Printf("Warning: failed to destroy coref output tensor during cleanup: %v\n", err)
+		}
 		return fmt.Errorf("failed to create session: %w", err)
 	}
 
@@ -389,6 +479,7 @@ func (d *ONNXModelDetectorSimple) initializeSession() error {
 	d.inputTensor = inputTensor
 	d.maskTensor = maskTensor
 	d.outputTensor = outputTensor
+	d.corefOutputTensor = corefOutputTensor
 
 	return nil
 }
