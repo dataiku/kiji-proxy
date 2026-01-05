@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { X, Save, Key, Server, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { useState, useEffect } from "react";
+import { X, Save, Key, Server, AlertCircle, CheckCircle2 } from "lucide-react";
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -7,14 +7,18 @@ interface SettingsModalProps {
 }
 
 export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
-  const [apiKey, setApiKey] = useState('');
-  const [forwardEndpoint, setForwardEndpoint] = useState('');
+  const [apiKey, setApiKey] = useState("");
+  const [forwardEndpoint, setForwardEndpoint] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [message, setMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
   const [hasApiKey, setHasApiKey] = useState(false);
 
-  const isElectron = typeof window !== 'undefined' && window.electronAPI !== undefined;
+  const isElectron =
+    typeof window !== "undefined" && window.electronAPI !== undefined;
 
   useEffect(() => {
     if (isOpen && isElectron) {
@@ -29,16 +33,16 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     try {
       const [storedApiKey, storedForwardEndpoint] = await Promise.all([
         window.electronAPI.getApiKey(),
-        window.electronAPI.getForwardEndpoint()
+        window.electronAPI.getForwardEndpoint(),
       ]);
 
       // Don't show the actual API key, just indicate if one exists
       setHasApiKey(!!storedApiKey);
-      setApiKey(''); // Clear the input
-      setForwardEndpoint(storedForwardEndpoint || 'https://api.openai.com/v1');
+      setApiKey(""); // Clear the input
+      setForwardEndpoint(storedForwardEndpoint || "https://api.openai.com/v1");
     } catch (error) {
-      console.error('Error loading settings:', error);
-      setMessage({ type: 'error', text: 'Failed to load settings' });
+      console.error("Error loading settings:", error);
+      setMessage({ type: "error", text: "Failed to load settings" });
     } finally {
       setIsLoading(false);
     }
@@ -56,7 +60,10 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         try {
           new URL(forwardEndpoint.trim());
         } catch {
-          setMessage({ type: 'error', text: 'Invalid forward endpoint format' });
+          setMessage({
+            type: "error",
+            text: "Invalid forward endpoint format",
+          });
           setIsSaving(false);
           return;
         }
@@ -66,29 +73,37 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       if (apiKey.trim()) {
         const result = await window.electronAPI.setApiKey(apiKey.trim());
         if (!result.success) {
-          setMessage({ type: 'error', text: result.error || 'Failed to save API key' });
+          setMessage({
+            type: "error",
+            text: result.error || "Failed to save API key",
+          });
           setIsSaving(false);
           return;
         }
         setHasApiKey(true);
-        setApiKey(''); // Clear after saving
+        setApiKey(""); // Clear after saving
       }
 
       // Save forward endpoint
-      const urlResult = await window.electronAPI.setForwardEndpoint(forwardEndpoint.trim());
+      const urlResult = await window.electronAPI.setForwardEndpoint(
+        forwardEndpoint.trim()
+      );
       if (!urlResult.success) {
-        setMessage({ type: 'error', text: urlResult.error || 'Failed to save forward endpoint' });
+        setMessage({
+          type: "error",
+          text: urlResult.error || "Failed to save forward endpoint",
+        });
         setIsSaving(false);
         return;
       }
 
-      setMessage({ type: 'success', text: 'Settings saved successfully!' });
+      setMessage({ type: "success", text: "Settings saved successfully!" });
       setTimeout(() => {
         onClose();
       }, 1000);
     } catch (error) {
-      console.error('Error saving settings:', error);
-      setMessage({ type: 'error', text: 'Failed to save settings' });
+      console.error("Error saving settings:", error);
+      setMessage({ type: "error", text: "Failed to save settings" });
     } finally {
       setIsSaving(false);
     }
@@ -101,17 +116,20 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     setMessage(null);
 
     try {
-      const result = await window.electronAPI.setApiKey('');
+      const result = await window.electronAPI.setApiKey("");
       if (result.success) {
         setHasApiKey(false);
-        setApiKey('');
-        setMessage({ type: 'success', text: 'API key cleared' });
+        setApiKey("");
+        setMessage({ type: "success", text: "API key cleared" });
       } else {
-        setMessage({ type: 'error', text: result.error || 'Failed to clear API key' });
+        setMessage({
+          type: "error",
+          text: result.error || "Failed to clear API key",
+        });
       }
     } catch (error) {
-      console.error('Error clearing API key:', error);
-      setMessage({ type: 'error', text: 'Failed to clear API key' });
+      console.error("Error clearing API key:", error);
+      setMessage({ type: "error", text: "Failed to clear API key" });
     } finally {
       setIsSaving(false);
     }
@@ -132,7 +150,9 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               <X className="w-6 h-6" />
             </button>
           </div>
-          <p className="text-slate-600">Settings are only available in Electron mode.</p>
+          <p className="text-slate-600">
+            Settings are only available in Electron mode.
+          </p>
         </div>
       </div>
     );
@@ -175,7 +195,11 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   type="password"
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
-                  placeholder={hasApiKey ? "Enter new API key to update" : "Enter your OpenAI API key"}
+                  placeholder={
+                    hasApiKey
+                      ? "Enter new API key to update"
+                      : "Enter your OpenAI API key"
+                  }
                   className="w-full px-4 py-2 border-2 border-slate-200 rounded-lg focus:border-blue-500 focus:outline-none font-mono text-sm"
                 />
                 {hasApiKey && (
@@ -187,7 +211,8 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   </button>
                 )}
                 <p className="text-xs text-slate-500">
-                  Your API key is stored securely using system keychain encryption.
+                  Your API key is stored securely using system keychain
+                  encryption.
                 </p>
               </div>
             </div>
@@ -214,12 +239,12 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             {message && (
               <div
                 className={`flex items-center gap-2 p-3 rounded-lg ${
-                  message.type === 'success'
-                    ? 'bg-green-50 text-green-800 border border-green-200'
-                    : 'bg-red-50 text-red-800 border border-red-200'
+                  message.type === "success"
+                    ? "bg-green-50 text-green-800 border border-green-200"
+                    : "bg-red-50 text-red-800 border border-red-200"
                 }`}
               >
-                {message.type === 'success' ? (
+                {message.type === "success" ? (
                   <CheckCircle2 className="w-5 h-5" />
                 ) : (
                   <AlertCircle className="w-5 h-5" />
@@ -260,4 +285,3 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     </div>
   );
 }
-
