@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/hannes/yaak-private/src/backend/config"
 	piiServices "github.com/hannes/yaak-private/src/backend/pii"
 	pii "github.com/hannes/yaak-private/src/backend/pii/detectors"
@@ -88,23 +90,16 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Check for PII in the request and get redacted body
-	redactedBody, maskedToOriginal, entities := h.checkRequestPII(string(body))
-
-	// Log initial request if logging is available
-	if h.loggingDB != nil {
-		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-		defer cancel()
-		// Store full request for proper JSON parsing in UI
-		// The UI will handle display truncation and formatting
-		requestMessage := string(body)
-		if err := h.loggingDB.InsertLog(ctx, requestMessage, "In", entities, false); err != nil {
-			log.Printf("[Proxy] ⚠️  Failed to log request: %v", err)
-		}
+	// Process request through shared PII pipeline
+	processed, err := h.ProcessRequestBody(r.Context(), body)
+	if err != nil {
+		log.Printf("[Proxy] ❌ Failed to process request: %v", err)
+		http.Error(w, "Failed to process request", http.StatusInternalServerError)
+		return
 	}
 
 	// Create and send proxy request with redacted body
-	resp, err := h.createAndSendProxyRequest(r, []byte(redactedBody))
+	resp, err := h.createAndSendProxyRequest(r, processed.RedactedBody)
 	if err != nil {
 		log.Printf("[Proxy] ❌ Failed to create proxy request: %v", err)
 		http.Error(w, fmt.Sprintf("Failed to proxy request: %v", err), http.StatusInternalServerError)
@@ -120,21 +115,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Process the response
-	modifiedBody := h.responseProcessor.ProcessResponse(respBody, resp.Header.Get("Content-Type"))
-
-	// Log final response if logging is available
-	if h.loggingDB != nil {
-		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-		defer cancel()
-		// Store full response for proper JSON parsing in UI
-		// The UI will handle display truncation and formatting
-		responseMessage := string(modifiedBody)
-		// Response doesn't have detected PII (we're restoring, not detecting)
-		if err := h.loggingDB.InsertLog(ctx, responseMessage, "Out", []pii.Entity{}, false); err != nil {
-			log.Printf("[Proxy] ⚠️  Failed to log response: %v", err)
-		}
-	}
+	// Process response through shared PII pipeline
+	modifiedBody := h.ProcessResponseBody(r.Context(), respBody, resp.Header.Get("Content-Type"), processed.MaskedToOriginal, processed.TransactionID)
 
 	// If details are requested, enhance response with PII metadata
 	if includeDetails && resp.StatusCode == http.StatusOK {
@@ -145,13 +127,13 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			// Continue without details rather than failing
 		} else {
 			// Extract masked request text (full JSON)
-			maskedRequestText := redactedBody
+			maskedRequestText := string(processed.RedactedBody)
 			// Extract masked message text (just the content)
 			maskedMessageText := originalText
 			if requestData != nil {
 				maskedRequest := requestData
 				// Apply masking to request data
-				for masked, original := range maskedToOriginal {
+				for masked, original := range processed.MaskedToOriginal {
 					requestJSON, _ := json.Marshal(maskedRequest)
 					requestStr := string(requestJSON)
 					requestStr = strings.ReplaceAll(requestStr, original, masked)
@@ -170,16 +152,16 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			// Create masked response text
 			maskedResponseText := responseText
-			for masked, original := range maskedToOriginal {
+			for masked, original := range processed.MaskedToOriginal {
 				maskedResponseText = strings.ReplaceAll(maskedResponseText, original, masked)
 			}
 
 			// Build PII entities array
 			piiEntities := make([]map[string]interface{}, 0)
-			for _, entity := range entities {
+			for _, entity := range processed.Entities {
 				// Find the masked text for this entity
 				var maskedText string
-				for masked, original := range maskedToOriginal {
+				for masked, original := range processed.MaskedToOriginal {
 					if original == entity.Text {
 						maskedText = masked
 						break
@@ -250,6 +232,98 @@ func (h *Handler) maskPIIInText(text string, logPrefix string) (string, map[stri
 	return result.MaskedText, result.MaskedToOriginal, result.Entities
 }
 
+// ProcessedRequest contains the result of processing a request through the PII pipeline
+type ProcessedRequest struct {
+	RedactedBody     []byte
+	MaskedToOriginal map[string]string
+	Entities         []pii.Entity
+	TransactionID    string // UUID to correlate all 4 log entries
+}
+
+// ProcessRequestBody processes a request body through PII detection and masking
+// This is the shared entry point for all request sources (handler, transparent proxy)
+func (h *Handler) ProcessRequestBody(ctx context.Context, body []byte) (*ProcessedRequest, error) {
+	// Generate transaction ID to link all 4 log entries
+	transactionID := uuid.New().String()
+
+	// Check for PII in the request and get redacted body
+	redactedBody, maskedToOriginal, entities := h.checkRequestPII(string(body))
+
+	// Log both original and masked requests with shared context
+	if h.loggingDB != nil {
+		logCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+
+		// Log original request (with real PII)
+		logMsg := h.addTransactionID(string(body), transactionID)
+		if err := h.loggingDB.InsertLog(logCtx, logMsg, "request_original", entities, false); err != nil {
+			log.Printf("[Proxy] ⚠️  Failed to log original request: %v", err)
+		}
+
+		// Log masked request (sent to OpenAI with fake PII) - reuse same context
+		maskedMsg := h.addTransactionID(redactedBody, transactionID)
+		if err := h.loggingDB.InsertLog(logCtx, maskedMsg, "request_masked", entities, false); err != nil {
+			log.Printf("[Proxy] ⚠️  Failed to log masked request: %v", err)
+		}
+	}
+
+	return &ProcessedRequest{
+		RedactedBody:     []byte(redactedBody),
+		MaskedToOriginal: maskedToOriginal,
+		Entities:         entities,
+		TransactionID:    transactionID,
+	}, nil
+}
+
+// ProcessResponseBody processes a response body through PII restoration
+// This is the shared entry point for all response sources (handler, transparent proxy)
+func (h *Handler) ProcessResponseBody(ctx context.Context, body []byte, contentType string, maskedToOriginal map[string]string, transactionID string) []byte {
+	// Process the response to restore PII first
+	modifiedBody := h.responseProcessor.ProcessResponse(body, contentType, maskedToOriginal)
+
+	// Log both masked and restored responses with shared context
+	if h.loggingDB != nil {
+		logCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+
+		// Log masked response (from OpenAI with fake PII)
+		maskedMsg := h.addTransactionID(string(body), transactionID)
+		if err := h.loggingDB.InsertLog(logCtx, maskedMsg, "response_masked", []pii.Entity{}, false); err != nil {
+			log.Printf("[Proxy] ⚠️  Failed to log masked response: %v", err)
+		}
+
+		// Log restored response (with real PII restored) - reuse same context
+		restoredMsg := h.addTransactionID(string(modifiedBody), transactionID)
+		if err := h.loggingDB.InsertLog(logCtx, restoredMsg, "response_original", []pii.Entity{}, false); err != nil {
+			log.Printf("[Proxy] ⚠️  Failed to log restored response: %v", err)
+		}
+	}
+
+	return modifiedBody
+}
+
+// addTransactionID adds transaction ID to JSON message for log correlation
+func (h *Handler) addTransactionID(message string, transactionID string) string {
+	// Try to parse as JSON and add transaction_id field
+	var data map[string]interface{}
+	if err := json.Unmarshal([]byte(message), &data); err != nil {
+		// Not JSON, return as-is
+		return message
+	}
+
+	// Add transaction ID
+	data["_transaction_id"] = transactionID
+
+	// Marshal back to JSON
+	enriched, err := json.Marshal(data)
+	if err != nil {
+		// If marshal fails, return original
+		return message
+	}
+
+	return string(enriched)
+}
+
 // checkRequestPII checks for PII in the request body and creates mappings
 // It only redacts PII from message content, not from other fields like "model"
 func (h *Handler) checkRequestPII(body string) (string, map[string]string, []pii.Entity) {
@@ -261,24 +335,16 @@ func (h *Handler) checkRequestPII(body string) (string, map[string]string, []pii
 		// If JSON parsing fails, fall back to treating entire body as text
 		log.Printf("[Proxy] Failed to parse JSON, treating as plain text: %v", err)
 		maskedBody, maskedToOriginal, entities := h.maskPIIInText(body, "[Proxy]")
-		if len(entities) > 0 {
-			h.responseProcessor.SetMaskedToOriginalMapping(maskedToOriginal)
-		}
 		return maskedBody, maskedToOriginal, entities
 	}
 
 	// Use createMaskedRequest to properly mask only message content
 	maskedRequest, maskedToOriginal, entities := h.createMaskedRequest(requestData)
 
-	if len(entities) > 0 {
-		// Set the mapping in the response processor
-		h.responseProcessor.SetMaskedToOriginalMapping(maskedToOriginal)
-
-		if h.config.Logging.LogPIIChanges {
-			log.Printf("PII masked: %d entities replaced", len(entities))
-			if h.config.Logging.LogVerbose {
-				log.Printf("Original request: %s", body)
-			}
+	if len(entities) > 0 && h.config.Logging.LogPIIChanges {
+		log.Printf("PII masked: %d entities replaced", len(entities))
+		if h.config.Logging.LogVerbose {
+			log.Printf("Original request: %s", body)
 		}
 	}
 
@@ -389,6 +455,21 @@ func (h *Handler) copyHeaders(source, destination http.Header) {
 	}
 }
 
+// CopyHeaders is the exported version for use by transparent proxy
+func (h *Handler) CopyHeaders(source, destination http.Header) {
+	h.copyHeaders(source, destination)
+}
+
+// GetHTTPClient returns the HTTP client for forwarding requests
+func (h *Handler) GetHTTPClient() *http.Client {
+	return h.client
+}
+
+// GetOpenAIAPIKey returns the API key from request header or config
+func (h *Handler) GetOpenAIAPIKey(r *http.Request) string {
+	return h.getOpenAIAPIKey(r)
+}
+
 func NewHandler(cfg *config.Config, electronConfigPath string) (*Handler, error) {
 	// Create a temporary handler to get the detector
 	tempHandler := &Handler{config: cfg}
@@ -433,8 +514,23 @@ func NewHandler(cfg *config.Config, electronConfigPath string) (*Handler, error)
 		loggingDB = piiServices.NewInMemoryPIIMappingDB()
 	}
 
+	// Set debug mode based on config
+	if loggingDB != nil {
+		loggingDB.SetDebugMode(cfg.Logging.DebugMode)
+	}
+
+	// Create HTTP client that bypasses proxy to prevent infinite loop
+	// This is critical for transparent proxy mode where outbound requests
+	// would otherwise be intercepted by the proxy itself
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+		Transport: &http.Transport{
+			Proxy: nil, // Explicitly disable proxy to prevent infinite loop
+		},
+	}
+
 	return &Handler{
-		client:             &http.Client{},
+		client:             client,
 		config:             cfg,
 		detector:           &detector,
 		responseProcessor:  responseProcessor,

@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/hannes/yaak-private/src/backend/config"
 	"github.com/hannes/yaak-private/src/backend/server"
@@ -157,6 +158,7 @@ func loadConfigFromEnv(cfg *config.Config) {
 	loadApplicationConfig(cfg)
 	loadPIIDetectorConfig(cfg)
 	loadLoggingConfig(cfg)
+	loadProxyConfig(cfg)
 }
 
 // loadDatabaseConfig loads database configuration from environment variables
@@ -247,6 +249,62 @@ func loadLoggingConfig(cfg *config.Config) {
 	if logResponses := os.Getenv("LOG_RESPONSES"); logResponses != "" {
 		cfg.Logging.LogResponses = logResponses == TRUE
 	}
+}
+
+// loadProxyConfig loads transparent proxy configuration from environment variables
+func loadProxyConfig(cfg *config.Config) {
+	if transparentEnabled := os.Getenv("TRANSPARENT_PROXY_ENABLED"); transparentEnabled != "" {
+		cfg.Proxy.TransparentEnabled = transparentEnabled == TRUE
+	}
+
+	if proxyPort := os.Getenv("TRANSPARENT_PROXY_PORT"); proxyPort != "" {
+		cfg.Proxy.ProxyPort = proxyPort
+	}
+
+	if caPath := os.Getenv("TRANSPARENT_PROXY_CA_PATH"); caPath != "" {
+		cfg.Proxy.CAPath = expandPath(caPath)
+	}
+
+	if keyPath := os.Getenv("TRANSPARENT_PROXY_KEY_PATH"); keyPath != "" {
+		cfg.Proxy.KeyPath = expandPath(keyPath)
+	}
+
+	// Also expand paths if they weren't set from environment
+	cfg.Proxy.CAPath = expandPath(cfg.Proxy.CAPath)
+	cfg.Proxy.KeyPath = expandPath(cfg.Proxy.KeyPath)
+
+	// Note: intercept_domains is not easily set via env vars (would need comma-separated parsing)
+	// It's better to set via JSON config file
+}
+
+// expandPath expands ~ to the user's home directory
+func expandPath(path string) string {
+	if path == "" {
+		return path
+	}
+
+	// If path starts with ~/, replace with home directory
+	if strings.HasPrefix(path, "~/") {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			log.Printf("⚠️  Failed to get home directory: %v", err)
+			return path
+		}
+		return filepath.Join(homeDir, path[2:])
+	}
+
+	// If path is exactly ~, return home directory
+	if path == "~" {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			log.Printf("⚠️  Failed to get home directory: %v", err)
+			return path
+		}
+		return homeDir
+	}
+
+	// Otherwise, return path as-is
+	return path
 }
 
 // extractEmbeddedModelFiles extracts embedded model files to the current directory

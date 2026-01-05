@@ -176,6 +176,16 @@ electron-install: ## Install Electron UI dependencies
 	@cd src/frontend && npm install
 	@echo "$(GREEN)✅ Electron dependencies installed$(NC)"
 
+build-go: ## Build Go binary for development
+	@echo "$(BLUE)Building Go binary for development...$(NC)"
+	@mkdir -p build
+	@CGO_ENABLED=1 \
+	go build \
+	  -ldflags="-extldflags '-L./build/tokenizers'" \
+	  -o build/yaak-proxy \
+	  ./src/backend
+	@echo "$(GREEN)✅ Go binary built at build/yaak-proxy$(NC)"
+
 electron-build: ## Build Electron app for production
 	@echo "$(BLUE)Building Electron app...$(NC)"
 	@cd src/frontend && npm run build:electron
@@ -187,10 +197,16 @@ electron-run: electron-build ## Run Electron app (builds first)
 
 electron: electron-run ## Alias for electron-run
 
-electron-dev: ## Run Electron app in development mode with hot reload
+electron-dev: ## Run Electron app in development mode (assumes backend is running in debugger)
+	@echo "$(BLUE)Building frontend for Electron...$(NC)"
+	@cd src/frontend && npm run build:electron
+	@echo "$(GREEN)✅ Frontend built$(NC)"
 	@echo "$(BLUE)Starting Electron in development mode...$(NC)"
+	@echo "$(YELLOW)Note: Assumes Go backend is running separately (e.g., in VSCode debugger)$(NC)"
 	@echo "$(YELLOW)Note: Run 'npm run dev' in another terminal for hot reload$(NC)"
-	@cd src/frontend && npm run electron:dev
+	@cd src/frontend && EXTERNAL_BACKEND=true npm run electron:dev
+
+electron-dev-external: electron-dev ## Alias for electron-dev (for backwards compatibility)
 
 ##@ Build
 

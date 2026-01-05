@@ -7,18 +7,68 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/hannes/yaak-private/src/backend/config"
 	"github.com/hannes/yaak-private/src/backend/proxy"
+	"golang.org/x/time/rate"
 )
+
+// RateLimiter manages rate limiting for API endpoints
+type RateLimiter struct {
+	visitors map[string]*rate.Limiter
+	mu       sync.RWMutex
+	rate     rate.Limit
+	burst    int
+}
+
+// NewRateLimiter creates a new rate limiter
+func NewRateLimiter(r rate.Limit, b int) *RateLimiter {
+	return &RateLimiter{
+		visitors: make(map[string]*rate.Limiter),
+		rate:     r,
+		burst:    b,
+	}
+}
+
+// GetLimiter returns the rate limiter for a given IP
+func (rl *RateLimiter) GetLimiter(ip string) *rate.Limiter {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+
+	limiter, exists := rl.visitors[ip]
+	if !exists {
+		limiter = rate.NewLimiter(rl.rate, rl.burst)
+		rl.visitors[ip] = limiter
+	}
+
+	return limiter
+}
+
+// CleanupOldVisitors removes old entries periodically
+func (rl *RateLimiter) CleanupOldVisitors() {
+	ticker := time.NewTicker(5 * time.Minute)
+	go func() {
+		for range ticker.C {
+			rl.mu.Lock()
+			// Clear all visitors to prevent memory leak
+			rl.visitors = make(map[string]*rate.Limiter)
+			rl.mu.Unlock()
+		}
+	}()
+}
 
 // Server represents the HTTP server
 type Server struct {
-	config  *config.Config
-	handler *proxy.Handler
-	uiFS    fs.FS
-	modelFS fs.FS
+	config            *config.Config
+	handler           *proxy.Handler
+	transparentProxy  *proxy.TransparentProxy
+	transparentServer *http.Server
+	uiFS              fs.FS
+	modelFS           fs.FS
+	rateLimiter       *RateLimiter
 }
 
 // NewServer creates a new server instance
@@ -30,9 +80,24 @@ func NewServer(cfg *config.Config, electronConfigPath string) (*Server, error) {
 		return nil, fmt.Errorf("failed to create proxy handler: %w", err)
 	}
 
+	// Create transparent proxy if enabled (reuse the existing handler)
+	var transparentProxy *proxy.TransparentProxy
+	if cfg.Proxy.TransparentEnabled {
+		transparentProxy, err = proxy.NewTransparentProxyFromConfig(cfg, handler)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create transparent proxy: %w", err)
+		}
+	}
+
+	// Create rate limiter: 10 requests per second, burst of 20
+	rateLimiter := NewRateLimiter(10, 20)
+	rateLimiter.CleanupOldVisitors()
+
 	return &Server{
-		config:  cfg,
-		handler: handler,
+		config:           cfg,
+		handler:          handler,
+		transparentProxy: transparentProxy,
+		rateLimiter:      rateLimiter,
 	}, nil
 }
 
@@ -43,11 +108,26 @@ func NewServerWithEmbedded(cfg *config.Config, uiFS, modelFS fs.FS, electronConf
 		return nil, fmt.Errorf("failed to create proxy handler: %w", err)
 	}
 
+	// Create transparent proxy if enabled (reuse the existing handler)
+	var transparentProxy *proxy.TransparentProxy
+	if cfg.Proxy.TransparentEnabled {
+		transparentProxy, err = proxy.NewTransparentProxyFromConfig(cfg, handler)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create transparent proxy: %w", err)
+		}
+	}
+
+	// Create rate limiter: 10 requests per second, burst of 20
+	rateLimiter := NewRateLimiter(10, 20)
+	rateLimiter.CleanupOldVisitors()
+
 	return &Server{
-		config:  cfg,
-		handler: handler,
-		uiFS:    uiFS,
-		modelFS: modelFS,
+		config:           cfg,
+		handler:          handler,
+		transparentProxy: transparentProxy,
+		uiFS:             uiFS,
+		modelFS:          modelFS,
+		rateLimiter:      rateLimiter,
 	}, nil
 }
 
@@ -71,11 +151,17 @@ func (s *Server) Start() error {
 		log.Println("Using in-memory storage")
 	}
 
+	// Start transparent proxy if enabled
+	if s.transparentProxy != nil {
+		go s.startTransparentProxy()
+	}
+
 	// Add health check endpoint
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", s.healthCheck)
 	mux.HandleFunc("/logs", s.logsHandler)
 	mux.HandleFunc("/api/model/security", s.handleModelSecurity)
+	mux.HandleFunc("/api/proxy/ca-cert", s.handleCACert)
 	mux.Handle("/v1/chat/completions", s.handler)
 
 	// Serve UI files
@@ -110,6 +196,52 @@ func (s *Server) Start() error {
 	return server.ListenAndServe()
 }
 
+// startTransparentProxy starts the transparent proxy server
+func (s *Server) startTransparentProxy() {
+	proxyPort := s.config.Proxy.ProxyPort
+	if proxyPort == "" {
+		proxyPort = ":8080"
+	}
+
+	log.Printf("Starting transparent proxy on port %s", proxyPort)
+	log.Printf("Intercepting domains: %v", s.config.Proxy.InterceptDomains)
+	log.Printf("CA certificate path: %s", s.config.Proxy.CAPath)
+
+	// Create custom handler that routes based on request method
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// CONNECT requests go to transparent proxy
+		if r.Method == http.MethodConnect {
+			s.transparentProxy.ServeHTTP(w, r)
+			return
+		}
+
+		// Route API endpoints
+		switch r.URL.Path {
+		case "/logs":
+			s.logsHandler(w, r)
+		case "/health":
+			s.healthCheck(w, r)
+		case "/api/proxy/ca-cert":
+			s.handleCACert(w, r)
+		default:
+			// All other HTTP/HTTPS requests go to transparent proxy
+			s.transparentProxy.ServeHTTP(w, r)
+		}
+	})
+
+	s.transparentServer = &http.Server{
+		Addr:         proxyPort,
+		Handler:      handler,
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		IdleTimeout:  120 * time.Second,
+	}
+
+	if err := s.transparentServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		log.Fatalf("Failed to start transparent proxy: %v", err)
+	}
+}
+
 // healthCheck provides a simple health check endpoint
 func (s *Server) healthCheck(w http.ResponseWriter, r *http.Request) {
 	// Add CORS headers
@@ -142,6 +274,14 @@ func (s *Server) corsHandler(w http.ResponseWriter, r *http.Request) {
 
 // logsHandler provides the logs endpoint for retrieving log entries
 func (s *Server) logsHandler(w http.ResponseWriter, r *http.Request) {
+	// Apply rate limiting
+	ip := r.RemoteAddr
+	limiter := s.rateLimiter.GetLimiter(ip)
+	if !limiter.Allow() {
+		http.Error(w, "Rate limit exceeded. Please try again later.", http.StatusTooManyRequests)
+		return
+	}
+
 	// Handle CORS preflight OPTIONS request
 	if r.Method == http.MethodOptions {
 		s.corsHandler(w, r)
@@ -186,6 +326,35 @@ func (s *Server) handleModelSecurity(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 		return
+	}
+}
+
+// handleCACert returns the CA certificate for installation
+func (s *Server) handleCACert(w http.ResponseWriter, r *http.Request) {
+	if s.transparentProxy == nil {
+		http.Error(w, "Transparent proxy not enabled", http.StatusServiceUnavailable)
+		return
+	}
+
+	// Get CA certificate from the transparent proxy's cert manager
+	// We need to access the cert manager - for now, read from disk
+	caPath := s.config.Proxy.CAPath
+	if caPath == "" {
+		homeDir, _ := os.UserHomeDir()
+		caPath = filepath.Join(homeDir, ".yaak-proxy", "ca-cert.pem")
+	}
+
+	data, err := os.ReadFile(caPath)
+	if err != nil {
+		http.Error(w, "CA certificate not found. Start the transparent proxy first to generate it.", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/x-pem-file")
+	w.Header().Set("Content-Disposition", "attachment; filename=yaak-proxy-ca-cert.pem")
+	w.WriteHeader(http.StatusOK)
+	if _, err := w.Write(data); err != nil {
+		log.Printf("Failed to write CA certificate: %v", err)
 	}
 }
 

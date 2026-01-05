@@ -1,0 +1,121 @@
+[
+  {
+    "label": "run yaak-proxy",
+    "command": "go run ./src/backend",
+    "args": ["-config", "src/backend/config/config.development.json"],
+    "env": {
+      "PROXY_PORT": ":8080",
+      "OPENAI_BASE_URL": "https://api.openai.com/v1",
+      "DETECTOR_NAME": "onnx_model_detector",
+      "MODEL_BASE_URL": "http://localhost:8000",
+      "DB_ENABLED": "false",
+      "LOG_REQUESTS": "true",
+      "LOG_RESPONSES": "true",
+      "LOG_PII_CHANGES": "true",
+      "LOG_VERBOSE": "false",
+      "CGO_ENABLED": "1",
+      "CGO_LDFLAGS": "-L${ZED_WORKTREE_ROOT}/build/tokenizers",
+      "HTTP_PROXY": "http://127.0.0.1:8081",
+      "HTTPS_PROXY": "http://127.0.0.1:8081"
+    },
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false,
+    "reveal": "always"
+  },
+  {
+    "label": "debug yaak-proxy (interactive)",
+    "command": "sh",
+    "args": [
+      "-c",
+      "cd ${ZED_WORKTREE_ROOT} && dlv debug ./src/backend -- -config src/backend/config/config.development.json"
+    ],
+    "env": {
+      "PROXY_PORT": ":8080",
+      "OPENAI_BASE_URL": "https://api.openai.com/v1",
+      "DETECTOR_NAME": "onnx_model_detector",
+      "MODEL_BASE_URL": "http://localhost:8000",
+      "DB_ENABLED": "false",
+      "LOG_REQUESTS": "true",
+      "LOG_RESPONSES": "true",
+      "LOG_PII_CHANGES": "true",
+      "LOG_VERBOSE": "false",
+      "CGO_ENABLED": "1",
+      "CGO_LDFLAGS": "-L${ZED_WORKTREE_ROOT}/build/tokenizers",
+      "HTTP_PROXY": "http://127.0.0.1:8081",
+      "HTTPS_PROXY": "http://127.0.0.1:8081"
+    },
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false,
+    "reveal": "always"
+  },
+  {
+    "label": "debug yaak-proxy (headless)",
+    "command": "sh",
+    "args": [
+      "-c",
+      "cd ${ZED_WORKTREE_ROOT} && dlv debug ./src/backend --headless --listen=:2345 --api-version=2 --accept-multiclient --log -- -config src/backend/config/config.development.json"
+    ],
+    "env": {
+      "PROXY_PORT": ":8080",
+      "OPENAI_BASE_URL": "https://api.openai.com/v1",
+      "DETECTOR_NAME": "onnx_model_detector",
+      "MODEL_BASE_URL": "http://localhost:8000",
+      "DB_ENABLED": "false",
+      "LOG_REQUESTS": "true",
+      "LOG_RESPONSES": "true",
+      "LOG_PII_CHANGES": "true",
+      "LOG_VERBOSE": "false",
+      "CGO_ENABLED": "1",
+      "CGO_LDFLAGS": "-L${ZED_WORKTREE_ROOT}/build/tokenizers",
+      "HTTP_PROXY": "http://127.0.0.1:8081",
+      "HTTPS_PROXY": "http://127.0.0.1:8081"
+    },
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false,
+    "reveal": "always"
+  },
+  {
+    "label": "build yaak-proxy",
+    "command": "go",
+    "args": ["build", "-o", "bin/yaak-proxy", "./src/backend"],
+    "env": {
+      "CGO_ENABLED": "1",
+      "CGO_LDFLAGS": "-L${ZED_WORKTREE_ROOT}/build/tokenizers"
+    },
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false,
+    "reveal": "always"
+  },
+  {
+    "label": "test proxy package",
+    "command": "go",
+    "args": ["test", "-v", "./src/backend/proxy/..."],
+    "use_new_terminal": false,
+    "allow_concurrent_runs": true,
+    "reveal": "always"
+  },
+  {
+    "label": "test all backend",
+    "command": "go",
+    "args": ["test", "-v", "./src/backend/..."],
+    "use_new_terminal": false,
+    "allow_concurrent_runs": true,
+    "reveal": "always"
+  },
+  {
+    "label": "run with electron",
+    "command": "make",
+    "args": ["electron-dev"],
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false,
+    "reveal": "always"
+  },
+  {
+    "label": "vet proxy code",
+    "command": "go",
+    "args": ["vet", "./src/backend/proxy/..."],
+    "use_new_terminal": false,
+    "allow_concurrent_runs": true,
+    "reveal": "always"
+  }
+]
