@@ -45,6 +45,18 @@ type EntityReplacement struct {
 	MaskedText     string // Masked entity text
 }
 
+// positionKey is a composite key for entity position-based lookups
+type positionKey struct {
+	startPos int
+	endPos   int
+}
+
+// clusterGenderResult holds both original and masked gender for a cluster
+type clusterGenderResult struct {
+	originalGender PronounGender
+	maskedGender   PronounGender
+}
+
 type MaskedResult struct {
 	MaskedText          string
 	EntityReplacements  []EntityReplacement // Position-based tracking
@@ -136,20 +148,24 @@ func (s *MaskingService) MaskText(text string, logPrefix string) MaskedResult {
 
 	// Only perform pronoun substitution if enabled in config
 	if s.config.EnablePronounSubstitution {
+		entityByPosition := make(map[positionKey]int, len(piiFound.Entities))
+		for i, entity := range piiFound.Entities {
+			entityByPosition[positionKey{startPos: entity.StartPos, endPos: entity.EndPos}] = i
+		}
+
 		for clusterID, mentions := range piiFound.CorefClusters {
-			originalGender := s.detectClusterGender(mentions, piiFound.Entities)
-			maskedGender := s.detectMaskedGender(mentions, piiFound.Entities, entityIndexToMasked)
+			genderResult := s.detectClusterGenders(mentions, piiFound.Entities, entityByPosition, entityIndexToMasked)
 
 			genderMappings[clusterID] = struct {
 				OriginalGender PronounGender
 				MaskedGender   PronounGender
 			}{
-				OriginalGender: originalGender,
-				MaskedGender:   maskedGender,
+				OriginalGender: genderResult.originalGender,
+				MaskedGender:   genderResult.maskedGender,
 			}
 
 			// 3. If gender changed, replace pronouns in this cluster
-			if originalGender != maskedGender && originalGender != GenderUnknown && maskedGender != GenderUnknown {
+			if genderResult.originalGender != genderResult.maskedGender && genderResult.originalGender != GenderUnknown && genderResult.maskedGender != GenderUnknown {
 				for _, mention := range mentions {
 					if !mention.IsEntity {
 						// Bug 5 fix: Check no entity replacement exists at this position
@@ -163,7 +179,7 @@ func (s *MaskingService) MaskText(text string, logPrefix string) MaskedResult {
 						if hasConflict {
 							continue
 						}
-						mappedPronoun := s.pronounMapper.MapPronoun(mention.Text, originalGender, maskedGender)
+						mappedPronoun := s.pronounMapper.MapPronoun(mention.Text, genderResult.originalGender, genderResult.maskedGender)
 						if mappedPronoun != mention.Text {
 							replacements = append(replacements, Replacement{
 								StartPos: mention.StartPos,
@@ -216,43 +232,33 @@ func (s *MaskingService) MaskText(text string, logPrefix string) MaskedResult {
 	}
 }
 
-// detectClusterGender determines the gender of a cluster based on its entity mentions
-func (s *MaskingService) detectClusterGender(mentions []detectors.EntityMention, entities []detectors.Entity) PronounGender {
+// detectClusterGenders determines both the original and masked gender of a cluster in a single pass.
+func (s *MaskingService) detectClusterGenders(
+	mentions []detectors.EntityMention,
+	entities []detectors.Entity,
+	entityByPosition map[positionKey]int,
+	entityIndexToMasked map[int]string,
+) clusterGenderResult {
 	for _, mention := range mentions {
 		if mention.IsEntity {
-			for _, entity := range entities {
-				if entity.StartPos == mention.StartPos && entity.EndPos == mention.EndPos {
-					if entity.Label == "FIRSTNAME" {
-						gender := s.pronounMapper.DetectGenderFromName(entity.Text)
-						if gender != GenderUnknown {
-							return gender
+			// O(1) lookup instead of O(n) scan
+			if idx, found := entityByPosition[positionKey{startPos: mention.StartPos, endPos: mention.EndPos}]; found {
+				entity := entities[idx]
+				if entity.Label == "FIRSTNAME" {
+					originalGender := s.pronounMapper.DetectGenderFromName(entity.Text)
+					if originalGender != GenderUnknown {
+						maskedName := entityIndexToMasked[idx]
+						maskedGender := s.pronounMapper.DetectGenderFromName(maskedName)
+						return clusterGenderResult{
+							originalGender: originalGender,
+							maskedGender:   maskedGender,
 						}
 					}
 				}
 			}
 		}
 	}
-	return GenderUnknown
-}
-
-// detectMaskedGender determines the gender of a cluster after masking
-func (s *MaskingService) detectMaskedGender(mentions []detectors.EntityMention, entities []detectors.Entity, entityIndexToMasked map[int]string) PronounGender {
-	for _, mention := range mentions {
-		if mention.IsEntity {
-			for i, entity := range entities {
-				if entity.StartPos == mention.StartPos && entity.EndPos == mention.EndPos {
-					if entity.Label == "FIRSTNAME" {
-						maskedName := entityIndexToMasked[i]
-						gender := s.pronounMapper.DetectGenderFromName(maskedName)
-						if gender != GenderUnknown {
-							return gender
-						}
-					}
-				}
-			}
-		}
-	}
-	return GenderUnknown
+	return clusterGenderResult{originalGender: GenderUnknown, maskedGender: GenderUnknown}
 }
 
 // RestorePII restores masked PII text back to original text, including pronouns
