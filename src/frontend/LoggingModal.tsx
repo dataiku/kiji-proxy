@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   X,
   FileText,
@@ -56,6 +56,7 @@ export default function LoggingModal({ isOpen, onClose }: LoggingModalProps) {
       setError(null);
       loadLogs(0);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   // Add console logging to debug
@@ -64,117 +65,124 @@ export default function LoggingModal({ isOpen, onClose }: LoggingModalProps) {
     console.log("[LoggingModal] Number of logs:", logs.length);
   }, [showFullJson, logs]);
 
-  const loadLogs = async (pageNum: number) => {
-    if (!hasMore && pageNum > 0) return;
+  const loadLogs = useCallback(
+    async (pageNum: number) => {
+      if (!hasMore && pageNum > 0) return;
 
-    setIsLoading(true);
-    setError(null);
-    try {
-      // Determine the API URL
-      const isElectron =
-        typeof window !== "undefined" && window.electronAPI !== undefined;
-      const offset = pageNum * pageSize;
-      const baseUrl = isElectron
-        ? "http://localhost:8080/logs" // Direct call to main server in Electron
-        : "/logs"; // Proxied call in web mode
-      const apiUrl = `${baseUrl}?limit=${pageSize}&offset=${offset}`;
+      setIsLoading(true);
+      setError(null);
+      try {
+        // Determine the API URL
+        const isElectron =
+          typeof window !== "undefined" && window.electronAPI !== undefined;
+        const offset = pageNum * pageSize;
+        const baseUrl = isElectron
+          ? "http://localhost:8080/logs" // Direct call to main server in Electron
+          : "/logs"; // Proxied call in web mode
+        const apiUrl = `${baseUrl}?limit=${pageSize}&offset=${offset}`;
 
-      console.log("[LoggingModal] Fetching logs from:", apiUrl);
-      console.log("[LoggingModal] Is Electron:", isElectron);
-      console.log("[LoggingModal] Current URL:", window.location.href);
+        console.log("[LoggingModal] Fetching logs from:", apiUrl);
+        console.log("[LoggingModal] Is Electron:", isElectron);
+        console.log("[LoggingModal] Current URL:", window.location.href);
 
-      const response = await fetch(apiUrl);
+        const response = await fetch(apiUrl);
 
-      console.log("[LoggingModal] Response status:", response.status);
-      console.log("[LoggingModal] Response ok:", response.ok);
+        console.log("[LoggingModal] Response status:", response.status);
+        console.log("[LoggingModal] Response ok:", response.ok);
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-
-      console.log("[LoggingModal] Response data:", {
-        logsCount: data.logs?.length || 0,
-        total: data.total,
-        hasLogs: !!data.logs,
-        page: pageNum,
-      });
-
-      setTotal(data.total || 0);
-      setHasMore(data.logs && data.logs.length === pageSize);
-
-      // Transform the API response to match LogEntry format
-      const transformedLogs: LogEntry[] = (data.logs || []).map((log: any) => {
-        // Parse timestamp - handle both string and Date formats
-        let timestamp: Date;
-        if (typeof log.timestamp === "string") {
-          timestamp = new Date(log.timestamp);
-        } else if (log.timestamp instanceof Date) {
-          timestamp = log.timestamp;
-        } else {
-          timestamp = new Date();
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
         }
 
-        const entry = {
-          id: String(log.id),
-          direction: log.direction || "Unknown",
-          message: log.message,
-          messages: log.messages,
-          formatted_messages: log.formatted_messages,
-          model: log.model,
-          detectedPII: log.detected_pii || "None",
-          blocked: log.blocked || false,
-          timestamp: timestamp,
-        };
+        const data = await response.json();
 
-        console.log("[LoggingModal] Transformed log entry:", {
-          id: entry.id,
-          direction: entry.direction,
-          hasMessage: !!entry.message,
-          hasMessages: !!entry.messages,
-          messagesCount: entry.messages?.length,
-          model: entry.model,
+        console.log("[LoggingModal] Response data:", {
+          logsCount: data.logs?.length || 0,
+          total: data.total,
+          hasLogs: !!data.logs,
+          page: pageNum,
         });
 
-        return entry;
-      });
+        setTotal(data.total || 0);
+        setHasMore(data.logs && data.logs.length === pageSize);
 
-      if (pageNum === 0) {
-        setLogs(transformedLogs);
-      } else {
-        setLogs((prev) => [...prev, ...transformedLogs]);
+        // Transform the API response to match LogEntry format
+        const transformedLogs: LogEntry[] = (data.logs || []).map(
+          (log: Record<string, unknown>) => {
+            // Parse timestamp - handle both string and Date formats
+            let timestamp: Date;
+            if (typeof log.timestamp === "string") {
+              timestamp = new Date(log.timestamp);
+            } else if (log.timestamp instanceof Date) {
+              timestamp = log.timestamp;
+            } else {
+              timestamp = new Date();
+            }
+
+            const entry: LogEntry = {
+              id: String(log.id),
+              direction: (log.direction as LogEntry["direction"]) || "Unknown",
+              message: log.message as string | undefined,
+              messages: log.messages as OpenAIMessage[] | undefined,
+              formatted_messages: log.formatted_messages as string | undefined,
+              model: log.model as string | undefined,
+              detectedPII: (log.detected_pii as string) || "None",
+              blocked: (log.blocked as boolean) || false,
+              timestamp: timestamp,
+            };
+
+            console.log("[LoggingModal] Transformed log entry:", {
+              id: entry.id,
+              direction: entry.direction,
+              hasMessage: !!entry.message,
+              hasMessages: !!entry.messages,
+              messagesCount: Array.isArray(entry.messages)
+                ? entry.messages.length
+                : 0,
+              model: entry.model,
+            });
+
+            return entry;
+          }
+        );
+
+        if (pageNum === 0) {
+          setLogs(transformedLogs);
+        } else {
+          setLogs((prev) => [...prev, ...transformedLogs]);
+        }
+
+        setPage(pageNum);
+
+        console.log(
+          "[LoggingModal] Successfully loaded and transformed logs:",
+          transformedLogs.length,
+          "Total in state:",
+          pageNum === 0
+            ? transformedLogs.length
+            : (logs?.length || 0) + transformedLogs.length
+        );
+      } catch (err) {
+        console.error("[LoggingModal] ❌ Error loading logs:", err);
+        console.error("[LoggingModal] Error details:", {
+          message: err instanceof Error ? err.message : String(err),
+          stack: err instanceof Error ? err.stack : undefined,
+        });
+
+        const errorMessage =
+          err instanceof Error ? err.message : "Failed to load logs";
+        setError(errorMessage);
+
+        // Only clear logs on first page error
+        if (pageNum === 0) {
+          setLogs([]);
+        }
+      } finally {
+        setIsLoading(false);
       }
-
-      setPage(pageNum);
-
-      console.log(
-        "[LoggingModal] Successfully loaded and transformed logs:",
-        transformedLogs.length,
-        "Total in state:",
-        pageNum === 0
-          ? transformedLogs.length
-          : logs.length + transformedLogs.length
-      );
-    } catch (err) {
-      console.error("[LoggingModal] ❌ Error loading logs:", err);
-      console.error("[LoggingModal] Error details:", {
-        message: err instanceof Error ? err.message : String(err),
-        stack: err instanceof Error ? err.stack : undefined,
-      });
-
-      const errorMessage =
-        err instanceof Error ? err.message : "Failed to load logs";
-      setError(errorMessage);
-
-      // Only clear logs on first page error
-      if (pageNum === 0) {
-        setLogs([]);
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    },
+    [hasMore, pageSize, logs.length]
+  );
 
   const handleLoadMore = () => {
     if (!isLoading && hasMore) {
@@ -201,7 +209,7 @@ export default function LoggingModal({ isOpen, onClose }: LoggingModalProps) {
       // Check if it's an OpenAI chat completion request (In message)
       if (parsed.messages && Array.isArray(parsed.messages)) {
         const messages = parsed.messages
-          .map((msg: any) => {
+          .map((msg: Record<string, unknown>) => {
             const role = msg.role ? `[${msg.role}]` : "";
             const content = msg.content || "";
             return role ? `${role} ${content}` : content;
@@ -214,13 +222,16 @@ export default function LoggingModal({ isOpen, onClose }: LoggingModalProps) {
       // Check if it's an OpenAI response (Out message)
       if (parsed.choices && Array.isArray(parsed.choices)) {
         const messages = parsed.choices
-          .map((choice: any) => {
+          .map((choice: Record<string, unknown>) => {
             // Handle chat completion format
-            if (choice.message?.content) {
-              const role = choice.message.role
-                ? `[${choice.message.role}]`
-                : "[assistant]";
-              return `${role} ${choice.message.content}`;
+            if (choice.message && typeof choice.message === "object") {
+              const messageObj = choice.message as Record<string, unknown>;
+              if (messageObj.content) {
+                const role = messageObj.role
+                  ? `[${messageObj.role}]`
+                  : "[assistant]";
+                return `${role} ${messageObj.content}`;
+              }
             }
             // Handle legacy completion format
             if (choice.text) {

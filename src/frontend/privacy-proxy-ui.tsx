@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Eye,
   Send,
@@ -7,11 +7,18 @@ import {
   Menu,
   FileText,
   Info,
+  WifiOff,
+  CheckCircle,
 } from "lucide-react";
 import SettingsModal from "./SettingsModal";
 import LoggingModal from "./LoggingModal";
 import AboutModal from "./AboutModal";
 import logoImage from "./assets/logo.png";
+import {
+  highlightTextByCharacter,
+  highlightEntitiesByToken,
+  highlightEntitiesByOriginal,
+} from "./utils/textHighlight";
 
 export default function PrivacyProxyUI() {
   const [inputData, setInputData] = useState("");
@@ -19,7 +26,9 @@ export default function PrivacyProxyUI() {
   const [maskedOutput, setMaskedOutput] = useState("");
   const [finalOutput, setFinalOutput] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
-  const [detectedEntities, setDetectedEntities] = useState([]);
+  const [detectedEntities, setDetectedEntities] = useState<
+    Array<{ original: string; token: string; confidence?: number }>
+  >([]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isLoggingOpen, setIsLoggingOpen] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
@@ -87,6 +96,7 @@ export default function PrivacyProxyUI() {
         }
       };
     }
+    return undefined;
   }, [isElectron]);
 
   // Check server status periodically
@@ -128,7 +138,10 @@ export default function PrivacyProxyUI() {
         }
       } catch (error) {
         // Silently fail - model signature is optional UI enhancement
-        console.warn("Failed to load model signature:", error.message);
+        console.warn(
+          "Failed to load model signature:",
+          error instanceof Error ? error.message : String(error)
+        );
       }
     };
 
@@ -147,7 +160,10 @@ export default function PrivacyProxyUI() {
         }
       } catch (error) {
         // Silently fail - version is optional UI enhancement
-        console.warn("Failed to load version:", error.message);
+        console.warn(
+          "Failed to load version:",
+          error instanceof Error ? error.message : String(error)
+        );
       }
     };
 
@@ -246,7 +262,12 @@ export default function PrivacyProxyUI() {
 
         // Transform PII entities to match UI format
         const transformedEntities = (data.x_pii_details.pii_entities || []).map(
-          (entity) => ({
+          (entity: {
+            label: string;
+            text: string;
+            masked_text: string;
+            confidence: number;
+          }) => ({
             type: entity.label.toLowerCase(),
             original: entity.text,
             token: entity.masked_text,
@@ -261,8 +282,11 @@ export default function PrivacyProxyUI() {
         setDetectedEntities([]);
       }
     } catch (error) {
-      console.error("Error calling OpenAI proxy endpoint:", error);
-      alert(`Error: ${error.message}`);
+      console.error(
+        "Error calling OpenAI proxy endpoint:",
+        error instanceof Error ? error.message : String(error)
+      );
+      alert(`Error: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setIsProcessing(false);
     }
@@ -333,6 +357,29 @@ export default function PrivacyProxyUI() {
             </h1>
           </div>
           <p className="text-slate-600 text-lg">Privacy Proxy</p>
+
+          {/* Server Status Banner */}
+          {serverStatus === "offline" ? (
+            <div className="mt-4 p-4 bg-red-50 border-2 border-red-200 rounded-lg inline-block">
+              <p className="text-sm text-red-900 flex items-center gap-2">
+                <WifiOff className="w-5 h-5" />
+                <span className="font-semibold">
+                  Backend server is offline.
+                </span>
+              </p>
+              <p className="text-xs text-red-700 mt-2">
+                Please ensure the Go backend server is running at localhost:8080
+              </p>
+            </div>
+          ) : (
+            <div className="mt-4 p-2 bg-green-50 border border-green-200 rounded-lg inline-block">
+              <p className="text-xs text-green-800 flex items-center gap-2">
+                <CheckCircle className="w-4 h-4" />
+                <span>Backend server is online</span>
+              </p>
+            </div>
+          )}
+
           {isElectron && !apiKey && (
             <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg inline-block">
               <p className="text-sm text-amber-900 flex items-center gap-2">
@@ -369,8 +416,13 @@ export default function PrivacyProxyUI() {
           <div className="flex gap-3 mt-4">
             <button
               onClick={handleSubmit}
-              disabled={!inputData.trim() || isProcessing}
+              disabled={
+                !inputData.trim() || isProcessing || serverStatus === "offline"
+              }
               className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+              title={
+                serverStatus === "offline" ? "Backend server is offline" : ""
+              }
             >
               {isProcessing ? (
                 <>
@@ -411,24 +463,11 @@ export default function PrivacyProxyUI() {
                     </span>
                   </div>
                   <div className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap">
-                    {inputData.split("").map((char, idx) => {
-                      const isPartOfEntity = detectedEntities.some(
-                        (e) =>
-                          inputData.indexOf(e.original) <= idx &&
-                          idx <
-                            inputData.indexOf(e.original) + e.original.length
-                      );
-                      return (
-                        <span
-                          key={idx}
-                          className={
-                            isPartOfEntity ? "bg-red-200 text-red-900" : ""
-                          }
-                        >
-                          {char}
-                        </span>
-                      );
-                    })}
+                    {highlightTextByCharacter(
+                      inputData,
+                      detectedEntities,
+                      "bg-red-200 text-red-900"
+                    )}
                   </div>
                 </div>
                 <div>
@@ -439,20 +478,11 @@ export default function PrivacyProxyUI() {
                     </span>
                   </div>
                   <div className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap">
-                    {(() => {
-                      let highlighted = maskedInput;
-                      detectedEntities.forEach((entity) => {
-                        highlighted = highlighted.replace(
-                          entity.token,
-                          `<mark class="bg-green-200 text-green-900 font-bold">${entity.token}</mark>`
-                        );
-                      });
-                      return (
-                        <div
-                          dangerouslySetInnerHTML={{ __html: highlighted }}
-                        />
-                      );
-                    })()}
+                    {highlightEntitiesByToken(
+                      maskedInput,
+                      detectedEntities,
+                      "bg-green-200 text-green-900 font-bold"
+                    )}
                   </div>
                 </div>
               </div>
@@ -480,20 +510,11 @@ export default function PrivacyProxyUI() {
                     </span>
                   </div>
                   <div className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap">
-                    {(() => {
-                      let highlighted = maskedOutput;
-                      detectedEntities.forEach((entity) => {
-                        highlighted = highlighted.replace(
-                          entity.token,
-                          `<mark class="bg-purple-200 text-purple-900 font-bold">${entity.token}</mark>`
-                        );
-                      });
-                      return (
-                        <div
-                          dangerouslySetInnerHTML={{ __html: highlighted }}
-                        />
-                      );
-                    })()}
+                    {highlightEntitiesByToken(
+                      maskedOutput,
+                      detectedEntities,
+                      "bg-purple-200 text-purple-900 font-bold"
+                    )}
                   </div>
                 </div>
                 <div>
@@ -504,20 +525,11 @@ export default function PrivacyProxyUI() {
                     </span>
                   </div>
                   <div className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap">
-                    {(() => {
-                      let highlighted = finalOutput;
-                      detectedEntities.forEach((entity) => {
-                        highlighted = highlighted.replace(
-                          entity.original,
-                          `<mark class="bg-blue-200 text-blue-900 font-bold">${entity.original}</mark>`
-                        );
-                      });
-                      return (
-                        <div
-                          dangerouslySetInnerHTML={{ __html: highlighted }}
-                        />
-                      );
-                    })()}
+                    {highlightEntitiesByOriginal(
+                      finalOutput,
+                      detectedEntities,
+                      "bg-blue-200 text-blue-900 font-bold"
+                    )}
                   </div>
                 </div>
               </div>
@@ -553,7 +565,7 @@ export default function PrivacyProxyUI() {
                     {detectedEntities.length > 0
                       ? (
                           (detectedEntities.reduce(
-                            (sum, e) => sum + e.confidence,
+                            (sum, e) => sum + (e.confidence || 0),
                             0
                           ) /
                             detectedEntities.length) *
