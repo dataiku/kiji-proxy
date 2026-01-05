@@ -27,17 +27,6 @@ func (m *mockDetector) Close() error {
 	return nil
 }
 
-// mockGenerator provides predictable replacements for testing
-type mockGenerator struct {
-	replacements map[string]string
-}
-
-func newMockGenerator(replacements map[string]string) *GeneratorService {
-	// We can't easily mock GeneratorService, so we'll use real one
-	// but control the test via detector output
-	return NewGeneratorService()
-}
-
 // testConfig returns a config with pronoun substitution enabled for testing
 func testConfig() *config.Config {
 	return &config.Config{

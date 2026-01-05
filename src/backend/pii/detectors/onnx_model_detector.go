@@ -28,6 +28,17 @@ type ONNXModelDetectorSimple struct {
 	modelPath         string
 }
 
+// safeUintToInt safely converts a uint to int with bounds checking
+// Returns maxInt if the value would overflow
+func safeUintToInt(val uint) int {
+	const maxInt = int(^uint(0) >> 1)
+	if val <= uint(maxInt) {
+		// #nosec G115 - Safe conversion with bounds checking
+		return int(val)
+	}
+	return maxInt
+}
+
 // NewONNXModelDetectorSimple creates a new ONNX model detector
 func NewONNXModelDetectorSimple(modelPath string, tokenizerPath string) (*ONNXModelDetectorSimple, error) {
 	// Set the ONNX Runtime shared library path for macOS
@@ -299,8 +310,8 @@ func (d *ONNXModelDetectorSimple) processOutputInline(originalText string, token
 				startOffset := offsets[i]
 				mention := EntityMention{
 					Text:     originalText[startOffset[0]:startOffset[1]],
-					StartPos: int(startOffset[0]),
-					EndPos:   int(startOffset[1]),
+					StartPos: safeUintToInt(startOffset[0]),
+					EndPos:   safeUintToInt(startOffset[1]),
 					IsEntity: label != "O",
 				}
 				corefClusters[bestCluster] = append(corefClusters[bestCluster], mention)
@@ -386,20 +397,8 @@ func (d *ONNXModelDetectorSimple) finalizeEntity(entity *Entity, tokenIndices []
 
 	// Extract the actual text from the original string
 	entity.Text = originalText[startOffset[0]:endOffset[1]]
-	// Safe conversion with bounds checking
-	const maxInt = int(^uint(0) >> 1)
-	if startOffset[0] <= uint(maxInt) {
-		// #nosec G115 - Safe conversion with bounds checking
-		entity.StartPos = int(startOffset[0])
-	} else {
-		entity.StartPos = maxInt // Max int value
-	}
-	if endOffset[1] <= uint(maxInt) {
-		// #nosec G115 - Safe conversion with bounds checking
-		entity.EndPos = int(endOffset[1])
-	} else {
-		entity.EndPos = maxInt // Max int value
-	}
+	entity.StartPos = safeUintToInt(startOffset[0])
+	entity.EndPos = safeUintToInt(endOffset[1])
 }
 
 // initializeSession initializes the ONNX session and tensors
