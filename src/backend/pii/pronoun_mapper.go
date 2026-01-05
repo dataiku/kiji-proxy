@@ -47,10 +47,13 @@ func initPronounMap() map[string]map[PronounGender]string {
 			GenderFemale:  "her",
 			GenderNeutral: "them",
 		},
+
+		// Possessive determiners (her office → his office)
+		// Note: "her" is primarily used as possessive determiner before nouns
 		"her": {
-			GenderMale:    "him",
+			GenderMale:    "his",
 			GenderFemale:  "her",
-			GenderNeutral: "them",
+			GenderNeutral: "their",
 		},
 
 		// Possessive pronouns
@@ -58,6 +61,11 @@ func initPronounMap() map[string]map[PronounGender]string {
 			GenderMale:    "his",
 			GenderFemale:  "her",
 			GenderNeutral: "their",
+		},
+		"hers": {
+			GenderMale:    "his",
+			GenderFemale:  "hers",
+			GenderNeutral: "theirs",
 		},
 
 		// Reflexive pronouns
@@ -95,10 +103,10 @@ func (pm *PronounMapper) MapPronoun(pronoun string, fromGender, toGender Pronoun
 
 // DetectGenderFromName attempts to detect gender from a first name
 func (pm *PronounMapper) DetectGenderFromName(name string) PronounGender {
-	// Common male names
-	maleNames := []string{"tom", "john", "james", "michael", "david", "robert"}
-	// Common female names
-	femaleNames := []string{"sarah", "emma", "lisa", "jennifer", "mary", "patricia"}
+	// Common male names - includes all names from FirstNameGenerator
+	maleNames := []string{"tom", "john", "james", "michael", "david", "robert", "william", "richard", "joseph", "charles"}
+	// Common female names - includes all names from FirstNameGenerator
+	femaleNames := []string{"sarah", "emma", "lisa", "jennifer", "mary", "patricia", "jane", "emily", "olivia", "elizabeth"}
 
 	lowerName := strings.ToLower(name)
 
