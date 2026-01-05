@@ -47,8 +47,10 @@ func main() {
 		log.Printf("Note: .env file not found or could not be loaded: %v", err)
 	}
 
-	// Log version at startup
-	log.Printf("Starting Yaak Privacy Proxy version %s", version)
+	// Log version at startup with banner
+	log.Println("================================================================================")
+	log.Printf("🚀 Starting Yaak Privacy Proxy v%s", version)
+	log.Println("================================================================================")
 
 	// Load configuration
 	cfg := config.DefaultConfig()
@@ -98,7 +100,7 @@ func main() {
 
 	if *configPath != "" {
 		// Development mode - use file system
-		srv, err = server.NewServer(cfg, *electronConfigPath)
+		srv, err = server.NewServer(cfg, *electronConfigPath, version)
 		if err != nil {
 			log.Fatalf("Failed to create server: %v", err)
 		}
@@ -121,7 +123,7 @@ func main() {
 			}
 		}
 
-		srv, err = server.NewServerWithEmbedded(cfg, uiFiles, modelFiles, *electronConfigPath)
+		srv, err = server.NewServerWithEmbedded(cfg, uiFiles, modelFiles, *electronConfigPath, version)
 		if err != nil {
 			log.Fatalf("Failed to create server with embedded files: %v", err)
 		}

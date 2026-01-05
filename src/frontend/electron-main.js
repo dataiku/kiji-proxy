@@ -1,4 +1,12 @@
-const { app, BrowserWindow, Menu, Tray, nativeImage, ipcMain, safeStorage } = require("electron");
+const {
+  app,
+  BrowserWindow,
+  Menu,
+  Tray,
+  nativeImage,
+  ipcMain,
+  safeStorage,
+} = require("electron");
 const path = require("path");
 const fs = require("fs");
 const { spawn } = require("child_process");
@@ -72,8 +80,13 @@ const getResourcesPath = () => {
 // Launch the Go binary backend
 const launchGoBinary = () => {
   // Skip launching backend if EXTERNAL_BACKEND is set (e.g., running in debugger)
-  if (process.env.EXTERNAL_BACKEND === "true" || process.env.SKIP_BACKEND_LAUNCH === "true") {
-    console.log("Skipping backend launch (EXTERNAL_BACKEND=true). Connecting to existing backend server.");
+  if (
+    process.env.EXTERNAL_BACKEND === "true" ||
+    process.env.SKIP_BACKEND_LAUNCH === "true"
+  ) {
+    console.log(
+      "Skipping backend launch (EXTERNAL_BACKEND=true). Connecting to existing backend server."
+    );
     return;
   }
 
@@ -95,13 +108,28 @@ const launchGoBinary = () => {
   // Try multiple locations relative to project root
   const onnxPaths = [
     path.join(projectRoot, "build", "libonnxruntime.1.23.1.dylib"), // build/libonnxruntime.1.23.1.dylib
-    path.join(projectRoot, "src", "frontend", "resources", "libonnxruntime.1.23.1.dylib"), // src/frontend/resources/libonnxruntime.1.23.1.dylib
+    path.join(
+      projectRoot,
+      "src",
+      "frontend",
+      "resources",
+      "libonnxruntime.1.23.1.dylib"
+    ), // src/frontend/resources/libonnxruntime.1.23.1.dylib
     path.join(projectRoot, "libonnxruntime.1.23.1.dylib"), // root/libonnxruntime.1.23.1.dylib
   ];
 
   // Also try to find in Python venv
   if (fs.existsSync(path.join(projectRoot, ".venv"))) {
-    const venvLib = path.join(projectRoot, ".venv", "lib", "python3.13", "site-packages", "onnxruntime", "capi", "libonnxruntime.1.23.2.dylib");
+    const venvLib = path.join(
+      projectRoot,
+      ".venv",
+      "lib",
+      "python3.13",
+      "site-packages",
+      "onnxruntime",
+      "capi",
+      "libonnxruntime.1.23.2.dylib"
+    );
     if (fs.existsSync(venvLib)) {
       onnxPaths.unshift(venvLib); // Check venv first
     }
@@ -119,7 +147,7 @@ const launchGoBinary = () => {
   if (!foundOnnxLib) {
     console.warn(
       "ONNX Runtime library not found in any of these locations:",
-      onnxPaths,
+      onnxPaths
     );
   }
 
@@ -130,7 +158,13 @@ const launchGoBinary = () => {
   const args = [];
   if (isDev) {
     // In development mode, use config file for file system access
-    const configPath = path.join(projectRoot, "src", "backend", "config", "config.development.json");
+    const configPath = path.join(
+      projectRoot,
+      "src",
+      "backend",
+      "config",
+      "config.development.json"
+    );
     if (fs.existsSync(configPath)) {
       args.push("--config", configPath);
     }
@@ -141,13 +175,15 @@ const launchGoBinary = () => {
   console.log("Working directory:", workingDir);
   console.log(
     "ONNX library path:",
-    env.ONNXRUNTIME_SHARED_LIBRARY_PATH || "not set",
+    env.ONNXRUNTIME_SHARED_LIBRARY_PATH || "not set"
   );
   console.log("Found ONNX library at:", foundOnnxLib || "not found");
   console.log("Project root:", projectRoot);
   console.log(
     "Model path exists:",
-    fs.existsSync(path.join(projectRoot, "model", "quantized", "model_quantized.onnx")),
+    fs.existsSync(
+      path.join(projectRoot, "model", "quantized", "model_quantized.onnx")
+    )
   );
 
   // Spawn the Go process
@@ -268,6 +304,18 @@ function createTray() {
         }, 100);
       },
     },
+    {
+      label: "About Yaak Proxy",
+      click: () => {
+        showMainWindow();
+        // Send IPC to open about dialog after a short delay to ensure window is ready
+        setTimeout(() => {
+          if (mainWindow) {
+            mainWindow.webContents.send("open-about");
+          }
+        }, 100);
+      },
+    },
     { type: "separator" },
     {
       label: "Quit Yaak Proxy",
@@ -332,7 +380,9 @@ function createWindow() {
             console.error("Failed to load from dist:", err3);
           });
         } else {
-          console.error("Dist files not found. Please run 'npm run build:electron' first.");
+          console.error(
+            "Dist files not found. Please run 'npm run build:electron' first."
+          );
         }
       });
     }
@@ -435,9 +485,11 @@ function createMenu() {
       label: "Help",
       submenu: [
         {
-          label: "About",
+          label: "About Yaak Proxy",
           click: () => {
-            // You can add an about dialog here
+            if (mainWindow) {
+              mainWindow.webContents.send("open-about");
+            }
           },
         },
       ],
@@ -449,7 +501,14 @@ function createMenu() {
     template.unshift({
       label: app.getName(),
       submenu: [
-        { role: "about", label: "About " + app.getName() },
+        {
+          label: "About " + app.getName(),
+          click: () => {
+            if (mainWindow) {
+              mainWindow.webContents.send("open-about");
+            }
+          },
+        },
         { type: "separator" },
         { role: "services", label: "Services" },
         { type: "separator" },

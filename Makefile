@@ -42,6 +42,12 @@ info: ## Show project info
 		echo "Status:  $(YELLOW)Not created (run 'make venv')$(NC)"; \
 	fi
 	@echo ""
+	@echo "$(BLUE)Version Information$(NC)"
+	@echo "  Version is managed in src/frontend/package.json"
+	@echo "  Backend receives version via ldflags during build"
+	@echo "  Check version: ./build/yaak-proxy --version"
+	@echo "  API endpoint: http://localhost:8080/version"
+	@echo ""
 	@echo "$(BLUE)Quick Commands$(NC)"
 	@echo "  make install     - Install dependencies"
 	@echo "  make test        - Run tests"
@@ -181,10 +187,10 @@ build-go: ## Build Go binary for development
 	@mkdir -p build
 	@CGO_ENABLED=1 \
 	go build \
-	  -ldflags="-extldflags '-L./build/tokenizers'" \
+	  -ldflags="-X main.version=$(VERSION) -extldflags '-L./build/tokenizers'" \
 	  -o build/yaak-proxy \
 	  ./src/backend
-	@echo "$(GREEN)✅ Go binary built at build/yaak-proxy$(NC)"
+	@echo "$(GREEN)✅ Go binary built at build/yaak-proxy (version $(VERSION))$(NC)"
 
 electron-build: ## Build Electron app for production
 	@echo "$(BLUE)Building Electron app...$(NC)"
@@ -207,6 +213,16 @@ electron-dev: ## Run Electron app in development mode (assumes backend is runnin
 	@cd src/frontend && EXTERNAL_BACKEND=true npm run electron:dev
 
 electron-dev-external: electron-dev ## Alias for electron-dev (for backwards compatibility)
+
+update-vscode-version: ## Update version in VSCode launch.json
+	@echo "$(BLUE)Updating VSCode launch.json with version $(VERSION)...$(NC)"
+	@if [ -f ".vscode/launch.json" ]; then \
+		sed -i.bak "s/main.version=[0-9.]*-dev/main.version=$(VERSION)-dev/" .vscode/launch.json && \
+		rm -f .vscode/launch.json.bak && \
+		echo "$(GREEN)✅ VSCode launch.json updated with version $(VERSION)-dev$(NC)"; \
+	else \
+		echo "$(YELLOW)⚠️  .vscode/launch.json not found$(NC)"; \
+	fi
 
 ##@ Build
 

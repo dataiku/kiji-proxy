@@ -6,9 +6,11 @@ import {
   Settings,
   Menu,
   FileText,
+  Info,
 } from "lucide-react";
 import SettingsModal from "./SettingsModal";
 import LoggingModal from "./LoggingModal";
+import AboutModal from "./AboutModal";
 import logoImage from "./assets/logo.png";
 
 export default function PrivacyProxyUI() {
@@ -20,16 +22,16 @@ export default function PrivacyProxyUI() {
   const [detectedEntities, setDetectedEntities] = useState([]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isLoggingOpen, setIsLoggingOpen] = useState(false);
-  const [_, setForwardEndpoint] = useState(
-    "https://api.openai.com/v1",
-  );
+  const [isAboutOpen, setIsAboutOpen] = useState(false);
+  const [_, setForwardEndpoint] = useState("https://api.openai.com/v1");
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [serverStatus, setServerStatus] = useState<"online" | "offline">(
-    "offline",
+    "offline"
   );
   const [modelSignature, setModelSignature] = useState<string | null>(null);
   const [showModelTooltip, setShowModelTooltip] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [version, setVersion] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Fixed Go server address - always call the Go server at this address
@@ -68,10 +70,20 @@ export default function PrivacyProxyUI() {
         });
       }
 
+      // Listen for about menu command
+      if (window.electronAPI.onAboutOpen) {
+        window.electronAPI.onAboutOpen(() => {
+          setIsAboutOpen(true);
+        });
+      }
+
       // Cleanup
       return () => {
         if (window.electronAPI?.removeSettingsListener) {
           window.electronAPI.removeSettingsListener();
+        }
+        if (window.electronAPI?.removeAboutListener) {
+          window.electronAPI.removeAboutListener();
         }
       };
     }
@@ -120,9 +132,29 @@ export default function PrivacyProxyUI() {
       }
     };
 
+    const loadVersion = async () => {
+      try {
+        const apiUrl = isElectron
+          ? "http://localhost:8080/version" // Direct call to Go server in Electron
+          : "/version"; // Proxied call in web mode
+
+        const response = await fetch(apiUrl);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.version) {
+            setVersion(data.version);
+          }
+        }
+      } catch (error) {
+        // Silently fail - version is optional UI enhancement
+        console.warn("Failed to load version:", error.message);
+      }
+    };
+
     // Check immediately
     checkServerStatus();
     loadModelSignature();
+    loadVersion();
 
     // Check every 5 seconds
     const interval = setInterval(checkServerStatus, 5000);
@@ -219,7 +251,7 @@ export default function PrivacyProxyUI() {
             original: entity.text,
             token: entity.masked_text,
             confidence: entity.confidence,
-          }),
+          })
         );
         setDetectedEntities(transformedEntities);
       } else {
@@ -276,10 +308,20 @@ export default function PrivacyProxyUI() {
                         setIsLoggingOpen(true);
                         setIsMenuOpen(false);
                       }}
-                      className="w-full text-left px-4 py-3 text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2 last:rounded-b-lg"
+                      className="w-full text-left px-4 py-3 text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
                     >
                       <FileText className="w-4 h-4" />
                       Logging
+                    </button>
+                    <button
+                      onClick={() => {
+                        setIsAboutOpen(true);
+                        setIsMenuOpen(false);
+                      }}
+                      className="w-full text-left px-4 py-3 text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2 last:rounded-b-lg"
+                    >
+                      <Info className="w-4 h-4" />
+                      About Yaak Proxy
                     </button>
                   </div>
                 )}
@@ -374,7 +416,7 @@ export default function PrivacyProxyUI() {
                         (e) =>
                           inputData.indexOf(e.original) <= idx &&
                           idx <
-                            inputData.indexOf(e.original) + e.original.length,
+                            inputData.indexOf(e.original) + e.original.length
                       );
                       return (
                         <span
@@ -402,7 +444,7 @@ export default function PrivacyProxyUI() {
                       detectedEntities.forEach((entity) => {
                         highlighted = highlighted.replace(
                           entity.token,
-                          `<mark class="bg-green-200 text-green-900 font-bold">${entity.token}</mark>`,
+                          `<mark class="bg-green-200 text-green-900 font-bold">${entity.token}</mark>`
                         );
                       });
                       return (
@@ -443,7 +485,7 @@ export default function PrivacyProxyUI() {
                       detectedEntities.forEach((entity) => {
                         highlighted = highlighted.replace(
                           entity.token,
-                          `<mark class="bg-purple-200 text-purple-900 font-bold">${entity.token}</mark>`,
+                          `<mark class="bg-purple-200 text-purple-900 font-bold">${entity.token}</mark>`
                         );
                       });
                       return (
@@ -467,7 +509,7 @@ export default function PrivacyProxyUI() {
                       detectedEntities.forEach((entity) => {
                         highlighted = highlighted.replace(
                           entity.original,
-                          `<mark class="bg-blue-200 text-blue-900 font-bold">${entity.original}</mark>`,
+                          `<mark class="bg-blue-200 text-blue-900 font-bold">${entity.original}</mark>`
                         );
                       });
                       return (
@@ -512,7 +554,7 @@ export default function PrivacyProxyUI() {
                       ? (
                           (detectedEntities.reduce(
                             (sum, e) => sum + e.confidence,
-                            0,
+                            0
                           ) /
                             detectedEntities.length) *
                           100
@@ -529,7 +571,12 @@ export default function PrivacyProxyUI() {
 
         {/* Info Footer */}
         <div className="mt-8 text-center text-sm text-slate-500">
-          <p>Yaak - Privacy Proxy - Diff View</p>
+          <p>
+            Yaak - Privacy Proxy - Diff View
+            {version && (
+              <span className="ml-2 text-xs text-slate-400">v{version}</span>
+            )}
+          </p>
         </div>
       </div>
 
@@ -589,6 +636,9 @@ export default function PrivacyProxyUI() {
         isOpen={isLoggingOpen}
         onClose={() => setIsLoggingOpen(false)}
       />
+
+      {/* About Modal */}
+      <AboutModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} />
     </div>
   );
 }
