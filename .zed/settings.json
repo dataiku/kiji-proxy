@@ -1,0 +1,29 @@
+{
+  "languages": {
+    "Go": {
+      "format_on_save": "on",
+      "formatter": "gofmt",
+      "code_actions_on_format": {
+        "source.organizeImports": true
+      }
+    }
+  },
+  "lsp": {
+    "gopls": {
+      "initialization_options": {
+        "usePlaceholders": true,
+        "completeUnimported": true,
+        "staticcheck": true,
+        "analyses": {
+          "unusedparams": true,
+          "shadow": true
+        }
+      }
+    }
+  },
+  "terminal": {
+    "env": {
+      "CGO_ENABLED": "1"
+    }
+  }
+}

@@ -22,11 +22,14 @@
         "LOG_PII_CHANGES": "true",
         "LOG_VERBOSE": "false",
         "CGO_ENABLED": "1",
-        "CGO_LDFLAGS": "-L${workspaceFolder}/build/tokenizers"
+        "CGO_LDFLAGS": "-L${workspaceFolder}/build/tokenizers",
+        "HTTP_PROXY": "http://127.0.0.1:8081",
+        "HTTPS_PROXY": "http://127.0.0.1:8081"
       },
       "args": ["-config", "src/backend/config/config.development.json"],
       "showLog": true,
-      "trace": "verbose"
+      "trace": "verbose",
+      "preLaunchTask": null
     },
     {
       "name": "Debug Current File",
@@ -70,6 +73,19 @@
       "program": "${fileDirname}",
       "args": ["-test.v"],
       "showLog": true
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Launch Backend + Electron (make electron-dev)",
+      "configurations": ["Launch yaak-proxy"],
+      "stopAll": true,
+      "presentation": {
+        "hidden": false,
+        "group": "",
+        "order": 1
+      },
+      "preLaunchTask": null
     }
   ]
 }
