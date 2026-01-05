@@ -26,28 +26,30 @@ type DatabaseConfig struct {
 
 // Config holds all configuration for the PII proxy service
 type Config struct {
-	OpenAIBaseURL string
-	OpenAIAPIKey  string
-	ProxyPort     string
-	DetectorName  string
-	ModelBaseURL  string
-	Database      DatabaseConfig
-	Logging       LoggingConfig
-	ONNXModelPath string
-	TokenizerPath string
-	UIPath        string
+	OpenAIBaseURL             string
+	OpenAIAPIKey              string
+	ProxyPort                 string
+	DetectorName              string
+	ModelBaseURL              string
+	Database                  DatabaseConfig
+	Logging                   LoggingConfig
+	ONNXModelPath             string
+	TokenizerPath             string
+	UIPath                    string
+	EnablePronounSubstitution bool
 }
 
 // DefaultConfig returns the default configuration
 func DefaultConfig() *Config {
 	return &Config{
-		OpenAIBaseURL: "https://api.openai.com/v1",
-		ProxyPort:     ":8080",
-		DetectorName:  "onnx_model_detector",
-		ModelBaseURL:  "http://localhost:8000",
-		ONNXModelPath: "model/quantized/model_quantized.onnx",
-		TokenizerPath: "model/quantized/tokenizer.json",
-		UIPath:        "./src/frontend/dist",
+		OpenAIBaseURL:             "https://api.openai.com/v1",
+		ProxyPort:                 ":8080",
+		DetectorName:              "onnx_model_detector",
+		ModelBaseURL:              "http://localhost:8000",
+		ONNXModelPath:             "model/quantized/model_quantized.onnx",
+		TokenizerPath:             "model/quantized/tokenizer.json",
+		UIPath:                    "./src/frontend/dist",
+		EnablePronounSubstitution: true,
 		Database: DatabaseConfig{
 			Enabled:      false,
 			Host:         "localhost",

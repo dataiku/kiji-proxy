@@ -101,6 +101,15 @@ func (pm *PronounMapper) MapPronoun(pronoun string, fromGender, toGender Pronoun
 	return pronoun
 }
 
+// GetAllPronouns returns all supported pronouns (sorted by length descending)
+func (pm *PronounMapper) GetAllPronouns() []string {
+	var pronouns []string
+	for pronoun := range pm.pronounMap {
+		pronouns = append(pronouns, pronoun)
+	}
+	return pronouns
+}
+
 // DetectGenderFromName attempts to detect gender from a first name
 func (pm *PronounMapper) DetectGenderFromName(name string) PronounGender {
 	// Common male names - includes all names from FirstNameGenerator
