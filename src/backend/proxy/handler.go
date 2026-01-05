@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hannes/yaak-private/src/backend/config"
+	config "github.com/hannes/yaak-private/src/backend/config"
 	piiServices "github.com/hannes/yaak-private/src/backend/pii"
 	pii "github.com/hannes/yaak-private/src/backend/pii/detectors"
 	"github.com/hannes/yaak-private/src/backend/processor"
@@ -247,7 +247,12 @@ func (h *Handler) readRequestBody(r *http.Request) ([]byte, error) {
 // maskPIIInText detects PII in text and returns masked text with mappings
 func (h *Handler) maskPIIInText(text string, logPrefix string) (string, map[string]string, []pii.Entity) {
 	result := h.maskingService.MaskText(text, logPrefix)
-	return result.MaskedText, result.MaskedToOriginal, result.Entities
+	// Build maskedToOriginal map from EntityReplacements
+	maskedToOriginal := make(map[string]string)
+	for _, repl := range result.EntityReplacements {
+		maskedToOriginal[repl.MaskedText] = repl.OriginalText
+	}
+	return result.MaskedText, maskedToOriginal, result.Entities
 }
 
 // checkRequestPII checks for PII in the request body and creates mappings
@@ -399,7 +404,7 @@ func NewHandler(cfg *config.Config, electronConfigPath string) (*Handler, error)
 
 	// Create services
 	generatorService := piiServices.NewGeneratorService()
-	maskingService := piiServices.NewMaskingService(detector, generatorService)
+	maskingService := piiServices.NewMaskingService(detector, generatorService, cfg)
 	responseProcessor := processor.NewResponseProcessor(&detector, cfg.Logging)
 
 	// Initialize logging (database or in-memory fallback)
