@@ -293,18 +293,6 @@ function createTray() {
       },
     },
     {
-      label: "Settings",
-      click: () => {
-        showMainWindow();
-        // Send IPC to open settings after a short delay to ensure window is ready
-        setTimeout(() => {
-          if (mainWindow) {
-            mainWindow.webContents.send("open-settings");
-          }
-        }, 100);
-      },
-    },
-    {
       label: "About Yaak Proxy",
       click: () => {
         showMainWindow();
@@ -312,6 +300,18 @@ function createTray() {
         setTimeout(() => {
           if (mainWindow) {
             mainWindow.webContents.send("open-about");
+          }
+        }, 100);
+      },
+    },
+    {
+      label: "Settings",
+      click: () => {
+        showMainWindow();
+        // Send IPC to open settings after a short delay to ensure window is ready
+        setTimeout(() => {
+          if (mainWindow) {
+            mainWindow.webContents.send("open-settings");
           }
         }, 100);
       },
