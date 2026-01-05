@@ -2,7 +2,9 @@
 
 interface ElectronAPI {
   getForwardEndpoint: () => Promise<string>;
-  setForwardEndpoint: (url: string) => Promise<{ success: boolean; error?: string }>;
+  setForwardEndpoint: (
+    url: string
+  ) => Promise<{ success: boolean; error?: string }>;
   getApiKey: () => Promise<string | null>;
   setApiKey: (apiKey: string) => Promise<{ success: boolean; error?: string }>;
   platform: string;
@@ -13,9 +15,10 @@ interface ElectronAPI {
   };
   onSettingsOpen: (callback: () => void) => void;
   removeSettingsListener: () => void;
+  onAboutOpen: (callback: () => void) => void;
+  removeAboutListener: () => void;
 }
 
 interface Window {
   electronAPI?: ElectronAPI;
 }
-

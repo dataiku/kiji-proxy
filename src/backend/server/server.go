@@ -69,10 +69,11 @@ type Server struct {
 	uiFS              fs.FS
 	modelFS           fs.FS
 	rateLimiter       *RateLimiter
+	version           string
 }
 
 // NewServer creates a new server instance
-func NewServer(cfg *config.Config, electronConfigPath string) (*Server, error) {
+func NewServer(cfg *config.Config, electronConfigPath string, version string) (*Server, error) {
 	// Initialize PII mapping with database support
 
 	handler, err := proxy.NewHandler(cfg, electronConfigPath)
@@ -98,11 +99,12 @@ func NewServer(cfg *config.Config, electronConfigPath string) (*Server, error) {
 		handler:          handler,
 		transparentProxy: transparentProxy,
 		rateLimiter:      rateLimiter,
+		version:          version,
 	}, nil
 }
 
 // NewServerWithEmbedded creates a new server instance with embedded filesystems
-func NewServerWithEmbedded(cfg *config.Config, uiFS, modelFS fs.FS, electronConfigPath string) (*Server, error) {
+func NewServerWithEmbedded(cfg *config.Config, uiFS, modelFS fs.FS, electronConfigPath string, version string) (*Server, error) {
 	handler, err := proxy.NewHandler(cfg, electronConfigPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create proxy handler: %w", err)
@@ -128,6 +130,7 @@ func NewServerWithEmbedded(cfg *config.Config, uiFS, modelFS fs.FS, electronConf
 		uiFS:             uiFS,
 		modelFS:          modelFS,
 		rateLimiter:      rateLimiter,
+		version:          version,
 	}, nil
 }
 
@@ -159,6 +162,7 @@ func (s *Server) Start() error {
 	// Add health check endpoint
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", s.healthCheck)
+	mux.HandleFunc("/version", s.versionHandler)
 	mux.HandleFunc("/logs", s.logsHandler)
 	mux.HandleFunc("/api/model/security", s.handleModelSecurity)
 	mux.HandleFunc("/api/proxy/ca-cert", s.handleCACert)
@@ -251,6 +255,24 @@ func (s *Server) healthCheck(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	if _, err := w.Write([]byte(`{"status":"healthy","service":"Yaak Proxy Service"}`)); err != nil {
 		log.Printf("Failed to write health check response: %v", err)
+	}
+}
+
+// versionHandler provides version information endpoint
+func (s *Server) versionHandler(w http.ResponseWriter, r *http.Request) {
+	// Add CORS headers
+	s.corsHandler(w, r)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	response := map[string]string{
+		"version": s.version,
+		"service": "Yaak Privacy Proxy",
+	}
+
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		log.Printf("Failed to write version response: %v", err)
 	}
 }
 
