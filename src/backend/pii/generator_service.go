@@ -20,6 +20,14 @@ func NewGeneratorService() *GeneratorService {
 	}
 }
 
+// NewGeneratorServiceWithSeed creates a generator with a fixed seed for deterministic output (testing)
+func NewGeneratorServiceWithSeed(seed int64) *GeneratorService {
+	// #nosec G404 - Using math/rand for deterministic PII generation, not security-critical
+	return &GeneratorService{
+		rng: rand.New(rand.NewSource(seed)),
+	}
+}
+
 // GenerateReplacement generates a replacement for the given PII label and original text
 func (s *GeneratorService) GenerateReplacement(label, originalText string) string {
 	generator := s.getGeneratorForLabel(label)
