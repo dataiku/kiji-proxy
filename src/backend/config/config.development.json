@@ -13,7 +13,7 @@
   },
   "ONNXModelPath": "model/quantized/model_quantized.onnx",
   "TokenizerPath": "model/quantized/tokenizer.json",
-  "UIPath": "./ui_v2/dist",
+  "UIPath": "src/frontend/dist",
   "Proxy": {
     "transparent_enabled": true,
     "intercept_domains": ["api.openai.com", "openai.com"],

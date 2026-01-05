@@ -176,13 +176,16 @@ func (cm *CertManager) GetCert(hostname string) (*tls.Certificate, error) {
 	cm.cacheMutex.RLock()
 	if cert, ok := cm.certCache[hostname]; ok {
 		cm.cacheMutex.RUnlock()
+		log.Printf("[CertManager] Using cached certificate for %s", hostname)
 		return cert, nil
 	}
 	cm.cacheMutex.RUnlock()
 
 	// Generate new certificate
+	log.Printf("[CertManager] Generating new certificate for %s", hostname)
 	cert, err := cm.generateCert(hostname)
 	if err != nil {
+		log.Printf("[CertManager] ❌ Failed to generate certificate for %s: %v", hostname, err)
 		return nil, err
 	}
 
@@ -191,6 +194,7 @@ func (cm *CertManager) GetCert(hostname string) (*tls.Certificate, error) {
 	cm.certCache[hostname] = cert
 	cm.cacheMutex.Unlock()
 
+	log.Printf("[CertManager] ✓ Successfully generated and cached certificate for %s", hostname)
 	return cert, nil
 }
 
@@ -233,12 +237,14 @@ func (cm *CertManager) generateCert(hostname string) (*tls.Certificate, error) {
 	// Add hostname to SAN
 	if ip := net.ParseIP(host); ip != nil {
 		template.IPAddresses = []net.IP{ip}
+		log.Printf("[CertManager] Adding IP address to certificate: %s", ip)
 	} else {
 		template.DNSNames = []string{host}
 		// Also add wildcard for subdomains
 		if host != "" {
 			template.DNSNames = append(template.DNSNames, "*."+host)
 		}
+		log.Printf("[CertManager] Adding DNS names to certificate: %v", template.DNSNames)
 	}
 
 	// Sign certificate with CA
@@ -247,10 +253,13 @@ func (cm *CertManager) generateCert(hostname string) (*tls.Certificate, error) {
 		return nil, fmt.Errorf("failed to create certificate: %w", err)
 	}
 
+	// Include both the leaf certificate and the CA certificate in the chain
+	// This helps clients validate the certificate chain
 	cert := &tls.Certificate{
-		Certificate: [][]byte{certDER},
+		Certificate: [][]byte{certDER, cm.caCert.Raw},
 		PrivateKey:  key,
 	}
 
+	log.Printf("[CertManager] Certificate created with %d certificates in chain (leaf + CA)", len(cert.Certificate))
 	return cert, nil
 }

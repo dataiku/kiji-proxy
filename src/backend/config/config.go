@@ -7,10 +7,11 @@ import (
 
 // LoggingConfig holds logging configuration options
 type LoggingConfig struct {
-	LogRequests   bool // Log request content
-	LogResponses  bool // Log response content
-	LogPIIChanges bool // Log PII detection and restoration
-	LogVerbose    bool // Log detailed PII changes (original vs restored)
+	LogRequests    bool // Log request content
+	LogResponses   bool // Log response content
+	LogPIIChanges  bool // Log PII detection and restoration
+	LogVerbose     bool // Log detailed PII changes (original vs restored)
+	AddProxyNotice bool // Add proxy notice to response content
 }
 
 // DatabaseConfig holds database configuration
@@ -82,10 +83,11 @@ func DefaultConfig() *Config {
 			CleanupHours: 24,
 		},
 		Logging: LoggingConfig{
-			LogRequests:   true,
-			LogResponses:  true,
-			LogPIIChanges: true,
-			LogVerbose:    true,
+			LogRequests:    true,
+			LogResponses:   true,
+			LogPIIChanges:  true,
+			LogVerbose:     true,
+			AddProxyNotice: false, // Disabled by default to avoid modifying response content
 		},
 		Proxy: ProxyConfig{
 			TransparentEnabled: false,
@@ -110,4 +112,9 @@ func (lc LoggingConfig) GetLogVerbose() bool {
 // GetLogResponses returns whether to log response content
 func (lc LoggingConfig) GetLogResponses() bool {
 	return lc.LogResponses
+}
+
+// GetAddProxyNotice returns whether to add proxy notice to response content
+func (lc LoggingConfig) GetAddProxyNotice() bool {
+	return lc.AddProxyNotice
 }
