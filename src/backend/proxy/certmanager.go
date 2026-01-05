@@ -146,7 +146,7 @@ func (cm *CertManager) saveCA() error {
 		Type:  "CERTIFICATE",
 		Bytes: cm.caCert.Raw,
 	})
-	if err := os.WriteFile(cm.caPath, certPEM, 0644); err != nil {
+	if err := os.WriteFile(cm.caPath, certPEM, 0600); err != nil {
 		return fmt.Errorf("failed to write CA certificate: %w", err)
 	}
 

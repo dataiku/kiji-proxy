@@ -42,6 +42,7 @@ func NewTransparentProxy(
 			Proxy: nil, // Explicitly disable proxy to prevent infinite loop
 			TLSClientConfig: &tls.Config{
 				InsecureSkipVerify: false,
+				MinVersion:         tls.VersionTLS12,
 			},
 		},
 	}
@@ -256,7 +257,7 @@ func (tp *TransparentProxy) handleCONNECT(w http.ResponseWriter, r *http.Request
 }
 
 // interceptCONNECT establishes a MITM connection for intercepted HTTPS traffic
-func (tp *TransparentProxy) interceptCONNECT(w http.ResponseWriter, r *http.Request, target string) {
+func (tp *TransparentProxy) interceptCONNECT(w http.ResponseWriter, _ *http.Request, target string) {
 	log.Printf("[TransparentProxy] Intercepting HTTPS CONNECT to %s", target)
 
 	// Extract hostname (remove port)
@@ -323,7 +324,10 @@ func (tp *TransparentProxy) interceptCONNECT(w http.ResponseWriter, r *http.Requ
 	// Handle HTTP requests over the TLS connection
 	for {
 		// Set read deadline
-		conn.SetReadDeadline(time.Now().Add(30 * time.Second))
+		if err := conn.SetReadDeadline(time.Now().Add(30 * time.Second)); err != nil {
+			log.Printf("[TransparentProxy] ❌ Failed to set read deadline: %v", err)
+			break
+		}
 
 		// Read HTTP request
 		req, err := http.ReadRequest(bufio.NewReader(conn))
@@ -458,7 +462,7 @@ func (tp *TransparentProxy) writeErrorResponse(conn net.Conn, statusCode int, me
 }
 
 // passthroughCONNECT passes through CONNECT requests without interception
-func (tp *TransparentProxy) passthroughCONNECT(w http.ResponseWriter, r *http.Request, target string) {
+func (tp *TransparentProxy) passthroughCONNECT(w http.ResponseWriter, _ *http.Request, target string) {
 	log.Printf("[TransparentProxy] Passing through HTTPS CONNECT to %s", target)
 
 	// Connect to target
@@ -494,10 +498,14 @@ func (tp *TransparentProxy) passthroughCONNECT(w http.ResponseWriter, r *http.Re
 
 	// Copy data between connections
 	go func() {
-		io.Copy(targetConn, clientConn)
+		if _, err := io.Copy(targetConn, clientConn); err != nil {
+			log.Printf("[TransparentProxy] ❌ Error copying client->target: %v", err)
+		}
 		targetConn.Close()
 	}()
-	io.Copy(clientConn, targetConn)
+	if _, err := io.Copy(clientConn, targetConn); err != nil {
+		log.Printf("[TransparentProxy] ❌ Error copying target->client: %v", err)
+	}
 }
 
 // buildTargetURL builds the target URL for a request
