@@ -22,7 +22,8 @@ const isEncryptionAvailable = () => {
 const getGoBinaryPath = () => {
   if (isDev) {
     // In development, look for the binary in the project root
-    const devPath = path.join(__dirname, "..", "build", "yaak-proxy");
+    // __dirname is src/frontend, so we need to go up two levels to reach project root
+    const devPath = path.join(__dirname, "..", "..", "build", "yaak-proxy");
     if (fs.existsSync(devPath)) {
       return devPath;
     }
@@ -57,7 +58,8 @@ const getGoBinaryPath = () => {
 // Get the path to resources directory
 const getResourcesPath = () => {
   if (isDev) {
-    return path.join(__dirname, "..");
+    // In development, __dirname is src/frontend, so go up two levels to project root
+    return path.join(__dirname, "..", "..");
   }
 
   if (process.platform === "darwin") {
@@ -69,6 +71,12 @@ const getResourcesPath = () => {
 
 // Launch the Go binary backend
 const launchGoBinary = () => {
+  // Skip launching backend if EXTERNAL_BACKEND is set (e.g., running in debugger)
+  if (process.env.EXTERNAL_BACKEND === "true" || process.env.SKIP_BACKEND_LAUNCH === "true") {
+    console.log("Skipping backend launch (EXTERNAL_BACKEND=true). Connecting to existing backend server.");
+    return;
+  }
+
   const binaryPath = getGoBinaryPath();
 
   if (!binaryPath || !fs.existsSync(binaryPath)) {
@@ -77,23 +85,27 @@ const launchGoBinary = () => {
     return;
   }
 
-  // Get resources path for ONNX library and model files
-  const resourcesPath = getResourcesPath();
-  const onnxLibPath = path.join(
-    resourcesPath,
-    "resources",
-    "libonnxruntime.1.23.1.dylib",
-  );
+  // Get project root path (resources path in dev mode)
+  const projectRoot = getResourcesPath();
 
   // Set up environment variables
   const env = { ...process.env };
 
-  // Set ONNX Runtime library path - try multiple locations
+  // In development mode, set ONNX Runtime library path
+  // Try multiple locations relative to project root
   const onnxPaths = [
-    onnxLibPath, // resources/resources/libonnxruntime.1.23.1.dylib
-    path.join(resourcesPath, "libonnxruntime.1.23.1.dylib"), // resources/libonnxruntime.1.23.1.dylib
-    path.join(resourcesPath, "resources", "libonnxruntime.1.23.1.dylib"), // resources/resources/libonnxruntime.1.23.1.dylib
+    path.join(projectRoot, "build", "libonnxruntime.1.23.1.dylib"), // build/libonnxruntime.1.23.1.dylib
+    path.join(projectRoot, "src", "frontend", "resources", "libonnxruntime.1.23.1.dylib"), // src/frontend/resources/libonnxruntime.1.23.1.dylib
+    path.join(projectRoot, "libonnxruntime.1.23.1.dylib"), // root/libonnxruntime.1.23.1.dylib
   ];
+
+  // Also try to find in Python venv
+  if (fs.existsSync(path.join(projectRoot, ".venv"))) {
+    const venvLib = path.join(projectRoot, ".venv", "lib", "python3.13", "site-packages", "onnxruntime", "capi", "libonnxruntime.1.23.2.dylib");
+    if (fs.existsSync(venvLib)) {
+      onnxPaths.unshift(venvLib); // Check venv first
+    }
+  }
 
   let foundOnnxLib = null;
   for (const libPath of onnxPaths) {
@@ -111,45 +123,35 @@ const launchGoBinary = () => {
     );
   }
 
-  // Set working directory to resources so model files can be found
-  // Try different working directory options based on where model files exist
-  let workingDir = resourcesPath;
-  const modelPaths = [
-    path.join(resourcesPath, "resources", "model", "quantized"),
-    path.join(resourcesPath, "resources", "quantized"),
-    path.join(resourcesPath, "model", "quantized"),
-    path.join(resourcesPath, "quantized"),
-  ];
+  // Set working directory to project root so model files can be found
+  const workingDir = projectRoot;
 
-  for (const testPath of modelPaths) {
-    if (fs.existsSync(testPath)) {
-      // Set working dir to parent of where we found model files
-      if (testPath.includes("resources/model/quantized")) {
-        workingDir = path.join(resourcesPath, "resources");
-      } else if (testPath.includes("resources/quantized")) {
-        workingDir = path.join(resourcesPath, "resources");
-      } else {
-        workingDir = resourcesPath;
-      }
-      break;
+  // Prepare command line arguments
+  const args = [];
+  if (isDev) {
+    // In development mode, use config file for file system access
+    const configPath = path.join(projectRoot, "src", "backend", "config", "config.development.json");
+    if (fs.existsSync(configPath)) {
+      args.push("--config", configPath);
     }
   }
 
   console.log("Launching Go binary:", binaryPath);
+  console.log("Arguments:", args);
   console.log("Working directory:", workingDir);
   console.log(
     "ONNX library path:",
     env.ONNXRUNTIME_SHARED_LIBRARY_PATH || "not set",
   );
   console.log("Found ONNX library at:", foundOnnxLib || "not found");
-  console.log("Resource paths checked:", resourcesPath);
+  console.log("Project root:", projectRoot);
   console.log(
-    "Model paths checked:",
-    modelPaths.map((p) => `${p} (${fs.existsSync(p) ? "exists" : "missing"})`),
+    "Model path exists:",
+    fs.existsSync(path.join(projectRoot, "model", "quantized", "model_quantized.onnx")),
   );
 
   // Spawn the Go process
-  goProcess = spawn(binaryPath, [], {
+  goProcess = spawn(binaryPath, args, {
     cwd: workingDir,
     env: env,
     stdio: ["ignore", "pipe", "pipe"],
@@ -306,18 +308,33 @@ function createWindow() {
   });
 
   // Load the app
-  const startUrl = isDev
-    ? "http://localhost:3000" // Use webpack dev server in dev mode (run 'npm run dev' first)
-    : `file://${path.join(__dirname, "dist", "index.html")}`; // Use built files in production
+  let startUrl;
+  if (isDev) {
+    // In development, try Go backend first (port 8080), then webpack dev server (port 3000), then built files
+    startUrl = "http://localhost:8080";
+  } else {
+    // In production, use built files
+    startUrl = `file://${path.join(__dirname, "dist", "index.html")}`;
+  }
 
   mainWindow.loadURL(startUrl).catch((err) => {
     console.error("Failed to load URL:", err);
-    // If dev server is not running, fall back to built files
     if (isDev) {
-      console.log("Dev server not available, loading from dist...");
-      mainWindow.loadURL(
-        `file://${path.join(__dirname, "dist", "index.html")}`,
-      );
+      // Try webpack dev server as fallback
+      console.log("Go backend not available, trying webpack dev server...");
+      mainWindow.loadURL("http://localhost:3000").catch((err2) => {
+        console.error("Webpack dev server also not available:", err2);
+        // Final fallback to built files
+        console.log("Loading from dist...");
+        const distPath = `file://${path.join(__dirname, "dist", "index.html")}`;
+        if (fs.existsSync(path.join(__dirname, "dist", "index.html"))) {
+          mainWindow.loadURL(distPath).catch((err3) => {
+            console.error("Failed to load from dist:", err3);
+          });
+        } else {
+          console.error("Dist files not found. Please run 'npm run build:electron' first.");
+        }
+      });
     }
   });
 
