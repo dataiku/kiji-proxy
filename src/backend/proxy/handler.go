@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/hannes/yaak-private/src/backend/config"
 	piiServices "github.com/hannes/yaak-private/src/backend/pii"
 	pii "github.com/hannes/yaak-private/src/backend/pii/detectors"
@@ -114,7 +116,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Process response through shared PII pipeline
-	modifiedBody := h.ProcessResponseBody(r.Context(), respBody, resp.Header.Get("Content-Type"), processed.MaskedToOriginal)
+	modifiedBody := h.ProcessResponseBody(r.Context(), respBody, resp.Header.Get("Content-Type"), processed.MaskedToOriginal, processed.TransactionID)
 
 	// If details are requested, enhance response with PII metadata
 	if includeDetails && resp.StatusCode == http.StatusOK {
@@ -235,20 +237,33 @@ type ProcessedRequest struct {
 	RedactedBody     []byte
 	MaskedToOriginal map[string]string
 	Entities         []pii.Entity
+	TransactionID    string // UUID to correlate all 4 log entries
 }
 
 // ProcessRequestBody processes a request body through PII detection and masking
 // This is the shared entry point for all request sources (handler, transparent proxy)
 func (h *Handler) ProcessRequestBody(ctx context.Context, body []byte) (*ProcessedRequest, error) {
+	// Generate transaction ID to link all 4 log entries
+	transactionID := uuid.New().String()
+
 	// Check for PII in the request and get redacted body
 	redactedBody, maskedToOriginal, entities := h.checkRequestPII(string(body))
 
-	// Log request if logging is available
+	// Log both original and masked requests with shared context
 	if h.loggingDB != nil {
 		logCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 		defer cancel()
-		if err := h.loggingDB.InsertLog(logCtx, string(body), "In", entities, false); err != nil {
-			log.Printf("[Proxy] ⚠️  Failed to log request: %v", err)
+
+		// Log original request (with real PII)
+		logMsg := h.addTransactionID(string(body), transactionID)
+		if err := h.loggingDB.InsertLog(logCtx, logMsg, "request_original", entities, false); err != nil {
+			log.Printf("[Proxy] ⚠️  Failed to log original request: %v", err)
+		}
+
+		// Log masked request (sent to OpenAI with fake PII) - reuse same context
+		maskedMsg := h.addTransactionID(redactedBody, transactionID)
+		if err := h.loggingDB.InsertLog(logCtx, maskedMsg, "request_masked", entities, false); err != nil {
+			log.Printf("[Proxy] ⚠️  Failed to log masked request: %v", err)
 		}
 	}
 
@@ -256,25 +271,57 @@ func (h *Handler) ProcessRequestBody(ctx context.Context, body []byte) (*Process
 		RedactedBody:     []byte(redactedBody),
 		MaskedToOriginal: maskedToOriginal,
 		Entities:         entities,
+		TransactionID:    transactionID,
 	}, nil
 }
 
 // ProcessResponseBody processes a response body through PII restoration
 // This is the shared entry point for all response sources (handler, transparent proxy)
-func (h *Handler) ProcessResponseBody(ctx context.Context, body []byte, contentType string, maskedToOriginal map[string]string) []byte {
-	// Process the response to restore PII
+func (h *Handler) ProcessResponseBody(ctx context.Context, body []byte, contentType string, maskedToOriginal map[string]string, transactionID string) []byte {
+	// Process the response to restore PII first
 	modifiedBody := h.responseProcessor.ProcessResponse(body, contentType, maskedToOriginal)
 
-	// Log response if logging is available
+	// Log both masked and restored responses with shared context
 	if h.loggingDB != nil {
 		logCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 		defer cancel()
-		if err := h.loggingDB.InsertLog(logCtx, string(modifiedBody), "Out", []pii.Entity{}, false); err != nil {
-			log.Printf("[Proxy] ⚠️  Failed to log response: %v", err)
+
+		// Log masked response (from OpenAI with fake PII)
+		maskedMsg := h.addTransactionID(string(body), transactionID)
+		if err := h.loggingDB.InsertLog(logCtx, maskedMsg, "response_masked", []pii.Entity{}, false); err != nil {
+			log.Printf("[Proxy] ⚠️  Failed to log masked response: %v", err)
+		}
+
+		// Log restored response (with real PII restored) - reuse same context
+		restoredMsg := h.addTransactionID(string(modifiedBody), transactionID)
+		if err := h.loggingDB.InsertLog(logCtx, restoredMsg, "response_original", []pii.Entity{}, false); err != nil {
+			log.Printf("[Proxy] ⚠️  Failed to log restored response: %v", err)
 		}
 	}
 
 	return modifiedBody
+}
+
+// addTransactionID adds transaction ID to JSON message for log correlation
+func (h *Handler) addTransactionID(message string, transactionID string) string {
+	// Try to parse as JSON and add transaction_id field
+	var data map[string]interface{}
+	if err := json.Unmarshal([]byte(message), &data); err != nil {
+		// Not JSON, return as-is
+		return message
+	}
+
+	// Add transaction ID
+	data["_transaction_id"] = transactionID
+
+	// Marshal back to JSON
+	enriched, err := json.Marshal(data)
+	if err != nil {
+		// If marshal fails, return original
+		return message
+	}
+
+	return string(enriched)
 }
 
 // checkRequestPII checks for PII in the request body and creates mappings
@@ -465,6 +512,11 @@ func NewHandler(cfg *config.Config, electronConfigPath string) (*Handler, error)
 		// Use in-memory storage when database is disabled
 		log.Println("Using in-memory logging (database disabled)")
 		loggingDB = piiServices.NewInMemoryPIIMappingDB()
+	}
+
+	// Set debug mode based on config
+	if loggingDB != nil {
+		loggingDB.SetDebugMode(cfg.Logging.DebugMode)
 	}
 
 	// Create HTTP client that bypasses proxy to prevent infinite loop

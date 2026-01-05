@@ -12,6 +12,7 @@ type LoggingConfig struct {
 	LogPIIChanges  bool // Log PII detection and restoration
 	LogVerbose     bool // Log detailed PII changes (original vs restored)
 	AddProxyNotice bool // Add proxy notice to response content
+	DebugMode      bool // Enable debug logging for database operations
 }
 
 // DatabaseConfig holds database configuration

@@ -163,7 +163,7 @@ func (tp *TransparentProxy) interceptHTTP(w http.ResponseWriter, r *http.Request
 	}
 
 	// Process response through shared handler pipeline (PII restoration, logging)
-	modifiedBody := tp.handler.ProcessResponseBody(ctx, respBody, resp.Header.Get("Content-Type"), processed.MaskedToOriginal)
+	modifiedBody := tp.handler.ProcessResponseBody(ctx, respBody, resp.Header.Get("Content-Type"), processed.MaskedToOriginal, processed.TransactionID)
 
 	// Copy response headers
 	for key, values := range resp.Header {
@@ -407,7 +407,7 @@ func (tp *TransparentProxy) interceptHTTPOverTLS(conn net.Conn, r *http.Request,
 	}
 
 	// Process response through shared handler pipeline (PII restoration, logging)
-	modifiedBody := tp.handler.ProcessResponseBody(ctx, respBody, resp.Header.Get("Content-Type"), processed.MaskedToOriginal)
+	modifiedBody := tp.handler.ProcessResponseBody(ctx, respBody, resp.Header.Get("Content-Type"), processed.MaskedToOriginal, processed.TransactionID)
 
 	// Create new response with modified body
 	newResp := &http.Response{

@@ -8,11 +8,57 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/hannes/yaak-private/src/backend/config"
 	"github.com/hannes/yaak-private/src/backend/proxy"
+	"golang.org/x/time/rate"
 )
+
+// RateLimiter manages rate limiting for API endpoints
+type RateLimiter struct {
+	visitors map[string]*rate.Limiter
+	mu       sync.RWMutex
+	rate     rate.Limit
+	burst    int
+}
+
+// NewRateLimiter creates a new rate limiter
+func NewRateLimiter(r rate.Limit, b int) *RateLimiter {
+	return &RateLimiter{
+		visitors: make(map[string]*rate.Limiter),
+		rate:     r,
+		burst:    b,
+	}
+}
+
+// GetLimiter returns the rate limiter for a given IP
+func (rl *RateLimiter) GetLimiter(ip string) *rate.Limiter {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+
+	limiter, exists := rl.visitors[ip]
+	if !exists {
+		limiter = rate.NewLimiter(rl.rate, rl.burst)
+		rl.visitors[ip] = limiter
+	}
+
+	return limiter
+}
+
+// CleanupOldVisitors removes old entries periodically
+func (rl *RateLimiter) CleanupOldVisitors() {
+	ticker := time.NewTicker(5 * time.Minute)
+	go func() {
+		for range ticker.C {
+			rl.mu.Lock()
+			// Clear all visitors to prevent memory leak
+			rl.visitors = make(map[string]*rate.Limiter)
+			rl.mu.Unlock()
+		}
+	}()
+}
 
 // Server represents the HTTP server
 type Server struct {
@@ -22,6 +68,7 @@ type Server struct {
 	transparentServer *http.Server
 	uiFS              fs.FS
 	modelFS           fs.FS
+	rateLimiter       *RateLimiter
 }
 
 // NewServer creates a new server instance
@@ -42,10 +89,15 @@ func NewServer(cfg *config.Config, electronConfigPath string) (*Server, error) {
 		}
 	}
 
+	// Create rate limiter: 10 requests per second, burst of 20
+	rateLimiter := NewRateLimiter(10, 20)
+	rateLimiter.CleanupOldVisitors()
+
 	return &Server{
 		config:           cfg,
 		handler:          handler,
 		transparentProxy: transparentProxy,
+		rateLimiter:      rateLimiter,
 	}, nil
 }
 
@@ -65,12 +117,17 @@ func NewServerWithEmbedded(cfg *config.Config, uiFS, modelFS fs.FS, electronConf
 		}
 	}
 
+	// Create rate limiter: 10 requests per second, burst of 20
+	rateLimiter := NewRateLimiter(10, 20)
+	rateLimiter.CleanupOldVisitors()
+
 	return &Server{
 		config:           cfg,
 		handler:          handler,
 		transparentProxy: transparentProxy,
 		uiFS:             uiFS,
 		modelFS:          modelFS,
+		rateLimiter:      rateLimiter,
 	}, nil
 }
 
@@ -150,9 +207,31 @@ func (s *Server) startTransparentProxy() {
 	log.Printf("Intercepting domains: %v", s.config.Proxy.InterceptDomains)
 	log.Printf("CA certificate path: %s", s.config.Proxy.CAPath)
 
+	// Create custom handler that routes based on request method
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// CONNECT requests go to transparent proxy
+		if r.Method == http.MethodConnect {
+			s.transparentProxy.ServeHTTP(w, r)
+			return
+		}
+
+		// Route API endpoints
+		switch r.URL.Path {
+		case "/logs":
+			s.logsHandler(w, r)
+		case "/health":
+			s.healthCheck(w, r)
+		case "/api/proxy/ca-cert":
+			s.handleCACert(w, r)
+		default:
+			// All other HTTP/HTTPS requests go to transparent proxy
+			s.transparentProxy.ServeHTTP(w, r)
+		}
+	})
+
 	s.transparentServer = &http.Server{
 		Addr:         proxyPort,
-		Handler:      s.transparentProxy,
+		Handler:      handler,
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  120 * time.Second,
@@ -195,6 +274,14 @@ func (s *Server) corsHandler(w http.ResponseWriter, r *http.Request) {
 
 // logsHandler provides the logs endpoint for retrieving log entries
 func (s *Server) logsHandler(w http.ResponseWriter, r *http.Request) {
+	// Apply rate limiting
+	ip := r.RemoteAddr
+	limiter := s.rateLimiter.GetLimiter(ip)
+	if !limiter.Allow() {
+		http.Error(w, "Rate limit exceeded. Please try again later.", http.StatusTooManyRequests)
+		return
+	}
+
 	// Handle CORS preflight OPTIONS request
 	if r.Method == http.MethodOptions {
 		s.corsHandler(w, r)

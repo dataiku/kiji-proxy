@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -48,7 +49,7 @@ type PIIMappingDB interface {
 
 // LoggingDB defines the interface for logging operations
 type LoggingDB interface {
-	// InsertLog inserts a log entry
+	// InsertLog inserts a log entry (automatically parses OpenAI messages if applicable)
 	InsertLog(ctx context.Context, message string, direction string, entities []detectors.Entity, blocked bool) error
 
 	// GetLogs retrieves log entries
@@ -56,11 +57,21 @@ type LoggingDB interface {
 
 	// GetLogsCount returns the total number of log entries
 	GetLogsCount(ctx context.Context) (int, error)
+
+	// SetDebugMode enables or disables debug logging
+	SetDebugMode(enabled bool)
+}
+
+// OpenAIMessage represents a single message in an OpenAI conversation
+type OpenAIMessage struct {
+	Role    string `json:"role"`    // system, user, assistant
+	Content string `json:"content"` // the message content
 }
 
 // PostgresPIIMappingDB implements PIIMappingDB for PostgreSQL
 type PostgresPIIMappingDB struct {
-	db *sql.DB
+	db        *sql.DB
+	debugMode bool
 }
 
 // NewPostgresPIIMappingDB creates a new PostgreSQL PII mapping database
@@ -130,7 +141,11 @@ func createLogsTableIfNotExists(ctx context.Context, db *sql.DB) error {
 	CREATE TABLE IF NOT EXISTS logs (
 		id SERIAL PRIMARY KEY,
 		timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-		message TEXT NOT NULL,
+		direction VARCHAR(10) NOT NULL,
+		message TEXT,
+		-- For OpenAI structured messages: [{"role": "user", "content": "..."}, ...]
+		messages JSONB,
+		model VARCHAR(100),
 		-- detected_pii stores a list of tuples: [{"original_pii": "...", "pii_type": "..."}, ...]
 		detected_pii JSONB NOT NULL DEFAULT '[]'::jsonb,
 		blocked BOOLEAN DEFAULT FALSE
@@ -138,12 +153,86 @@ func createLogsTableIfNotExists(ctx context.Context, db *sql.DB) error {
 
 	-- Create indexes for better performance
 	CREATE INDEX IF NOT EXISTS idx_logs_detected_pii ON logs USING GIN (detected_pii);
+	CREATE INDEX IF NOT EXISTS idx_logs_messages ON logs USING GIN (messages);
 	CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON logs(timestamp);
 	CREATE INDEX IF NOT EXISTS idx_logs_blocked ON logs(blocked);
+	CREATE INDEX IF NOT EXISTS idx_logs_direction ON logs(direction);
+	CREATE INDEX IF NOT EXISTS idx_logs_model ON logs(model);
 	`
 
-	_, err := db.ExecContext(ctx, query)
-	return err
+	if _, err := db.ExecContext(ctx, query); err != nil {
+		return err
+	}
+
+	// Migrate existing logs table if needed
+	return migrateLogsTable(ctx, db)
+}
+
+// migrateLogsTable updates existing logs table to new schema
+func migrateLogsTable(ctx context.Context, db *sql.DB) error {
+	// Check if direction column exists
+	var columnExists bool
+	checkQuery := `
+	SELECT EXISTS (
+		SELECT 1
+		FROM information_schema.columns
+		WHERE table_name='logs' AND column_name='direction'
+	)
+	`
+	if err := db.QueryRowContext(ctx, checkQuery).Scan(&columnExists); err != nil {
+		return fmt.Errorf("failed to check if direction column exists: %w", err)
+	}
+
+	if !columnExists {
+		log.Println("[Database] Migrating logs table to new schema...")
+
+		// Add new columns
+		migrationQuery := `
+		-- Add direction column
+		ALTER TABLE logs ADD COLUMN IF NOT EXISTS direction VARCHAR(10);
+
+		-- Add messages column for structured OpenAI messages
+		ALTER TABLE logs ADD COLUMN IF NOT EXISTS messages JSONB;
+
+		-- Add model column
+		ALTER TABLE logs ADD COLUMN IF NOT EXISTS model VARCHAR(100);
+
+		-- Migrate existing data: extract direction from message prefix
+		UPDATE logs
+		SET direction = CASE
+			WHEN message LIKE '[In]%' THEN 'In'
+			WHEN message LIKE '[Out]%' THEN 'Out'
+			WHEN message LIKE '[request]%' THEN 'request'
+			WHEN message LIKE '[response]%' THEN 'response'
+			ELSE 'In'
+		END
+		WHERE direction IS NULL;
+
+		-- Remove direction prefix from message
+		UPDATE logs
+		SET message = CASE
+			WHEN message LIKE '[%]%' THEN SUBSTRING(message FROM POSITION('] ' IN message) + 2)
+			ELSE message
+		END
+		WHERE message LIKE '[%]%';
+
+		-- Set direction to NOT NULL after migration
+		ALTER TABLE logs ALTER COLUMN direction SET NOT NULL;
+
+		-- Add new indexes
+		CREATE INDEX IF NOT EXISTS idx_logs_direction ON logs(direction);
+		CREATE INDEX IF NOT EXISTS idx_logs_model ON logs(model);
+		CREATE INDEX IF NOT EXISTS idx_logs_messages ON logs USING GIN (messages);
+		`
+
+		if _, err := db.ExecContext(ctx, migrationQuery); err != nil {
+			return fmt.Errorf("failed to migrate logs table: %w", err)
+		}
+
+		log.Println("[Database] ✓ Successfully migrated logs table")
+	}
+
+	return nil
 }
 
 // StoreMapping stores a PII mapping in the database with confidence level
@@ -251,7 +340,12 @@ type LogEntry struct {
 }
 
 // InsertLog inserts a log entry into the logs table
+// Automatically parses OpenAI messages if the message is valid JSON with messages array
 func (p *PostgresPIIMappingDB) InsertLog(ctx context.Context, message string, direction string, entities []detectors.Entity, blocked bool) error {
+	if p.debugMode {
+		log.Printf("[InsertLog] Direction: %s, Message length: %d, Entities: %d", direction, len(message), len(entities))
+	}
+
 	// Convert entities to log entries format: [{"original_pii": "...", "pii_type": "..."}, ...]
 	logEntries := make([]LogEntry, 0, len(entities))
 	for _, entity := range entities {
@@ -261,37 +355,69 @@ func (p *PostgresPIIMappingDB) InsertLog(ctx context.Context, message string, di
 		})
 	}
 
-	// If no entities, use empty array
 	if len(logEntries) == 0 {
 		logEntries = []LogEntry{}
 	}
 
-	// Marshal to JSONB
+	// Marshal detected PII to JSONB
 	detectedPIIJSON, err := json.Marshal(logEntries)
 	if err != nil {
 		return fmt.Errorf("failed to marshal detected PII: %w", err)
 	}
 
-	// Format message with direction prefix
-	formattedMessage := fmt.Sprintf("[%s] %s", direction, message)
+	// Try to parse as OpenAI message format
+	messages, model := parseOpenAIFromMessage(message, direction, p.debugMode)
+	if p.debugMode {
+		log.Printf("[InsertLog] Parsed %d messages, model: %s", len(messages), model)
+	}
 
-	query := `
-	INSERT INTO logs (timestamp, message, detected_pii, blocked)
-	VALUES (NOW(), $1, $2::jsonb, $3)
-	`
+	if len(messages) > 0 {
+		// Structured OpenAI log - store both structured messages AND original message
+		messagesJSON, err := json.Marshal(messages)
+		if err != nil {
+			return fmt.Errorf("failed to marshal messages: %w", err)
+		}
 
-	_, err = p.db.ExecContext(ctx, query, formattedMessage, detectedPIIJSON, blocked)
-	if err != nil {
-		return fmt.Errorf("failed to insert log: %w", err)
+		query := `
+		INSERT INTO logs (timestamp, direction, message, messages, model, detected_pii, blocked)
+		VALUES (NOW(), $1, $2, $3::jsonb, $4, $5::jsonb, $6)
+		`
+
+		_, err = p.db.ExecContext(ctx, query, direction, message, messagesJSON, model, detectedPIIJSON, blocked)
+		if err != nil {
+			return fmt.Errorf("failed to insert OpenAI log: %w", err)
+		}
+		if p.debugMode {
+			log.Printf("[InsertLog] ✓ Inserted structured log with %d messages", len(messages))
+		}
+	} else {
+		// Simple text log
+		query := `
+		INSERT INTO logs (timestamp, direction, message, detected_pii, blocked)
+		VALUES (NOW(), $1, $2, $3::jsonb, $4)
+		`
+
+		_, err = p.db.ExecContext(ctx, query, direction, message, detectedPIIJSON, blocked)
+		if err != nil {
+			return fmt.Errorf("failed to insert log: %w", err)
+		}
+		if p.debugMode {
+			log.Printf("[InsertLog] ✓ Inserted simple text log")
+		}
 	}
 
 	return nil
 }
 
+// SetDebugMode enables or disables debug logging
+func (p *PostgresPIIMappingDB) SetDebugMode(enabled bool) {
+	p.debugMode = enabled
+}
+
 // GetLogs retrieves log entries from the database
 func (p *PostgresPIIMappingDB) GetLogs(ctx context.Context, limit int, offset int) ([]map[string]interface{}, error) {
 	query := `
-	SELECT id, timestamp, message, detected_pii, blocked
+	SELECT id, timestamp, direction, message, messages, model, detected_pii, blocked
 	FROM logs
 	ORDER BY timestamp DESC
 	LIMIT $1 OFFSET $2
@@ -307,11 +433,14 @@ func (p *PostgresPIIMappingDB) GetLogs(ctx context.Context, limit int, offset in
 	for rows.Next() {
 		var id int
 		var timestamp time.Time
-		var message string
+		var direction string
+		var message sql.NullString
+		var messagesJSON []byte
+		var model sql.NullString
 		var detectedPIIJSON []byte
 		var blocked bool
 
-		if err := rows.Scan(&id, &timestamp, &message, &detectedPIIJSON, &blocked); err != nil {
+		if err := rows.Scan(&id, &timestamp, &direction, &message, &messagesJSON, &model, &detectedPIIJSON, &blocked); err != nil {
 			return nil, fmt.Errorf("failed to scan log row: %w", err)
 		}
 
@@ -323,30 +452,38 @@ func (p *PostgresPIIMappingDB) GetLogs(ctx context.Context, limit int, offset in
 			}
 		}
 
-		// Determine direction from message prefix
-		direction := "In"
-		if len(message) > 0 && message[0] == '[' {
-			endIdx := 1
-			for endIdx < len(message) && message[endIdx] != ']' {
-				endIdx++
-			}
-			if endIdx < len(message) {
-				direction = message[1:endIdx]
-				message = message[endIdx+2:] // Remove "[Direction] " prefix
-			}
-		}
-
 		// Format detected PII as string
 		detectedPIIStr := formatDetectedPII(detectedPII)
 
-		logs = append(logs, map[string]interface{}{
+		logEntry := map[string]interface{}{
 			"id":           id,
 			"direction":    direction,
-			"message":      message,
 			"detected_pii": detectedPIIStr,
 			"blocked":      blocked,
 			"timestamp":    timestamp,
-		})
+		}
+
+		// Add message if present (for legacy/simple logs)
+		if message.Valid {
+			logEntry["message"] = message.String
+		}
+
+		// Add model if present
+		if model.Valid {
+			logEntry["model"] = model.String
+		}
+
+		// Parse and add OpenAI messages if present
+		if len(messagesJSON) > 0 {
+			var messages []OpenAIMessage
+			if err := json.Unmarshal(messagesJSON, &messages); err == nil {
+				logEntry["messages"] = messages
+				// Format messages for display
+				logEntry["formatted_messages"] = formatOpenAIMessages(messages)
+			}
+		}
+
+		logs = append(logs, logEntry)
 	}
 
 	if err := rows.Err(); err != nil {
@@ -379,6 +516,105 @@ func formatDetectedPII(entries []LogEntry) string {
 	return result
 }
 
+// parseOpenAIFromMessage attempts to parse OpenAI message structure from JSON
+func parseOpenAIFromMessage(message string, direction string, debugMode bool) ([]OpenAIMessage, string) {
+	// Check message size limit (10MB)
+	const MaxMessageSize = 10 * 1024 * 1024
+	if len(message) > MaxMessageSize {
+		if debugMode {
+			log.Printf("[parseOpenAI] Message too large: %d bytes (max: %d)", len(message), MaxMessageSize)
+		}
+		return nil, ""
+	}
+
+	var data map[string]interface{}
+	if err := json.Unmarshal([]byte(message), &data); err != nil {
+		if debugMode {
+			log.Printf("[parseOpenAI] Failed to parse JSON for direction %s: %v", direction, err)
+		}
+		return nil, ""
+	}
+	if debugMode {
+		log.Printf("[parseOpenAI] Successfully parsed JSON for direction: %s", direction)
+	}
+
+	model := ""
+	if m, ok := data["model"].(string); ok {
+		model = m
+	}
+
+	messages := []OpenAIMessage{}
+
+	// Check if direction is a request type (original, masked, or legacy)
+	isRequest := direction == "request" || direction == "In" ||
+		direction == "request_original" || direction == "request_masked"
+
+	// Check if direction is a response type (original, masked, or legacy)
+	isResponse := direction == "response" || direction == "Out" ||
+		direction == "response_original" || direction == "response_masked"
+
+	if isRequest {
+		// Parse request messages
+		if msgsInterface, ok := data["messages"].([]interface{}); ok {
+			for _, msgInterface := range msgsInterface {
+				if msgMap, ok := msgInterface.(map[string]interface{}); ok {
+					msg := OpenAIMessage{}
+					if role, ok := msgMap["role"].(string); ok {
+						msg.Role = role
+					}
+					if content, ok := msgMap["content"].(string); ok {
+						msg.Content = content
+					}
+					messages = append(messages, msg)
+				}
+			}
+		}
+	} else if isResponse {
+		// Parse response messages from choices
+		if choicesInterface, ok := data["choices"].([]interface{}); ok {
+			for _, choiceInterface := range choicesInterface {
+				if choiceMap, ok := choiceInterface.(map[string]interface{}); ok {
+					if msgInterface, ok := choiceMap["message"].(map[string]interface{}); ok {
+						msg := OpenAIMessage{}
+						if role, ok := msgInterface["role"].(string); ok {
+							msg.Role = role
+						}
+						if content, ok := msgInterface["content"].(string); ok {
+							msg.Content = content
+						}
+						messages = append(messages, msg)
+					}
+				}
+			}
+		}
+	}
+
+	return messages, model
+}
+
+// formatOpenAIMessages formats OpenAI messages as a readable string
+func formatOpenAIMessages(messages []OpenAIMessage) string {
+	if len(messages) == 0 {
+		return ""
+	}
+
+	parts := make([]string, 0, len(messages))
+	for _, msg := range messages {
+		// Truncate long content for display
+		content := msg.Content
+		if len(content) > 100 {
+			content = content[:97] + "..."
+		}
+		parts = append(parts, fmt.Sprintf("[%s] %s", msg.Role, content))
+	}
+
+	result := parts[0]
+	for i := 1; i < len(parts); i++ {
+		result += " | " + parts[i]
+	}
+	return result
+}
+
 // GetLogsCount returns the total number of log entries
 func (p *PostgresPIIMappingDB) GetLogsCount(ctx context.Context) (int, error) {
 	var count int
@@ -396,6 +632,7 @@ type InMemoryPIIMappingDB struct {
 	dummyToOriginal map[string]string
 	logs            []map[string]interface{} // In-memory log storage
 	mutex           sync.RWMutex             // For thread-safe log access
+	debugMode       bool
 }
 
 // NewInMemoryPIIMappingDB creates a new in-memory PII mapping database
@@ -447,7 +684,12 @@ func (i *InMemoryPIIMappingDB) Close() error {
 }
 
 // InsertLog inserts a log entry into in-memory storage
+// Automatically parses OpenAI messages if the message is valid JSON with messages array
 func (i *InMemoryPIIMappingDB) InsertLog(ctx context.Context, message string, direction string, entities []detectors.Entity, blocked bool) error {
+	if i.debugMode {
+		log.Printf("[InMemory InsertLog] Direction: %s, Message length: %d", direction, len(message))
+	}
+
 	// Convert entities to log entries format
 	logEntries := make([]LogEntry, 0, len(entities))
 	for _, entity := range entities {
@@ -460,22 +702,46 @@ func (i *InMemoryPIIMappingDB) InsertLog(ctx context.Context, message string, di
 	// Format detected PII as string
 	detectedPIIStr := formatDetectedPII(logEntries)
 
+	// Try to parse as OpenAI message format
+	messages, model := parseOpenAIFromMessage(message, direction, i.debugMode)
+	if i.debugMode {
+		log.Printf("[InMemory InsertLog] Parsed %d messages, model: %s", len(messages), model)
+	}
+
 	// Create log entry
 	logEntry := map[string]interface{}{
 		"id":           len(i.logs) + 1,
 		"direction":    direction,
-		"message":      message,
 		"detected_pii": detectedPIIStr,
 		"blocked":      blocked,
 		"timestamp":    time.Now(),
 	}
 
+	// Always add the original message for Full JSON mode
+	logEntry["message"] = message
+
+	// Add structured data if OpenAI format detected
+	if len(messages) > 0 {
+		logEntry["messages"] = messages
+		logEntry["formatted_messages"] = formatOpenAIMessages(messages)
+		logEntry["model"] = model
+	}
+
 	// Thread-safe append
 	i.mutex.Lock()
 	i.logs = append(i.logs, logEntry)
+	logCount := len(i.logs)
 	i.mutex.Unlock()
 
+	if i.debugMode {
+		log.Printf("[InMemory InsertLog] ✓ Stored log entry. Total logs: %d", logCount)
+	}
 	return nil
+}
+
+// SetDebugMode enables or disables debug logging
+func (i *InMemoryPIIMappingDB) SetDebugMode(enabled bool) {
+	i.debugMode = enabled
 }
 
 // GetLogs retrieves log entries from in-memory storage
