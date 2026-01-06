@@ -4,11 +4,11 @@
   <img src="build/static/yaak.png" alt="Yaak Mascot" width="300">
 
   <p>
-    <a href="https://github.com/hanneshapke/yaak-proxy/actions/workflows/build-dmg.yml">
-      <img src="https://github.com/hanneshapke/yaak-proxy/actions/workflows/build-dmg.yml/badge.svg" alt="Build MacOS">
+    <a href="https://github.com/hanneshapke/yaak-proxy/actions/workflows/release-dmg.yml">
+      <img src="https://github.com/hanneshapke/yaak-proxy/actions/workflows/release-dmg.yml/badge.svg" alt="Build MacOS">
     </a>
-    <a href="https://github.com/hanneshapke/yaak-proxy/actions/workflows/build-linux.yml">
-      <img src="https://github.com/hanneshapke/yaak-proxy/actions/workflows/build-linux.yml/badge.svg" alt="Build Linux">
+    <a href="https://github.com/hanneshapke/yaak-proxy/actions/workflows/release-linux.yml">
+      <img src="https://github.com/hanneshapke/yaak-proxy/actions/workflows/release-linux.yml/badge.svg" alt="Build Linux">
     </a>
     <a href="https://github.com/hanneshapke/yaak-proxy/actions/workflows/lint.yml">
       <img src="https://github.com/hanneshapke/yaak-proxy/actions/workflows/lint.yml/badge.svg" alt="Lint">
