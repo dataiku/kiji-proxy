@@ -318,6 +318,39 @@ function createTray() {
     },
     { type: "separator" },
     {
+      label: "Documentation",
+      click: () => {
+        require("electron").shell.openExternal(
+          "https://github.com/hanneshapke/yaak-proxy/blob/main/docs/README.md"
+        );
+      },
+    },
+    {
+      label: "File a Bug Report",
+      click: () => {
+        require("electron").shell.openExternal(
+          "https://github.com/hanneshapke/yaak-proxy/issues/new?template=10_bug_report.yml"
+        );
+      },
+    },
+    {
+      label: "Request a Feature",
+      click: () => {
+        require("electron").shell.openExternal(
+          "https://github.com/hanneshapke/yaak-proxy/discussions/new/choose"
+        );
+      },
+    },
+    {
+      label: "Email us",
+      click: () => {
+        require("electron").shell.openExternal(
+          "mailto:opensource@dataiku.com?subject=[Yaak Proxy User]"
+        );
+      },
+    },
+    { type: "separator" },
+    {
       label: "Quit Yaak Proxy",
       click: () => {
         app.quit();
