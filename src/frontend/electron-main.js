@@ -12,6 +12,14 @@ const fs = require("fs");
 const { spawn } = require("child_process");
 const isDev = process.env.NODE_ENV === "development";
 
+// Initialize Sentry for error tracking
+const Sentry = require("@sentry/electron/main");
+Sentry.init({
+  dsn: "https://d7ad4213601549253c0d313b271f83cf@o4510660510679040.ingest.de.sentry.io/4510660556095568",
+  environment: isDev ? "development" : "production",
+  tracesSampleRate: 1.0,
+});
+
 let mainWindow;
 let goProcess = null;
 let tray = null;
@@ -169,22 +177,6 @@ const launchGoBinary = () => {
       args.push("--config", configPath);
     }
   }
-
-  console.log("Launching Go binary:", binaryPath);
-  console.log("Arguments:", args);
-  console.log("Working directory:", workingDir);
-  console.log(
-    "ONNX library path:",
-    env.ONNXRUNTIME_SHARED_LIBRARY_PATH || "not set"
-  );
-  console.log("Found ONNX library at:", foundOnnxLib || "not found");
-  console.log("Project root:", projectRoot);
-  console.log(
-    "Model path exists:",
-    fs.existsSync(
-      path.join(projectRoot, "model", "quantized", "model_quantized.onnx")
-    )
-  );
 
   // Spawn the Go process
   goProcess = spawn(binaryPath, args, {
@@ -348,7 +340,8 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       enableRemoteModule: false,
-      webSecurity: true,
+      webSecurity: false, // Disable webSecurity for local development
+      allowRunningInsecureContent: true,
       preload: path.join(__dirname, "electron-preload.js"),
     },
     ...(iconExists && { icon: iconPath }), // App icon (only set if file exists)
@@ -369,11 +362,9 @@ function createWindow() {
     console.error("Failed to load URL:", err);
     if (isDev) {
       // Try webpack dev server as fallback
-      console.log("Go backend not available, trying webpack dev server...");
       mainWindow.loadURL("http://localhost:3000").catch((err2) => {
         console.error("Webpack dev server also not available:", err2);
         // Final fallback to built files
-        console.log("Loading from dist...");
         const distPath = `file://${path.join(__dirname, "dist", "index.html")}`;
         if (fs.existsSync(path.join(__dirname, "dist", "index.html"))) {
           mainWindow.loadURL(distPath).catch((err3) => {
@@ -396,6 +387,52 @@ function createWindow() {
     if (isDev) {
       mainWindow.webContents.openDevTools();
     }
+  });
+
+  // Inject CSS workaround when DOM is ready
+  mainWindow.webContents.on("dom-ready", () => {
+    // WORKAROUND: Remove existing link tag and create a new one with proper attributes
+    // This forces the browser to load the CSS properly
+    mainWindow.webContents
+      .executeJavaScript(
+        `
+      (function() {
+        const existingLink = document.querySelector('link[rel="stylesheet"]');
+        if (existingLink) {
+          const cssUrl = existingLink.href;
+
+          // Remove the existing link
+          existingLink.remove();
+
+          // Create a new link with explicit attributes
+          const newLink = document.createElement('link');
+          newLink.rel = 'stylesheet';
+          newLink.type = 'text/css';
+          newLink.href = cssUrl + '?t=' + Date.now(); // Add timestamp to bust cache
+
+          newLink.onerror = function(err) {
+            // Fallback: Use XMLHttpRequest instead of fetch
+            const xhr = new XMLHttpRequest();
+            xhr.open('GET', cssUrl, true);
+            xhr.onload = function() {
+              if (xhr.status === 200) {
+                const styleTag = document.createElement('style');
+                styleTag.textContent = xhr.responseText;
+                styleTag.id = 'injected-css';
+                document.head.appendChild(styleTag);
+              }
+            };
+            xhr.send();
+          };
+
+          document.head.appendChild(newLink);
+        }
+      })();
+    `
+      )
+      .catch((err) =>
+        console.error("Failed to execute CSS loading script:", err)
+      );
   });
 
   // Hide window on close (don't quit app) - allows background running

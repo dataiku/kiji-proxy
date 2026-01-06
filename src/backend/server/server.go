@@ -168,7 +168,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/proxy/ca-cert", s.handleCACert)
 	mux.Handle("/v1/chat/completions", s.handler)
 
-	// Serve UI files
+	// Serve UI files with cache-busting headers
 	if s.uiFS != nil {
 		// Use embedded filesystem - need to strip the "frontend/dist/" prefix
 		// The embedded files are at "frontend/dist/" but we want to serve them at "/"
@@ -177,15 +177,15 @@ func (s *Server) Start() error {
 			log.Printf("Failed to create sub-filesystem: %v", err)
 			// Fallback to regular embedded filesystem
 			uiFS := http.FileServer(http.FS(s.uiFS))
-			mux.Handle("/", uiFS)
+			mux.Handle("/", s.noCacheMiddleware(uiFS))
 		} else {
 			uiFS := http.FileServer(http.FS(subFS))
-			mux.Handle("/", uiFS)
+			mux.Handle("/", s.noCacheMiddleware(uiFS))
 		}
 	} else {
 		// Use file system
 		uiFS := http.FileServer(http.Dir(s.config.UIPath))
-		mux.Handle("/", uiFS)
+		mux.Handle("/", s.noCacheMiddleware(uiFS))
 	}
 
 	// Create server with timeout configuration
@@ -385,6 +385,31 @@ func (s *Server) StartWithErrorHandling() {
 	if err := s.Start(); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
+}
+
+// noCacheMiddleware adds headers to prevent caching and logs requests
+func (s *Server) noCacheMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("📁 Static file request: %s", r.URL.Path)
+
+		// Set proper Content-Type based on file extension
+		path := r.URL.Path
+		switch {
+		case path == "/" || path == "/index.html":
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		case filepath.Ext(path) == ".css":
+			w.Header().Set("Content-Type", "text/css; charset=utf-8")
+		case filepath.Ext(path) == ".js":
+			w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
+		}
+
+		// Add no-cache headers
+		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+		w.Header().Set("Pragma", "no-cache")
+		w.Header().Set("Expires", "0")
+
+		next.ServeHTTP(w, r)
+	})
 }
 
 // Close closes the server and cleans up resources

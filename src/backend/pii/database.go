@@ -335,8 +335,9 @@ func (p *PostgresPIIMappingDB) Close() error {
 
 // LogEntry represents a single PII detection entry for logging
 type LogEntry struct {
-	OriginalPII string `json:"original_pii"`
-	PIIType     string `json:"pii_type"`
+	OriginalPII string  `json:"original_pii"`
+	PIIType     string  `json:"pii_type"`
+	Confidence  float64 `json:"confidence"`
 }
 
 // InsertLog inserts a log entry into the logs table
@@ -346,12 +347,13 @@ func (p *PostgresPIIMappingDB) InsertLog(ctx context.Context, message string, di
 		log.Printf("[InsertLog] Direction: %s, Message length: %d, Entities: %d", direction, len(message), len(entities))
 	}
 
-	// Convert entities to log entries format: [{"original_pii": "...", "pii_type": "..."}, ...]
+	// Convert entities to log entries format: [{"original_pii": "...", "pii_type": "...", "confidence": 0.95}, ...]
 	logEntries := make([]LogEntry, 0, len(entities))
 	for _, entity := range entities {
 		logEntries = append(logEntries, LogEntry{
 			OriginalPII: entity.Text,
 			PIIType:     entity.Label,
+			Confidence:  entity.Confidence,
 		})
 	}
 

@@ -1,5 +1,6 @@
 const path = require("path");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
+const MiniCssExtractPlugin = require("mini-css-extract-plugin");
 
 const isElectron = process.env.ELECTRON === "true";
 const isProduction = process.env.NODE_ENV === "production";
@@ -8,11 +9,12 @@ module.exports = {
   entry: "./index.js",
   mode: isProduction ? "production" : "development",
   devtool: isProduction ? false : "source-map", // Disable source maps in production to reduce size
+  cache: isElectron ? false : undefined, // Disable webpack cache for Electron builds
   output: {
     path: path.resolve(__dirname, "dist"),
     filename: isProduction ? "bundle.[contenthash].js" : "bundle.js",
-    // Use relative path for Electron (file:// protocol), absolute for web
-    publicPath: isElectron ? "./" : "/",
+    // Use absolute path for both Electron and web
+    publicPath: "/",
     clean: true, // Clean output directory before emit
   },
   module: {
@@ -37,7 +39,7 @@ module.exports = {
       {
         test: /\.css$/,
         use: [
-          "style-loader",
+          isElectron ? MiniCssExtractPlugin.loader : "style-loader",
           "css-loader",
           {
             loader: "postcss-loader",
@@ -71,6 +73,13 @@ module.exports = {
       inject: "body", // Automatically inject script tags
       scriptLoading: "blocking",
     }),
+    ...(isElectron
+      ? [
+          new MiniCssExtractPlugin({
+            filename: "[name].[contenthash].css",
+          }),
+        ]
+      : []),
   ],
   devServer: {
     static: {

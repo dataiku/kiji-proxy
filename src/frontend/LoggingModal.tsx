@@ -6,11 +6,18 @@ import {
   ArrowUpCircle,
   Code,
   MessageSquare,
+  Flag,
 } from "lucide-react";
 
 interface OpenAIMessage {
   role: string;
   content: string;
+}
+
+interface PIIEntity {
+  pii_type: string;
+  original_pii: string;
+  confidence?: number;
 }
 
 interface LogEntry {
@@ -28,7 +35,8 @@ interface LogEntry {
   messages?: OpenAIMessage[];
   formatted_messages?: string;
   model?: string;
-  detectedPII: string;
+  detectedPII: string; // Human-readable formatted string for display
+  detectedPIIRaw?: PIIEntity[]; // Raw JSON array from backend for reporting
   blocked: boolean;
   timestamp: Date;
 }
@@ -36,9 +44,14 @@ interface LogEntry {
 interface LoggingModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onReportMisclassification?: (logEntry: LogEntry) => void;
 }
 
-export default function LoggingModal({ isOpen, onClose }: LoggingModalProps) {
+export default function LoggingModal({
+  isOpen,
+  onClose,
+  onReportMisclassification,
+}: LoggingModalProps) {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showFullJson, setShowFullJson] = useState(false);
@@ -59,12 +72,6 @@ export default function LoggingModal({ isOpen, onClose }: LoggingModalProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
-  // Add console logging to debug
-  useEffect(() => {
-    console.log("[LoggingModal] showFullJson changed to:", showFullJson);
-    console.log("[LoggingModal] Number of logs:", logs.length);
-  }, [showFullJson, logs]);
-
   const loadLogs = useCallback(
     async (pageNum: number) => {
       if (!hasMore && pageNum > 0) return;
@@ -81,27 +88,13 @@ export default function LoggingModal({ isOpen, onClose }: LoggingModalProps) {
           : "/logs"; // Proxied call in web mode
         const apiUrl = `${baseUrl}?limit=${pageSize}&offset=${offset}`;
 
-        console.log("[LoggingModal] Fetching logs from:", apiUrl);
-        console.log("[LoggingModal] Is Electron:", isElectron);
-        console.log("[LoggingModal] Current URL:", window.location.href);
-
         const response = await fetch(apiUrl);
-
-        console.log("[LoggingModal] Response status:", response.status);
-        console.log("[LoggingModal] Response ok:", response.ok);
 
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
 
         const data = await response.json();
-
-        console.log("[LoggingModal] Response data:", {
-          logsCount: data.logs?.length || 0,
-          total: data.total,
-          hasLogs: !!data.logs,
-          page: pageNum,
-        });
 
         setTotal(data.total || 0);
         setHasMore(data.logs && data.logs.length === pageSize);
@@ -119,6 +112,27 @@ export default function LoggingModal({ isOpen, onClose }: LoggingModalProps) {
               timestamp = new Date();
             }
 
+            // Format detected_pii for display
+            let formattedPII = "None";
+            const rawPII = log.detected_pii;
+            let typedRawPII: PIIEntity[] | undefined;
+
+            if (rawPII && Array.isArray(rawPII) && rawPII.length > 0) {
+              // Type guard to ensure it's PIIEntity[]
+              typedRawPII = rawPII as PIIEntity[];
+              formattedPII = typedRawPII
+                .map(
+                  (entity: PIIEntity) =>
+                    `${entity.pii_type}: ${entity.original_pii}`
+                )
+                .join(", ");
+            } else if (typeof rawPII === "string" && rawPII !== "None") {
+              // Backend is returning a string instead of JSON array
+              // This shouldn't happen with new backend, but handle it as fallback
+              formattedPII = rawPII;
+              typedRawPII = undefined;
+            }
+
             const entry: LogEntry = {
               id: String(log.id),
               direction: (log.direction as LogEntry["direction"]) || "Unknown",
@@ -126,21 +140,11 @@ export default function LoggingModal({ isOpen, onClose }: LoggingModalProps) {
               messages: log.messages as OpenAIMessage[] | undefined,
               formatted_messages: log.formatted_messages as string | undefined,
               model: log.model as string | undefined,
-              detectedPII: (log.detected_pii as string) || "None",
+              detectedPII: formattedPII,
+              detectedPIIRaw: typedRawPII, // Keep raw JSON for reporting
               blocked: (log.blocked as boolean) || false,
               timestamp: timestamp,
             };
-
-            console.log("[LoggingModal] Transformed log entry:", {
-              id: entry.id,
-              direction: entry.direction,
-              hasMessage: !!entry.message,
-              hasMessages: !!entry.messages,
-              messagesCount: Array.isArray(entry.messages)
-                ? entry.messages.length
-                : 0,
-              model: entry.model,
-            });
 
             return entry;
           }
@@ -153,21 +157,8 @@ export default function LoggingModal({ isOpen, onClose }: LoggingModalProps) {
         }
 
         setPage(pageNum);
-
-        console.log(
-          "[LoggingModal] Successfully loaded and transformed logs:",
-          transformedLogs.length,
-          "Total in state:",
-          pageNum === 0
-            ? transformedLogs.length
-            : (logs?.length || 0) + transformedLogs.length
-        );
       } catch (err) {
-        console.error("[LoggingModal] ❌ Error loading logs:", err);
-        console.error("[LoggingModal] Error details:", {
-          message: err instanceof Error ? err.message : String(err),
-          stack: err instanceof Error ? err.stack : undefined,
-        });
+        console.error("Error loading logs:", err);
 
         const errorMessage =
           err instanceof Error ? err.message : "Failed to load logs";
@@ -181,7 +172,7 @@ export default function LoggingModal({ isOpen, onClose }: LoggingModalProps) {
         setIsLoading(false);
       }
     },
-    [hasMore, pageSize, logs.length]
+    [hasMore, pageSize]
   );
 
   const handleLoadMore = () => {
@@ -257,8 +248,6 @@ export default function LoggingModal({ isOpen, onClose }: LoggingModalProps) {
   };
 
   const formatMessage = (log: LogEntry, useFullJson: boolean): string => {
-    console.log("[formatMessage] useFullJson:", useFullJson, "log id:", log.id);
-
     if (!useFullJson) {
       // Messages Only mode - prefer structured messages
       if (log.messages && log.messages.length > 0) {
@@ -374,7 +363,7 @@ export default function LoggingModal({ isOpen, onClose }: LoggingModalProps) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-2xl p-6 max-w-6xl w-full max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
@@ -477,6 +466,9 @@ export default function LoggingModal({ isOpen, onClose }: LoggingModalProps) {
                     <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700 border-b border-slate-200">
                       Time Stamp
                     </th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700 border-b border-slate-200">
+                      <Flag className="w-4 h-4" />
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -542,6 +534,32 @@ export default function LoggingModal({ isOpen, onClose }: LoggingModalProps) {
                       </td>
                       <td className="px-4 py-3 text-sm text-slate-600">
                         {formatTimestamp(log.timestamp)}
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        {onReportMisclassification &&
+                          (() => {
+                            const hasPII =
+                              log.detectedPII && log.detectedPII !== "None";
+                            return (
+                              <button
+                                onClick={() => onReportMisclassification(log)}
+                                disabled={!hasPII}
+                                className={`flex items-center gap-1 px-2 py-1 rounded transition-colors ${
+                                  !hasPII
+                                    ? "text-slate-300 cursor-not-allowed"
+                                    : "text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                                }`}
+                                title={
+                                  !hasPII
+                                    ? "No PII detected in this log"
+                                    : "Report misclassification"
+                                }
+                              >
+                                <Flag className="w-4 h-4" />
+                                <span className="text-xs">Report</span>
+                              </button>
+                            );
+                          })()}
                       </td>
                     </tr>
                   ))}

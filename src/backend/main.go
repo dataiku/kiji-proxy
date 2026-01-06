@@ -4,13 +4,16 @@ import (
 	"embed"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/getsentry/sentry-go"
 	"github.com/hannes/yaak-private/src/backend/config"
 	"github.com/hannes/yaak-private/src/backend/server"
 	"github.com/joho/godotenv"
@@ -47,6 +50,33 @@ func main() {
 		log.Printf("Note: .env file not found or could not be loaded: %v", err)
 	}
 
+	// Initialize Sentry for error tracking (deferred flush happens in run)
+	environment := "production"
+	if os.Getenv("NODE_ENV") == "development" {
+		environment = "development"
+	}
+	err := sentry.Init(sentry.ClientOptions{
+		Dsn:              "https://d7ad4213601549253c0d313b271f83cf@o4510660510679040.ingest.de.sentry.io/4510660556095568",
+		Environment:      environment,
+		Release:          version,
+		TracesSampleRate: 1.0,
+	})
+	if err != nil {
+		log.Printf("Warning: Failed to initialize Sentry: %v", err)
+	} else {
+		log.Println("Sentry initialized successfully")
+	}
+
+	// Run main logic
+	if err := run(configPath, electronConfigPath); err != nil {
+		log.Printf("Fatal error: %v", err)
+		sentry.CaptureException(err)
+		sentry.Flush(2 * time.Second)
+		os.Exit(1)
+	}
+}
+
+func run(configPath *string, electronConfigPath *string) error {
 	// Log version at startup with banner
 	log.Println("================================================================================")
 	log.Printf("🚀 Starting Yaak Privacy Proxy v%s", version)
@@ -102,7 +132,7 @@ func main() {
 		// Development mode - use file system
 		srv, err = server.NewServer(cfg, *electronConfigPath, version)
 		if err != nil {
-			log.Fatalf("Failed to create server: %v", err)
+			return fmt.Errorf("failed to create server: %w", err)
 		}
 		log.Println("Using file system UI and model files (development mode)")
 	} else {
@@ -125,13 +155,14 @@ func main() {
 
 		srv, err = server.NewServerWithEmbedded(cfg, uiFiles, modelFiles, *electronConfigPath, version)
 		if err != nil {
-			log.Fatalf("Failed to create server with embedded files: %v", err)
+			return fmt.Errorf("failed to create server with embedded files: %w", err)
 		}
 		log.Println("Using embedded UI and model files (production mode)")
 	}
 
 	// Start server with error handling
 	srv.StartWithErrorHandling()
+	return nil
 }
 
 // loadConfigFromFile loads configuration from a JSON file
