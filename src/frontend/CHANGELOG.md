@@ -1,5 +1,11 @@
 # yaak-privacy-proxy
 
+## 0.2.0
+
+### Minor Changes
+
+- 6af54c3: Release includes change to Apache 2.0, mininal terms, transparent proxy with setup instructions, bug reporting, feedback loop
+
 ## 0.1.10
 
 ### Patch Changes
