@@ -200,7 +200,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                       ? "Enter new API key to update"
                       : "Enter your OpenAI API key"
                   }
-                  className="w-full px-4 py-2 border-2 border-slate-200 rounded-lg focus:border-blue-500 focus:outline-none font-mono text-sm"
+                  className="w-full px-4 py-2 border-2 border-slate-200 rounded-lg focus:border-blue-500 focus:outline-none font-mono text-sm placeholder:text-gray-400"
                 />
                 {hasApiKey && (
                   <button
@@ -228,7 +228,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 value={forwardEndpoint}
                 onChange={(e) => setForwardEndpoint(e.target.value)}
                 placeholder="https://api.openai.com/v1"
-                className="w-full px-4 py-2 border-2 border-slate-200 rounded-lg focus:border-blue-500 focus:outline-none font-mono text-sm"
+                className="w-full px-4 py-2 border-2 border-slate-200 rounded-lg focus:border-blue-500 focus:outline-none font-mono text-sm placeholder:text-gray-400"
               />
               <p className="text-xs text-slate-500 mt-1">
                 URL of the Privacy Proxy forward endpoint

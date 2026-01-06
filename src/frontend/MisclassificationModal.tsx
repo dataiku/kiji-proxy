@@ -122,7 +122,7 @@ export default function MisclassificationModal({
               <textarea
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
-                className="w-full h-32 p-3 border-2 border-slate-200 rounded-lg focus:border-amber-500 focus:outline-none resize-none text-sm"
+                className="w-full h-32 p-3 border-2 border-slate-200 rounded-lg focus:border-amber-500 focus:outline-none resize-none text-sm placeholder:text-gray-400"
                 placeholder="Example: 'John Smith' was detected as a person name but it's actually a company name..."
                 autoFocus
               />
