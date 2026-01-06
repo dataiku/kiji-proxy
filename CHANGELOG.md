@@ -5,16 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.1.2]
 
 ### Added
+- Updated Electron UI (MacOS only)
+- Model prediction feedback loop via Sentry
+- Linux builds
+- Transparent proxy
 - Changesets-based versioning system
 - Automated DMG builds on release
 - GitHub Actions workflows for releases
 - Version injection into Go binary
 - Comprehensive release documentation
 
-## [1.0.0] - Initial Release
+## [0.1.1] - Initial Release
 
 ### Added
 - PII detection and masking for OpenAI API requests
