@@ -98,14 +98,20 @@ echo "-----------------------------------------------------"
 cd build/tokenizers
 if [ -f "libtokenizers.a" ]; then
     echo "✅ Using existing libtokenizers.a (cached)"
+    echo "Running ranlib to ensure archive has proper index..."
+    ranlib libtokenizers.a
 elif [ -f "libtokenizers.darwin-arm64.tar.gz" ]; then
     echo "Extracting pre-built library..."
     tar -xzf libtokenizers.darwin-arm64.tar.gz
+    echo "Running ranlib to ensure archive has proper index..."
+    ranlib libtokenizers.a
 elif [ -f "Makefile" ]; then
     echo "Building with Makefile (parallel jobs: $PARALLEL_JOBS)..."
     make build -j$PARALLEL_JOBS || cargo build --release --jobs $PARALLEL_JOBS
     if [ -f "target/release/libtokenizers.a" ]; then
         cp target/release/libtokenizers.a ./libtokenizers.a
+        echo "Running ranlib to ensure archive has proper index..."
+        ranlib libtokenizers.a
     fi
 else
     echo "Building with cargo (parallel jobs: $PARALLEL_JOBS)..."
@@ -113,6 +119,8 @@ else
         cargo build --release --jobs $PARALLEL_JOBS
         if [ -f "target/release/libtokenizers.a" ]; then
             cp target/release/libtokenizers.a ./libtokenizers.a
+            echo "Running ranlib to ensure archive has proper index..."
+            ranlib libtokenizers.a
         fi
     else
         echo "⚠️  Cargo not found, skipping tokenizers build"

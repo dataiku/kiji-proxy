@@ -37,10 +37,14 @@ cd "$BUILD_DIR/tokenizers"
 # Check if we need to rebuild
 if [ -f "libtokenizers.a" ]; then
     echo "✅ Using existing libtokenizers.a"
+    echo "Running ranlib to ensure archive has proper index..."
+    ranlib libtokenizers.a
 else
     echo "Building tokenizers library..."
     cargo build --release
     cp target/release/libtokenizers.a .
+    echo "Running ranlib to ensure archive has proper index..."
+    ranlib libtokenizers.a
     echo "✅ Tokenizers library built"
 fi
 
