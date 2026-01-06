@@ -67,6 +67,12 @@ func main() {
 		defer sentry.Flush(2 * time.Second)
 	}
 
+	// Run main logic and get exit code
+	exitCode := run(configPath, electronConfigPath)
+	os.Exit(exitCode)
+}
+
+func run(configPath *string, electronConfigPath *string) int {
 	// Log version at startup with banner
 	log.Println("================================================================================")
 	log.Printf("🚀 Starting Yaak Privacy Proxy v%s", version)
@@ -92,6 +98,7 @@ func main() {
 
 	// Create and start server
 	var srv *server.Server
+	var err error
 
 	// Check if we're in development mode (using config file)
 	// In development, use file system; in production, use embedded files
@@ -122,7 +129,7 @@ func main() {
 		srv, err = server.NewServer(cfg, *electronConfigPath, version)
 		if err != nil {
 			log.Printf("Failed to create server: %v", err)
-			os.Exit(1)
+			return 1
 		}
 		log.Println("Using file system UI and model files (development mode)")
 	} else {
@@ -146,13 +153,14 @@ func main() {
 		srv, err = server.NewServerWithEmbedded(cfg, uiFiles, modelFiles, *electronConfigPath, version)
 		if err != nil {
 			log.Printf("Failed to create server with embedded files: %v", err)
-			os.Exit(1)
+			return 1
 		}
 		log.Println("Using embedded UI and model files (production mode)")
 	}
 
 	// Start server with error handling
 	srv.StartWithErrorHandling()
+	return 0
 }
 
 // loadConfigFromFile loads configuration from a JSON file
