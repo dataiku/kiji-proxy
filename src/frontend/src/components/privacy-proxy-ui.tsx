@@ -15,6 +15,8 @@ import SettingsModal from "./modals/SettingsModal";
 import LoggingModal from "./modals/LoggingModal";
 import AboutModal from "./modals/AboutModal";
 import MisclassificationModal from "./modals/MisclassificationModal";
+import TermsModal from "./modals/TermsModal";
+import CACertSetupModal from "./modals/CACertSetupModal";
 import logoImage from "../../assets/logo.png";
 import {
   highlightTextByCharacter,
@@ -56,6 +58,9 @@ export default function PrivacyProxyUI() {
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [isMisclassificationModalOpen, setIsMisclassificationModalOpen] =
     useState(false);
+  const [isTermsOpen, setIsTermsOpen] = useState(false);
+  const [isCACertSetupOpen, setIsCACertSetupOpen] = useState(false);
+  const [termsRequireAcceptance, setTermsRequireAcceptance] = useState(false);
   const [reportingData, setReportingData] = useState<{
     entities: Array<{
       type: string;
@@ -108,6 +113,24 @@ export default function PrivacyProxyUI() {
     if (isElectron && window.electronAPI) {
       loadSettings();
 
+      // Check if user has accepted terms on app load
+      window.electronAPI.getTermsAccepted().then((accepted) => {
+        if (!accepted) {
+          setTermsRequireAcceptance(true);
+          setIsTermsOpen(true);
+        }
+      });
+
+      // Check if CA cert setup has been dismissed
+      window.electronAPI.getCACertSetupDismissed().then((dismissed) => {
+        if (!dismissed) {
+          // Show CA cert setup modal after a short delay (after terms if needed)
+          setTimeout(() => {
+            setIsCACertSetupOpen(true);
+          }, 1000);
+        }
+      });
+
       // Listen for settings menu command
       if (window.electronAPI.onSettingsOpen) {
         window.electronAPI.onSettingsOpen(() => {
@@ -122,6 +145,14 @@ export default function PrivacyProxyUI() {
         });
       }
 
+      // Listen for terms menu command
+      if (window.electronAPI.onTermsOpen) {
+        window.electronAPI.onTermsOpen(() => {
+          setTermsRequireAcceptance(false);
+          setIsTermsOpen(true);
+        });
+      }
+
       // Cleanup
       return () => {
         if (window.electronAPI?.removeSettingsListener) {
@@ -129,6 +160,9 @@ export default function PrivacyProxyUI() {
         }
         if (window.electronAPI?.removeAboutListener) {
           window.electronAPI.removeAboutListener();
+        }
+        if (window.electronAPI?.removeTermsListener) {
+          window.electronAPI.removeTermsListener();
         }
       };
     }
@@ -796,6 +830,22 @@ export default function PrivacyProxyUI() {
         originalInput={reportingData?.originalInput || ""}
         maskedInput={reportingData?.maskedInput || ""}
         source={reportingData?.source || "main"}
+      />
+
+      {/* Terms Modal */}
+      <TermsModal
+        isOpen={isTermsOpen}
+        onClose={() => {
+          setIsTermsOpen(false);
+          setTermsRequireAcceptance(false);
+        }}
+        requireAcceptance={termsRequireAcceptance}
+      />
+
+      {/* CA Certificate Setup Modal */}
+      <CACertSetupModal
+        isOpen={isCACertSetupOpen}
+        onClose={() => setIsCACertSetupOpen(false)}
       />
     </div>
   );

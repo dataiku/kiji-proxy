@@ -318,6 +318,18 @@ function createTray() {
     },
     { type: "separator" },
     {
+      label: "Terms & Conditions",
+      click: () => {
+        showMainWindow();
+        // Send IPC to open terms after a short delay to ensure window is ready
+        setTimeout(() => {
+          if (mainWindow) {
+            mainWindow.webContents.send("open-terms");
+          }
+        }, 100);
+      },
+    },
+    {
       label: "Documentation",
       click: () => {
         require("electron").shell.openExternal(
@@ -584,6 +596,14 @@ function createMenu() {
             }
           },
         },
+        {
+          label: "Terms & Conditions",
+          click: () => {
+            if (mainWindow) {
+              mainWindow.webContents.send("open-terms");
+            }
+          },
+        },
       ],
     },
   ];
@@ -796,6 +816,82 @@ ipcMain.handle("set-forward-endpoint", async (event, url) => {
     return { success: true };
   } catch (error) {
     console.error("Error saving forward endpoint:", error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle("get-ca-cert-setup-dismissed", async () => {
+  try {
+    const storagePath = getStoragePath();
+    if (!fs.existsSync(storagePath)) {
+      return false;
+    }
+
+    const data = fs.readFileSync(storagePath, "utf8");
+    const config = JSON.parse(data);
+    return config.caCertSetupDismissed || false;
+  } catch (error) {
+    console.error("Error reading CA cert setup dismissed flag:", error);
+    return false;
+  }
+});
+
+ipcMain.handle("set-ca-cert-setup-dismissed", async (event, dismissed) => {
+  try {
+    const storagePath = getStoragePath();
+    let config = {};
+
+    // Read existing config if it exists
+    if (fs.existsSync(storagePath)) {
+      const data = fs.readFileSync(storagePath, "utf8");
+      config = JSON.parse(data);
+    }
+
+    config.caCertSetupDismissed = !!dismissed;
+
+    // Save config
+    fs.writeFileSync(storagePath, JSON.stringify(config, null, 2), "utf8");
+    return { success: true };
+  } catch (error) {
+    console.error("Error saving CA cert setup dismissed flag:", error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle("get-terms-accepted", async () => {
+  try {
+    const storagePath = getStoragePath();
+    if (!fs.existsSync(storagePath)) {
+      return false;
+    }
+
+    const data = fs.readFileSync(storagePath, "utf8");
+    const config = JSON.parse(data);
+    return config.termsAccepted || false;
+  } catch (error) {
+    console.error("Error reading terms accepted flag:", error);
+    return false;
+  }
+});
+
+ipcMain.handle("set-terms-accepted", async (event, accepted) => {
+  try {
+    const storagePath = getStoragePath();
+    let config = {};
+
+    // Read existing config if it exists
+    if (fs.existsSync(storagePath)) {
+      const data = fs.readFileSync(storagePath, "utf8");
+      config = JSON.parse(data);
+    }
+
+    config.termsAccepted = !!accepted;
+
+    // Save config
+    fs.writeFileSync(storagePath, JSON.stringify(config, null, 2), "utf8");
+    return { success: true };
+  } catch (error) {
+    console.error("Error saving terms accepted flag:", error);
     return { success: false, error: error.message };
   }
 });

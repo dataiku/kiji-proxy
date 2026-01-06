@@ -56,4 +56,34 @@ contextBridge.exposeInMainWorld("electronAPI", {
   removeAboutListener: () => {
     ipcRenderer.removeAllListeners("open-about");
   },
+
+  // Get CA cert setup dismissed flag
+  getCACertSetupDismissed: async () => {
+    return await ipcRenderer.invoke("get-ca-cert-setup-dismissed");
+  },
+
+  // Set CA cert setup dismissed flag
+  setCACertSetupDismissed: async (dismissed) => {
+    return await ipcRenderer.invoke("set-ca-cert-setup-dismissed", dismissed);
+  },
+
+  // Get terms accepted flag
+  getTermsAccepted: async () => {
+    return await ipcRenderer.invoke("get-terms-accepted");
+  },
+
+  // Set terms accepted flag
+  setTermsAccepted: async (accepted) => {
+    return await ipcRenderer.invoke("set-terms-accepted", accepted);
+  },
+
+  // Listen for terms menu command
+  onTermsOpen: (callback) => {
+    ipcRenderer.on("open-terms", callback);
+  },
+
+  // Remove terms listener
+  removeTermsListener: () => {
+    ipcRenderer.removeAllListeners("open-terms");
+  },
 });

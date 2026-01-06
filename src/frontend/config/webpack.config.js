@@ -62,10 +62,14 @@ module.exports = {
           filename: "assets/[name][ext]",
         },
       },
+      {
+        test: /\.md$/,
+        type: "asset/source",
+      },
     ],
   },
   resolve: {
-    extensions: [".tsx", ".ts", ".jsx", ".js"],
+    extensions: [".tsx", ".ts", ".jsx", ".js", ".md"],
   },
   plugins: [
     new HtmlWebpackPlugin({
