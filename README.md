@@ -305,7 +305,7 @@ See [docs/04-release-management.md](docs/04-release-management.md) for release p
 
 **Do not open public issues for security vulnerabilities.**
 
-Email: security@yaak-proxy.dev (or contact maintainers privately)
+Email: opensource@dataiku.com (or contact maintainers privately)
 
 **Security Features:**
 - All processing happens locally

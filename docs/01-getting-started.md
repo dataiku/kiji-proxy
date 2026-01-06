@@ -457,7 +457,7 @@ Now that you have Yaak Privacy Proxy running, here's what to explore next:
 - **Documentation Issues:** Open an issue on GitHub
 - **Bug Reports:** Use GitHub Issues with reproduction steps
 - **Questions:** Start a GitHub Discussion
-- **Security Issues:** Email security@yaak-proxy.dev (do not open public issues)
+- **Security Issues:** Email opensource@dataiku.com (do not open public issues)
 
 ## Troubleshooting
 
