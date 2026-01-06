@@ -394,11 +394,12 @@ func (s *Server) noCacheMiddleware(next http.Handler) http.Handler {
 
 		// Set proper Content-Type based on file extension
 		path := r.URL.Path
-		if path == "/" || path == "/index.html" {
+		switch {
+		case path == "/" || path == "/index.html":
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		} else if filepath.Ext(path) == ".css" {
+		case filepath.Ext(path) == ".css":
 			w.Header().Set("Content-Type", "text/css; charset=utf-8")
-		} else if filepath.Ext(path) == ".js" {
+		case filepath.Ext(path) == ".js":
 			w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
 		}
 
