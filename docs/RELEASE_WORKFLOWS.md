@@ -40,8 +40,8 @@ Both workflows run in parallel when triggered, speeding up the overall release p
 - `yaak-privacy-proxy-{version}-linux-amd64.tar.gz.sha256`
 
 **Key Features**:
-- Standalone Go binary (no Electron)
-- Embedded web UI (React)
+- Standalone Go binary (no Electron, no web UI)
+- Backend API server only
 - Embedded ML model and tokenizer files
 - Includes ONNX Runtime library (.so)
 - Includes helper scripts (run.sh, systemd service)
@@ -62,7 +62,7 @@ Both workflows trigger on the same events:
 Yaak Privacy Proxy.app/
 ├── Electron wrapper (UI)
 ├── Go backend binary
-│   ├── Embedded web UI (fallback)
+│   ├── Embedded web UI (React)
 │   ├── Embedded ML model
 │   └── Embedded tokenizer files
 ├── libonnxruntime.dylib
@@ -75,8 +75,8 @@ Yaak Privacy Proxy.app/
 ```
 yaak-privacy-proxy-{version}-linux-amd64/
 ├── bin/
-│   └── yaak-proxy (Go binary)
-│       ├── Embedded web UI
+│   └── yaak-proxy (Go binary - API server only)
+│       ├── Backend API (NO WEB UI)
 │       ├── Embedded ML model
 │       └── Embedded tokenizer files*
 ├── lib/
@@ -86,7 +86,7 @@ yaak-privacy-proxy-{version}-linux-amd64/
 └── yaak-proxy.service
 ```
 
-**\*Tokenizer Files Confirmation**: The Linux build includes all necessary tokenizer files embedded in the binary:
+**\*Tokenizer Files Confirmation**: The Linux build includes all necessary tokenizer files embedded in the binary (but NO web UI):
 - `tokenizer.json` - Main tokenizer configuration
 - `vocab.txt` - Vocabulary file
 - `special_tokens_map.json` - Special token mappings

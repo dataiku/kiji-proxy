@@ -61,53 +61,49 @@ if [ -f "$BUILD_DIR/libonnxruntime.so.${ONNX_VERSION}" ]; then
 else
     echo "Downloading ONNX Runtime from $ONNX_URL..."
 
-    # Download ONNX Runtime
-    curl -L -o "$BUILD_DIR/$ONNX_FILE" "$ONNX_URL"
+    # Download ONNX Runtime if not already downloaded
+    if [ ! -f "$BUILD_DIR/$ONNX_FILE" ]; then
+        curl -L -o "$BUILD_DIR/$ONNX_FILE" "$ONNX_URL"
+    fi
 
-    # Extract
+    # Extract if not already extracted
+    if [ ! -d "$ONNX_DIR" ]; then
+        cd "$BUILD_DIR"
+        tar -xzf "$ONNX_FILE"
+        cd "$PROJECT_ROOT"
+    fi
+
+    # Copy library from extracted directory to build root
+    if [ -f "$ONNX_DIR/lib/libonnxruntime.so.${ONNX_VERSION}" ]; then
+        cp "$ONNX_DIR/lib/libonnxruntime.so.${ONNX_VERSION}" "$BUILD_DIR/"
+        echo "✅ Copied ONNX Runtime library from extracted directory"
+    else
+        echo "❌ Error: ONNX Runtime library not found in $ONNX_DIR/lib/"
+        exit 1
+    fi
+
+    # Create symlink in build directory
     cd "$BUILD_DIR"
-    tar -xzf "$ONNX_FILE"
-
-    # Copy library
-    cp "$ONNX_DIR/lib/libonnxruntime.so.${ONNX_VERSION}" .
-
-    # Create symlink
     ln -sf "libonnxruntime.so.${ONNX_VERSION}" libonnxruntime.so
-
-    # Cleanup
-    rm -f "$ONNX_FILE"
-
     cd "$PROJECT_ROOT"
+
+    # Cleanup tarball
+    rm -f "$BUILD_DIR/$ONNX_FILE"
+
     echo "✅ ONNX Runtime downloaded and extracted"
 fi
 
-echo ""
-echo "📦 Step 3: Building frontend assets for embedding..."
-echo "----------------------------------------------------"
-
-cd src/frontend
-
-# Check if node_modules exists
-if [ ! -d "node_modules" ]; then
-    echo "Installing frontend dependencies..."
-    npm ci
+# Verify library exists in build root
+if [ ! -f "$BUILD_DIR/libonnxruntime.so.${ONNX_VERSION}" ]; then
+    echo "❌ Error: ONNX Runtime library not found at $BUILD_DIR/libonnxruntime.so.${ONNX_VERSION}"
+    echo "   Expected location after extraction and copy"
+    exit 1
 fi
 
-# Build frontend for embedding (not Electron)
-echo "Building frontend assets..."
-npm run build
-
-cd "$PROJECT_ROOT"
-
-# Copy built frontend to backend for embedding
-echo "Copying frontend assets to backend..."
-rm -rf src/backend/frontend/dist
-mkdir -p src/backend/frontend
-cp -r src/frontend/dist src/backend/frontend/
-echo "✅ Frontend assets built and copied"
+echo "✅ ONNX Runtime library verified at: $BUILD_DIR/libonnxruntime.so.${ONNX_VERSION}"
 
 echo ""
-echo "📦 Step 4: Copying model files for embedding..."
+echo "📦 Step 3: Copying model files for embedding..."
 echo "-----------------------------------------------"
 
 # Copy model files to backend for embedding
@@ -118,7 +114,7 @@ cp -r model/quantized src/backend/model/
 echo "✅ Model files copied to backend"
 
 echo ""
-echo "📦 Step 5: Building Go binary for Linux..."
+echo "📦 Step 4: Building Go binary for Linux..."
 echo "------------------------------------------"
 
 # Set CGO flags for Linux build
@@ -147,7 +143,7 @@ if [ ! -f "${BUILD_DIR}/${BINARY_NAME}" ]; then
 fi
 
 echo ""
-echo "📦 Step 6: Packaging release archive..."
+echo "📦 Step 5: Packaging release archive..."
 echo "---------------------------------------"
 
 PACKAGE_NAME="yaak-privacy-proxy-${VERSION}-linux-amd64"
@@ -168,7 +164,7 @@ cd "$PACKAGE_DIR/lib"
 ln -sf "libonnxruntime.so.${ONNX_VERSION}" libonnxruntime.so
 cd "$PROJECT_ROOT"
 
-echo "✅ Libraries packaged (model and frontend are embedded in binary)"
+echo "✅ Libraries packaged (model files are embedded in binary)"
 
 # Create README
 cat > "$PACKAGE_DIR/README.txt" << 'EOF'
@@ -176,7 +172,7 @@ Yaak Privacy Proxy - Linux Standalone Binary
 ============================================
 
 This is a standalone version of Yaak Privacy Proxy for Linux.
-It includes the Go backend with embedded web UI and ML model.
+It includes the Go backend API with embedded ML model (no web UI).
 
 Installation:
 -------------
@@ -226,20 +222,36 @@ Or set LD_LIBRARY_PATH manually:
   export LD_LIBRARY_PATH=/path/to/yaak-privacy-proxy/lib:$LD_LIBRARY_PATH
   ./bin/yaak-proxy
 
-Note: The web UI and ML model are embedded in the binary, so no additional
-files need to be present beyond the binary and the ONNX Runtime library.
+Note: The ML model is embedded in the binary, so no additional model files
+need to be present beyond the binary and the ONNX Runtime library.
+
+Web UI:
+This is a backend API server only. There is no web UI included.
+For a web interface, use the macOS DMG build or connect your own frontend
+to the API endpoints at http://localhost:8080
 
 Usage:
 ------
 
-1. Start the proxy:
+1. Start the proxy API server:
    ./bin/yaak-proxy
 
-2. Access the web UI:
-   Open http://localhost:8080 in your browser
+   The server will start on http://localhost:8080 (by default)
+
+2. Test the API:
+   curl http://localhost:8080/health
+   curl http://localhost:8080/version
 
 3. Configure your application to use the proxy:
    Set HTTP_PROXY=http://localhost:8080
+
+4. Use the API endpoints:
+   - Health check: GET /health
+   - Version info: GET /version
+   - Proxy requests through the server for PII detection
+
+Note: This is a backend API server only. There is no web UI.
+For a graphical interface, use the macOS DMG build.
 
 For more information, visit: https://github.com/hannes/yaak-proxy
 

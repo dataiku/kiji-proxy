@@ -2,6 +2,7 @@
   "name": "yaak-privacy-proxy",
   "version": "0.1.1",
   "description": "Yaak Privacy Proxy",
+  "author": "Dataiku - Open Source Lab",
   "main": "electron-main.js",
   "scripts": {
     "build": "webpack --mode production",
@@ -42,7 +43,7 @@
     "autoprefixer": "^10.4.23",
     "babel-loader": "^9.1.0",
     "css-loader": "^6.8.0",
-    "electron": "^28.0.0",
+    "electron": "^28.3.3",
     "electron-builder": "^24.9.1",
     "eslint": "^8.50.0",
     "eslint-plugin-react": "^7.33.0",
@@ -61,6 +62,8 @@
   "build": {
     "appId": "com.yaak.proxy",
     "productName": "Yaak Privacy Proxy",
+    "electronVersion": "28.3.3",
+    "npmRebuild": false,
     "icon": "assets/icon.png",
     "directories": {
       "output": "release"

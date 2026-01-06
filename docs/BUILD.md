@@ -7,13 +7,17 @@ This comprehensive guide covers building Yaak Privacy Proxy for macOS and Linux 
 Yaak Privacy Proxy can be built for two platforms:
 
 1. **macOS (DMG)**: Desktop application with Electron UI + Go backend
-2. **Linux (Standalone)**: Server binary with embedded web UI + Go backend (no Electron)
+2. **Linux (Standalone)**: API server binary with Go backend only (no UI, no Electron)
 
 Both builds include:
 - Go backend (proxy server + PII detection engine)
 - Embedded ML model (`model_quantized.onnx`)
 - Embedded tokenizer files (all required for PII detection)
 - ONNX Runtime library
+
+**Key Difference:**
+- **macOS**: Includes Electron desktop UI for user interaction
+- **Linux**: Backend API only - access via HTTP API endpoints, no web UI included
 
 ## Quick Start
 
@@ -32,10 +36,7 @@ make build-dmg
 ### Linux Standalone Build
 
 ```bash
-# Install dependencies
-cd src/frontend && npm ci && cd ../..
-
-# Build Linux binary
+# Build Linux binary (no frontend dependencies needed)
 make build-linux
 
 # Output: release/linux/yaak-privacy-proxy-{version}-linux-amd64.tar.gz
@@ -107,11 +108,12 @@ make verify-linux
 ├─────────────────────────────────────────┤
 │  bin/                                    │
 │  └── yaak-proxy (Go binary)             │
-│      ├── Embedded Web UI                │
+│      ├── Backend API Server             │
 │      ├── Embedded ML Model              │
 │      ├── Embedded Tokenizer Files       │
 │      ├── Proxy Server                   │
 │      └── PII Detection Engine           │
+│      (NO WEB UI - API only)             │
 │                                          │
 │  lib/                                    │
 │  └── libonnxruntime.so.1.23.1           │
@@ -126,15 +128,20 @@ make verify-linux
 
 ## What's Included
 
-### Embedded Files (Both Platforms)
+### Embedded Files
 
-Both macOS and Linux builds embed the following files into the Go binary:
+**macOS Build** embeds:
+- Frontend UI (React application)
+- ML model and tokenizer files
 
-#### ML Model Files
+**Linux Build** embeds:
+- ML model and tokenizer files only (no UI)
+
+**ML Model Files (Both Platforms):**
 - `model_quantized.onnx` (63MB) - Quantized ONNX model for PII detection
 - `model_manifest.json` - Model metadata
 
-#### Tokenizer Files (✅ All Included)
+**Tokenizer Files (Both Platforms - ✅ All Included):**
 - `tokenizer.json` - Main tokenizer configuration
 - `tokenizer_config.json` - Tokenizer settings
 - `vocab.txt` - Vocabulary file (30,522 tokens)
@@ -142,11 +149,12 @@ Both macOS and Linux builds embed the following files into the Go binary:
 - `label_mappings.json` - PII label mappings
 - `ort_config.json` - ONNX Runtime configuration
 
-#### Web UI
-- React frontend application (embedded in binary)
-- Served at `http://localhost:8080` by default
+**Web UI (macOS Only):**
+- React frontend application (embedded in macOS binary)
+- Served by Electron desktop application
+- **Not included in Linux build** - Linux is API-only
 
-**Note**: On Linux, these files are extracted to `model/quantized/` at runtime. On macOS, they're available in the app bundle's resources directory.
+**Note**: On Linux, model/tokenizer files are extracted to `model/quantized/` at runtime. On macOS, they're available in the app bundle's resources directory.
 
 ## Build Process Details
 
@@ -229,26 +237,17 @@ The `build_linux.sh` script performs these steps:
    cp lib/libonnxruntime.so.1.23.1 build/
    ```
 
-3. **Frontend Build**
+3. **Prepare Embedded Files**
    ```bash
-   cd src/frontend
-   npm run build  # Standard web build, no Electron
-   ```
-
-4. **Prepare Embedded Files**
-   ```bash
-   # Copy frontend
-   rm -rf src/backend/frontend/dist
-   mkdir -p src/backend/frontend
-   cp -r src/frontend/dist src/backend/frontend/
-   
    # Copy model files (includes ONNX model + all tokenizer files)
    rm -rf src/backend/model/quantized
    mkdir -p src/backend/model
    cp -r model/quantized src/backend/model/
    ```
+   
+   **Note:** No frontend build step for Linux - API only!
 
-5. **Build Go Binary**
+4. **Build Go Binary**
    ```bash
    CGO_ENABLED=1 \
    GOOS=linux \
@@ -260,25 +259,25 @@ The `build_linux.sh` script performs these steps:
      ./src/backend
    ```
 
-6. **Package Structure**
+5. **Package Structure**
    ```bash
    mkdir -p release/linux/yaak-privacy-proxy-{version}-linux-amd64/{bin,lib}
    cp build/yaak-proxy release/.../bin/
    cp build/libonnxruntime.so.1.23.1 release/.../lib/
    ```
 
-7. **Create Helper Scripts**
+6. **Create Helper Scripts**
    - `run.sh` - Launcher with `LD_LIBRARY_PATH`
    - `README.txt` - Installation and usage guide
    - `yaak-proxy.service` - Systemd service example
 
-8. **Create Tarball**
+7. **Create Tarball**
    ```bash
    tar -czf yaak-privacy-proxy-{version}-linux-amd64.tar.gz ...
    sha256sum ... > yaak-privacy-proxy-{version}-linux-amd64.tar.gz.sha256
    ```
 
-**Build Time**: 12-15 minutes (first run), 4-6 minutes (cached)
+**Build Time**: 8-12 minutes (first run), 3-5 minutes (cached) - faster than macOS since no frontend build
 
 ## Build Flags and Tags
 
@@ -308,8 +307,10 @@ var uiFiles embed.FS
 var modelFiles embed.FS
 ```
 
-All files in `frontend/dist/` and `model/quantized/` are embedded, including:
-- HTML, CSS, JavaScript files (UI)
+**macOS:** All files in `frontend/dist/` and `model/quantized/` are embedded
+**Linux:** Only files in `model/quantized/` are embedded (no UI)
+
+This includes:
 - ONNX model file
 - All tokenizer JSON/text files
 
@@ -454,23 +455,23 @@ Yaak Privacy Proxy.app/
 
 ```
 yaak-privacy-proxy-0.1.1-linux-amd64/
-├── bin/
-│   └── yaak-proxy                       # Go binary (embedded: UI + model + tokenizers)
-├── lib/
-│   ├── libonnxruntime.so.1.23.1        # ONNX Runtime library
-│   └── libonnxruntime.so -> libonnxruntime.so.1.23.1
+├── bin/yaak-proxy                       # Go binary (embedded: model + tokenizers ONLY)
+├── lib/libonnxruntime.so.1.23.1        # ONNX Runtime library
+├── lib/libonnxruntime.so -> libonnxruntime.so.1.23.1
 ├── run.sh                               # Launcher script (sets LD_LIBRARY_PATH)
 ├── README.txt                           # Usage instructions
 └── yaak-proxy.service                   # Systemd service example
 ```
 
-**Runtime Extraction**: When the binary starts, embedded files are extracted to:
+**Runtime Extraction**: When the binary starts, embedded model/tokenizer files are extracted to:
 - `model/quantized/model_quantized.onnx`
 - `model/quantized/tokenizer.json`
 - `model/quantized/vocab.txt`
 - `model/quantized/special_tokens_map.json`
 - `model/quantized/label_mappings.json`
 - And other tokenizer configuration files
+
+**No Web UI**: The Linux binary is an API server only. Access via HTTP endpoints.
 
 ## Version Management
 
@@ -610,15 +611,18 @@ make build-linux
 make verify-linux
 
 # Extract
+```bash
+# Extract package
 cd release/linux
 tar -xzf yaak-privacy-proxy-*-linux-amd64.tar.gz
 cd yaak-privacy-proxy-*-linux-amd64
 
-# Run
+# Run the API server
 ./run.sh
 
-# Access UI
-open http://localhost:8080
+# Test the API (no web UI)
+curl http://localhost:8080/health
+curl http://localhost:8080/version
 ```
 
 ### Verification Checks
@@ -786,12 +790,30 @@ find .venv -name "libonnxruntime*.dylib" -exec cp {} build/ \;
 
 **Solution (Linux)**:
 ```bash
-# Download manually if build script fails
+# The build script downloads it automatically
+# If manual intervention is needed:
 cd build
+
+# Download if not present
 wget https://github.com/microsoft/onnxruntime/releases/download/v1.23.1/onnxruntime-linux-x64-1.23.1.tgz
+
+# Extract
 tar -xzf onnxruntime-linux-x64-1.23.1.tgz
+
+# Copy library to build root (important!)
 cp onnxruntime-linux-x64-1.23.1/lib/libonnxruntime.so.1.23.1 .
+
+# Create symlink
 ln -sf libonnxruntime.so.1.23.1 libonnxruntime.so
+
+# Verify
+ls -lh libonnxruntime.so.1.23.1
+# Should be ~21MB
+```
+
+**Common Issue**: If you see "No such file or directory" when copying the library, verify the extraction succeeded and the file exists in the extracted directory:
+```bash
+ls -la build/onnxruntime-linux-x64-1.23.1/lib/
 ```
 
 ### Tokenizers Build Failed
@@ -885,15 +907,15 @@ sudo ldconfig
 
 | Artifact | Size | Notes |
 |----------|------|-------|
-| Go binary (macOS) | 60-90MB | Includes embedded files |
-| Go binary (Linux) | 60-90MB | Includes embedded files |
+| Go binary (macOS) | 60-90MB | Includes embedded UI + model |
+| Go binary (Linux) | 55-85MB | Includes embedded model only (no UI) |
 | libonnxruntime (macOS) | 26MB | Dynamic library |
 | libonnxruntime (Linux) | 24MB | Shared library |
 | libtokenizers.a | 15MB | Static library (embedded in Go binary) |
 | model_quantized.onnx | 63MB | Quantized ML model |
 | Frontend dist | 2-5MB | React app bundle |
 | DMG (total) | ~400MB | Complete macOS package |
-| Linux tarball | 150-200MB | Complete Linux package |
+| Linux tarball | 130-170MB | Complete Linux API server package (no UI) |
 
 ## Contributing to Build System
 
