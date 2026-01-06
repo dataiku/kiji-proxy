@@ -116,8 +116,13 @@ jobs:
       - name: Extract Version
         id: version
         run: |
-          # Extract version from tag (v1.2.3 -> 1.2.3)
-          VERSION=${GITHUB_REF#refs/tags/v}
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            # Extract version from tag (v1.2.3 -> 1.2.3)
+            VERSION=${GITHUB_REF#refs/tags/v}
+          else
+            # For non-tag builds, extract version from package.json
+            VERSION=$(cat src/frontend/package.json | grep '"version"' | head -1 | awk -F '"' '{print $4}')
+          fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Building version: $VERSION"
 
