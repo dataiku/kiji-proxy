@@ -11,17 +11,17 @@ import {
   CheckCircle,
   Flag,
 } from "lucide-react";
-import SettingsModal from "./SettingsModal";
-import LoggingModal from "./LoggingModal";
-import AboutModal from "./AboutModal";
-import MisclassificationModal from "./MisclassificationModal";
-import logoImage from "./assets/logo.png";
+import SettingsModal from "./modals/SettingsModal";
+import LoggingModal from "./modals/LoggingModal";
+import AboutModal from "./modals/AboutModal";
+import MisclassificationModal from "./modals/MisclassificationModal";
+import logoImage from "../../assets/logo.png";
 import {
   highlightTextByCharacter,
   highlightEntitiesByToken,
   highlightEntitiesByOriginal,
-} from "./utils/textHighlight";
-import { reportMisclassification } from "./utils/misclassificationReporter";
+} from "../utils/textHighlight";
+import { reportMisclassification } from "../utils/misclassificationReporter";
 
 interface PIIEntity {
   pii_type: string;
@@ -153,7 +153,7 @@ export default function PrivacyProxyUI() {
 
         clearTimeout(timeoutId);
         setServerStatus(response.ok ? "online" : "offline");
-      } catch (error) {
+      } catch (_error) {
         setServerStatus("offline");
       }
     };
@@ -172,7 +172,7 @@ export default function PrivacyProxyUI() {
             setModelSignature(hash.substring(0, 7));
           }
         }
-      } catch (error) {
+      } catch (_error) {
         // Silently fail - model signature is optional UI enhancement
       }
     };
@@ -190,7 +190,7 @@ export default function PrivacyProxyUI() {
             setVersion(data.version);
           }
         }
-      } catch (error) {
+      } catch (_error) {
         // Silently fail - version is optional UI enhancement
       }
     };

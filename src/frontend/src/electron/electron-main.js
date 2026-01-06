@@ -38,8 +38,16 @@ const isEncryptionAvailable = () => {
 const getGoBinaryPath = () => {
   if (isDev) {
     // In development, look for the binary in the project root
-    // __dirname is src/frontend, so we need to go up two levels to reach project root
-    const devPath = path.join(__dirname, "..", "..", "build", "yaak-proxy");
+    // __dirname is src/frontend/src/electron, so we need to go up three levels to reach project root
+    const devPath = path.join(
+      __dirname,
+      "..",
+      "..",
+      "..",
+      "..",
+      "build",
+      "yaak-proxy"
+    );
     if (fs.existsSync(devPath)) {
       return devPath;
     }
@@ -74,8 +82,8 @@ const getGoBinaryPath = () => {
 // Get the path to resources directory
 const getResourcesPath = () => {
   if (isDev) {
-    // In development, __dirname is src/frontend, so go up two levels to project root
-    return path.join(__dirname, "..", "..");
+    // In development, __dirname is src/frontend/src/electron, so go up three levels to project root
+    return path.join(__dirname, "..", "..", "..", "..");
   }
 
   if (process.platform === "darwin") {
@@ -258,7 +266,7 @@ function showMainWindow() {
 // Create system tray icon
 function createTray() {
   // Use icon-16.png for the menu bar
-  const iconPath = path.join(__dirname, "assets", "icon-16.png");
+  const iconPath = path.join(__dirname, "..", "..", "assets", "icon-16.png");
 
   if (!fs.existsSync(iconPath)) {
     console.warn("Tray icon not found at:", iconPath);
@@ -327,7 +335,7 @@ function createTray() {
 
 function createWindow() {
   // Get icon path (works in both dev and production)
-  const iconPath = path.join(__dirname, "assets", "icon.png");
+  const iconPath = path.join(__dirname, "..", "..", "assets", "icon.png");
   const iconExists = fs.existsSync(iconPath);
 
   // Create the browser window
@@ -355,7 +363,13 @@ function createWindow() {
     startUrl = "http://localhost:8080";
   } else {
     // In production, use built files
-    startUrl = `file://${path.join(__dirname, "dist", "index.html")}`;
+    startUrl = `file://${path.join(
+      __dirname,
+      "..",
+      "..",
+      "dist",
+      "index.html"
+    )}`;
   }
 
   mainWindow.loadURL(startUrl).catch((err) => {
@@ -365,8 +379,16 @@ function createWindow() {
       mainWindow.loadURL("http://localhost:3000").catch((err2) => {
         console.error("Webpack dev server also not available:", err2);
         // Final fallback to built files
-        const distPath = `file://${path.join(__dirname, "dist", "index.html")}`;
-        if (fs.existsSync(path.join(__dirname, "dist", "index.html"))) {
+        const distPath = `file://${path.join(
+          __dirname,
+          "..",
+          "..",
+          "dist",
+          "index.html"
+        )}`;
+        if (
+          fs.existsSync(path.join(__dirname, "..", "..", "dist", "index.html"))
+        ) {
           mainWindow.loadURL(distPath).catch((err3) => {
             console.error("Failed to load from dist:", err3);
           });
