@@ -106,12 +106,42 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
           {/* Links */}
           <div className="space-y-2">
             <a
-              href="https://github.com/hannes/yaak-private"
+              href="https://github.com/hannes/yaak-proxy/"
               target="_blank"
               rel="noopener noreferrer"
               className="block text-sm text-blue-600 hover:text-blue-700 hover:underline"
             >
               View on GitHub →
+            </a>
+            <a
+              href="https://github.com/hanneshapke/yaak-proxy/blob/main/docs/README.md"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block text-sm text-blue-600 hover:text-blue-700 hover:underline"
+            >
+              Documentation →
+            </a>
+            <a
+              href="https://github.com/hanneshapke/yaak-proxy/issues/new?template=10_bug_report.yml"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block text-sm text-blue-600 hover:text-blue-700 hover:underline"
+            >
+              File a Bug Report →
+            </a>
+            <a
+              href="https://github.com/hanneshapke/yaak-proxy/discussions/new/choose"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block text-sm text-blue-600 hover:text-blue-700 hover:underline"
+            >
+              Request a Feature →
+            </a>
+            <a
+              href="mailto:opensource@dataiku.com?subject=[Yaak Proxy User]"
+              className="block text-sm text-blue-600 hover:text-blue-700 hover:underline"
+            >
+              Email us →
             </a>
             <a
               href="https://github.com/hannes/yaak-private/blob/main/LICENSE"

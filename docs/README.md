@@ -178,7 +178,7 @@ When updating documentation:
 
 **Do not open public issues for security vulnerabilities.**
 
-Email: security@yaak-proxy.dev (or contact maintainers privately)
+Email: opensource@dataiku.com (or contact maintainers privately)
 
 ## License
 
