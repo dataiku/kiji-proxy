@@ -168,16 +168,17 @@ jobs:
           path: src/frontend/release/*.dmg
           retention-days: 90
 
-      - name: Create GitHub Release
+      - name: Upload to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.create_release == 'true'
         uses: softprops/action-gh-release@v2
         with:
           files: src/frontend/release/*.dmg
           draft: false
           prerelease: ${{ contains(github.ref, '-beta') || contains(github.ref, '-alpha') || contains(github.ref, '-rc') }}
+          fail_on_unmatched_files: true
+          make_latest: true
+          append_body: false
           generate_release_notes: true
-          name: Release v${{ steps.version.outputs.version }}
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref || format('v{0}', steps.version.outputs.version) }}
           body: |
             ## Yaak Privacy Proxy v${{ steps.version.outputs.version }}
 

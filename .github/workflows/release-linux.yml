@@ -127,9 +127,8 @@ jobs:
           files: |
             release/linux/*.tar.gz
             release/linux/*.tar.gz.sha256
-          draft: false
-          prerelease: ${{ contains(github.ref, '-beta') || contains(github.ref, '-alpha') || contains(github.ref, '-rc') }}
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref || format('v{0}', steps.version.outputs.version) }}
+          fail_on_unmatched_files: true
+          append_body: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
