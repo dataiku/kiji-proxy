@@ -5,7 +5,8 @@ package main
 
 import "embed"
 
-//go:embed frontend/dist/*
+// Frontend embedding is disabled for Linux builds (API-only)
+// Only the model files are embedded
 var uiFiles embed.FS
 
 //go:embed model/quantized/*

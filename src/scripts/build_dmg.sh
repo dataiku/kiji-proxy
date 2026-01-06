@@ -354,10 +354,32 @@ echo "--------------------------------------------"
 
 cd src/frontend
 
+# Build frontend first
+npm run build:electron
+
+if [ $? -ne 0 ]; then
+    echo "❌ Frontend build failed!"
+    exit 1
+fi
+
+# Create symlink to electron in local node_modules for electron-builder (workspace fix)
+echo "Creating symlink to electron from root node_modules..."
+mkdir -p node_modules
+ln -sf ../../../node_modules/electron node_modules/electron
+ln -sf ../../../node_modules/electron-builder node_modules/electron-builder
+
+# Verify symlinks
+if [ -L "node_modules/electron" ]; then
+    echo "✅ Electron symlink created"
+else
+    echo "⚠️  Failed to create electron symlink"
+fi
+
 # Package the app (this will create the DMG)
 # Disable code signing (compression level set in package.json)
+echo "Running electron-builder..."
 CSC_IDENTITY_AUTO_DISCOVERY=false \
-npm run electron:pack
+npx electron-builder
 
 if [ $? -ne 0 ]; then
     echo "❌ electron-builder packaging failed!"

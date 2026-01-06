@@ -2,7 +2,7 @@
 .PHONY: format lint lint-go lint-frontend lint-frontend-fix lint-all typecheck typecheck-frontend check check-all ruff-fix ruff-all
 .PHONY: test test-go test-all
 .PHONY: clean clean-venv clean-all
-.PHONY: build-dmg
+.PHONY: build-dmg build-linux verify-linux
 .PHONY: electron-build electron-run electron electron-dev electron-install
 .PHONY: list show shell jupyter info quickstart
 
@@ -235,3 +235,22 @@ build-dmg: ## Build DMG package with Go binary and Electron app
 	@chmod +x src/scripts/build_dmg.sh
 	@./src/scripts/build_dmg.sh
 	@echo "$(GREEN)✅ DMG build complete$(NC)"
+
+build-linux: ## Build Linux standalone binary (without Electron)
+	@echo "$(BLUE)Building Linux standalone binary...$(NC)"
+	@if [ ! -f "src/scripts/build_linux.sh" ]; then \
+		echo "$(YELLOW)⚠️  build_linux.sh script not found$(NC)"; \
+		exit 1; \
+	fi
+	@chmod +x src/scripts/build_linux.sh
+	@./src/scripts/build_linux.sh
+	@echo "$(GREEN)✅ Linux build complete$(NC)"
+
+verify-linux: ## Verify Linux build includes all required files (tokenizer, model, etc.)
+	@echo "$(BLUE)Verifying Linux build...$(NC)"
+	@if [ ! -f "src/scripts/verify_linux_build.sh" ]; then \
+		echo "$(YELLOW)⚠️  verify_linux_build.sh script not found$(NC)"; \
+		exit 1; \
+	fi
+	@chmod +x src/scripts/verify_linux_build.sh
+	@./src/scripts/verify_linux_build.sh
