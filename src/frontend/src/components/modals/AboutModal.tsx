@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { X, Info } from "lucide-react";
-import logoImage from "./assets/logo.png";
+import logoImage from "../../../assets/logo.png";
 
 interface AboutModalProps {
   isOpen: boolean;

@@ -237,7 +237,7 @@ export default function LoggingModal({
 
       // Return the original if we can't parse it
       return message;
-    } catch (error) {
+    } catch (_error) {
       // Not JSON or parsing failed, return as-is
       return message;
     }

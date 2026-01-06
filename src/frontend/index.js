@@ -1,8 +1,8 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import "./styles.css";
-import PrivacyProxyUI from "./privacy-proxy-ui.tsx";
-import ErrorBoundary from "./ErrorBoundary.tsx";
+import "./src/styles/styles.css";
+import PrivacyProxyUI from "./src/components/privacy-proxy-ui.tsx";
+import ErrorBoundary from "./src/components/ErrorBoundary.tsx";
 import * as Sentry from "@sentry/electron/renderer";
 
 // Initialize Sentry for renderer process
