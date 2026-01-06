@@ -1,5 +1,11 @@
 # yaak-privacy-proxy
 
+## 0.1.8
+
+### Patch Changes
+
+- 0ca0a59: New Linux release process
+
 ## 0.1.7
 
 ### Patch Changes
