@@ -105,22 +105,17 @@ ONNX_FILE="onnxruntime-${ONNX_PLATFORM}-${ONNX_VERSION}.tgz"
 ONNX_URL="https://github.com/microsoft/onnxruntime/releases/download/v${ONNX_VERSION}/${ONNX_FILE}"
 ONNX_DIR="$BUILD_DIR/onnxruntime-${ONNX_PLATFORM}-${ONNX_VERSION}"
 
-if [ -f "$BUILD_DIR/libonnxruntime.so.${ONNX_VERSION}" ]; then
-    echo "✅ ONNX Runtime library already exists"
-else
+# Function to download and extract ONNX Runtime
+download_onnx() {
     echo "Downloading ONNX Runtime from $ONNX_URL..."
 
-    # Download ONNX Runtime if not already downloaded
-    if [ ! -f "$BUILD_DIR/$ONNX_FILE" ]; then
-        curl -L -o "$BUILD_DIR/$ONNX_FILE" "$ONNX_URL"
-    fi
+    # Download ONNX Runtime
+    curl -L -o "$BUILD_DIR/$ONNX_FILE" "$ONNX_URL"
 
-    # Extract if not already extracted
-    if [ ! -d "$ONNX_DIR" ]; then
-        cd "$BUILD_DIR"
-        tar -xzf "$ONNX_FILE"
-        cd "$PROJECT_ROOT"
-    fi
+    # Extract
+    cd "$BUILD_DIR"
+    tar -xzf "$ONNX_FILE"
+    cd "$PROJECT_ROOT"
 
     # Copy library from extracted directory to build root
     if [ -f "$ONNX_DIR/lib/libonnxruntime.so.${ONNX_VERSION}" ]; then
@@ -131,25 +126,38 @@ else
         exit 1
     fi
 
-    # Create symlink in build directory
-    cd "$BUILD_DIR"
-    ln -sf "libonnxruntime.so.${ONNX_VERSION}" libonnxruntime.so
-    cd "$PROJECT_ROOT"
-
     # Cleanup tarball
     rm -f "$BUILD_DIR/$ONNX_FILE"
 
     echo "✅ ONNX Runtime downloaded and extracted"
+}
+
+# Check if we need to download
+if [ -f "$BUILD_DIR/libonnxruntime.so.${ONNX_VERSION}" ]; then
+    echo "✅ ONNX Runtime library already exists"
+else
+    download_onnx
 fi
 
-# Verify library exists in build root
+# Always ensure symlink exists
+cd "$BUILD_DIR"
+ln -sf "libonnxruntime.so.${ONNX_VERSION}" libonnxruntime.so
+cd "$PROJECT_ROOT"
+
+# Verify library and symlink exist
 if [ ! -f "$BUILD_DIR/libonnxruntime.so.${ONNX_VERSION}" ]; then
     echo "❌ Error: ONNX Runtime library not found at $BUILD_DIR/libonnxruntime.so.${ONNX_VERSION}"
     echo "   Expected location after extraction and copy"
     exit 1
 fi
 
+if [ ! -L "$BUILD_DIR/libonnxruntime.so" ]; then
+    echo "❌ Error: ONNX Runtime symlink not found at $BUILD_DIR/libonnxruntime.so"
+    exit 1
+fi
+
 echo "✅ ONNX Runtime library verified at: $BUILD_DIR/libonnxruntime.so.${ONNX_VERSION}"
+echo "✅ ONNX Runtime symlink verified at: $BUILD_DIR/libonnxruntime.so"
 
 echo ""
 echo "📦 Step 3: Copying model files for embedding..."
