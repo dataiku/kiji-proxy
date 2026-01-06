@@ -10,7 +10,9 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/getsentry/sentry-go"
 	"github.com/hannes/yaak-private/src/backend/config"
 	"github.com/hannes/yaak-private/src/backend/server"
 	"github.com/joho/godotenv"
@@ -47,6 +49,24 @@ func main() {
 		log.Printf("Note: .env file not found or could not be loaded: %v", err)
 	}
 
+	// Initialize Sentry for error tracking
+	environment := "production"
+	if os.Getenv("NODE_ENV") == "development" {
+		environment = "development"
+	}
+	err := sentry.Init(sentry.ClientOptions{
+		Dsn:              "https://d7ad4213601549253c0d313b271f83cf@o4510660510679040.ingest.de.sentry.io/4510660556095568",
+		Environment:      environment,
+		Release:          version,
+		TracesSampleRate: 1.0,
+	})
+	if err != nil {
+		log.Printf("Warning: Failed to initialize Sentry: %v", err)
+	} else {
+		log.Println("Sentry initialized successfully")
+		defer sentry.Flush(2 * time.Second)
+	}
+
 	// Log version at startup with banner
 	log.Println("================================================================================")
 	log.Printf("🚀 Starting Yaak Privacy Proxy v%s", version)
@@ -72,7 +92,6 @@ func main() {
 
 	// Create and start server
 	var srv *server.Server
-	var err error
 
 	// Check if we're in development mode (using config file)
 	// In development, use file system; in production, use embedded files

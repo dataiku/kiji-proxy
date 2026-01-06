@@ -9,16 +9,19 @@ import {
   Info,
   WifiOff,
   CheckCircle,
+  Flag,
 } from "lucide-react";
 import SettingsModal from "./SettingsModal";
 import LoggingModal from "./LoggingModal";
 import AboutModal from "./AboutModal";
+import MisclassificationModal from "./MisclassificationModal";
 import logoImage from "./assets/logo.png";
 import {
   highlightTextByCharacter,
   highlightEntitiesByToken,
   highlightEntitiesByOriginal,
 } from "./utils/textHighlight";
+import { reportMisclassification } from "./utils/misclassificationReporter";
 
 export default function PrivacyProxyUI() {
   const [inputData, setInputData] = useState("");
@@ -32,6 +35,20 @@ export default function PrivacyProxyUI() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isLoggingOpen, setIsLoggingOpen] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
+  const [isMisclassificationModalOpen, setIsMisclassificationModalOpen] =
+    useState(false);
+  const [reportingData, setReportingData] = useState<{
+    entities: Array<{
+      type: string;
+      original: string;
+      token: string;
+      confidence: number;
+    }>;
+    originalInput: string;
+    maskedInput: string;
+    source: string;
+    modelVersion?: string;
+  } | null>(null);
   const [_, setForwardEndpoint] = useState("https://api.openai.com/v1");
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [serverStatus, setServerStatus] = useState<"online" | "offline">(
@@ -138,10 +155,6 @@ export default function PrivacyProxyUI() {
         }
       } catch (error) {
         // Silently fail - model signature is optional UI enhancement
-        console.warn(
-          "Failed to load model signature:",
-          error instanceof Error ? error.message : String(error)
-        );
       }
     };
 
@@ -160,10 +173,6 @@ export default function PrivacyProxyUI() {
         }
       } catch (error) {
         // Silently fail - version is optional UI enhancement
-        console.warn(
-          "Failed to load version:",
-          error instanceof Error ? error.message : String(error)
-        );
       }
     };
 
@@ -298,6 +307,97 @@ export default function PrivacyProxyUI() {
     setMaskedOutput("");
     setFinalOutput("");
     setDetectedEntities([]);
+  };
+
+  const handleReportMisclassification = () => {
+    if (!inputData || detectedEntities.length === 0) {
+      alert(
+        "Please process some data first before reporting misclassification."
+      );
+      return;
+    }
+
+    // Set the reporting data from current state
+    setReportingData({
+      entities: detectedEntities,
+      originalInput: inputData,
+      maskedInput: maskedInput,
+      source: "main",
+      modelVersion: modelSignature || undefined,
+    });
+    setIsMisclassificationModalOpen(true);
+  };
+
+  const handleReportFromLog = (logEntry: any) => {
+    // Extract information from log entry
+    const message = logEntry.message || logEntry.formatted_messages || "";
+    const detectedPIIRaw = logEntry.detectedPIIRaw || [];
+
+    // Parse detectedPIIRaw array to extract individual entities with confidence
+    let entities: Array<{
+      type: string;
+      original: string;
+      token: string;
+      confidence: number;
+    }> = [];
+
+    if (Array.isArray(detectedPIIRaw) && detectedPIIRaw.length > 0) {
+      entities = detectedPIIRaw.map((entity: any) => ({
+        type: entity.pii_type || "unknown",
+        original: entity.original_pii || "",
+        token: "[Filtered]",
+        confidence: entity.confidence || 0,
+      }));
+    } else {
+      // Fallback if no raw data available
+      entities = [
+        {
+          type: "log_entry",
+          original: logEntry.detectedPII || "None",
+          token: "[Filtered]",
+          confidence: 0,
+        },
+      ];
+    }
+
+    // Set the reporting data and open modal
+    setReportingData({
+      entities: entities,
+      originalInput: message,
+      maskedInput: `Log Entry ID: ${logEntry.id}, Direction: ${logEntry.direction}`,
+      source: "log",
+      modelVersion: logEntry.model || modelSignature || undefined,
+    });
+    setIsMisclassificationModalOpen(true);
+  };
+
+  const handleSubmitMisclassification = async (comment: string) => {
+    if (!reportingData) {
+      console.error("No reporting data available");
+      return;
+    }
+
+    try {
+      await reportMisclassification({
+        originalInput: reportingData.originalInput,
+        maskedInput: reportingData.maskedInput,
+        detectedEntities: reportingData.entities,
+        userComment: comment || undefined,
+        modelVersion: reportingData.modelVersion,
+        timestamp: new Date().toISOString(),
+      });
+
+      alert(
+        "Thank you for your feedback! The misclassification has been reported."
+      );
+
+      // Clear reporting data and close modal
+      setReportingData(null);
+      setIsMisclassificationModalOpen(false);
+    } catch (error) {
+      console.error("Error submitting misclassification:", error);
+      alert("Failed to submit report. Please try again.");
+    }
   };
 
   return (
@@ -577,6 +677,18 @@ export default function PrivacyProxyUI() {
                   <div className="text-sm text-slate-600">Avg. Confidence</div>
                 </div>
               </div>
+
+              {/* Report Misclassification Button */}
+              <div className="mt-6 flex justify-center">
+                <button
+                  onClick={handleReportMisclassification}
+                  className="flex items-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-colors shadow-md hover:shadow-lg"
+                  title="Report incorrect PII classification"
+                >
+                  <Flag className="w-5 h-5" />
+                  Report Misclassification
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -647,10 +759,25 @@ export default function PrivacyProxyUI() {
       <LoggingModal
         isOpen={isLoggingOpen}
         onClose={() => setIsLoggingOpen(false)}
+        onReportMisclassification={handleReportFromLog}
       />
 
       {/* About Modal */}
       <AboutModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} />
+
+      {/* Misclassification Modal */}
+      <MisclassificationModal
+        isOpen={isMisclassificationModalOpen}
+        onClose={() => {
+          setIsMisclassificationModalOpen(false);
+          setReportingData(null);
+        }}
+        onSubmit={handleSubmitMisclassification}
+        entities={reportingData?.entities || []}
+        originalInput={reportingData?.originalInput || ""}
+        maskedInput={reportingData?.maskedInput || ""}
+        source={reportingData?.source || "main"}
+      />
     </div>
   );
 }
