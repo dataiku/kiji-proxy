@@ -4,6 +4,7 @@ import (
 	"embed"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"io/fs"
 	"log"
 	"os"
@@ -49,7 +50,7 @@ func main() {
 		log.Printf("Note: .env file not found or could not be loaded: %v", err)
 	}
 
-	// Initialize Sentry for error tracking
+	// Initialize Sentry for error tracking (deferred flush happens in run)
 	environment := "production"
 	if os.Getenv("NODE_ENV") == "development" {
 		environment = "development"
@@ -64,15 +65,18 @@ func main() {
 		log.Printf("Warning: Failed to initialize Sentry: %v", err)
 	} else {
 		log.Println("Sentry initialized successfully")
-		defer sentry.Flush(2 * time.Second)
 	}
 
-	// Run main logic and get exit code
-	exitCode := run(configPath, electronConfigPath)
-	os.Exit(exitCode)
+	// Run main logic
+	if err := run(configPath, electronConfigPath); err != nil {
+		log.Printf("Fatal error: %v", err)
+		sentry.CaptureException(err)
+		sentry.Flush(2 * time.Second)
+		os.Exit(1)
+	}
 }
 
-func run(configPath *string, electronConfigPath *string) int {
+func run(configPath *string, electronConfigPath *string) error {
 	// Log version at startup with banner
 	log.Println("================================================================================")
 	log.Printf("🚀 Starting Yaak Privacy Proxy v%s", version)
@@ -128,8 +132,7 @@ func run(configPath *string, electronConfigPath *string) int {
 		// Development mode - use file system
 		srv, err = server.NewServer(cfg, *electronConfigPath, version)
 		if err != nil {
-			log.Printf("Failed to create server: %v", err)
-			return 1
+			return fmt.Errorf("failed to create server: %w", err)
 		}
 		log.Println("Using file system UI and model files (development mode)")
 	} else {
@@ -152,15 +155,14 @@ func run(configPath *string, electronConfigPath *string) int {
 
 		srv, err = server.NewServerWithEmbedded(cfg, uiFiles, modelFiles, *electronConfigPath, version)
 		if err != nil {
-			log.Printf("Failed to create server with embedded files: %v", err)
-			return 1
+			return fmt.Errorf("failed to create server with embedded files: %w", err)
 		}
 		log.Println("Using embedded UI and model files (production mode)")
 	}
 
 	// Start server with error handling
 	srv.StartWithErrorHandling()
-	return 0
+	return nil
 }
 
 // loadConfigFromFile loads configuration from a JSON file
