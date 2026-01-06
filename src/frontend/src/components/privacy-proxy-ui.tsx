@@ -153,7 +153,7 @@ export default function PrivacyProxyUI() {
 
         clearTimeout(timeoutId);
         setServerStatus(response.ok ? "online" : "offline");
-      } catch (error) {
+      } catch (_error) {
         setServerStatus("offline");
       }
     };
@@ -172,7 +172,7 @@ export default function PrivacyProxyUI() {
             setModelSignature(hash.substring(0, 7));
           }
         }
-      } catch (error) {
+      } catch (_error) {
         // Silently fail - model signature is optional UI enhancement
       }
     };
@@ -190,7 +190,7 @@ export default function PrivacyProxyUI() {
             setVersion(data.version);
           }
         }
-      } catch (error) {
+      } catch (_error) {
         // Silently fail - version is optional UI enhancement
       }
     };
