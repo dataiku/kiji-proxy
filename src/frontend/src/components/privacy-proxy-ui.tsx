@@ -11,17 +11,17 @@ import {
   CheckCircle,
   Flag,
 } from "lucide-react";
-import SettingsModal from "./SettingsModal";
-import LoggingModal from "./LoggingModal";
-import AboutModal from "./AboutModal";
-import MisclassificationModal from "./MisclassificationModal";
-import logoImage from "./assets/logo.png";
+import SettingsModal from "./modals/SettingsModal";
+import LoggingModal from "./modals/LoggingModal";
+import AboutModal from "./modals/AboutModal";
+import MisclassificationModal from "./modals/MisclassificationModal";
+import logoImage from "../../assets/logo.png";
 import {
   highlightTextByCharacter,
   highlightEntitiesByToken,
   highlightEntitiesByOriginal,
-} from "./utils/textHighlight";
-import { reportMisclassification } from "./utils/misclassificationReporter";
+} from "../utils/textHighlight";
+import { reportMisclassification } from "../utils/misclassificationReporter";
 
 interface PIIEntity {
   pii_type: string;

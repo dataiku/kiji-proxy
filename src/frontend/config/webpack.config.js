@@ -6,12 +6,13 @@ const isElectron = process.env.ELECTRON === "true";
 const isProduction = process.env.NODE_ENV === "production";
 
 module.exports = {
+  context: path.resolve(__dirname, ".."),
   entry: "./index.js",
   mode: isProduction ? "production" : "development",
   devtool: isProduction ? false : "source-map", // Disable source maps in production to reduce size
   cache: isElectron ? false : undefined, // Disable webpack cache for Electron builds
   output: {
-    path: path.resolve(__dirname, "dist"),
+    path: path.resolve(__dirname, "../dist"),
     filename: isProduction ? "bundle.[contenthash].js" : "bundle.js",
     // Use absolute path for both Electron and web
     publicPath: "/",
@@ -83,7 +84,7 @@ module.exports = {
   ],
   devServer: {
     static: {
-      directory: path.join(__dirname, "dist"),
+      directory: path.resolve(__dirname, "../dist"),
     },
     compress: true,
     port: 3000,
