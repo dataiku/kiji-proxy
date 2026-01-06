@@ -1,5 +1,11 @@
 # yaak-privacy-proxy
 
+## 0.1.9
+
+### Patch Changes
+
+- 4a8a56a: build patch
+
 ## 0.1.8
 
 ### Patch Changes
