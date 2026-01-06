@@ -14,6 +14,12 @@ interface OpenAIMessage {
   content: string;
 }
 
+interface PIIEntity {
+  pii_type: string;
+  original_pii: string;
+  confidence?: number;
+}
+
 interface LogEntry {
   id: string;
   direction:
@@ -30,7 +36,7 @@ interface LogEntry {
   formatted_messages?: string;
   model?: string;
   detectedPII: string; // Human-readable formatted string for display
-  detectedPIIRaw?: any; // Raw JSON array from backend for reporting
+  detectedPIIRaw?: PIIEntity[]; // Raw JSON array from backend for reporting
   blocked: boolean;
   timestamp: Date;
 }
@@ -109,17 +115,22 @@ export default function LoggingModal({
             // Format detected_pii for display
             let formattedPII = "None";
             const rawPII = log.detected_pii;
+            let typedRawPII: PIIEntity[] | undefined;
 
             if (rawPII && Array.isArray(rawPII) && rawPII.length > 0) {
-              formattedPII = rawPII
+              // Type guard to ensure it's PIIEntity[]
+              typedRawPII = rawPII as PIIEntity[];
+              formattedPII = typedRawPII
                 .map(
-                  (entity: any) => `${entity.pii_type}: ${entity.original_pii}`
+                  (entity: PIIEntity) =>
+                    `${entity.pii_type}: ${entity.original_pii}`
                 )
                 .join(", ");
             } else if (typeof rawPII === "string" && rawPII !== "None") {
               // Backend is returning a string instead of JSON array
               // This shouldn't happen with new backend, but handle it as fallback
               formattedPII = rawPII;
+              typedRawPII = undefined;
             }
 
             const entry: LogEntry = {
@@ -130,7 +141,7 @@ export default function LoggingModal({
               formatted_messages: log.formatted_messages as string | undefined,
               model: log.model as string | undefined,
               detectedPII: formattedPII,
-              detectedPIIRaw: rawPII, // Keep raw JSON for reporting
+              detectedPIIRaw: typedRawPII, // Keep raw JSON for reporting
               blocked: (log.blocked as boolean) || false,
               timestamp: timestamp,
             };
@@ -161,7 +172,7 @@ export default function LoggingModal({
         setIsLoading(false);
       }
     },
-    [hasMore, pageSize, logs.length]
+    [hasMore, pageSize]
   );
 
   const handleLoadMore = () => {

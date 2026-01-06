@@ -24,8 +24,8 @@ export default function MisclassificationModal({
   onSubmit,
   entities = [],
   originalInput = "",
-  maskedInput = "",
-  source = "main",
+  maskedInput: _maskedInput = "",
+  source: _source = "main",
 }: MisclassificationModalProps) {
   const [comment, setComment] = useState("");
 

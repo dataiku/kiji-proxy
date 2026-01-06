@@ -23,6 +23,25 @@ import {
 } from "./utils/textHighlight";
 import { reportMisclassification } from "./utils/misclassificationReporter";
 
+interface PIIEntity {
+  pii_type: string;
+  original_pii: string;
+  confidence?: number;
+}
+
+interface LogEntry {
+  id: string;
+  direction: string;
+  message?: string;
+  messages?: Array<{ role: string; content: string }>;
+  formatted_messages?: string;
+  model?: string;
+  detectedPII: string;
+  detectedPIIRaw?: PIIEntity[];
+  blocked: boolean;
+  timestamp: Date;
+}
+
 export default function PrivacyProxyUI() {
   const [inputData, setInputData] = useState("");
   const [maskedInput, setMaskedInput] = useState("");
@@ -30,7 +49,7 @@ export default function PrivacyProxyUI() {
   const [finalOutput, setFinalOutput] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [detectedEntities, setDetectedEntities] = useState<
-    Array<{ original: string; token: string; confidence?: number }>
+    Array<{ type: string; original: string; token: string; confidence: number }>
   >([]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isLoggingOpen, setIsLoggingOpen] = useState(false);
@@ -328,7 +347,7 @@ export default function PrivacyProxyUI() {
     setIsMisclassificationModalOpen(true);
   };
 
-  const handleReportFromLog = (logEntry: any) => {
+  const handleReportFromLog = (logEntry: LogEntry) => {
     // Extract information from log entry
     const message = logEntry.message || logEntry.formatted_messages || "";
     const detectedPIIRaw = logEntry.detectedPIIRaw || [];
@@ -342,7 +361,7 @@ export default function PrivacyProxyUI() {
     }> = [];
 
     if (Array.isArray(detectedPIIRaw) && detectedPIIRaw.length > 0) {
-      entities = detectedPIIRaw.map((entity: any) => ({
+      entities = detectedPIIRaw.map((entity: PIIEntity) => ({
         type: entity.pii_type || "unknown",
         original: entity.original_pii || "",
         token: "[Filtered]",
