@@ -14,7 +14,7 @@
       <img src="https://github.com/hanneshapke/yaak-proxy/actions/workflows/lint.yml/badge.svg" alt="Lint">
     </a>
     <a href="LICENSE">
-      <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
+      <img src="https://img.shields.io/badge/license-Apache%20License%202.0-blue" alt="License: Apache 2.0">
     </a>
     <!-- <a href="https://github.com/hanneshapke/yaak-proxy/stargazers">
       <img src="https://img.shields.io/github/stars/hanneshapke/yaak-proxy?style=social" alt="GitHub Stars">
@@ -319,7 +319,7 @@ See [docs/05-advanced-topics.md#security-best-practices](docs/05-advanced-topics
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
