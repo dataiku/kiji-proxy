@@ -89,9 +89,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: build/tokenizers/libtokenizers.a
-          key: ${{ runner.os }}-tokenizers-v1.23.0-${{ hashFiles('src/scripts/build_linux.sh') }}
-          restore-keys: |
-            ${{ runner.os }}-tokenizers-v1.23.0-
+          key: ${{ runner.os }}-tokenizers-v1.23.0-prebuilt-v2
 
       - name: Cache ONNX Runtime library
         uses: actions/cache@v4

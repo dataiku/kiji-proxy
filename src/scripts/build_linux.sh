@@ -40,19 +40,12 @@ TOKENIZERS_URL="https://github.com/daulet/tokenizers/releases/download/v${TOKENI
 mkdir -p "$BUILD_DIR/tokenizers"
 cd "$BUILD_DIR/tokenizers"
 
-# Check if we need to download
-if [ -f "libtokenizers.a" ]; then
-    echo "✅ Using existing libtokenizers.a"
-    # Always run ranlib to ensure archive has proper index
-    echo "Running ranlib to ensure archive has proper index..."
-    ranlib libtokenizers.a
-else
+# Function to download and extract tokenizers library
+download_tokenizers() {
     echo "Downloading tokenizers library from $TOKENIZERS_URL..."
 
-    # Download tokenizers library if not already downloaded
-    if [ ! -f "$TOKENIZERS_FILE" ]; then
-        curl -L -o "$TOKENIZERS_FILE" "$TOKENIZERS_URL"
-    fi
+    # Download tokenizers library
+    curl -L -o "$TOKENIZERS_FILE" "$TOKENIZERS_URL"
 
     # Extract the library
     tar -xzf "$TOKENIZERS_FILE"
@@ -71,6 +64,33 @@ else
     rm -f "$TOKENIZERS_FILE"
 
     echo "✅ Tokenizers library downloaded and extracted"
+}
+
+# Function to validate tokenizers library has required symbols
+validate_tokenizers() {
+    echo "Validating tokenizers library..."
+    # Check if the library contains the required tokenizers_encode symbol
+    if nm libtokenizers.a 2>/dev/null | grep -q "T tokenizers_encode"; then
+        echo "✅ Library validation passed"
+        return 0
+    else
+        echo "⚠️  Library validation failed - missing required symbols"
+        return 1
+    fi
+}
+
+# Check if we need to download
+if [ -f "libtokenizers.a" ]; then
+    echo "Found existing libtokenizers.a, validating..."
+    if validate_tokenizers; then
+        echo "✅ Using existing libtokenizers.a"
+    else
+        echo "Removing invalid library and downloading fresh copy..."
+        rm -f libtokenizers.a
+        download_tokenizers
+    fi
+else
+    download_tokenizers
 fi
 
 cd "$PROJECT_ROOT"
