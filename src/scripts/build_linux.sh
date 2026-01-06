@@ -29,23 +29,41 @@ echo "📦 Building for Linux amd64"
 echo "Version: $VERSION"
 echo ""
 
-echo "📦 Step 1: Building tokenizers library for Linux..."
-echo "---------------------------------------------------"
+echo "📦 Step 1: Downloading tokenizers library for Linux..."
+echo "-------------------------------------------------------"
 
+TOKENIZERS_VERSION="1.23.0"
+TOKENIZERS_PLATFORM="linux-amd64"
+TOKENIZERS_FILE="libtokenizers.${TOKENIZERS_PLATFORM}.tar.gz"
+TOKENIZERS_URL="https://github.com/daulet/tokenizers/releases/download/v${TOKENIZERS_VERSION}/${TOKENIZERS_FILE}"
+
+mkdir -p "$BUILD_DIR/tokenizers"
 cd "$BUILD_DIR/tokenizers"
 
-# Check if we need to rebuild
+# Check if we need to download
 if [ -f "libtokenizers.a" ]; then
     echo "✅ Using existing libtokenizers.a"
-    echo "Running ranlib to ensure archive has proper index..."
-    ranlib libtokenizers.a
 else
-    echo "Building tokenizers library..."
-    cargo build --release
-    cp target/release/libtokenizers.a .
-    echo "Running ranlib to ensure archive has proper index..."
-    ranlib libtokenizers.a
-    echo "✅ Tokenizers library built"
+    echo "Downloading tokenizers library from $TOKENIZERS_URL..."
+
+    # Download tokenizers library if not already downloaded
+    if [ ! -f "$TOKENIZERS_FILE" ]; then
+        curl -L -o "$TOKENIZERS_FILE" "$TOKENIZERS_URL"
+    fi
+
+    # Extract the library
+    tar -xzf "$TOKENIZERS_FILE"
+
+    # Verify library was extracted
+    if [ ! -f "libtokenizers.a" ]; then
+        echo "❌ Error: libtokenizers.a not found after extraction"
+        exit 1
+    fi
+
+    # Cleanup tarball
+    rm -f "$TOKENIZERS_FILE"
+
+    echo "✅ Tokenizers library downloaded and extracted"
 fi
 
 cd "$PROJECT_ROOT"
