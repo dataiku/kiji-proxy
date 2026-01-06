@@ -1,0 +1,47 @@
+# Dockerfile for testing Linux build locally on macOS
+# Usage:
+#   docker build --platform linux/amd64 -f Dockerfile.build-linux -t yaak-proxy-linux-build .
+#   docker run --rm --platform linux/amd64 -v $(pwd)/release:/app/release yaak-proxy-linux-build
+
+FROM --platform=linux/amd64 ubuntu:22.04
+
+# Avoid interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
+    git \
+    git-lfs \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Go 1.21
+RUN curl -LO https://go.dev/dl/go1.21.13.linux-amd64.tar.gz \
+    && tar -C /usr/local -xzf go1.21.13.linux-amd64.tar.gz \
+    && rm go1.21.13.linux-amd64.tar.gz
+
+ENV PATH="/usr/local/go/bin:${PATH}"
+ENV GOPATH="/root/go"
+ENV PATH="${GOPATH}/bin:${PATH}"
+
+# Install Node.js (for version extraction from package.json)
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy the project files
+COPY . .
+
+# Initialize git lfs and pull model files
+RUN git lfs install && git lfs pull || true
+
+# Make build script executable
+RUN chmod +x src/scripts/build_linux.sh
+
+# Run the build
+CMD ["./src/scripts/build_linux.sh"]
