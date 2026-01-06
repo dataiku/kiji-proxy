@@ -43,6 +43,9 @@ cd "$BUILD_DIR/tokenizers"
 # Check if we need to download
 if [ -f "libtokenizers.a" ]; then
     echo "✅ Using existing libtokenizers.a"
+    # Always run ranlib to ensure archive has proper index
+    echo "Running ranlib to ensure archive has proper index..."
+    ranlib libtokenizers.a
 else
     echo "Downloading tokenizers library from $TOKENIZERS_URL..."
 
@@ -59,6 +62,10 @@ else
         echo "❌ Error: libtokenizers.a not found after extraction"
         exit 1
     fi
+
+    # Run ranlib to create archive index (required for Linux linker)
+    echo "Running ranlib to create archive index..."
+    ranlib libtokenizers.a
 
     # Cleanup tarball
     rm -f "$TOKENIZERS_FILE"
