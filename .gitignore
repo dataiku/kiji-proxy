@@ -71,3 +71,4 @@ release/
 # But ignore any accidentally added large files
 *.onnx.bak
 *.safetensors.bak
+src/frontend/resources
