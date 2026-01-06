@@ -7,6 +7,14 @@ interface ElectronAPI {
   ) => Promise<{ success: boolean; error?: string }>;
   getApiKey: () => Promise<string | null>;
   setApiKey: (apiKey: string) => Promise<{ success: boolean; error?: string }>;
+  getCACertSetupDismissed: () => Promise<boolean>;
+  setCACertSetupDismissed: (
+    dismissed: boolean
+  ) => Promise<{ success: boolean; error?: string }>;
+  getTermsAccepted: () => Promise<boolean>;
+  setTermsAccepted: (
+    accepted: boolean
+  ) => Promise<{ success: boolean; error?: string }>;
   platform: string;
   versions: {
     node: string;
@@ -17,6 +25,8 @@ interface ElectronAPI {
   removeSettingsListener: () => void;
   onAboutOpen: (callback: () => void) => void;
   removeAboutListener: () => void;
+  onTermsOpen: (callback: () => void) => void;
+  removeTermsListener: () => void;
 }
 
 interface Window {
