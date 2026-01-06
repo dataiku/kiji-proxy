@@ -119,7 +119,7 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
               rel="noopener noreferrer"
               className="block text-sm text-blue-600 hover:text-blue-700 hover:underline"
             >
-              MIT License →
+              Apache 2.0 License →
             </a>
           </div>
 
