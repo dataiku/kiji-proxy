@@ -121,8 +121,7 @@ func main() {
 		// Development mode - use file system
 		srv, err = server.NewServer(cfg, *electronConfigPath, version)
 		if err != nil {
-			log.Printf("Failed to create server: %v", err)
-			os.Exit(1)
+			log.Fatalf("Failed to create server: %v", err)
 		}
 		log.Println("Using file system UI and model files (development mode)")
 	} else {
