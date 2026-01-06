@@ -3,7 +3,7 @@ name: Build and Release DMG
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
   pull_request:
     branches:
       - main
@@ -11,9 +11,9 @@ on:
   workflow_dispatch: # Allow manual triggering
     inputs:
       create_release:
-        description: 'Create GitHub Release'
+        description: "Create GitHub Release"
         required: false
-        default: 'false'
+        default: "false"
         type: boolean
 
 jobs:
@@ -47,18 +47,18 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version: "1.21"
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: "20"
+          cache: "npm"
           cache-dependency-path: src/frontend/package-lock.json
 
       - name: Setup Rust
@@ -197,9 +197,10 @@ jobs:
             ## Yaak Privacy Proxy v${{ steps.version.outputs.version }}
 
             ### Downloads
-            - DMG installer for macOS (Apple Silicon and Intel)
+            - **macOS**: DMG installer (Apple Silicon and Intel)
+            - **Linux**: Standalone binary archive (amd64)
 
-            ### Installation Notes
+            ### macOS Installation Notes
 
             If you see a **"Privacy Proxy is damaged"** error when opening the app:
 
@@ -215,6 +216,32 @@ jobs:
 
             This is required because the app is not code-signed with an Apple Developer certificate. The app is safe to use and open source.
 
+            ### Linux Installation Notes
+
+            1. **Extract the archive**:
+               ```bash
+               tar -xzf yaak-privacy-proxy-*-linux-amd64.tar.gz
+               cd yaak-privacy-proxy-*-linux-amd64
+               ```
+
+            2. **Run the proxy**:
+               ```bash
+               ./run.sh
+               ```
+
+               Or set the library path manually:
+               ```bash
+               export LD_LIBRARY_PATH=$(pwd)/lib:$LD_LIBRARY_PATH
+               ./bin/yaak-proxy
+               ```
+
+            3. **Access the web UI**:
+               Open http://localhost:8080 in your browser
+
+            4. **Configuration**:
+               Use environment variables or create a config.json file.
+               See the included README.txt for details.
+
             ### What's New
             See the changelog below for details.
         env:
@@ -223,7 +250,7 @@ jobs:
       - name: Upload Release Summary
         if: always()
         run: |
-          echo "## 📦 Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "## 📦 macOS Build Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Version:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "**DMG Files:**" >> $GITHUB_STEP_SUMMARY
