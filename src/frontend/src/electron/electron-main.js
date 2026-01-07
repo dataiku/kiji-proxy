@@ -335,8 +335,11 @@ function createTray() {
 
   // For macOS, resize to 16x16 and mark as template image for dark mode support
   if (process.platform === "darwin") {
-    tray = new Tray(icon.resize({ width: 16, height: 16 }));
+    const resizedIcon = icon.resize({ width: 16, height: 16 });
+    tray = new Tray(resizedIcon);
     tray.setToolTip("Yaak Privacy Proxy");
+    // Mark as template image for automatic dark mode adaptation
+    resizedIcon.setTemplateImage(true);
   } else {
     tray = new Tray(icon);
     tray.setToolTip("Yaak Privacy Proxy");
@@ -430,10 +433,13 @@ function createTray() {
 
   tray.setContextMenu(contextMenu);
 
-  // Optional: Click tray icon to show window (single click on macOS)
-  tray.on("click", () => {
-    showMainWindow();
-  });
+  // On macOS, left-click shows the context menu (default behavior)
+  // On Windows/Linux, we can add a click handler if needed
+  if (process.platform !== "darwin") {
+    tray.on("click", () => {
+      showMainWindow();
+    });
+  }
 }
 
 function createWindow() {
