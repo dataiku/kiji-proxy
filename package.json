@@ -25,7 +25,6 @@
     "data-protection"
   ],
   "scripts": {
-    "postinstall": "cd src/frontend && npm install",
     "build": "cd src/frontend && npm run build",
     "build:electron": "cd src/frontend && npm run build:electron",
     "dev": "cd src/frontend && npm run dev",
