@@ -250,6 +250,13 @@ export default function PrivacyProxyUI() {
       ]);
       setForwardEndpoint(url);
       setApiKey(key);
+
+      // Debug logging
+      if (key) {
+        console.log("API key loaded from keychain (length:", key.length, ")");
+      } else {
+        console.log("No API key found in keychain");
+      }
     } catch (error) {
       console.error("Error loading settings:", error);
     }
@@ -297,6 +304,13 @@ export default function PrivacyProxyUI() {
       // Add API key as Bearer token (standard OpenAI format)
       if (isElectron && apiKey) {
         headers["Authorization"] = `Bearer ${apiKey}`;
+        console.log(
+          "Sending request with API key (length:",
+          apiKey.length,
+          ")"
+        );
+      } else if (isElectron && !apiKey) {
+        console.warn("No API key available - request will likely fail");
       }
 
       // Call the standard OpenAI-compatible endpoint

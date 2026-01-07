@@ -74,6 +74,7 @@
       "src/electron/electron-preload.js",
       "package.json",
       "assets/icon.png",
+      "assets/icon-16.png",
       "assets/arrow.png",
       "!**/model.onnx",
       "!**/pii_onnx_model/**/*",
