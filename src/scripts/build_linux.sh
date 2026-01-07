@@ -225,7 +225,7 @@ echo "✅ Libraries packaged (model files are embedded in binary)"
 
 # Create README
 cat > "$PACKAGE_DIR/README.txt" << 'EOF'
-Yaak Privacy Proxy - Linux Standalone Binary
+Dataiku's Yaak Privacy Proxy - Linux Standalone Binary
 ============================================
 
 This is a standalone version of Yaak Privacy Proxy for Linux.

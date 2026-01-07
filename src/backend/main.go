@@ -36,7 +36,7 @@ func main() {
 
 	// Print version if requested
 	if *versionFlag || *versionFlagShort {
-		log.Printf("Yaak Privacy Proxy version %s", version)
+		log.Printf("Dataiku's Yaak Privacy Proxy version %s", version)
 		os.Exit(0)
 	}
 
@@ -79,7 +79,7 @@ func main() {
 func run(configPath *string, electronConfigPath *string) error {
 	// Log version at startup with banner
 	log.Println("================================================================================")
-	log.Printf("🚀 Starting Yaak Privacy Proxy v%s", version)
+	log.Printf("🚀 Starting Dataiku's Yaak Privacy Proxy v%s", version)
 	log.Println("================================================================================")
 
 	// Load configuration
