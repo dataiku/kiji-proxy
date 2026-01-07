@@ -1,4 +1,4 @@
-# Yaak Privacy Proxy
+# Dataiku's Yaak Privacy Proxy
 
 <div align="center">
   <img src="build/static/yaak.png" alt="Yaak Mascot" width="300">

@@ -1,7 +1,7 @@
 {
   "name": "yaak-privacy-proxy",
   "version": "0.2.3",
-  "description": "Yaak Privacy Proxy",
+  "description": "Dataiku's Yaak Privacy Proxy",
   "author": "Dataiku - Open Source Lab",
   "main": "src/electron/electron-main.js",
   "scripts": {
@@ -74,6 +74,7 @@
       "src/electron/electron-preload.js",
       "package.json",
       "assets/icon.png",
+      "assets/icon-16.png",
       "assets/arrow.png",
       "!**/model.onnx",
       "!**/pii_onnx_model/**/*",

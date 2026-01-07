@@ -1,6 +1,6 @@
 # Getting Started
 
-Welcome to Yaak Privacy Proxy! This guide will help you get started with installation, configuration, and your first release.
+Welcome to Dataiku's Yaak Privacy Proxy! This guide will help you get started with installation, configuration, and your first release.
 
 ## Table of Contents
 
@@ -13,7 +13,7 @@ Welcome to Yaak Privacy Proxy! This guide will help you get started with install
 
 ## What is Yaak Privacy Proxy?
 
-Yaak Privacy Proxy is a transparent MITM proxy with integrated PII (Personally Identifiable Information) detection and masking capabilities. It intercepts HTTP/HTTPS traffic, automatically detects sensitive data using machine learning, and masks it before forwarding requests to AI services like OpenAI and Anthropic.
+Dataiku's Yaak Privacy Proxy is a transparent MITM proxy with integrated PII (Personally Identifiable Information) detection and masking capabilities. It intercepts HTTP/HTTPS traffic, automatically detects sensitive data using machine learning, and masks it before forwarding requests to AI services like OpenAI and Anthropic.
 
 **Key Features:**
 - Transparent HTTPS proxy with MITM capabilities

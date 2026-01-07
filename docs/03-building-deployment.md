@@ -1,6 +1,6 @@
 # Building & Deployment
 
-This comprehensive guide covers building Yaak Privacy Proxy for macOS and Linux platforms, from local development builds to production deployment.
+This comprehensive guide covers building Dataiku's Yaak Privacy Proxy for macOS and Linux platforms, from local development builds to production deployment.
 
 ## Table of Contents
 

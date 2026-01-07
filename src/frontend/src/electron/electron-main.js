@@ -335,7 +335,10 @@ function createTray() {
 
   // For macOS, resize to 16x16 and mark as template image for dark mode support
   if (process.platform === "darwin") {
-    tray = new Tray(icon.resize({ width: 16, height: 16 }));
+    const resizedIcon = icon.resize({ width: 16, height: 16 });
+    // Mark as template image for automatic dark mode adaptation
+    resizedIcon.setTemplateImage(true);
+    tray = new Tray(resizedIcon);
     tray.setToolTip("Yaak Privacy Proxy");
   } else {
     tray = new Tray(icon);
@@ -430,10 +433,13 @@ function createTray() {
 
   tray.setContextMenu(contextMenu);
 
-  // Optional: Click tray icon to show window (single click on macOS)
-  tray.on("click", () => {
-    showMainWindow();
-  });
+  // On macOS, left-click shows the context menu (default behavior)
+  // On Windows/Linux, we can add a click handler if needed
+  if (process.platform !== "darwin") {
+    tray.on("click", () => {
+      showMainWindow();
+    });
+  }
 }
 
 function createWindow() {
@@ -477,7 +483,15 @@ function createWindow() {
 
   // Show window when ready to prevent visual flash
   mainWindow.once("ready-to-show", () => {
+    // Create menu before showing window to ensure it's ready
+    createMenu();
+
     mainWindow.show();
+
+    // On macOS, focus the app to ensure menu bar is visible
+    if (process.platform === "darwin") {
+      app.focus({ steal: true });
+    }
 
     // Open DevTools in development mode
     if (isDev) {
@@ -626,7 +640,7 @@ function createMenu() {
           },
         },
         {
-          label: "Terms & Conditions",
+          label: "Terms and Conditions",
           click: () => {
             if (mainWindow) {
               mainWindow.webContents.send("open-terms");
@@ -684,9 +698,9 @@ app.whenReady().then(() => {
   createTray();
 
   // Wait a moment for the backend to start, then create the window
+  // Note: createMenu() is called inside createWindow's ready-to-show handler
   setTimeout(() => {
     createWindow();
-    createMenu();
   }, 1000);
 
   app.on("activate", () => {
@@ -735,7 +749,10 @@ app.on("will-quit", () => {
 ipcMain.handle("get-api-key", async () => {
   try {
     const storagePath = getStoragePath();
+    console.log("[DEBUG] Reading API key from:", storagePath);
+
     if (!fs.existsSync(storagePath)) {
+      console.log("[DEBUG] Config file does not exist - no API key stored");
       return null;
     }
 
@@ -744,17 +761,25 @@ ipcMain.handle("get-api-key", async () => {
 
     if (config.apiKey && config.encrypted && isEncryptionAvailable()) {
       // Decrypt the API key
+      console.log("[DEBUG] Decrypting API key from keychain");
       const buffer = Buffer.from(config.apiKey, "base64");
       const decrypted = safeStorage.decryptString(buffer);
+      console.log(
+        "[DEBUG] API key decrypted successfully (length:",
+        decrypted.length,
+        ")"
+      );
       return decrypted;
     } else if (config.apiKey && !config.encrypted) {
       // Legacy unencrypted storage (migrate on next save)
+      console.log("[DEBUG] Loading unencrypted API key (legacy)");
       return config.apiKey;
     }
 
+    console.log("[DEBUG] No API key found in config");
     return null;
   } catch (error) {
-    console.error("Error reading API key:", error);
+    console.error("[ERROR] Error reading API key:", error);
     return null;
   }
 });

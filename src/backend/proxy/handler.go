@@ -396,6 +396,13 @@ func (h *Handler) getOpenAIAPIKey(r *http.Request) string {
 	if apiKey := r.Header.Get("X-OpenAI-API-Key"); apiKey != "" {
 		return apiKey
 	}
+	// Check for standard Authorization Bearer header
+	if authHeader := r.Header.Get("Authorization"); authHeader != "" {
+		// Extract Bearer token if present
+		if len(authHeader) > 7 && authHeader[:7] == "Bearer " {
+			return authHeader[7:]
+		}
+	}
 	// Fall back to config
 	return h.config.OpenAIAPIKey
 }

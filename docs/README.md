@@ -1,4 +1,4 @@
-# Yaak Privacy Proxy Documentation
+# Dataiku's Yaak Privacy Proxy Documentation
 
 Complete documentation for Yaak Privacy Proxy - a transparent MITM proxy with ML-powered PII detection and masking.
 
@@ -18,7 +18,7 @@ Yaak Privacy Proxy is an intelligent privacy layer for API traffic. It automatic
 
 ### [Chapter 1: Getting Started](01-getting-started.md)
 
-Learn how to install and configure Yaak Privacy Proxy, and create your first release.
+Learn how to install and configure Dataiku's Yaak Privacy Proxy, and create your first release.
 
 **Topics:**
 - Installation (macOS DMG & Linux tarball)
