@@ -144,7 +144,8 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
           {/* Copyright */}
           <div className="pt-4 border-t border-slate-200 text-center">
             <p className="text-xs text-slate-500">
-              © {new Date().getFullYear()} Yaak Team. All rights reserved.
+              © {new Date().getFullYear()} Dataiku Open Source Lab. All rights
+              reserved.
             </p>
           </div>
         </div>
