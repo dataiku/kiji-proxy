@@ -28,7 +28,8 @@ type Handler struct {
 	responseProcessor  *processor.ResponseProcessor
 	maskingService     *piiServices.MaskingService
 	electronConfigPath string
-	loggingDB          piiServices.LoggingDB // Database or in-memory storage for logging
+	loggingDB          piiServices.LoggingDB    // Database or in-memory storage for logging
+	mappingDB          piiServices.PIIMappingDB // Same instance as loggingDB, for mapping operations
 }
 
 // GetDetector returns the PII detector instance
@@ -57,6 +58,7 @@ func (h *Handler) GetDetector() (pii.Detector, error) {
 
 // ServeHTTP implements the http.Handler interface
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	startTime := time.Now()
 	log.Println("--- in ServeHTTP ---")
 	log.Printf("[Proxy] Received %s request to %s", r.Method, r.URL.Path)
 
@@ -75,6 +77,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Printf("[Proxy] Request body size: %d bytes", len(body))
+	log.Printf("[Timing] Request body read: %v", time.Since(startTime))
 
 	// Parse request data for PII details (if needed)
 	var requestData map[string]interface{}
@@ -91,14 +94,17 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Process request through shared PII pipeline
+	processStart := time.Now()
 	processed, err := h.ProcessRequestBody(r.Context(), body)
 	if err != nil {
 		log.Printf("[Proxy] ❌ Failed to process request: %v", err)
 		http.Error(w, "Failed to process request", http.StatusInternalServerError)
 		return
 	}
+	log.Printf("[Timing] Request PII processing: %v", time.Since(processStart))
 
 	// Create and send proxy request with redacted body
+	proxyStart := time.Now()
 	resp, err := h.createAndSendProxyRequest(r, processed.RedactedBody)
 	if err != nil {
 		log.Printf("[Proxy] ❌ Failed to create proxy request: %v", err)
@@ -106,20 +112,27 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer func() { _ = resp.Body.Close() }()
+	log.Printf("[Timing] OpenAI API call: %v", time.Since(proxyStart))
 
 	// Read response body before processing (we need it for logging)
+	readStart := time.Now()
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		log.Printf("[Proxy] ❌ Failed to read response body: %v", err)
 		http.Error(w, "Failed to read response", http.StatusInternalServerError)
 		return
 	}
+	log.Printf("[Timing] Response body read (%d bytes): %v", len(respBody), time.Since(readStart))
 
 	// Process response through shared PII pipeline
+	responseProcessStart := time.Now()
 	modifiedBody := h.ProcessResponseBody(r.Context(), respBody, resp.Header.Get("Content-Type"), processed.MaskedToOriginal, processed.TransactionID)
+	log.Printf("[Timing] Response PII restoration: %v", time.Since(responseProcessStart))
 
 	// If details are requested, enhance response with PII metadata
 	if includeDetails && resp.StatusCode == http.StatusOK {
+		detailsStart := time.Now()
+		log.Printf("[Timing] Starting PII details enhancement")
 		// Parse the OpenAI response
 		var responseData map[string]interface{}
 		if err := json.Unmarshal(modifiedBody, &responseData); err != nil {
@@ -131,20 +144,19 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			// Extract masked message text (just the content)
 			maskedMessageText := originalText
 			if requestData != nil {
-				maskedRequest := requestData
-				// Apply masking to request data
-				for masked, original := range processed.MaskedToOriginal {
-					requestJSON, _ := json.Marshal(maskedRequest)
+				// Marshal JSON once, then do all string replacements
+				requestJSON, err := json.Marshal(requestData)
+				if err != nil {
+					log.Printf("[Proxy] ⚠️  Failed to marshal request: %v", err)
+				} else {
 					requestStr := string(requestJSON)
-					requestStr = strings.ReplaceAll(requestStr, original, masked)
-					if err := json.Unmarshal([]byte(requestStr), &maskedRequest); err != nil {
-						log.Printf("[Proxy] ⚠️  Failed to unmarshal masked request: %v", err)
+					// Apply all masking replacements to the JSON string
+					for masked, original := range processed.MaskedToOriginal {
+						requestStr = strings.ReplaceAll(requestStr, original, masked)
+						maskedMessageText = strings.ReplaceAll(maskedMessageText, original, masked)
 					}
-					// Also apply masking to message text
-					maskedMessageText = strings.ReplaceAll(maskedMessageText, original, masked)
+					maskedRequestText = requestStr
 				}
-				maskedRequestJSON, _ := json.Marshal(maskedRequest)
-				maskedRequestText = string(maskedRequestJSON)
 			}
 
 			// Extract response text
@@ -197,6 +209,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				log.Printf("[Proxy] Enhanced response with PII details (%d entities)", len(piiEntities))
 			}
 		}
+		log.Printf("[Timing] PII details enhancement: %v", time.Since(detailsStart))
 	}
 
 	// Copy response headers
@@ -208,11 +221,15 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Write response
+	writeStart := time.Now()
 	w.WriteHeader(resp.StatusCode)
 	if _, err := w.Write(modifiedBody); err != nil {
 		log.Printf("Failed to write response: %v", err)
 	}
+	log.Printf("[Timing] Response write: %v", time.Since(writeStart))
 
+	totalTime := time.Since(startTime)
+	log.Printf("[Timing] TOTAL ServeHTTP duration: %v", totalTime)
 	log.Printf("Proxied %s %s - Status: %d", r.Method, r.URL.Path, resp.StatusCode)
 }
 
@@ -544,6 +561,7 @@ func NewHandler(cfg *config.Config, electronConfigPath string) (*Handler, error)
 		maskingService:     maskingService,
 		electronConfigPath: electronConfigPath,
 		loggingDB:          loggingDB,
+		mappingDB:          loggingDB.(piiServices.PIIMappingDB), // Same instance, different interface
 	}, nil
 }
 
@@ -660,12 +678,17 @@ func (h *Handler) HandleLogs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Parse query parameters
-	limit := 100 // Default limit
-	offset := 0  // Default offset
+	limit := 100    // Default limit
+	maxLimit := 500 // Maximum allowed limit to prevent memory issues
+	offset := 0     // Default offset
 
 	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
 		if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 {
 			limit = parsedLimit
+			// Enforce maximum limit
+			if limit > maxLimit {
+				limit = maxLimit
+			}
 		}
 	}
 
@@ -709,6 +732,110 @@ func (h *Handler) HandleLogs(w http.ResponseWriter, r *http.Request) {
 	// Write response
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		log.Printf("[Logs] ❌ Failed to write response: %v", err)
+	}
+}
+
+// HandleClearLogs handles DELETE requests to clear all logs
+func (h *Handler) HandleClearLogs(w http.ResponseWriter, r *http.Request) {
+	if h.loggingDB == nil {
+		http.Error(w, "Logging not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	if err := h.loggingDB.ClearLogs(ctx); err != nil {
+		log.Printf("[Logs] ❌ Failed to clear logs: %v", err)
+		http.Error(w, fmt.Sprintf("Failed to clear logs: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	log.Println("[Logs] ✓ All logs cleared successfully")
+
+	// Return success response
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"message": "All logs cleared",
+	}); err != nil {
+		log.Printf("[Logs] ❌ Failed to write response: %v", err)
+	}
+}
+
+// HandleClearMappings handles DELETE requests to clear all PII mappings
+func (h *Handler) HandleClearMappings(w http.ResponseWriter, r *http.Request) {
+	if h.mappingDB == nil {
+		http.Error(w, "PII mapping storage not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	if err := h.mappingDB.ClearMappings(ctx); err != nil {
+		log.Printf("[Mappings] ❌ Failed to clear PII mappings: %v", err)
+		http.Error(w, fmt.Sprintf("Failed to clear PII mappings: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	log.Println("[Mappings] ✓ All PII mappings cleared successfully")
+
+	// Return success response
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"message": "All PII mappings cleared",
+	}); err != nil {
+		log.Printf("[Mappings] ❌ Failed to write response: %v", err)
+	}
+}
+
+// HandleStats handles GET requests to retrieve statistics about logs and mappings
+func (h *Handler) HandleStats(w http.ResponseWriter, r *http.Request) {
+	if h.loggingDB == nil || h.mappingDB == nil {
+		http.Error(w, "Statistics not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	// Get log count
+	logCount, err := h.loggingDB.GetLogsCount(ctx)
+	if err != nil {
+		log.Printf("[Stats] ⚠️  Failed to get logs count: %v", err)
+		logCount = -1
+	}
+
+	// Get mapping count
+	mappingCount, err := h.mappingDB.GetMappingsCount(ctx)
+	if err != nil {
+		log.Printf("[Stats] ⚠️  Failed to get mappings count: %v", err)
+		mappingCount = -1
+	}
+
+	// Create response
+	response := map[string]interface{}{
+		"logs": map[string]interface{}{
+			"count": logCount,
+			"limit": piiServices.DefaultMaxLogEntries,
+		},
+		"mappings": map[string]interface{}{
+			"count": mappingCount,
+			"limit": piiServices.DefaultMaxMappingEntries,
+		},
+	}
+
+	// Set response headers
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	// Write response
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		log.Printf("[Stats] ❌ Failed to write response: %v", err)
 	}
 }
 

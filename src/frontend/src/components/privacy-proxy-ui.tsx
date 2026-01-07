@@ -277,6 +277,19 @@ export default function PrivacyProxyUI() {
 
     setIsProcessing(true);
 
+    // Performance timing and memory logging
+    const startTime = performance.now();
+    console.log("[DEBUG] handleSubmit started");
+
+    if (typeof window !== "undefined" && (window as any).performance?.memory) {
+      const mem = (window as any).performance.memory;
+      console.log("[DEBUG] Memory before request:", {
+        usedJSHeapSize: `${(mem.usedJSHeapSize / 1024 / 1024).toFixed(2)} MB`,
+        totalJSHeapSize: `${(mem.totalJSHeapSize / 1024 / 1024).toFixed(2)} MB`,
+        jsHeapSizeLimit: `${(mem.jsHeapSizeLimit / 1024 / 1024).toFixed(2)} MB`,
+      });
+    }
+
     try {
       // Create OpenAI chat completion request format (standard format)
       const requestBody = {
@@ -313,6 +326,9 @@ export default function PrivacyProxyUI() {
         console.warn("No API key available - request will likely fail");
       }
 
+      console.log("[DEBUG] Starting fetch request");
+      const fetchStart = performance.now();
+
       // Call the standard OpenAI-compatible endpoint
       const response = await fetch(apiUrl, {
         method: "POST",
@@ -320,23 +336,45 @@ export default function PrivacyProxyUI() {
         body: JSON.stringify(requestBody),
       });
 
+      console.log(
+        `[DEBUG] Fetch completed in ${(performance.now() - fetchStart).toFixed(
+          2
+        )}ms`
+      );
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
+      console.log("[DEBUG] Parsing JSON response");
+      const jsonStart = performance.now();
       const data = await response.json();
+      console.log(
+        `[DEBUG] JSON parsed in ${(performance.now() - jsonStart).toFixed(2)}ms`
+      );
+      console.log(
+        `[DEBUG] Response size: ${JSON.stringify(data).length} bytes`
+      );
 
       // Extract standard OpenAI response
+      console.log("[DEBUG] Extracting assistant message");
       const assistantMessage = data.choices?.[0]?.message?.content || "";
       setFinalOutput(assistantMessage);
+      console.log("[DEBUG] Assistant message set");
 
       // Extract PII details from custom field (if available)
       if (data.x_pii_details) {
+        console.log("[DEBUG] Processing PII details");
+        const piiStart = performance.now();
+
         // Use masked_message for display (just the content, not full JSON)
         setMaskedInput(data.x_pii_details.masked_message || "");
         setMaskedOutput(data.x_pii_details.masked_response || "");
 
         // Transform PII entities to match UI format
+        const entityCount = data.x_pii_details.pii_entities?.length || 0;
+        console.log(`[DEBUG] Transforming ${entityCount} PII entities`);
+
         const transformedEntities = (data.x_pii_details.pii_entities || []).map(
           (entity: {
             label: string;
@@ -351,20 +389,56 @@ export default function PrivacyProxyUI() {
           })
         );
         setDetectedEntities(transformedEntities);
+
+        console.log(
+          `[DEBUG] PII details processed in ${(
+            performance.now() - piiStart
+          ).toFixed(2)}ms`
+        );
       } else {
+        console.log("[DEBUG] No PII details in response");
         // No PII details available (shouldn't happen with ?details=true)
         setMaskedInput("");
         setMaskedOutput("");
         setDetectedEntities([]);
       }
+
+      console.log(
+        `[DEBUG] handleSubmit completed successfully in ${(
+          performance.now() - startTime
+        ).toFixed(2)}ms`
+      );
+
+      if (
+        typeof window !== "undefined" &&
+        (window as any).performance?.memory
+      ) {
+        const mem = (window as any).performance.memory;
+        console.log("[DEBUG] Memory after processing:", {
+          usedJSHeapSize: `${(mem.usedJSHeapSize / 1024 / 1024).toFixed(2)} MB`,
+          totalJSHeapSize: `${(mem.totalJSHeapSize / 1024 / 1024).toFixed(
+            2
+          )} MB`,
+          jsHeapSizeLimit: `${(mem.jsHeapSizeLimit / 1024 / 1024).toFixed(
+            2
+          )} MB`,
+        });
+      }
     } catch (error) {
+      console.error("[DEBUG] Error in handleSubmit:", error);
       console.error(
         "Error calling OpenAI proxy endpoint:",
         error instanceof Error ? error.message : String(error)
       );
       alert(`Error: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
+      console.log("[DEBUG] Setting isProcessing to false");
       setIsProcessing(false);
+      console.log(
+        `[DEBUG] Total handleSubmit time: ${(
+          performance.now() - startTime
+        ).toFixed(2)}ms`
+      );
     }
   };
 

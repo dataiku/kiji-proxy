@@ -7,6 +7,8 @@ import {
   Code,
   MessageSquare,
   Flag,
+  Trash2,
+  AlertTriangle,
 } from "lucide-react";
 
 interface OpenAIMessage {
@@ -54,12 +56,15 @@ export default function LoggingModal({
 }: LoggingModalProps) {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showFullJson, setShowFullJson] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [total, setTotal] = useState(0);
   const pageSize = 50;
+  const maxPageSize = 500; // Server-enforced maximum
 
   // Load logs when modal opens
   useEffect(() => {
@@ -178,6 +183,39 @@ export default function LoggingModal({
   const handleLoadMore = () => {
     if (!isLoading && hasMore) {
       loadLogs(page + 1);
+    }
+  };
+
+  const handleClearLogs = async () => {
+    setIsClearing(true);
+    setError(null);
+
+    try {
+      const isElectron =
+        typeof window !== "undefined" && window.electronAPI !== undefined;
+      const baseUrl = isElectron ? "http://localhost:8080/logs" : "/logs";
+
+      const response = await fetch(baseUrl, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      // Reset state after successful clear
+      setLogs([]);
+      setTotal(0);
+      setPage(0);
+      setHasMore(false);
+      setShowClearConfirm(false);
+    } catch (err) {
+      console.error("Error clearing logs:", err);
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to clear logs";
+      setError(errorMessage);
+    } finally {
+      setIsClearing(false);
     }
   };
 
@@ -364,19 +402,82 @@ export default function LoggingModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      {/* Clear Confirmation Dialog */}
+      {showClearConfirm && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-60">
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-red-100 rounded-full">
+                <AlertTriangle className="w-6 h-6 text-red-600" />
+              </div>
+              <h3 className="text-xl font-bold text-slate-800">
+                Clear All Logs?
+              </h3>
+            </div>
+            <p className="text-slate-600 mb-6">
+              This will permanently delete all {total} log entries. This action
+              cannot be undone.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowClearConfirm(false)}
+                disabled={isClearing}
+                className="px-4 py-2 border-2 border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors font-medium disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleClearLogs}
+                disabled={isClearing}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center gap-2 disabled:opacity-50"
+              >
+                {isClearing ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Clearing...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    Clear All Logs
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-xl shadow-2xl p-6 max-w-6xl w-full max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2">
             <FileText className="w-6 h-6 text-slate-700" />
             <h2 className="text-2xl font-bold text-slate-800">Logging</h2>
+            {total > 0 && (
+              <span className="ml-2 px-2 py-1 bg-slate-100 text-slate-600 text-sm rounded-full">
+                {total} entries
+              </span>
+            )}
           </div>
-          <button
-            onClick={onClose}
-            className="text-slate-500 hover:text-slate-700 transition-colors"
-          >
-            <X className="w-6 h-6" />
-          </button>
+          <div className="flex items-center gap-2">
+            {total > 0 && (
+              <button
+                onClick={() => setShowClearConfirm(true)}
+                className="flex items-center gap-2 px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                title="Clear all logs"
+              >
+                <Trash2 className="w-5 h-5" />
+                <span className="text-sm font-medium">Clear Logs</span>
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="text-slate-500 hover:text-slate-700 transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
         </div>
 
         {/* Toggle Slider */}
@@ -593,13 +694,22 @@ export default function LoggingModal({
 
         {/* Footer */}
         <div className="mt-4 pt-4 border-t border-slate-200 flex items-center justify-between">
-          <p className="text-sm text-slate-500">
-            Showing {logs.length} of {total} log{" "}
-            {total === 1 ? "entry" : "entries"}
-            {hasMore && (
-              <span className="ml-2 text-slate-400">(more available)</span>
+          <div className="flex flex-col gap-1">
+            <p className="text-sm text-slate-500">
+              Showing {logs.length} of {total} log{" "}
+              {total === 1 ? "entry" : "entries"}
+              {hasMore && (
+                <span className="ml-2 text-slate-400">(more available)</span>
+              )}
+            </p>
+            {total > maxPageSize && (
+              <p className="text-xs text-amber-600 flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3" />
+                Large log count detected. Consider clearing old logs to improve
+                performance.
+              </p>
             )}
-          </p>
+          </div>
           <button
             onClick={onClose}
             className="px-6 py-2 border-2 border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors font-medium"

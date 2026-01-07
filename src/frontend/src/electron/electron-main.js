@@ -697,6 +697,17 @@ app.whenReady().then(() => {
   // Create the system tray icon
   createTray();
 
+  // Monitor memory usage periodically
+  setInterval(() => {
+    const memUsage = process.memoryUsage();
+    console.log("[Memory Monitor]", {
+      heapUsed: `${(memUsage.heapUsed / 1024 / 1024).toFixed(2)} MB`,
+      heapTotal: `${(memUsage.heapTotal / 1024 / 1024).toFixed(2)} MB`,
+      rss: `${(memUsage.rss / 1024 / 1024).toFixed(2)} MB`,
+      external: `${(memUsage.external / 1024 / 1024).toFixed(2)} MB`,
+    });
+  }, 5000); // Log every 5 seconds
+
   // Wait a moment for the backend to start, then create the window
   // Note: createMenu() is called inside createWindow's ready-to-show handler
   setTimeout(() => {
