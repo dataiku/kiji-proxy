@@ -1,5 +1,11 @@
 # yaak-privacy-proxy
 
+## 0.2.3
+
+### Patch Changes
+
+- 49d090d: updated linux build
+
 ## 0.2.2
 
 ### Patch Changes
