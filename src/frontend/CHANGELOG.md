@@ -1,5 +1,11 @@
 # yaak-privacy-proxy
 
+## 0.2.4
+
+### Patch Changes
+
+- e8abb08: API key fix, menu fix
+
 ## 0.2.3
 
 ### Patch Changes
