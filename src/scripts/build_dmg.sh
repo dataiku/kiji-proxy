@@ -309,9 +309,37 @@ cp build/yaak-proxy src/frontend/resources/yaak-proxy
 chmod +x src/frontend/resources/yaak-proxy
 
 # Copy ONNX library if it exists (to root of resources for easier access)
-if [ -f "build/libonnxruntime.1.23.1.dylib" ]; then
-    cp build/libonnxruntime.1.23.1.dylib src/frontend/resources/libonnxruntime.1.23.1.dylib
-    echo "✅ ONNX library copied to resources/"
+if [ -f "build/libonnxruntime.1.23.1.dylib" ] || [ -L "build/libonnxruntime.1.23.1.dylib" ]; then
+    # Check if it's a symlink
+    if [ -L "build/libonnxruntime.1.23.1.dylib" ]; then
+        # It's a symlink - check if target is already in resources
+        ONNX_TARGET=$(readlink "build/libonnxruntime.1.23.1.dylib")
+        # Convert to absolute path if relative
+        if [[ "$ONNX_TARGET" != /* ]]; then
+            ONNX_TARGET="$(cd "$(dirname "build/libonnxruntime.1.23.1.dylib")" && cd "$(dirname "$ONNX_TARGET")" && pwd)/$(basename "$ONNX_TARGET")"
+        fi
+        RESOURCES_LIB="$(cd "$(dirname "src/frontend/resources/libonnxruntime.1.23.1.dylib")" 2>/dev/null && pwd)/$(basename "src/frontend/resources/libonnxruntime.1.23.1.dylib")"
+
+        if [ "$ONNX_TARGET" = "$RESOURCES_LIB" ]; then
+            echo "✅ ONNX library already in resources/ (symlink points there)"
+        elif [ -f "$ONNX_TARGET" ]; then
+            cp -f "$ONNX_TARGET" src/frontend/resources/libonnxruntime.1.23.1.dylib
+            echo "✅ ONNX library copied to resources/ (from symlink)"
+        else
+            echo "⚠️  Symlink target not found: $ONNX_TARGET"
+        fi
+    elif [ -f "src/frontend/resources/libonnxruntime.1.23.1.dylib" ]; then
+        # Check if files are identical
+        if cmp -s "build/libonnxruntime.1.23.1.dylib" "src/frontend/resources/libonnxruntime.1.23.1.dylib"; then
+            echo "✅ ONNX library already in resources/ (identical)"
+        else
+            cp -f build/libonnxruntime.1.23.1.dylib src/frontend/resources/libonnxruntime.1.23.1.dylib
+            echo "✅ ONNX library copied to resources/"
+        fi
+    else
+        cp build/libonnxruntime.1.23.1.dylib src/frontend/resources/libonnxruntime.1.23.1.dylib
+        echo "✅ ONNX library copied to resources/"
+    fi
 else
     echo "⚠️  ONNX library not found at build/libonnxruntime.1.23.1.dylib"
 fi
@@ -361,6 +389,13 @@ echo "📦 Step 10: Packaging Electron app (DMG)..."
 echo "--------------------------------------------"
 
 cd src/frontend
+
+# Clean up old DMG files to avoid confusion with outdated builds
+if [ -d "release" ]; then
+    echo "Cleaning up old DMG files..."
+    rm -f release/*.dmg
+    echo "✅ Old DMG files removed"
+fi
 
 # Build frontend first
 npm run build:electron
@@ -486,7 +521,8 @@ ls -lh "$ELECTRON_DIR/release"/*.dmg 2>/dev/null || echo "   (DMG files will be 
 echo ""
 
 # Show size optimization results
-if [ -f "$ELECTRON_DIR/release"/*.dmg ]; then
+DMG_FILES=("$ELECTRON_DIR/release"/*.dmg)
+if [ -f "${DMG_FILES[0]}" ]; then
     DMG_SIZE=$(du -sh "$ELECTRON_DIR/release"/*.dmg 2>/dev/null | awk '{print $1}' | head -1)
     echo "📊 Final DMG size: $DMG_SIZE"
     echo ""
