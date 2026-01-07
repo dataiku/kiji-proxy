@@ -139,36 +139,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			log.Printf("[Proxy] ⚠️  Failed to parse response for details: %v", err)
 			// Continue without details rather than failing
 		} else {
-			// Extract masked request text (full JSON)
-			maskedRequestText := string(processed.RedactedBody)
-			// Extract masked message text (just the content)
-			maskedMessageText := originalText
-			if requestData != nil {
-				// Marshal JSON once, then do all string replacements
-				requestJSON, err := json.Marshal(requestData)
-				if err != nil {
-					log.Printf("[Proxy] ⚠️  Failed to marshal request: %v", err)
-				} else {
-					requestStr := string(requestJSON)
-					// Apply all masking replacements to the JSON string
-					for masked, original := range processed.MaskedToOriginal {
-						requestStr = strings.ReplaceAll(requestStr, original, masked)
-						maskedMessageText = strings.ReplaceAll(maskedMessageText, original, masked)
-					}
-					maskedRequestText = requestStr
-				}
-			}
-
-			// Extract response text
-			responseText, _ := h.extractTextFromResponse(responseData)
-
-			// Create masked response text
-			maskedResponseText := responseText
-			for masked, original := range processed.MaskedToOriginal {
-				maskedResponseText = strings.ReplaceAll(maskedResponseText, original, masked)
-			}
-
-			// Build PII entities array
+			// Build PII entities array only (minimal data)
 			piiEntities := make([]map[string]interface{}, 0)
 			for _, entity := range processed.Entities {
 				// Find the masked text for this entity
@@ -190,14 +161,26 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				})
 			}
 
-			// Add PII details to response
+			// Extract message text only (not full JSON) to save memory
+			maskedMessageText := originalText
+			for masked, original := range processed.MaskedToOriginal {
+				maskedMessageText = strings.ReplaceAll(maskedMessageText, original, masked)
+			}
+
+			// Extract response text
+			responseText, _ := h.extractTextFromResponse(responseData)
+			maskedResponseText := responseText
+			for masked, original := range processed.MaskedToOriginal {
+				maskedResponseText = strings.ReplaceAll(maskedResponseText, original, masked)
+			}
+
+			// Add MINIMAL PII details to response (no full JSON duplicates)
+			// This prevents memory explosion in frontend
 			responseData["x_pii_details"] = map[string]interface{}{
-				"original_request":  originalText,
-				"masked_request":    maskedRequestText,
-				"masked_message":    maskedMessageText,
-				"masked_response":   maskedResponseText,
-				"unmasked_response": responseText,
-				"pii_entities":      piiEntities,
+				"masked_message":    maskedMessageText,  // Just the content text
+				"masked_response":   maskedResponseText, // Just the response text
+				"unmasked_response": responseText,       // Just the response text
+				"pii_entities":      piiEntities,        // Entity details
 			}
 
 			// Re-marshal the enhanced response
@@ -205,8 +188,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				log.Printf("[Proxy] ⚠️  Failed to marshal enhanced response: %v", err)
 			} else {
+				// Check response size - if too large, strip details
+				if len(enhancedBody) > 1024*1024 { // 1MB limit
+					log.Printf("[Proxy] ⚠️  Response too large (%d bytes), removing PII details", len(enhancedBody))
+					delete(responseData, "x_pii_details")
+					enhancedBody, _ = json.Marshal(responseData)
+				}
 				modifiedBody = enhancedBody
-				log.Printf("[Proxy] Enhanced response with PII details (%d entities)", len(piiEntities))
+				log.Printf("[Proxy] Enhanced response with PII details (%d entities, %d bytes)", len(piiEntities), len(enhancedBody))
 			}
 		}
 		log.Printf("[Timing] PII details enhancement: %v", time.Since(detailsStart))

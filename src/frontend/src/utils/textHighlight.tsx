@@ -1,198 +1,210 @@
-import React from 'react';
+/**
+ * Text highlighting utility using HTML string generation instead of React components
+ * This approach eliminates memory overhead from creating thousands of React components
+ * by generating HTML strings once and injecting them via dangerouslySetInnerHTML
+ */
 
 interface Entity {
   original: string;
   token: string;
 }
 
-interface HighlightRange {
-  start: number;
-  end: number;
-  className: string;
+// HTML escape utility to prevent XSS
+function escapeHtml(text: string): string {
+  const div = document.createElement("div");
+  div.textContent = text;
+  return div.innerHTML;
 }
 
 /**
- * Safely highlight text by rendering React components instead of using dangerouslySetInnerHTML
- * This prevents XSS vulnerabilities while providing syntax highlighting
+ * Highlight text by generating an HTML string with <mark> elements
+ * This creates zero React components, preventing memory issues
+ *
+ * @param text - The text to highlight
+ * @param highlights - Array of {text, className} to highlight
+ * @returns HTML string with <mark> tags
  */
-export function highlightText(
+function highlightTextToHTML(
   text: string,
-  ranges: HighlightRange[]
-): React.ReactNode {
-  if (!text || ranges.length === 0) {
-    return text;
+  highlights: Array<{ text: string; className: string }>
+): string {
+  if (!text || highlights.length === 0) {
+    return escapeHtml(text);
   }
 
-  // Sort ranges by start position
-  const sortedRanges = [...ranges].sort((a, b) => a.start - b.start);
+  // Safety limit: truncate very large text
+  const MAX_TEXT_SIZE = 100000; // 100KB
+  if (text.length > MAX_TEXT_SIZE) {
+    console.warn(
+      `[SAFETY] Text size ${text.length} exceeds limit ${MAX_TEXT_SIZE}, truncating`
+    );
+    text =
+      text.substring(0, MAX_TEXT_SIZE) + "\n\n... [Text truncated for safety]";
+  }
 
-  const parts: React.ReactNode[] = [];
-  let currentIndex = 0;
+  // Build a list of all occurrences to highlight
+  interface Range {
+    start: number;
+    end: number;
+    className: string;
+  }
 
-  sortedRanges.forEach((range, idx) => {
-    // Add text before the highlight
-    if (currentIndex < range.start) {
-      parts.push(
-        <span key={`text-${idx}`}>{text.slice(currentIndex, range.start)}</span>
-      );
+  const ranges: Range[] = [];
+
+  // Find all occurrences of each highlight text
+  highlights.forEach(({ text: searchText, className }) => {
+    let searchIndex = 0;
+    let foundCount = 0;
+    const MAX_OCCURRENCES = 500; // Limit occurrences per search text
+
+    while (searchIndex < text.length && foundCount < MAX_OCCURRENCES) {
+      const index = text.indexOf(searchText, searchIndex);
+      if (index === -1) break;
+
+      ranges.push({
+        start: index,
+        end: index + searchText.length,
+        className,
+      });
+
+      foundCount++;
+      searchIndex = index + searchText.length;
     }
 
-    // Add highlighted text
-    parts.push(
-      <mark key={`mark-${idx}`} className={range.className}>
-        {text.slice(range.start, range.end)}
-      </mark>
-    );
+    if (foundCount >= MAX_OCCURRENCES) {
+      console.warn(
+        `[SAFETY] Found ${foundCount}+ occurrences of "${searchText}", limiting to ${MAX_OCCURRENCES}`
+      );
+    }
+  });
+
+  // Sort ranges by start position
+  ranges.sort((a, b) => a.start - b.start);
+
+  // Merge overlapping ranges to avoid nested <mark> tags
+  const mergedRanges: Range[] = [];
+  if (ranges.length > 0) {
+    let current = ranges[0];
+
+    for (let i = 1; i < ranges.length; i++) {
+      if (ranges[i].start <= current.end) {
+        // Overlapping - extend current range
+        current = {
+          start: current.start,
+          end: Math.max(current.end, ranges[i].end),
+          className: current.className, // Keep first className
+        };
+      } else {
+        mergedRanges.push(current);
+        current = ranges[i];
+      }
+    }
+    mergedRanges.push(current);
+  }
+
+  // Build HTML string with highlights
+  let html = "";
+  let currentIndex = 0;
+
+  mergedRanges.forEach((range) => {
+    // Add escaped text before highlight
+    if (currentIndex < range.start) {
+      html += escapeHtml(text.slice(currentIndex, range.start));
+    }
+
+    // Add highlighted text with <mark> tag
+    html += `<mark class="${range.className}">${escapeHtml(
+      text.slice(range.start, range.end)
+    )}</mark>`;
 
     currentIndex = range.end;
   });
 
   // Add remaining text after last highlight
   if (currentIndex < text.length) {
-    parts.push(<span key="text-end">{text.slice(currentIndex)}</span>);
+    html += escapeHtml(text.slice(currentIndex));
   }
 
-  return <>{parts}</>;
+  return html;
 }
 
 /**
- * Highlight detected entities in text by their original values
+ * Highlight entities by their original text values
+ * Returns HTML string for use with dangerouslySetInnerHTML
  */
 export function highlightEntitiesByOriginal(
   text: string,
   entities: Entity[],
   className: string
-): React.ReactNode {
-  const ranges: HighlightRange[] = [];
+): string {
+  // Safety check: limit entity count
+  const MAX_ENTITIES = 500;
+  if (entities.length > MAX_ENTITIES) {
+    console.warn(
+      `[SAFETY] Entity count ${entities.length} exceeds limit ${MAX_ENTITIES}, limiting`
+    );
+    entities = entities.slice(0, MAX_ENTITIES);
+  }
 
-  entities.forEach((entity) => {
-    let searchIndex = 0;
-    while (searchIndex < text.length) {
-      const index = text.indexOf(entity.original, searchIndex);
-      if (index === -1) break;
+  const highlights = entities.map((entity) => ({
+    text: entity.original,
+    className,
+  }));
 
-      ranges.push({
-        start: index,
-        end: index + entity.original.length,
-        className,
-      });
-
-      searchIndex = index + entity.original.length;
-    }
-  });
-
-  return highlightText(text, ranges);
+  return highlightTextToHTML(text, highlights);
 }
 
 /**
- * Highlight detected entities in text by their token values
+ * Highlight entities by their token values
+ * Returns HTML string for use with dangerouslySetInnerHTML
  */
 export function highlightEntitiesByToken(
   text: string,
   entities: Entity[],
   className: string
-): React.ReactNode {
-  const ranges: HighlightRange[] = [];
+): string {
+  // Safety check: limit entity count
+  const MAX_ENTITIES = 500;
+  if (entities.length > MAX_ENTITIES) {
+    console.warn(
+      `[SAFETY] Entity count ${entities.length} exceeds limit ${MAX_ENTITIES}, limiting`
+    );
+    entities = entities.slice(0, MAX_ENTITIES);
+  }
 
-  entities.forEach((entity) => {
-    let searchIndex = 0;
-    while (searchIndex < text.length) {
-      const index = text.indexOf(entity.token, searchIndex);
-      if (index === -1) break;
+  const highlights = entities.map((entity) => ({
+    text: entity.token,
+    className,
+  }));
 
-      ranges.push({
-        start: index,
-        end: index + entity.token.length,
-        className,
-      });
-
-      searchIndex = index + entity.token.length;
-    }
-  });
-
-  return highlightText(text, ranges);
+  return highlightTextToHTML(text, highlights);
 }
 
 /**
- * Optimized function to check if a character index is part of any entity
- * Pre-computes entity ranges for O(1) lookups instead of O(n) per character
- */
-export function createEntityRangeChecker(
-  text: string,
-  entities: Entity[]
-): (index: number) => boolean {
-  const rangeSet = new Set<number>();
-
-  entities.forEach((entity) => {
-    let searchIndex = 0;
-    while (searchIndex < text.length) {
-      const index = text.indexOf(entity.original, searchIndex);
-      if (index === -1) break;
-
-      // Mark all indices in this range
-      for (let i = index; i < index + entity.original.length; i++) {
-        rangeSet.add(i);
-      }
-
-      searchIndex = index + entity.original.length;
-    }
-  });
-
-  return (index: number) => rangeSet.has(index);
-}
-
-/**
- * Render text with character-level highlighting for diff view
- * More efficient than the original implementation
+ * Legacy function name for backwards compatibility
+ * Uses highlightEntitiesByOriginal internally
  */
 export function highlightTextByCharacter(
   text: string,
   entities: Entity[],
-  highlightClassName: string
-): React.ReactNode {
-  const isHighlighted = createEntityRangeChecker(text, entities);
+  className: string
+): string {
+  return highlightEntitiesByOriginal(text, entities, className);
+}
 
-  const chars = text.split('');
-  const parts: React.ReactNode[] = [];
-  let currentSpan: string[] = [];
-  let isCurrentHighlighted = false;
+/**
+ * Generic highlight function for custom text patterns
+ * Returns HTML string for use with dangerouslySetInnerHTML
+ */
+export function highlightText(
+  text: string,
+  searchTexts: string[],
+  className: string
+): string {
+  const highlights = searchTexts.map((searchText) => ({
+    text: searchText,
+    className,
+  }));
 
-  chars.forEach((char, idx) => {
-    const shouldHighlight = isHighlighted(idx);
-
-    if (shouldHighlight === isCurrentHighlighted) {
-      // Continue current span
-      currentSpan.push(char);
-    } else {
-      // Flush current span and start new one
-      if (currentSpan.length > 0) {
-        parts.push(
-          isCurrentHighlighted ? (
-            <span key={idx} className={highlightClassName}>
-              {currentSpan.join('')}
-            </span>
-          ) : (
-            <span key={idx}>{currentSpan.join('')}</span>
-          )
-        );
-      }
-      currentSpan = [char];
-      isCurrentHighlighted = shouldHighlight;
-    }
-  });
-
-  // Flush remaining span
-  if (currentSpan.length > 0) {
-    parts.push(
-      isCurrentHighlighted ? (
-        <span key="end" className={highlightClassName}>
-          {currentSpan.join('')}
-        </span>
-      ) : (
-        <span key="end">{currentSpan.join('')}</span>
-      )
-    );
-  }
-
-  return <>{parts}</>;
+  return highlightTextToHTML(text, highlights);
 }

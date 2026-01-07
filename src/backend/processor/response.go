@@ -45,9 +45,6 @@ func (rp *ResponseProcessor) ProcessResponse(body []byte, contentType string, ma
 		return body
 	}
 
-	// Store original response in a new field
-	data["original_response"] = json.RawMessage(body)
-
 	// Process different response types
 	rp.processChatCompletions(data, maskedToOriginal)
 

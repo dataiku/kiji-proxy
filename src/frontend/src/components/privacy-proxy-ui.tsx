@@ -1,23 +1,23 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   Eye,
   Send,
   AlertCircle,
+  CheckCircle,
+  WifiOff,
   Settings,
-  Menu,
   FileText,
   Info,
-  WifiOff,
-  CheckCircle,
+  Menu,
   Flag,
 } from "lucide-react";
+import logoImage from "../../assets/logo.png";
 import SettingsModal from "./modals/SettingsModal";
 import LoggingModal from "./modals/LoggingModal";
 import AboutModal from "./modals/AboutModal";
 import MisclassificationModal from "./modals/MisclassificationModal";
 import TermsModal from "./modals/TermsModal";
 import CACertSetupModal from "./modals/CACertSetupModal";
-import logoImage from "../../assets/logo.png";
 import {
   highlightTextByCharacter,
   highlightEntitiesByToken,
@@ -90,6 +90,64 @@ export default function PrivacyProxyUI() {
   // Detect if running in Electron
   const isElectron =
     typeof window !== "undefined" && window.electronAPI !== undefined;
+
+  // Memoize highlighted text to prevent re-computation and memory explosion
+  // Safety limit for text highlighting to prevent memory issues
+  const MAX_HIGHLIGHT_SIZE = 50000; // 50KB max for highlighting
+
+  const truncateForHighlighting = (text: string): string => {
+    if (text.length > MAX_HIGHLIGHT_SIZE) {
+      console.warn(
+        `[SAFETY] Text truncated from ${text.length} to ${MAX_HIGHLIGHT_SIZE} chars for highlighting`
+      );
+      return (
+        text.substring(0, MAX_HIGHLIGHT_SIZE) +
+        "\n\n... [Text truncated for display - too large to highlight safely]"
+      );
+    }
+    return text;
+  };
+
+  // Generate HTML strings for highlighting (no React components)
+  const highlightedInputOriginalHTML = useMemo(
+    () =>
+      highlightTextByCharacter(
+        truncateForHighlighting(inputData),
+        detectedEntities,
+        "bg-red-200 text-red-900"
+      ),
+    [inputData, detectedEntities]
+  );
+
+  const highlightedInputMaskedHTML = useMemo(
+    () =>
+      highlightEntitiesByToken(
+        truncateForHighlighting(maskedInput),
+        detectedEntities,
+        "bg-green-200 text-green-900 font-bold"
+      ),
+    [maskedInput, detectedEntities]
+  );
+
+  const highlightedOutputMaskedHTML = useMemo(
+    () =>
+      highlightEntitiesByToken(
+        truncateForHighlighting(maskedOutput),
+        detectedEntities,
+        "bg-purple-200 text-purple-900 font-bold"
+      ),
+    [maskedOutput, detectedEntities]
+  );
+
+  const highlightedOutputFinalHTML = useMemo(
+    () =>
+      highlightEntitiesByOriginal(
+        truncateForHighlighting(finalOutput),
+        detectedEntities,
+        "bg-blue-200 text-blue-900 font-bold"
+      ),
+    [finalOutput, detectedEntities]
+  );
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -275,6 +333,19 @@ export default function PrivacyProxyUI() {
   const handleSubmit = async () => {
     if (!inputData.trim()) return;
 
+    // Safety check: Prevent submitting huge inputs that could cause memory issues
+    const MAX_INPUT_SIZE = 500000; // 500KB max input
+    if (inputData.length > MAX_INPUT_SIZE) {
+      alert(
+        `Input is too large (${(inputData.length / 1024).toFixed(
+          1
+        )}KB). Maximum allowed is ${(MAX_INPUT_SIZE / 1024).toFixed(
+          0
+        )}KB. Please reduce the input size.`
+      );
+      return;
+    }
+
     setIsProcessing(true);
 
     // Performance timing and memory logging
@@ -358,37 +429,87 @@ export default function PrivacyProxyUI() {
 
       // Extract standard OpenAI response
       console.log("[DEBUG] Extracting assistant message");
-      const assistantMessage = data.choices?.[0]?.message?.content || "";
-      setFinalOutput(assistantMessage);
-      console.log("[DEBUG] Assistant message set");
+      let assistantMessage = data.choices?.[0]?.message?.content || "";
 
-      // Extract PII details from custom field (if available)
+      // Safety check: Truncate very large responses to prevent memory issues
+      const MAX_RESPONSE_SIZE = 500000; // 500KB max per field
+      if (assistantMessage.length > MAX_RESPONSE_SIZE) {
+        console.warn(
+          `[SAFETY] Assistant message truncated from ${assistantMessage.length} to ${MAX_RESPONSE_SIZE} chars`
+        );
+        assistantMessage =
+          assistantMessage.substring(0, MAX_RESPONSE_SIZE) +
+          "\n\n... [Response truncated - too large to display safely]";
+      }
+
+      // Extract PII details BEFORE setting state to prevent holding large object
+      let maskedInputText = "";
+      let maskedOutputText = "";
+      let transformedEntities: Array<{
+        type: string;
+        original: string;
+        token: string;
+        confidence: number;
+      }> = [];
+
       if (data.x_pii_details) {
         console.log("[DEBUG] Processing PII details");
         const piiStart = performance.now();
 
-        // Use masked_message for display (just the content, not full JSON)
-        setMaskedInput(data.x_pii_details.masked_message || "");
-        setMaskedOutput(data.x_pii_details.masked_response || "");
+        // Extract values into local variables with safety limits
+        maskedInputText = data.x_pii_details.masked_message || "";
+        maskedOutputText = data.x_pii_details.masked_response || "";
+
+        // Safety check: Truncate large masked text
+        if (maskedInputText.length > MAX_RESPONSE_SIZE) {
+          console.warn(
+            `[SAFETY] Masked input truncated from ${maskedInputText.length} to ${MAX_RESPONSE_SIZE} chars`
+          );
+          maskedInputText =
+            maskedInputText.substring(0, MAX_RESPONSE_SIZE) +
+            "\n\n... [Masked input truncated - too large]";
+        }
+        if (maskedOutputText.length > MAX_RESPONSE_SIZE) {
+          console.warn(
+            `[SAFETY] Masked output truncated from ${maskedOutputText.length} to ${MAX_RESPONSE_SIZE} chars`
+          );
+          maskedOutputText =
+            maskedOutputText.substring(0, MAX_RESPONSE_SIZE) +
+            "\n\n... [Masked output truncated - too large]";
+        }
 
         // Transform PII entities to match UI format
         const entityCount = data.x_pii_details.pii_entities?.length || 0;
         console.log(`[DEBUG] Transforming ${entityCount} PII entities`);
 
-        const transformedEntities = (data.x_pii_details.pii_entities || []).map(
-          (entity: {
-            label: string;
-            text: string;
-            masked_text: string;
-            confidence: number;
-          }) => ({
-            type: entity.label.toLowerCase(),
-            original: entity.text,
-            token: entity.masked_text,
-            confidence: entity.confidence,
-          })
-        );
-        setDetectedEntities(transformedEntities);
+        if (data.x_pii_details.pii_entities) {
+          // Safety check: Limit number of entities to prevent memory issues
+          const MAX_ENTITIES = 500;
+          const entitiesToProcess =
+            entityCount > MAX_ENTITIES
+              ? data.x_pii_details.pii_entities.slice(0, MAX_ENTITIES)
+              : data.x_pii_details.pii_entities;
+
+          if (entityCount > MAX_ENTITIES) {
+            console.warn(
+              `[SAFETY] Entity count ${entityCount} exceeds limit ${MAX_ENTITIES}, limiting entities`
+            );
+          }
+
+          transformedEntities = entitiesToProcess.map(
+            (entity: {
+              label: string;
+              text: string;
+              masked_text: string;
+              confidence: number;
+            }) => ({
+              type: entity.label.toLowerCase(),
+              original: entity.text,
+              token: entity.masked_text,
+              confidence: entity.confidence,
+            })
+          );
+        }
 
         console.log(
           `[DEBUG] PII details processed in ${(
@@ -397,11 +518,18 @@ export default function PrivacyProxyUI() {
         );
       } else {
         console.log("[DEBUG] No PII details in response");
-        // No PII details available (shouldn't happen with ?details=true)
-        setMaskedInput("");
-        setMaskedOutput("");
-        setDetectedEntities([]);
       }
+
+      // Clear the large data object before setting state
+      console.log("[DEBUG] Clearing response object from memory");
+
+      // Set state with extracted values only (not the full response object)
+      setFinalOutput(assistantMessage);
+      setMaskedInput(maskedInputText);
+      setMaskedOutput(maskedOutputText);
+      setDetectedEntities(transformedEntities);
+
+      console.log("[DEBUG] State updated, response object can be GC'd");
 
       console.log(
         `[DEBUG] handleSubmit completed successfully in ${(
@@ -594,10 +722,12 @@ export default function PrivacyProxyUI() {
             )}
             <img src={logoImage} alt="Yaak Logo" className="w-12 h-12" />
             <h1 className="text-4xl font-bold text-slate-800">
-              Yaak - Privacy Proxy
+              Yaak Privacy Proxy
             </h1>
           </div>
-          <p className="text-slate-600 text-lg">Privacy Proxy</p>
+          <p className="text-slate-600 text-lg">
+            PII Detection and Masking Proxy
+          </p>
 
           {/* Server Status Banner */}
           {serverStatus === "offline" ? (
@@ -703,13 +833,12 @@ export default function PrivacyProxyUI() {
                       PII Exposed
                     </span>
                   </div>
-                  <div className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap">
-                    {highlightTextByCharacter(
-                      inputData,
-                      detectedEntities,
-                      "bg-red-200 text-red-900"
-                    )}
-                  </div>
+                  <div
+                    className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap"
+                    dangerouslySetInnerHTML={{
+                      __html: highlightedInputOriginalHTML,
+                    }}
+                  />
                 </div>
                 <div>
                   <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
@@ -718,13 +847,12 @@ export default function PrivacyProxyUI() {
                       PII Protected
                     </span>
                   </div>
-                  <div className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap">
-                    {highlightEntitiesByToken(
-                      maskedInput,
-                      detectedEntities,
-                      "bg-green-200 text-green-900 font-bold"
-                    )}
-                  </div>
+                  <div
+                    className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap"
+                    dangerouslySetInnerHTML={{
+                      __html: highlightedInputMaskedHTML,
+                    }}
+                  />
                 </div>
               </div>
               <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
@@ -750,13 +878,12 @@ export default function PrivacyProxyUI() {
                       From OpenAI
                     </span>
                   </div>
-                  <div className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap">
-                    {highlightEntitiesByToken(
-                      maskedOutput,
-                      detectedEntities,
-                      "bg-purple-200 text-purple-900 font-bold"
-                    )}
-                  </div>
+                  <div
+                    className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap"
+                    dangerouslySetInnerHTML={{
+                      __html: highlightedOutputMaskedHTML,
+                    }}
+                  />
                 </div>
                 <div>
                   <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
@@ -765,13 +892,12 @@ export default function PrivacyProxyUI() {
                       Restored
                     </span>
                   </div>
-                  <div className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap">
-                    {highlightEntitiesByOriginal(
-                      finalOutput,
-                      detectedEntities,
-                      "bg-blue-200 text-blue-900 font-bold"
-                    )}
-                  </div>
+                  <div
+                    className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap"
+                    dangerouslySetInnerHTML={{
+                      __html: highlightedOutputFinalHTML,
+                    }}
+                  />
                 </div>
               </div>
               <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
@@ -837,7 +963,7 @@ export default function PrivacyProxyUI() {
         {/* Info Footer */}
         <div className="mt-8 text-center text-sm text-slate-500">
           <p>
-            Yaak - Privacy Proxy - Diff View
+            Yaak Privacy Proxy - Made by Dataiku's Open Source Lab
             {version && (
               <span className="ml-2 text-xs text-slate-400">v{version}</span>
             )}
