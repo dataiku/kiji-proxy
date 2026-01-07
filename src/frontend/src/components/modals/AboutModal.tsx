@@ -9,7 +9,6 @@ interface AboutModalProps {
 
 export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
   const [version, setVersion] = useState<string>("Loading...");
-  const [backendVersion, setBackendVersion] = useState<string>("N/A");
 
   useEffect(() => {
     if (isOpen) {
@@ -26,15 +25,12 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
       const response = await fetch("http://localhost:8080/version");
       if (response.ok) {
         const data = await response.json();
-        setBackendVersion(data.version || "Unknown");
         setVersion(data.version || "Unknown");
       } else {
-        setBackendVersion("Unavailable");
         setVersion("Unknown");
       }
     } catch (error) {
       console.error("Failed to fetch version:", error);
-      setBackendVersion("Unavailable");
       setVersion("Unknown");
     }
   };
@@ -75,21 +71,13 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
           </div>
 
           {/* Version Information */}
-          <div className="bg-slate-50 rounded-lg p-4 space-y-3">
+          <div className="bg-slate-50 rounded-lg p-4">
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium text-slate-600">
                 Version:
               </span>
               <span className="text-sm font-mono font-semibold text-slate-800">
                 {version}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-slate-600">
-                Backend:
-              </span>
-              <span className="text-sm font-mono text-slate-700">
-                {backendVersion}
               </span>
             </div>
           </div>
