@@ -182,6 +182,29 @@ electron-install: ## Install Electron UI dependencies
 	@cd src/frontend && npm install
 	@echo "$(GREEN)✅ Electron dependencies installed$(NC)"
 
+setup-onnx: ## Set up ONNX Runtime library for development
+	@echo "$(BLUE)Setting up ONNX Runtime library...$(NC)"
+	@mkdir -p build
+	@if [ -f "build/libonnxruntime.1.23.1.dylib" ]; then \
+		echo "$(GREEN)✅ ONNX library already exists$(NC)"; \
+	elif [ -f "src/frontend/resources/libonnxruntime.1.23.1.dylib" ]; then \
+		ln -sf ../src/frontend/resources/libonnxruntime.1.23.1.dylib build/libonnxruntime.1.23.1.dylib; \
+		echo "$(GREEN)✅ Linked existing ONNX library from resources$(NC)"; \
+	else \
+		if [ ! -d ".venv" ]; then \
+			echo "$(YELLOW)Creating virtual environment...$(NC)"; \
+			python3 -m venv .venv; \
+		fi; \
+		. .venv/bin/activate && pip install --quiet onnxruntime; \
+		ONNX_LIB=$$(find .venv -name "libonnxruntime*.dylib" | head -1); \
+		if [ -n "$$ONNX_LIB" ]; then \
+			cp "$$ONNX_LIB" build/libonnxruntime.1.23.1.dylib; \
+			echo "$(GREEN)✅ ONNX library installed$(NC)"; \
+		else \
+			echo "$(YELLOW)⚠️  Could not find ONNX library, continuing anyway$(NC)"; \
+		fi; \
+	fi
+
 build-go: ## Build Go binary for development
 	@echo "$(BLUE)Building Go binary for development...$(NC)"
 	@mkdir -p build
@@ -197,9 +220,20 @@ electron-build: ## Build Electron app for production
 	@cd src/frontend && npm run build:electron
 	@echo "$(GREEN)✅ Electron app built$(NC)"
 
-electron-run: electron-build ## Run Electron app (builds first)
+electron-run: setup-onnx build-go electron-build ## Run Electron app (builds Go binary and frontend first)
+	@echo "$(BLUE)Preparing resources for Electron...$(NC)"
+	@mkdir -p src/frontend/resources
+	@cp build/yaak-proxy src/frontend/resources/yaak-proxy
+	@chmod +x src/frontend/resources/yaak-proxy
+	@if [ -f "build/libonnxruntime.1.23.1.dylib" ]; then \
+		cp build/libonnxruntime.1.23.1.dylib src/frontend/resources/libonnxruntime.1.23.1.dylib; \
+		echo "$(GREEN)✅ ONNX library copied to resources$(NC)"; \
+	else \
+		echo "$(YELLOW)⚠️  ONNX library not found at build/libonnxruntime.1.23.1.dylib$(NC)"; \
+	fi
+	@echo "$(GREEN)✅ Resources prepared$(NC)"
 	@echo "$(BLUE)Starting Electron app...$(NC)"
-	@cd src/frontend && npm run electron
+	@cd src/frontend && NODE_ENV=development npm run electron
 
 electron: electron-run ## Alias for electron-run
 
