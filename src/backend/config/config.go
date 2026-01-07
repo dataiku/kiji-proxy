@@ -91,9 +91,9 @@ func DefaultConfig() *Config {
 			AddProxyNotice: false, // Disabled by default to avoid modifying response content
 		},
 		Proxy: ProxyConfig{
-			TransparentEnabled: false,
+			TransparentEnabled: true,
 			InterceptDomains:   []string{"api.openai.com", "openai.com"},
-			ProxyPort:          ":8080",
+			ProxyPort:          ":8081",
 			CAPath:             caPath,
 			KeyPath:            keyPath,
 		},
