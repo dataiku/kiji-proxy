@@ -6,6 +6,9 @@
   "license": "Apache-2.0",
   "private": true,
   "_comment": "NOTE: Version must be kept in sync with src/frontend/package.json",
+  "workspaces": [
+    "src/frontend"
+  ],
   "devDependencies": {
     "@changesets/cli": "^2.27.1"
   },
