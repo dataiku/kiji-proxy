@@ -1,6 +1,5 @@
 name: Report a bug
 description: Report a problem with the Yaak Proxy.
-type: Bug
 labels: "state:needs triage"
 body:
   - type: markdown
