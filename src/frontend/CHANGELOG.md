@@ -1,5 +1,11 @@
 # yaak-privacy-proxy
 
+## 0.2.1
+
+### Patch Changes
+
+- 262db0b: fix of build issue, stalled app
+
 ## 0.2.0
 
 ### Minor Changes
