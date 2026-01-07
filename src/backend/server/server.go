@@ -170,19 +170,48 @@ func (s *Server) Start() error {
 
 	// Serve UI files with cache-busting headers
 	if s.uiFS != nil {
+		log.Println("[DEBUG] Using embedded UI filesystem")
+
+		// List root contents of embedded FS
+		entries, err := fs.ReadDir(s.uiFS, ".")
+		if err != nil {
+			log.Printf("[DEBUG] Failed to read embedded FS root: %v", err)
+		} else {
+			log.Printf("[DEBUG] Embedded FS root contains %d entries:", len(entries))
+			for i, entry := range entries {
+				if i < 10 { // Show first 10
+					log.Printf("[DEBUG]   - %s (dir: %v)", entry.Name(), entry.IsDir())
+				}
+			}
+		}
+
 		// Use embedded filesystem - need to strip the "frontend/dist/" prefix
 		// The embedded files are at "frontend/dist/" but we want to serve them at "/"
 		subFS, err := fs.Sub(s.uiFS, "frontend/dist")
 		if err != nil {
-			log.Printf("Failed to create sub-filesystem: %v", err)
-			// Fallback to regular embedded filesystem
-			uiFS := http.FileServer(http.FS(s.uiFS))
-			mux.Handle("/", s.noCacheMiddleware(uiFS))
+			log.Printf("[DEBUG] Failed to create sub-filesystem from 'frontend/dist': %v", err)
+			log.Println("[DEBUG] Trying alternative path 'dist'...")
+
+			// Try just "dist" without "frontend/" prefix
+			subFS, err = fs.Sub(s.uiFS, "dist")
+			if err != nil {
+				log.Printf("[DEBUG] Failed to create sub-filesystem from 'dist': %v", err)
+				log.Println("[DEBUG] Serving from root of embedded FS")
+				// Fallback to regular embedded filesystem
+				uiFS := http.FileServer(http.FS(s.uiFS))
+				mux.Handle("/", s.noCacheMiddleware(uiFS))
+			} else {
+				log.Println("[DEBUG] Successfully created sub-filesystem from 'dist'")
+				uiFS := http.FileServer(http.FS(subFS))
+				mux.Handle("/", s.noCacheMiddleware(uiFS))
+			}
 		} else {
+			log.Println("[DEBUG] Successfully created sub-filesystem from 'frontend/dist'")
 			uiFS := http.FileServer(http.FS(subFS))
 			mux.Handle("/", s.noCacheMiddleware(uiFS))
 		}
 	} else {
+		log.Println("[DEBUG] Using filesystem UI path:", s.config.UIPath)
 		// Use file system
 		uiFS := http.FileServer(http.Dir(s.config.UIPath))
 		mux.Handle("/", s.noCacheMiddleware(uiFS))
