@@ -92,8 +92,7 @@
         "filter": [
           "**/*",
           "!**/model.onnx",
-          "!**/pii_onnx_model/**/*",
-          "!**/quantized/**/*"
+          "!**/pii_onnx_model/**/*"
         ]
       }
     ],

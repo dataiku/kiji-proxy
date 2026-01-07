@@ -48,35 +48,65 @@ const getGoBinaryPath = () => {
       "build",
       "yaak-proxy"
     );
+    console.log("[DEBUG] Development mode - checking for binary at:", devPath);
     if (fs.existsSync(devPath)) {
+      console.log("[DEBUG] ✅ Binary found at:", devPath);
       return devPath;
     }
+    console.log("[DEBUG] ⚠️ Binary not found in development mode");
     // Fallback: assume it's running separately
     return null;
   }
 
   // In production, the binary is in the app's resources directory
   // For macOS app bundles: Contents/Resources/
+  console.log("[DEBUG] Production mode - looking for binary");
+  console.log("[DEBUG] process.resourcesPath:", process.resourcesPath);
+  console.log("[DEBUG] app.getAppPath():", app.getAppPath());
+
   if (process.platform === "darwin") {
     // app.getAppPath() returns the path to the app bundle's Contents/Resources/app.asar or Contents/Resources/app
     const resourcesPath = process.resourcesPath || app.getAppPath();
     const binaryPath = path.join(resourcesPath, "resources", "yaak-proxy");
 
+    console.log("[DEBUG] Checking primary path:", binaryPath);
     // If not found, try alternative paths
     if (fs.existsSync(binaryPath)) {
+      console.log("[DEBUG] ✅ Binary found at:", binaryPath);
       return binaryPath;
     }
 
     // Try without 'resources' subdirectory (if resources are at root)
     const altPath = path.join(resourcesPath, "yaak-proxy");
+    console.log("[DEBUG] Checking alternative path:", altPath);
     if (fs.existsSync(altPath)) {
+      console.log("[DEBUG] ✅ Binary found at:", altPath);
       return altPath;
+    }
+
+    // List what's actually in the resources directory
+    try {
+      const resDir = path.join(resourcesPath, "resources");
+      console.log("[DEBUG] Contents of resources directory:", resDir);
+      if (fs.existsSync(resDir)) {
+        const files = fs.readdirSync(resDir);
+        console.log("[DEBUG] Files:", files.slice(0, 20)); // First 20 files
+      } else {
+        console.log("[DEBUG] ⚠️ Resources directory does not exist");
+      }
+    } catch (err) {
+      console.error("[DEBUG] Error listing resources:", err);
     }
   }
 
   // For other platforms or if not found
   const resourcesPath = process.resourcesPath || app.getAppPath();
-  return path.join(resourcesPath, "resources", "yaak-proxy");
+  const finalPath = path.join(resourcesPath, "resources", "yaak-proxy");
+  console.log(
+    "[DEBUG] ⚠️ Binary not found, returning default path:",
+    finalPath
+  );
+  return finalPath;
 };
 
 // Get the path to resources directory
@@ -108,14 +138,18 @@ const launchGoBinary = () => {
 
   const binaryPath = getGoBinaryPath();
 
+  console.log("[DEBUG] launchGoBinary - binary path:", binaryPath);
   if (!binaryPath || !fs.existsSync(binaryPath)) {
+    console.error("[DEBUG] ❌ Go binary not found at:", binaryPath);
     console.warn("Go binary not found at:", binaryPath);
     console.warn("The app will try to connect to an existing backend server.");
     return;
   }
+  console.log("[DEBUG] ✅ Go binary exists, proceeding to launch");
 
   // Get project root path (resources path in dev mode)
   const projectRoot = getResourcesPath();
+  console.log("[DEBUG] Project root / resources path:", projectRoot);
 
   // Set up environment variables
   const env = { ...process.env };
@@ -186,6 +220,15 @@ const launchGoBinary = () => {
     }
   }
 
+  console.log("[DEBUG] Spawning Go process:");
+  console.log("[DEBUG]   - Binary:", binaryPath);
+  console.log("[DEBUG]   - Args:", args);
+  console.log("[DEBUG]   - CWD:", workingDir);
+  console.log(
+    "[DEBUG]   - ONNXRUNTIME_SHARED_LIBRARY_PATH:",
+    env.ONNXRUNTIME_SHARED_LIBRARY_PATH
+  );
+
   // Spawn the Go process
   goProcess = spawn(binaryPath, args, {
     cwd: workingDir,
@@ -193,14 +236,29 @@ const launchGoBinary = () => {
     stdio: ["ignore", "pipe", "pipe"],
   });
 
+  console.log("[DEBUG] Go process spawned with PID:", goProcess.pid);
+
   // Handle stdout
   goProcess.stdout.on("data", (data) => {
     console.log(`[Go Backend] ${data.toString().trim()}`);
   });
 
   // Handle stderr
+  // Note: Go's log package writes to stderr by default, so not all stderr is errors
   goProcess.stderr.on("data", (data) => {
-    console.error(`[Go Backend Error] ${data.toString().trim()}`);
+    const output = data.toString().trim();
+    // Only mark as error if it contains error keywords
+    if (
+      output.toLowerCase().includes("error") ||
+      output.toLowerCase().includes("fatal") ||
+      output.toLowerCase().includes("panic") ||
+      output.toLowerCase().includes("failed")
+    ) {
+      console.error(`[Go Backend Error] ${output}`);
+    } else {
+      // Regular log output (Go's log.Printf writes to stderr)
+      console.log(`[Go Backend] ${output}`);
+    }
   });
 
   // Handle process exit
@@ -402,48 +460,19 @@ function createWindow() {
   });
 
   // Load the app
-  let startUrl;
-  if (isDev) {
-    // In development, try Go backend first (port 8080), then webpack dev server (port 3000), then built files
-    startUrl = "http://localhost:8080";
-  } else {
-    // In production, use built files
-    startUrl = `file://${path.join(
-      __dirname,
-      "..",
-      "..",
-      "dist",
-      "index.html"
-    )}`;
-  }
+  // In both dev and production, the Go backend serves the UI on port 8080
+  // The backend embeds the UI files when built with the 'embed' tag
+  let startUrl = "http://localhost:8080";
 
+  console.log("[DEBUG] Mode:", isDev ? "development" : "production");
+  console.log("[DEBUG] Loading UI from Go backend at:", startUrl);
+  console.log("[DEBUG] __dirname:", __dirname);
+
+  console.log("[DEBUG] Attempting to load URL:", startUrl);
   mainWindow.loadURL(startUrl).catch((err) => {
+    console.error("[DEBUG] ❌ Failed to load URL:", startUrl);
     console.error("Failed to load URL:", err);
-    if (isDev) {
-      // Try webpack dev server as fallback
-      mainWindow.loadURL("http://localhost:3000").catch((err2) => {
-        console.error("Webpack dev server also not available:", err2);
-        // Final fallback to built files
-        const distPath = `file://${path.join(
-          __dirname,
-          "..",
-          "..",
-          "dist",
-          "index.html"
-        )}`;
-        if (
-          fs.existsSync(path.join(__dirname, "..", "..", "dist", "index.html"))
-        ) {
-          mainWindow.loadURL(distPath).catch((err3) => {
-            console.error("Failed to load from dist:", err3);
-          });
-        } else {
-          console.error(
-            "Dist files not found. Please run 'npm run build:electron' first."
-          );
-        }
-      });
-    }
+    console.error("Make sure the Go backend is running on port 8080");
   });
 
   // Show window when ready to prevent visual flash
