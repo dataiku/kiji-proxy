@@ -379,7 +379,7 @@ function createTray() {
     },
     { type: "separator" },
     {
-      label: "Terms & Conditions",
+      label: "Terms && Conditions",
       click: () => {
         showMainWindow();
         // Send IPC to open terms after a short delay to ensure window is ready
@@ -640,7 +640,7 @@ function createMenu() {
           },
         },
         {
-          label: "Terms and Conditions",
+          label: "Terms && Conditions",
           click: () => {
             if (mainWindow) {
               mainWindow.webContents.send("open-terms");
