@@ -457,7 +457,7 @@ func (s *Server) handleCACert(w http.ResponseWriter, r *http.Request) {
 	caPath := s.config.Proxy.CAPath
 	if caPath == "" {
 		homeDir, _ := os.UserHomeDir()
-		caPath = filepath.Join(homeDir, ".yaak-proxy", "ca-cert.pem")
+		caPath = filepath.Join(homeDir, ".yaak-proxy", "certs", "ca.crt")
 	}
 
 	data, err := os.ReadFile(caPath)
