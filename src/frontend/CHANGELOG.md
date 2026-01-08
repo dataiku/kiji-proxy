@@ -1,5 +1,11 @@
 # yaak-privacy-proxy
 
+## 0.2.6
+
+### Patch Changes
+
+- 74fa991: Fix for the memory issue and transparent proxy
+
 ## 0.2.5
 
 ### Patch Changes
