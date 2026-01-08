@@ -102,7 +102,7 @@ lint-frontend: ## Lint frontend code with ESLint
 	@cd src/frontend && npm run lint
 	@echo "$(GREEN)✅ Frontend linting complete$(NC)"
 
-lint-frontend-fix: ## Lint and auto-fix frontend code with ESLint
+lint-frontend-fix: ## Lint and auto-fix frontend code with ESLint, then run type check
 	@echo "$(BLUE)Auto-fixing frontend code...$(NC)"
 	@if [ ! -d "src/frontend/node_modules" ]; then \
 		echo "$(YELLOW)⚠️  Frontend dependencies not installed. Run 'make electron-install' first.$(NC)"; \
@@ -110,6 +110,9 @@ lint-frontend-fix: ## Lint and auto-fix frontend code with ESLint
 	fi
 	@cd src/frontend && npm run lint:fix
 	@echo "$(GREEN)✅ Frontend auto-fix complete$(NC)"
+	@echo "$(BLUE)Running TypeScript type check...$(NC)"
+	@cd src/frontend && npm run type-check
+	@echo "$(GREEN)✅ TypeScript type check complete$(NC)"
 
 lint-all: lint lint-go lint-frontend ## Run all linters (Python, Go, Frontend)
 	@echo "$(GREEN)✅ All linting complete$(NC)"
