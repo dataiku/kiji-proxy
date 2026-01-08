@@ -1,5 +1,11 @@
 # yaak-privacy-proxy
 
+## 0.2.5
+
+### Patch Changes
+
+- Sync version numbers between root and frontend package.json files
+
 ## 0.2.4
 
 ### Patch Changes

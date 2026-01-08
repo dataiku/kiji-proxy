@@ -43,9 +43,25 @@ type PIIMappingDB interface {
 	// CleanupOldMappings removes mappings older than specified duration
 	CleanupOldMappings(ctx context.Context, olderThan time.Duration) (int64, error)
 
+	// ClearMappings removes all PII mappings
+	ClearMappings(ctx context.Context) error
+
+	// GetMappingsCount returns the total number of PII mappings
+	GetMappingsCount(ctx context.Context) (int, error)
+
 	// Close closes the database connection
 	Close() error
 }
+
+// Memory retention constants to prevent memory exhaustion
+const (
+	// DefaultMaxLogEntries is the default maximum number of log entries to retain in memory
+	DefaultMaxLogEntries = 5000
+	// MaxMessageSize is the maximum size of a log message in bytes (truncate larger messages)
+	MaxLogMessageSize = 50 * 1024 // 50KB per message
+	// DefaultMaxMappingEntries is the default maximum number of PII mappings to retain in memory
+	DefaultMaxMappingEntries = 10000
+)
 
 // LoggingDB defines the interface for logging operations
 type LoggingDB interface {
@@ -57,6 +73,9 @@ type LoggingDB interface {
 
 	// GetLogsCount returns the total number of log entries
 	GetLogsCount(ctx context.Context) (int, error)
+
+	// ClearLogs removes all log entries
+	ClearLogs(ctx context.Context) error
 
 	// SetDebugMode enables or disables debug logging
 	SetDebugMode(enabled bool)
@@ -326,6 +345,28 @@ func (p *PostgresPIIMappingDB) CleanupOldMappings(ctx context.Context, olderThan
 	}
 
 	return result.RowsAffected()
+}
+
+// ClearMappings removes all PII mappings from the database
+func (p *PostgresPIIMappingDB) ClearMappings(ctx context.Context) error {
+	query := `TRUNCATE TABLE pii_mappings`
+	_, err := p.db.ExecContext(ctx, query)
+	if err != nil {
+		return fmt.Errorf("failed to clear mappings: %w", err)
+	}
+	log.Println("[PostgresDB] ✓ All PII mappings cleared")
+	return nil
+}
+
+// GetMappingsCount returns the total number of PII mappings
+func (p *PostgresPIIMappingDB) GetMappingsCount(ctx context.Context) (int, error) {
+	var count int
+	query := `SELECT COUNT(*) FROM pii_mappings`
+	err := p.db.QueryRowContext(ctx, query).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get mappings count: %w", err)
+	}
+	return count, nil
 }
 
 // Close closes the database connection
@@ -628,49 +669,157 @@ func (p *PostgresPIIMappingDB) GetLogsCount(ctx context.Context) (int, error) {
 	return count, nil
 }
 
+// ClearLogs removes all log entries from the database
+func (p *PostgresPIIMappingDB) ClearLogs(ctx context.Context) error {
+	query := `TRUNCATE TABLE logs`
+	_, err := p.db.ExecContext(ctx, query)
+	if err != nil {
+		return fmt.Errorf("failed to clear logs: %w", err)
+	}
+	log.Println("[PostgresDB] ✓ All logs cleared")
+	return nil
+}
+
 // InMemoryPIIMappingDB implements PIIMappingDB for in-memory storage (fallback)
 type InMemoryPIIMappingDB struct {
-	originalToDummy map[string]string
-	dummyToOriginal map[string]string
-	logs            []map[string]interface{} // In-memory log storage
-	mutex           sync.RWMutex             // For thread-safe log access
-	debugMode       bool
+	originalToDummy   map[string]string
+	dummyToOriginal   map[string]string
+	mappingAccessTime map[string]time.Time     // Track last access time for LRU eviction
+	logs              []map[string]interface{} // In-memory log storage
+	mutex             sync.RWMutex             // For thread-safe log access
+	debugMode         bool
+	maxLogEntries     int // Maximum number of log entries to retain
+	maxMappingEntries int // Maximum number of PII mappings to retain
 }
 
 // NewInMemoryPIIMappingDB creates a new in-memory PII mapping database
 func NewInMemoryPIIMappingDB() *InMemoryPIIMappingDB {
 	return &InMemoryPIIMappingDB{
-		originalToDummy: make(map[string]string),
-		dummyToOriginal: make(map[string]string),
-		logs:            make([]map[string]interface{}, 0),
+		originalToDummy:   make(map[string]string),
+		dummyToOriginal:   make(map[string]string),
+		mappingAccessTime: make(map[string]time.Time),
+		logs:              make([]map[string]interface{}, 0),
+		maxLogEntries:     DefaultMaxLogEntries,
+		maxMappingEntries: DefaultMaxMappingEntries,
+	}
+}
+
+// NewInMemoryPIIMappingDBWithLimit creates a new in-memory PII mapping database with custom limits
+func NewInMemoryPIIMappingDBWithLimit(maxLogEntries, maxMappingEntries int) *InMemoryPIIMappingDB {
+	if maxLogEntries <= 0 {
+		maxLogEntries = DefaultMaxLogEntries
+	}
+	if maxMappingEntries <= 0 {
+		maxMappingEntries = DefaultMaxMappingEntries
+	}
+	return &InMemoryPIIMappingDB{
+		originalToDummy:   make(map[string]string),
+		dummyToOriginal:   make(map[string]string),
+		mappingAccessTime: make(map[string]time.Time),
+		logs:              make([]map[string]interface{}, 0),
+		maxLogEntries:     maxLogEntries,
+		maxMappingEntries: maxMappingEntries,
 	}
 }
 
 // StoreMapping stores a PII mapping in memory with confidence level
+// Enforces retention limit using LRU eviction to prevent memory exhaustion
 func (i *InMemoryPIIMappingDB) StoreMapping(ctx context.Context, original, dummy string, piiType string, confidence float64) error {
+	i.mutex.Lock()
+	defer i.mutex.Unlock()
+
+	// Check if we need to evict old entries before adding new one
+	if len(i.originalToDummy) >= i.maxMappingEntries {
+		i.evictOldestMappingLocked()
+	}
+
 	i.originalToDummy[original] = dummy
 	i.dummyToOriginal[dummy] = original
+	i.mappingAccessTime[original] = time.Now()
+
+	if i.debugMode {
+		log.Printf("[InMemory StoreMapping] Stored mapping. Total mappings: %d (max: %d)", len(i.originalToDummy), i.maxMappingEntries)
+	}
+
 	// Note: In-memory DB doesn't persist confidence, but accepts it for interface compatibility
 	return nil
 }
 
+// evictOldestMappingLocked removes the least recently accessed mapping
+// Must be called with mutex locked
+func (i *InMemoryPIIMappingDB) evictOldestMappingLocked() {
+	if len(i.mappingAccessTime) == 0 {
+		return
+	}
+
+	// Find the oldest accessed key
+	var oldestKey string
+	var oldestTime time.Time
+	first := true
+
+	for key, accessTime := range i.mappingAccessTime {
+		if first || accessTime.Before(oldestTime) {
+			oldestKey = key
+			oldestTime = accessTime
+			first = false
+		}
+	}
+
+	// Remove the oldest mapping
+	if oldestKey != "" {
+		if dummy, exists := i.originalToDummy[oldestKey]; exists {
+			delete(i.originalToDummy, oldestKey)
+			delete(i.dummyToOriginal, dummy)
+			delete(i.mappingAccessTime, oldestKey)
+
+			if i.debugMode {
+				log.Printf("[InMemory] Evicted oldest mapping: %s (age: %v)", oldestKey, time.Since(oldestTime))
+			}
+		}
+	}
+}
+
 // GetDummy retrieves dummy data for original PII
 func (i *InMemoryPIIMappingDB) GetDummy(ctx context.Context, original string) (string, bool, error) {
+	i.mutex.RLock()
 	dummy, exists := i.originalToDummy[original]
+	i.mutex.RUnlock()
+
+	// Update access time if exists
+	if exists {
+		i.mutex.Lock()
+		i.mappingAccessTime[original] = time.Now()
+		i.mutex.Unlock()
+	}
+
 	return dummy, exists, nil
 }
 
 // GetOriginal retrieves original PII for dummy data
 func (i *InMemoryPIIMappingDB) GetOriginal(ctx context.Context, dummy string) (string, bool, error) {
+	i.mutex.RLock()
 	original, exists := i.dummyToOriginal[dummy]
+	i.mutex.RUnlock()
+
+	// Update access time if exists
+	if exists {
+		i.mutex.Lock()
+		i.mappingAccessTime[original] = time.Now()
+		i.mutex.Unlock()
+	}
+
 	return original, exists, nil
 }
 
 // DeleteMapping removes a mapping from memory
 func (i *InMemoryPIIMappingDB) DeleteMapping(ctx context.Context, original string) error {
+	i.mutex.Lock()
+	defer i.mutex.Unlock()
+
 	if dummy, exists := i.originalToDummy[original]; exists {
 		delete(i.originalToDummy, original)
 		delete(i.dummyToOriginal, dummy)
+		delete(i.mappingAccessTime, original)
 	}
 	return nil
 }
@@ -680,6 +829,27 @@ func (i *InMemoryPIIMappingDB) CleanupOldMappings(ctx context.Context, olderThan
 	return 0, nil
 }
 
+// ClearMappings removes all PII mappings from in-memory storage
+func (i *InMemoryPIIMappingDB) ClearMappings(ctx context.Context) error {
+	i.mutex.Lock()
+	defer i.mutex.Unlock()
+
+	oldCount := len(i.originalToDummy)
+	i.originalToDummy = make(map[string]string)
+	i.dummyToOriginal = make(map[string]string)
+	i.mappingAccessTime = make(map[string]time.Time)
+
+	log.Printf("[InMemory] ✓ Cleared %d PII mappings", oldCount)
+	return nil
+}
+
+// GetMappingsCount returns the total number of PII mappings in memory
+func (i *InMemoryPIIMappingDB) GetMappingsCount(ctx context.Context) (int, error) {
+	i.mutex.RLock()
+	defer i.mutex.RUnlock()
+	return len(i.originalToDummy), nil
+}
+
 // Close is a no-op for in-memory storage
 func (i *InMemoryPIIMappingDB) Close() error {
 	return nil
@@ -687,9 +857,18 @@ func (i *InMemoryPIIMappingDB) Close() error {
 
 // InsertLog inserts a log entry into in-memory storage
 // Automatically parses OpenAI messages if the message is valid JSON with messages array
+// Enforces retention limit to prevent memory exhaustion
 func (i *InMemoryPIIMappingDB) InsertLog(ctx context.Context, message string, direction string, entities []detectors.Entity, blocked bool) error {
 	if i.debugMode {
 		log.Printf("[InMemory InsertLog] Direction: %s, Message length: %d", direction, len(message))
+	}
+
+	// Truncate message if it exceeds the maximum size to prevent memory issues
+	if len(message) > MaxLogMessageSize {
+		message = message[:MaxLogMessageSize] + "... [truncated]"
+		if i.debugMode {
+			log.Printf("[InMemory InsertLog] Message truncated to %d bytes", MaxLogMessageSize)
+		}
 	}
 
 	// Convert entities to log entries format
@@ -729,14 +908,25 @@ func (i *InMemoryPIIMappingDB) InsertLog(ctx context.Context, message string, di
 		logEntry["model"] = model
 	}
 
-	// Thread-safe append
+	// Thread-safe append with retention limit enforcement
 	i.mutex.Lock()
 	i.logs = append(i.logs, logEntry)
+
+	// Enforce retention limit to prevent memory exhaustion
+	if len(i.logs) > i.maxLogEntries {
+		// Remove oldest entries (keep the newest maxLogEntries)
+		excess := len(i.logs) - i.maxLogEntries
+		i.logs = i.logs[excess:]
+		if i.debugMode {
+			log.Printf("[InMemory InsertLog] Retention limit reached, removed %d oldest entries", excess)
+		}
+	}
+
 	logCount := len(i.logs)
 	i.mutex.Unlock()
 
 	if i.debugMode {
-		log.Printf("[InMemory InsertLog] ✓ Stored log entry. Total logs: %d", logCount)
+		log.Printf("[InMemory InsertLog] ✓ Stored log entry. Total logs: %d (max: %d)", logCount, i.maxLogEntries)
 	}
 	return nil
 }
@@ -791,4 +981,16 @@ func (i *InMemoryPIIMappingDB) GetLogsCount(ctx context.Context) (int, error) {
 	i.mutex.RLock()
 	defer i.mutex.RUnlock()
 	return len(i.logs), nil
+}
+
+// ClearLogs removes all log entries from in-memory storage
+func (i *InMemoryPIIMappingDB) ClearLogs(ctx context.Context) error {
+	i.mutex.Lock()
+	defer i.mutex.Unlock()
+
+	oldCount := len(i.logs)
+	i.logs = make([]map[string]interface{}, 0)
+
+	log.Printf("[InMemory] ✓ Cleared %d log entries", oldCount)
+	return nil
 }

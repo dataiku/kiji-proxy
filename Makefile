@@ -31,7 +31,7 @@ info: ## Show project info
 	@echo -n "Version: $(GREEN)"
 	@cd src/frontend && node -p "require('./package.json').version" 2>/dev/null || echo "unknown"
 	@echo "$(NC)"
-	@echo "Python:  $(GREEN)$(shell python --version 2>&1)$(NC)"
+	@echo "Python:  $(GREEN)$(shell .venv/bin/python --version 2>&1 || echo "Not installed (run 'make venv')")$(NC)"
 	@echo "UV:      $(GREEN)$(shell uv --version 2>&1)$(NC)"
 	@echo ""
 	@echo "$(BLUE)Virtual Environment$(NC)"
@@ -56,8 +56,8 @@ info: ## Show project info
 ##@ Setup & Installation
 
 venv: ## Create virtual environment with uv
-	@echo "$(BLUE)Creating virtual environment...$(NC)"
-	uv venv
+	@echo "$(BLUE)Creating virtual environment with Python 3.13...$(NC)"
+	uv venv --python 3.13
 	@echo "$(GREEN)✅ Virtual environment created at .venv$(NC)"
 	@echo "$(YELLOW)Activate with: source .venv/bin/activate$(NC)"
 
@@ -192,10 +192,10 @@ setup-onnx: ## Set up ONNX Runtime library for development
 		echo "$(GREEN)✅ Linked existing ONNX library from resources$(NC)"; \
 	else \
 		if [ ! -d ".venv" ]; then \
-			echo "$(YELLOW)Creating virtual environment...$(NC)"; \
-			python3 -m venv .venv; \
+			echo "$(YELLOW)Creating virtual environment with Python 3.13...$(NC)"; \
+			uv venv --python 3.13; \
 		fi; \
-		. .venv/bin/activate && pip install --quiet onnxruntime; \
+		uv pip install --quiet onnxruntime; \
 		ONNX_LIB=$$(find .venv -name "libonnxruntime*.dylib" | head -1); \
 		if [ -n "$$ONNX_LIB" ]; then \
 			cp "$$ONNX_LIB" build/libonnxruntime.1.23.1.dylib; \

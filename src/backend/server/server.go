@@ -164,6 +164,8 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/health", s.healthCheck)
 	mux.HandleFunc("/version", s.versionHandler)
 	mux.HandleFunc("/logs", s.logsHandler)
+	mux.HandleFunc("/mappings", s.mappingsHandler)
+	mux.HandleFunc("/stats", s.statsHandler)
 	mux.HandleFunc("/api/model/security", s.handleModelSecurity)
 	mux.HandleFunc("/api/proxy/ca-cert", s.handleCACert)
 	mux.Handle("/v1/chat/completions", s.handler)
@@ -318,13 +320,76 @@ func (s *Server) corsHandler(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
 	}
 
-	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET")
+	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, DELETE")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-OpenAI-API-Key")
 	w.Header().Set("Access-Control-Max-Age", "3600")
 }
 
-// logsHandler provides the logs endpoint for retrieving log entries
+// logsHandler provides the logs endpoint for retrieving and clearing log entries
 func (s *Server) logsHandler(w http.ResponseWriter, r *http.Request) {
+	// Apply rate limiting
+	ip := r.RemoteAddr
+	limiter := s.rateLimiter.GetLimiter(ip)
+	if !limiter.Allow() {
+		http.Error(w, "Rate limit exceeded. Please try again later.", http.StatusTooManyRequests)
+		return
+	}
+
+	// Handle CORS preflight OPTIONS request
+	if r.Method == http.MethodOptions {
+		s.corsHandler(w, r)
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	// Add CORS headers to all responses
+	s.corsHandler(w, r)
+
+	// Route based on HTTP method
+	switch r.Method {
+	case http.MethodGet:
+		// Delegate to the handler's HandleLogs method
+		s.handler.HandleLogs(w, r)
+	case http.MethodDelete:
+		// Delegate to the handler's HandleClearLogs method
+		s.handler.HandleClearLogs(w, r)
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// mappingsHandler provides the mappings endpoint for managing PII mappings
+func (s *Server) mappingsHandler(w http.ResponseWriter, r *http.Request) {
+	// Apply rate limiting
+	ip := r.RemoteAddr
+	limiter := s.rateLimiter.GetLimiter(ip)
+	if !limiter.Allow() {
+		http.Error(w, "Rate limit exceeded. Please try again later.", http.StatusTooManyRequests)
+		return
+	}
+
+	// Handle CORS preflight OPTIONS request
+	if r.Method == http.MethodOptions {
+		s.corsHandler(w, r)
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	// Add CORS headers to all responses
+	s.corsHandler(w, r)
+
+	// Route based on HTTP method
+	switch r.Method {
+	case http.MethodDelete:
+		// Delegate to the handler's HandleClearMappings method
+		s.handler.HandleClearMappings(w, r)
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// statsHandler provides the stats endpoint for retrieving statistics
+func (s *Server) statsHandler(w http.ResponseWriter, r *http.Request) {
 	// Apply rate limiting
 	ip := r.RemoteAddr
 	limiter := s.rateLimiter.GetLimiter(ip)
@@ -349,8 +414,8 @@ func (s *Server) logsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Delegate to the handler's HandleLogs method
-	s.handler.HandleLogs(w, r)
+	// Delegate to the handler's HandleStats method
+	s.handler.HandleStats(w, r)
 }
 
 func (s *Server) handleModelSecurity(w http.ResponseWriter, r *http.Request) {

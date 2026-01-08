@@ -464,6 +464,7 @@ Version is managed in `src/frontend/package.json`:
 ```json
 {
   "name": "yaak-privacy-proxy",
+  "productName": "Yaak Privacy Proxy",
   "version": "0.1.1"
 }
 ```
