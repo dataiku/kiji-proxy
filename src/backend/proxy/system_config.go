@@ -8,6 +8,8 @@ import (
 	"strings"
 )
 
+const darwinOS = "darwin"
+
 // SystemProxyManager handles system-level proxy configuration
 type SystemProxyManager struct {
 	pacURL  string
@@ -23,7 +25,7 @@ func NewSystemProxyManager(pacURL string) *SystemProxyManager {
 
 // Enable configures the system to use the PAC file for proxy auto-configuration
 func (s *SystemProxyManager) Enable() error {
-	if runtime.GOOS != "darwin" {
+	if runtime.GOOS != darwinOS {
 		return fmt.Errorf("system proxy configuration only supported on macOS")
 	}
 
@@ -56,7 +58,7 @@ func (s *SystemProxyManager) Enable() error {
 
 // Disable removes the system proxy configuration
 func (s *SystemProxyManager) Disable() error {
-	if runtime.GOOS != "darwin" {
+	if runtime.GOOS != darwinOS {
 		return nil
 	}
 
@@ -139,7 +141,7 @@ func (s *SystemProxyManager) getNetworkService() (string, error) {
 
 // CheckProxyStatus returns the current proxy configuration status
 func (s *SystemProxyManager) CheckProxyStatus() (bool, string, error) {
-	if runtime.GOOS != "darwin" {
+	if runtime.GOOS != darwinOS {
 		return false, "", fmt.Errorf("only supported on macOS")
 	}
 

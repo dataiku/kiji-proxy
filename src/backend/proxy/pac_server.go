@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 )
 
 // PACServer serves Proxy Auto-Configuration (PAC) files for automatic proxy setup
@@ -30,8 +31,9 @@ func (p *PACServer) Start() error {
 	mux.HandleFunc("/proxy.pac", p.servePAC)
 
 	p.server = &http.Server{
-		Addr:    ":" + p.port,
-		Handler: mux,
+		Addr:              ":" + p.port,
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second,
 	}
 
 	log.Printf("PAC server starting on http://localhost:%s/proxy.pac", p.port)
