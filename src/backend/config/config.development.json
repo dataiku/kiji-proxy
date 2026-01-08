@@ -19,6 +19,7 @@
     "intercept_domains": ["api.openai.com", "openai.com"],
     "proxy_port": ":8081",
     "ca_path": "",
-    "key_path": ""
+    "key_path": "",
+    "enable_pac": true
   }
 }

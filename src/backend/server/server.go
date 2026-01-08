@@ -62,14 +62,16 @@ func (rl *RateLimiter) CleanupOldVisitors() {
 
 // Server represents the HTTP server
 type Server struct {
-	config            *config.Config
-	handler           *proxy.Handler
-	transparentProxy  *proxy.TransparentProxy
-	transparentServer *http.Server
-	uiFS              fs.FS
-	modelFS           fs.FS
-	rateLimiter       *RateLimiter
-	version           string
+	config             *config.Config
+	handler            *proxy.Handler
+	transparentProxy   *proxy.TransparentProxy
+	transparentServer  *http.Server
+	pacServer          *proxy.PACServer
+	systemProxyManager *proxy.SystemProxyManager
+	uiFS               fs.FS
+	modelFS            fs.FS
+	rateLimiter        *RateLimiter
+	version            string
 }
 
 // NewServer creates a new server instance
@@ -94,12 +96,22 @@ func NewServer(cfg *config.Config, electronConfigPath string, version string) (*
 	rateLimiter := NewRateLimiter(10, 20)
 	rateLimiter.CleanupOldVisitors()
 
+	// Create PAC server if enabled
+	var pacServer *proxy.PACServer
+	var systemProxyManager *proxy.SystemProxyManager
+	if cfg.Proxy.TransparentEnabled && cfg.Proxy.EnablePAC {
+		pacServer = proxy.NewPACServer(cfg.Proxy.InterceptDomains, cfg.Proxy.ProxyPort)
+		systemProxyManager = proxy.NewSystemProxyManager("http://localhost:9090/proxy.pac")
+	}
+
 	return &Server{
-		config:           cfg,
-		handler:          handler,
-		transparentProxy: transparentProxy,
-		rateLimiter:      rateLimiter,
-		version:          version,
+		config:             cfg,
+		handler:            handler,
+		transparentProxy:   transparentProxy,
+		pacServer:          pacServer,
+		systemProxyManager: systemProxyManager,
+		rateLimiter:        rateLimiter,
+		version:            version,
 	}, nil
 }
 
@@ -123,14 +135,24 @@ func NewServerWithEmbedded(cfg *config.Config, uiFS, modelFS fs.FS, electronConf
 	rateLimiter := NewRateLimiter(10, 20)
 	rateLimiter.CleanupOldVisitors()
 
+	// Create PAC server if enabled
+	var pacServer *proxy.PACServer
+	var systemProxyManager *proxy.SystemProxyManager
+	if cfg.Proxy.TransparentEnabled && cfg.Proxy.EnablePAC {
+		pacServer = proxy.NewPACServer(cfg.Proxy.InterceptDomains, cfg.Proxy.ProxyPort)
+		systemProxyManager = proxy.NewSystemProxyManager("http://localhost:9090/proxy.pac")
+	}
+
 	return &Server{
-		config:           cfg,
-		handler:          handler,
-		transparentProxy: transparentProxy,
-		uiFS:             uiFS,
-		modelFS:          modelFS,
-		rateLimiter:      rateLimiter,
-		version:          version,
+		config:             cfg,
+		handler:            handler,
+		transparentProxy:   transparentProxy,
+		pacServer:          pacServer,
+		systemProxyManager: systemProxyManager,
+		uiFS:               uiFS,
+		modelFS:            modelFS,
+		rateLimiter:        rateLimiter,
+		version:            version,
 	}, nil
 }
 
@@ -152,6 +174,30 @@ func (s *Server) Start() error {
 		log.Println("Database storage enabled")
 	} else {
 		log.Println("Using in-memory storage")
+	}
+
+	// Start PAC server if enabled
+	if s.pacServer != nil {
+		go func() {
+			if err := s.pacServer.Start(); err != nil && err != http.ErrServerClosed {
+				log.Printf("PAC server failed: %v", err)
+			}
+		}()
+
+		// Give PAC server time to start
+		time.Sleep(100 * time.Millisecond)
+
+		// Configure system proxy (requires sudo)
+		if err := s.systemProxyManager.Enable(); err != nil {
+			log.Printf("⚠️  Warning: Failed to enable system proxy: %v", err)
+			log.Printf("⚠️  You may need to run with sudo or set HTTP_PROXY manually:")
+			log.Printf("    export HTTP_PROXY=http://127.0.0.1%s", s.config.Proxy.ProxyPort)
+			log.Printf("    export HTTPS_PROXY=http://127.0.0.1%s", s.config.Proxy.ProxyPort)
+		} else {
+			log.Printf("✅ System proxy configured successfully")
+			log.Printf("📡 Traffic to %v will be automatically routed through proxy", s.config.Proxy.InterceptDomains)
+			log.Printf("🔐 Make sure you've installed the CA certificate for HTTPS interception")
+		}
 	}
 
 	// Start transparent proxy if enabled
@@ -508,6 +554,27 @@ func (s *Server) noCacheMiddleware(next http.Handler) http.Handler {
 
 // Close closes the server and cleans up resources
 func (s *Server) Close() error {
+	// Disable system proxy configuration
+	if s.systemProxyManager != nil {
+		if err := s.systemProxyManager.Disable(); err != nil {
+			log.Printf("Warning: Failed to disable system proxy: %v", err)
+		}
+	}
+
+	// Shutdown PAC server
+	if s.pacServer != nil {
+		if err := s.pacServer.Shutdown(); err != nil {
+			log.Printf("Warning: Failed to shutdown PAC server: %v", err)
+		}
+	}
+
+	// Shutdown transparent proxy server
+	if s.transparentServer != nil {
+		if err := s.transparentServer.Close(); err != nil {
+			log.Printf("Warning: Failed to close transparent server: %v", err)
+		}
+	}
+
 	if s.handler != nil {
 		return s.handler.Close()
 	}

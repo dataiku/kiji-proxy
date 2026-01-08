@@ -8,6 +8,7 @@ Yaak Privacy Proxy is an intelligent privacy layer for API traffic. It automatic
 
 **Key Features:**
 - 🔒 **Transparent HTTPS Proxy** - MITM interception of encrypted traffic
+- 🌐 **Automatic Proxy Configuration (PAC)** - No manual setup for browsers on macOS
 - 🤖 **ML-Powered PII Detection** - ONNX-based model for accurate detection
 - 🎭 **Automatic Masking & Restoration** - Seamless data protection
 - 💻 **Desktop App (macOS)** - Electron-based UI for easy management
@@ -121,6 +122,7 @@ Deep dive into advanced features, security, and troubleshooting.
 
 ### Advanced
 - [HTTPS/MITM Setup](05-advanced-topics.md#transparent-proxy--mitm)
+- [Automatic Proxy (PAC) Setup](transparent-proxy-setup.md)
 - [Model Signing](05-advanced-topics.md#model-signing)
 - [Troubleshooting](05-advanced-topics.md#build-troubleshooting)
 
