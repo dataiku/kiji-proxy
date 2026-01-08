@@ -1,5 +1,11 @@
 # yaak-privacy-proxy
 
+## 0.3.0
+
+### Minor Changes
+
+- 2b80cfd: Updated terms and conditions
+
 ## 0.2.6
 
 ### Patch Changes
