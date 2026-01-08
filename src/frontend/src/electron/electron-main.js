@@ -962,6 +962,21 @@ ipcMain.handle("set-terms-accepted", async (event, accepted) => {
 });
 
 // Model directory management
+ipcMain.handle("select-model-directory", async () => {
+  const { dialog } = require("electron");
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ["openDirectory"],
+    title: "Select Model Directory",
+    message: "Choose the directory containing your PII model files",
+  });
+
+  if (result.canceled || result.filePaths.length === 0) {
+    return null;
+  }
+
+  return result.filePaths[0];
+});
+
 ipcMain.handle("get-model-directory", async () => {
   try {
     const storagePath = getStoragePath();
@@ -1003,15 +1018,40 @@ ipcMain.handle("set-model-directory", async (event, directory) => {
 
 ipcMain.handle("reload-model", async (event, directory) => {
   try {
-    const fetch = require("node-fetch");
-    const response = await fetch("http://localhost:8080/api/model/reload", {
+    const { net } = require("electron");
+    const request = net.request({
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ directory }),
+      url: "http://localhost:8080/api/model/reload",
     });
 
-    const data = await response.json();
-    return data;
+    request.setHeader("Content-Type", "application/json");
+
+    return new Promise((resolve, reject) => {
+      let responseData = "";
+
+      request.on("response", (response) => {
+        response.on("data", (chunk) => {
+          responseData += chunk.toString();
+        });
+
+        response.on("end", () => {
+          try {
+            const data = JSON.parse(responseData);
+            resolve(data);
+          } catch (error) {
+            reject(error);
+          }
+        });
+      });
+
+      request.on("error", (error) => {
+        console.error("Error reloading model:", error);
+        resolve({ success: false, error: error.message });
+      });
+
+      request.write(JSON.stringify({ directory }));
+      request.end();
+    });
   } catch (error) {
     console.error("Error reloading model:", error);
     return { success: false, error: error.message };
@@ -1020,10 +1060,37 @@ ipcMain.handle("reload-model", async (event, directory) => {
 
 ipcMain.handle("get-model-info", async () => {
   try {
-    const fetch = require("node-fetch");
-    const response = await fetch("http://localhost:8080/api/model/info");
-    const data = await response.json();
-    return data;
+    const { net } = require("electron");
+    const request = net.request({
+      method: "GET",
+      url: "http://localhost:8080/api/model/info",
+    });
+
+    return new Promise((resolve, reject) => {
+      let responseData = "";
+
+      request.on("response", (response) => {
+        response.on("data", (chunk) => {
+          responseData += chunk.toString();
+        });
+
+        response.on("end", () => {
+          try {
+            const data = JSON.parse(responseData);
+            resolve(data);
+          } catch (error) {
+            reject(error);
+          }
+        });
+      });
+
+      request.on("error", (error) => {
+        console.error("Error getting model info:", error);
+        resolve({ error: error.message });
+      });
+
+      request.end();
+    });
   } catch (error) {
     console.error("Error getting model info:", error);
     return { error: error.message };

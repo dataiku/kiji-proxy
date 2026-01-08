@@ -1,5 +1,13 @@
 import { useState, useEffect } from "react";
-import { X, Save, Key, Server, AlertCircle, CheckCircle2 } from "lucide-react";
+import {
+  X,
+  Save,
+  Key,
+  Server,
+  AlertCircle,
+  CheckCircle2,
+  FolderOpen,
+} from "lucide-react";
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -83,6 +91,23 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     setReloadMessage(null);
 
     try {
+      // First, save the directory to config
+      const saveResult = await window.electronAPI.setModelDirectory(
+        modelDirectory.trim()
+      );
+
+      if (!saveResult.success) {
+        setReloadMessage({
+          type: "error",
+          text: saveResult.error || "Failed to save model directory",
+        });
+        setIsReloading(false);
+        return;
+      }
+
+      setHasModelDirectory(true);
+
+      // Then, reload the model
       const result = await window.electronAPI.reloadModel(
         modelDirectory.trim()
       );
@@ -90,7 +115,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       if (result.success) {
         setReloadMessage({
           type: "success",
-          text: "Model reloaded successfully!",
+          text: "Model saved and reloaded successfully!",
         });
         await loadModelInfo();
       } else {
@@ -110,29 +135,17 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     }
   };
 
-  const handleSaveModelDirectory = async () => {
+  const handleBrowseModelDirectory = async () => {
     if (!window.electronAPI) return;
 
     try {
-      const result = await window.electronAPI.setModelDirectory(
-        modelDirectory.trim()
-      );
-
-      if (result.success) {
-        setHasModelDirectory(!!modelDirectory.trim());
-        setMessage({
-          type: "success",
-          text: "Model directory saved. Click 'Reload Model' to apply.",
-        });
-      } else {
-        setMessage({
-          type: "error",
-          text: result.error || "Failed to save model directory",
-        });
+      const selectedPath = await window.electronAPI.selectModelDirectory();
+      if (selectedPath) {
+        setModelDirectory(selectedPath);
       }
     } catch (error) {
-      console.error("Error saving model directory:", error);
-      setMessage({ type: "error", text: "Failed to save model directory" });
+      console.error("Error selecting model directory:", error);
+      setMessage({ type: "error", text: "Failed to open folder selector" });
     }
   };
 
@@ -361,33 +374,37 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 </div>
               )}
 
-              <input
-                type="text"
-                value={modelDirectory}
-                onChange={(e) => setModelDirectory(e.target.value)}
-                placeholder="/path/to/model/directory"
-                className="w-full px-4 py-2 border-2 border-slate-200 rounded-lg focus:border-blue-500 focus:outline-none font-mono text-sm placeholder:text-gray-400"
-              />
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={modelDirectory}
+                  onChange={(e) => setModelDirectory(e.target.value)}
+                  placeholder="/path/to/model/directory"
+                  className="flex-1 px-4 py-2 border-2 border-slate-200 rounded-lg focus:border-blue-500 focus:outline-none font-mono text-sm placeholder:text-gray-400"
+                />
+                <button
+                  onClick={handleBrowseModelDirectory}
+                  className="px-4 py-2 bg-slate-100 border-2 border-slate-200 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors flex items-center gap-2"
+                  title="Browse for folder"
+                >
+                  <FolderOpen className="w-4 h-4" />
+                  Browse
+                </button>
+              </div>
 
               <p className="text-xs text-slate-500 mt-1">
                 Directory must contain: model_quantized.onnx, tokenizer.json,
                 label_mappings.json
               </p>
 
-              {/* Action Buttons */}
-              <div className="flex gap-2 mt-2">
-                <button
-                  onClick={handleSaveModelDirectory}
-                  className="px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 text-sm transition-colors"
-                >
-                  Save Directory
-                </button>
+              {/* Action Button */}
+              <div className="mt-2">
                 <button
                   onClick={handleReloadModel}
                   disabled={isReloading || !modelDirectory.trim()}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm transition-colors"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm transition-colors w-full"
                 >
-                  {isReloading ? "Reloading..." : "Reload Model"}
+                  {isReloading ? "Reloading..." : "Save & Reload Model"}
                 </button>
               </div>
 

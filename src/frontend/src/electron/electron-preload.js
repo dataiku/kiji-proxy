@@ -88,6 +88,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
 
   // Model directory management
+  selectModelDirectory: async () => {
+    return await ipcRenderer.invoke("select-model-directory");
+  },
+
   getModelDirectory: async () => {
     return await ipcRenderer.invoke("get-model-directory");
   },
