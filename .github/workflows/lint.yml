@@ -25,21 +25,14 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Create virtual environment
-        run: uv venv --python 3.13
-
-      - name: Install lint dependencies
-        run: |
-          uv pip install ruff
-
       - name: Run ruff linter
         run: |
-          uv run ruff check model/src/ model/dataset/
+          uvx ruff check model/src/ model/dataset/
 
       - name: Run ruff formatter check
         run: |
           # Exclude pii_onnx_model/ as it's tracked by Git LFS and files aren't pulled in CI
-          uv run ruff format --check model/src/ model/dataset/ --diff
+          uvx ruff format --check model/src/ model/dataset/ --diff
 
   go-lint:
     runs-on: ubuntu-latest
