@@ -724,6 +724,35 @@ func (h *Handler) HandleLogs(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// handleClearOperation is a helper function to handle clear operations
+func (h *Handler) handleClearOperation(
+	w http.ResponseWriter,
+	r *http.Request,
+	resourceName string,
+	clearFunc func(context.Context) error,
+) {
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	if err := clearFunc(ctx); err != nil {
+		log.Printf("[%s] ❌ Failed to clear %s: %v", resourceName, resourceName, err)
+		http.Error(w, fmt.Sprintf("Failed to clear %s: %v", resourceName, err), http.StatusInternalServerError)
+		return
+	}
+
+	log.Printf("[%s] ✓ All %s cleared successfully", resourceName, resourceName)
+
+	// Return success response
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"message": fmt.Sprintf("All %s cleared", resourceName),
+	}); err != nil {
+		log.Printf("[%s] ❌ Failed to write response: %v", resourceName, err)
+	}
+}
+
 // HandleClearLogs handles DELETE requests to clear all logs
 func (h *Handler) HandleClearLogs(w http.ResponseWriter, r *http.Request) {
 	if h.loggingDB == nil {
@@ -731,26 +760,7 @@ func (h *Handler) HandleClearLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
-	defer cancel()
-
-	if err := h.loggingDB.ClearLogs(ctx); err != nil {
-		log.Printf("[Logs] ❌ Failed to clear logs: %v", err)
-		http.Error(w, fmt.Sprintf("Failed to clear logs: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	log.Println("[Logs] ✓ All logs cleared successfully")
-
-	// Return success response
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(map[string]interface{}{
-		"success": true,
-		"message": "All logs cleared",
-	}); err != nil {
-		log.Printf("[Logs] ❌ Failed to write response: %v", err)
-	}
+	h.handleClearOperation(w, r, "Logs", h.loggingDB.ClearLogs)
 }
 
 // HandleClearMappings handles DELETE requests to clear all PII mappings
@@ -760,26 +770,7 @@ func (h *Handler) HandleClearMappings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
-	defer cancel()
-
-	if err := h.mappingDB.ClearMappings(ctx); err != nil {
-		log.Printf("[Mappings] ❌ Failed to clear PII mappings: %v", err)
-		http.Error(w, fmt.Sprintf("Failed to clear PII mappings: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	log.Println("[Mappings] ✓ All PII mappings cleared successfully")
-
-	// Return success response
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(map[string]interface{}{
-		"success": true,
-		"message": "All PII mappings cleared",
-	}); err != nil {
-		log.Printf("[Mappings] ❌ Failed to write response: %v", err)
-	}
+	h.handleClearOperation(w, r, "PII mappings", h.mappingDB.ClearMappings)
 }
 
 // HandleStats handles GET requests to retrieve statistics about logs and mappings
