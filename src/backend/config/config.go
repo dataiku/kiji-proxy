@@ -58,8 +58,8 @@ type Config struct {
 // DefaultConfig returns the default configuration
 func DefaultConfig() *Config {
 	homeDir, _ := os.UserHomeDir()
-	caPath := filepath.Join(homeDir, ".yaak-proxy", "ca-cert.pem")
-	keyPath := filepath.Join(homeDir, ".yaak-proxy", "ca-key.pem")
+	caPath := filepath.Join(homeDir, ".yaak-proxy", "certs", "ca.crt")
+	keyPath := filepath.Join(homeDir, ".yaak-proxy", "certs", "ca.key")
 
 	return &Config{
 		OpenAIBaseURL: "https://api.openai.com/v1",
