@@ -27,8 +27,12 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
   // Model directory state
   const [modelDirectory, setModelDirectory] = useState("");
-  const setHasModelDirectory = useState(false);
-  const [modelInfo, setModelInfo] = useState<any>(null);
+  const [_hasModelDirectory, setHasModelDirectory] = useState(false);
+  const [modelInfo, setModelInfo] = useState<{
+    healthy: boolean;
+    directory?: string;
+    error?: string;
+  } | null>(null);
   const [isReloading, setIsReloading] = useState(false);
   const [reloadMessage, setReloadMessage] = useState<{
     type: "success" | "error";

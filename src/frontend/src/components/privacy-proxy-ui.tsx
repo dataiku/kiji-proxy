@@ -25,6 +25,23 @@ import {
 } from "../utils/textHighlight";
 import { reportMisclassification } from "../utils/misclassificationReporter";
 
+// Type declaration for Chrome's non-standard Performance Memory API
+interface PerformanceMemory {
+  usedJSHeapSize: number;
+  totalJSHeapSize: number;
+  jsHeapSizeLimit: number;
+}
+
+interface ExtendedPerformance extends Performance {
+  memory?: PerformanceMemory;
+}
+
+declare global {
+  interface Window {
+    performance: ExtendedPerformance;
+  }
+}
+
 interface PIIEntity {
   pii_type: string;
   original_pii: string;
@@ -379,8 +396,8 @@ export default function PrivacyProxyUI() {
     const startTime = performance.now();
     console.log("[DEBUG] handleSubmit started");
 
-    if (typeof window !== "undefined" && (window as any).performance?.memory) {
-      const mem = (window as any).performance.memory;
+    if (typeof window !== "undefined" && window.performance?.memory) {
+      const mem = window.performance.memory;
       console.log("[DEBUG] Memory before request:", {
         usedJSHeapSize: `${(mem.usedJSHeapSize / 1024 / 1024).toFixed(2)} MB`,
         totalJSHeapSize: `${(mem.totalJSHeapSize / 1024 / 1024).toFixed(2)} MB`,
@@ -564,11 +581,8 @@ export default function PrivacyProxyUI() {
         ).toFixed(2)}ms`
       );
 
-      if (
-        typeof window !== "undefined" &&
-        (window as any).performance?.memory
-      ) {
-        const mem = (window as any).performance.memory;
+      if (typeof window !== "undefined" && window.performance?.memory) {
+        const mem = window.performance.memory;
         console.log("[DEBUG] Memory after processing:", {
           usedJSHeapSize: `${(mem.usedJSHeapSize / 1024 / 1024).toFixed(2)} MB`,
           totalJSHeapSize: `${(mem.totalJSHeapSize / 1024 / 1024).toFixed(
