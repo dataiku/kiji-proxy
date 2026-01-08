@@ -148,9 +148,20 @@ export NODE_EXTRA_CA_CERTS=~/.yaak-proxy/certs/ca.crt
 
 **Test with curl:**
 ```bash
-curl -x http://localhost:8080 https://api.openai.com/v1/models
+# Set proxy environment variables
+export HTTP_PROXY=http://127.0.0.1:8081
+export HTTPS_PROXY=http://127.0.0.1:8081
+
+# Test request
+curl https://api.openai.com/v1/models
 # Should succeed without SSL errors
 ```
+
+**Test with browser (macOS with PAC enabled):**
+- Open Safari or Chrome
+- Navigate to `https://api.openai.com/v1/models`
+- Request automatically goes through proxy
+- No manual configuration needed!
 
 **Test with openssl:**
 ```bash

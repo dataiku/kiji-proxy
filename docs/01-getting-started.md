@@ -108,6 +108,24 @@ Or use Keychain Access GUI:
 
 See [Advanced Topics: Transparent Proxy](05-advanced-topics.md#transparent-proxy-mitm) for details.
 
+**Automatic Proxy Configuration (PAC) - macOS:**
+
+For automatic transparent proxying without setting environment variables, run the proxy with sudo:
+
+```bash
+# Start proxy with automatic system configuration
+sudo /Applications/Yaak\ Privacy\ Proxy.app/Contents/MacOS/yaak-proxy
+
+# Or if running from source
+sudo ./build/yaak-proxy
+```
+
+This automatically configures your system to route `api.openai.com` and `openai.com` through the proxy. Browsers and GUI apps will work without manual configuration.
+
+**Note:** CLI tools like `curl` still need `HTTP_PROXY` environment variables (see test examples below).
+
+See [transparent-proxy-setup.md](transparent-proxy-setup.md) for complete details.
+
 ### Linux Installation
 
 **System Requirements:**
@@ -194,8 +212,21 @@ sudo trust extract-compat
    - Enable/disable PII logging
 
 3. **Test the proxy:**
+   
+   **With PAC (automatic - for browsers):**
+   - Open Safari/Chrome and navigate to any website
+   - Requests to `api.openai.com` automatically go through proxy
+   - No configuration needed!
+   
+   **With curl (manual - requires env vars):**
    ```bash
-   curl -x http://localhost:8080 http://api.openai.com/v1/models
+   # Set proxy environment variables
+   export HTTP_PROXY=http://127.0.0.1:8081
+   export HTTPS_PROXY=http://127.0.0.1:8081
+   
+   # Test request
+   curl https://api.openai.com/v1/models \
+     -H "Authorization: Bearer $OPENAI_API_KEY"
    ```
 
 ### Linux (API Server)
@@ -219,13 +250,17 @@ sudo trust extract-compat
 
 4. **Test proxy functionality:**
    ```bash
-   # Set environment variable
+   # Set environment variables
    export OPENAI_API_KEY="your-key"
+   export HTTP_PROXY=http://127.0.0.1:8081
+   export HTTPS_PROXY=http://127.0.0.1:8081
    
    # Make request through proxy
-   curl -x http://localhost:8080 https://api.openai.com/v1/models \
+   curl https://api.openai.com/v1/models \
      -H "Authorization: Bearer $OPENAI_API_KEY"
    ```
+   
+   **Note:** Linux doesn't support automatic PAC configuration. Always use `HTTP_PROXY` environment variables.
 
 ### Configuration
 
