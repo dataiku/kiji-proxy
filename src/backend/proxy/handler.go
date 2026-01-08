@@ -273,6 +273,10 @@ func (h *Handler) readRequestBody(r *http.Request) ([]byte, error) {
 
 // maskPIIInText detects PII in text and returns masked text with mappings
 func (h *Handler) maskPIIInText(text string, logPrefix string) (string, map[string]string, []pii.Entity) {
+	if h.maskingService == nil {
+		// Model is unhealthy - return text unchanged
+		return text, make(map[string]string), []pii.Entity{}
+	}
 	result := h.maskingService.MaskText(text, logPrefix)
 	return result.MaskedText, result.MaskedToOriginal, result.Entities
 }
@@ -324,7 +328,13 @@ func (h *Handler) ProcessRequestBody(ctx context.Context, body []byte) (*Process
 // This is the shared entry point for all response sources (handler, transparent proxy)
 func (h *Handler) ProcessResponseBody(ctx context.Context, body []byte, contentType string, maskedToOriginal map[string]string, transactionID string) []byte {
 	// Process the response to restore PII first
-	modifiedBody := h.responseProcessor.ProcessResponse(body, contentType, maskedToOriginal)
+	var modifiedBody []byte
+	if h.responseProcessor == nil {
+		// Model is unhealthy - return body unchanged
+		modifiedBody = body
+	} else {
+		modifiedBody = h.responseProcessor.ProcessResponse(body, contentType, maskedToOriginal)
+	}
 
 	// Log both masked and restored responses with shared context
 	if h.loggingDB != nil {
@@ -540,9 +550,13 @@ func NewHandler(cfg *config.Config, electronConfigPath string) (*Handler, error)
 			return nil, fmt.Errorf("failed to initialize model manager: %w", err)
 		}
 
+		// Try to get detector, but allow handler creation even if model is unhealthy
 		detector, err = modelManager.GetDetector()
 		if err != nil {
-			return nil, fmt.Errorf("failed to get detector from model manager: %w", err)
+			log.Printf("[Handler] Warning: Model is unhealthy, requests will fail until model is fixed: %v", err)
+			// Create a dummy detector that will fail on use - this allows the server to start
+			// so users can access the health endpoint and settings UI to fix the model
+			detector = nil
 		}
 	} else {
 		// For non-ONNX detectors, use legacy creation
@@ -553,10 +567,20 @@ func NewHandler(cfg *config.Config, electronConfigPath string) (*Handler, error)
 		}
 	}
 
-	// Create services
+	// Create services - handle nil detector case
 	generatorService := piiServices.NewGeneratorService()
-	maskingService := piiServices.NewMaskingService(detector, generatorService)
-	responseProcessor := processor.NewResponseProcessor(&detector, cfg.Logging)
+	var maskingService *piiServices.MaskingService
+	var responseProcessor *processor.ResponseProcessor
+
+	if detector != nil {
+		maskingService = piiServices.NewMaskingService(detector, generatorService)
+		responseProcessor = processor.NewResponseProcessor(&detector, cfg.Logging)
+	} else {
+		// Model is unhealthy - create minimal services
+		log.Printf("[Handler] Creating handler with unhealthy model - PII detection disabled until model is fixed")
+		maskingService = nil
+		responseProcessor = nil
+	}
 
 	// Initialize logging (database or in-memory fallback)
 	var loggingDB piiServices.LoggingDB
@@ -883,8 +907,9 @@ func (h *Handler) HandleStats(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) Close() error {
 	var err error
-	if h.detector != nil {
-		if closeErr := (*h.detector).Close(); closeErr != nil {
+	// Close model manager if using ONNX detector
+	if h.modelManager != nil {
+		if closeErr := h.modelManager.Close(); closeErr != nil {
 			err = closeErr
 		}
 	}

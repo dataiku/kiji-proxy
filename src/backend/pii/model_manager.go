@@ -34,9 +34,12 @@ func NewModelManager(directory string) (*ModelManager, error) {
 		isHealthy:      false,
 	}
 
-	// Perform initial load
+	// Perform initial load - don't fail if model can't load, just mark as unhealthy
 	if err := mm.ReloadModel(directory); err != nil {
-		return nil, fmt.Errorf("failed to initialize model manager: %w", err)
+		log.Printf("[ModelManager] Warning: Failed to load initial model: %v", err)
+		log.Printf("[ModelManager] Model manager created but marked as unhealthy")
+		// Don't return error - allow server to start with unhealthy model
+		// This matches the behavior before ModelManager was introduced
 	}
 
 	return mm, nil
