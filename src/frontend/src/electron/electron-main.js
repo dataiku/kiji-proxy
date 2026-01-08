@@ -961,6 +961,75 @@ ipcMain.handle("set-terms-accepted", async (event, accepted) => {
   }
 });
 
+// Model directory management
+ipcMain.handle("get-model-directory", async () => {
+  try {
+    const storagePath = getStoragePath();
+    if (!fs.existsSync(storagePath)) {
+      return null;
+    }
+    const data = fs.readFileSync(storagePath, "utf8");
+    const config = JSON.parse(data);
+    return config.modelDirectory || null;
+  } catch (error) {
+    console.error("Error reading model directory:", error);
+    return null;
+  }
+});
+
+ipcMain.handle("set-model-directory", async (event, directory) => {
+  try {
+    const storagePath = getStoragePath();
+    let config = {};
+
+    if (fs.existsSync(storagePath)) {
+      const data = fs.readFileSync(storagePath, "utf8");
+      config = JSON.parse(data);
+    }
+
+    if (directory && directory.trim()) {
+      config.modelDirectory = directory.trim();
+    } else {
+      delete config.modelDirectory;
+    }
+
+    fs.writeFileSync(storagePath, JSON.stringify(config, null, 2), "utf8");
+    return { success: true };
+  } catch (error) {
+    console.error("Error saving model directory:", error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle("reload-model", async (event, directory) => {
+  try {
+    const fetch = require("node-fetch");
+    const response = await fetch("http://localhost:8080/api/model/reload", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ directory }),
+    });
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error reloading model:", error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle("get-model-info", async () => {
+  try {
+    const fetch = require("node-fetch");
+    const response = await fetch("http://localhost:8080/api/model/info");
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error getting model info:", error);
+    return { error: error.message };
+  }
+});
+
 // Security: Prevent new window creation
 app.on("web-contents-created", (event, contents) => {
   contents.on("new-window", (event, navigationUrl) => {

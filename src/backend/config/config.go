@@ -42,17 +42,18 @@ type ProxyConfig struct {
 
 // Config holds all configuration for the PII proxy service
 type Config struct {
-	OpenAIBaseURL string
-	OpenAIAPIKey  string
-	ProxyPort     string
-	DetectorName  string
-	ModelBaseURL  string
-	Database      DatabaseConfig
-	Logging       LoggingConfig
-	ONNXModelPath string
-	TokenizerPath string
-	UIPath        string
-	Proxy         ProxyConfig `json:"Proxy"`
+	OpenAIBaseURL      string
+	OpenAIAPIKey       string
+	ProxyPort          string
+	DetectorName       string
+	ModelBaseURL       string
+	Database           DatabaseConfig
+	Logging            LoggingConfig
+	ONNXModelPath      string
+	TokenizerPath      string
+	ONNXModelDirectory string
+	UIPath             string
+	Proxy              ProxyConfig `json:"Proxy"`
 }
 
 // DefaultConfig returns the default configuration
@@ -62,13 +63,14 @@ func DefaultConfig() *Config {
 	keyPath := filepath.Join(homeDir, ".yaak-proxy", "ca-key.pem")
 
 	return &Config{
-		OpenAIBaseURL: "https://api.openai.com/v1",
-		ProxyPort:     ":8080",
-		DetectorName:  "onnx_model_detector",
-		ModelBaseURL:  "http://localhost:8000",
-		ONNXModelPath: "model/quantized/model_quantized.onnx",
-		TokenizerPath: "model/quantized/tokenizer.json",
-		UIPath:        "./src/frontend/dist",
+		OpenAIBaseURL:      "https://api.openai.com/v1",
+		ProxyPort:          ":8080",
+		DetectorName:       "onnx_model_detector",
+		ModelBaseURL:       "http://localhost:8000",
+		ONNXModelPath:      "model/quantized/model_quantized.onnx",
+		TokenizerPath:      "model/quantized/tokenizer.json",
+		ONNXModelDirectory: "model/quantized",
+		UIPath:             "./src/frontend/dist",
 		Database: DatabaseConfig{
 			Enabled:      false,
 			Host:         "localhost",

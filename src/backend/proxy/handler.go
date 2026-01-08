@@ -24,7 +24,7 @@ import (
 type Handler struct {
 	client             *http.Client
 	config             *config.Config
-	detector           *pii.Detector
+	modelManager       *piiServices.ModelManager
 	responseProcessor  *processor.ResponseProcessor
 	maskingService     *piiServices.MaskingService
 	electronConfigPath string
@@ -34,7 +34,15 @@ type Handler struct {
 
 // GetDetector returns the PII detector instance
 func (h *Handler) GetDetector() (pii.Detector, error) {
-	// read config for detector name
+	// If using ONNX model detector, return from model manager
+	if h.config.DetectorName == pii.DetectorNameONNXModel {
+		if h.modelManager == nil {
+			return nil, fmt.Errorf("model manager not initialized")
+		}
+		return h.modelManager.GetDetector()
+	}
+
+	// For other detector types, use legacy creation
 	detectorName := h.config.DetectorName
 	if detectorName == "" {
 		return nil, fmt.Errorf("detector name is required")
@@ -45,15 +53,46 @@ func (h *Handler) GetDetector() (pii.Detector, error) {
 	switch detectorName {
 	case pii.DetectorNameModel:
 		detectorConfig["base_url"] = h.config.ModelBaseURL
-	case pii.DetectorNameONNXModel:
-		detectorConfig["model_path"] = h.config.ONNXModelPath
-		detectorConfig["tokenizer_path"] = h.config.TokenizerPath
 	case pii.DetectorNameRegex:
 		detectorConfig["patterns"] = pii.PIIPatterns
 	default:
 		return nil, fmt.Errorf("invalid detector name: %s", detectorName)
 	}
 	return pii.NewDetector(detectorName, detectorConfig)
+}
+
+// ReloadModel reloads the PII model from the specified directory
+func (h *Handler) ReloadModel(directory string) error {
+	if h.modelManager == nil {
+		return fmt.Errorf("model manager not initialized")
+	}
+	return h.modelManager.ReloadModel(directory)
+}
+
+// IsModelHealthy returns whether the PII model is healthy
+func (h *Handler) IsModelHealthy() bool {
+	if h.modelManager == nil {
+		return false
+	}
+	return h.modelManager.IsHealthy()
+}
+
+// GetModelError returns the last model error (if any)
+func (h *Handler) GetModelError() error {
+	if h.modelManager == nil {
+		return nil
+	}
+	return h.modelManager.GetLastError()
+}
+
+// GetModelInfo returns information about the current model state
+func (h *Handler) GetModelInfo() map[string]interface{} {
+	if h.modelManager == nil {
+		return map[string]interface{}{
+			"error": "model manager not initialized",
+		}
+	}
+	return h.modelManager.GetInfo()
 }
 
 // ServeHTTP implements the http.Handler interface
@@ -484,11 +523,34 @@ func (h *Handler) GetOpenAIAPIKey(r *http.Request) string {
 }
 
 func NewHandler(cfg *config.Config, electronConfigPath string) (*Handler, error) {
-	// Create a temporary handler to get the detector
-	tempHandler := &Handler{config: cfg}
-	detector, err := tempHandler.GetDetector()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get detector: %w", err)
+	var modelManager *piiServices.ModelManager
+	var detector pii.Detector
+	var err error
+
+	// Initialize model manager if using ONNX detector
+	if cfg.DetectorName == pii.DetectorNameONNXModel {
+		modelDir := cfg.ONNXModelDirectory
+		if modelDir == "" {
+			modelDir = "model/quantized" // Default directory
+		}
+
+		log.Printf("[Handler] Initializing ModelManager with directory: %s", modelDir)
+		modelManager, err = piiServices.NewModelManager(modelDir)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize model manager: %w", err)
+		}
+
+		detector, err = modelManager.GetDetector()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get detector from model manager: %w", err)
+		}
+	} else {
+		// For non-ONNX detectors, use legacy creation
+		tempHandler := &Handler{config: cfg}
+		detector, err = tempHandler.GetDetector()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get detector: %w", err)
+		}
 	}
 
 	// Create services
@@ -545,7 +607,7 @@ func NewHandler(cfg *config.Config, electronConfigPath string) (*Handler, error)
 	return &Handler{
 		client:             client,
 		config:             cfg,
-		detector:           &detector,
+		modelManager:       modelManager,
 		responseProcessor:  responseProcessor,
 		maskingService:     maskingService,
 		electronConfigPath: electronConfigPath,

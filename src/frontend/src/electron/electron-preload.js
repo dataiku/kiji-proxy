@@ -86,4 +86,21 @@ contextBridge.exposeInMainWorld("electronAPI", {
   removeTermsListener: () => {
     ipcRenderer.removeAllListeners("open-terms");
   },
+
+  // Model directory management
+  getModelDirectory: async () => {
+    return await ipcRenderer.invoke("get-model-directory");
+  },
+
+  setModelDirectory: async (directory) => {
+    return await ipcRenderer.invoke("set-model-directory", directory);
+  },
+
+  reloadModel: async (directory) => {
+    return await ipcRenderer.invoke("reload-model", directory);
+  },
+
+  getModelInfo: async () => {
+    return await ipcRenderer.invoke("get-model-info");
+  },
 });

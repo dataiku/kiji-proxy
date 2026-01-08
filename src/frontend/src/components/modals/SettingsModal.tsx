@@ -17,12 +17,23 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   } | null>(null);
   const [hasApiKey, setHasApiKey] = useState(false);
 
+  // Model directory state
+  const [modelDirectory, setModelDirectory] = useState("");
+  const [hasModelDirectory, setHasModelDirectory] = useState(false);
+  const [modelInfo, setModelInfo] = useState<any>(null);
+  const [isReloading, setIsReloading] = useState(false);
+  const [reloadMessage, setReloadMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
+
   const isElectron =
     typeof window !== "undefined" && window.electronAPI !== undefined;
 
   useEffect(() => {
     if (isOpen && isElectron) {
       loadSettings();
+      loadModelInfo();
     }
   }, [isOpen, isElectron]);
 
@@ -45,6 +56,83 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       setMessage({ type: "error", text: "Failed to load settings" });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadModelInfo = async () => {
+    if (!window.electronAPI) return;
+
+    try {
+      const [storedDir, info] = await Promise.all([
+        window.electronAPI.getModelDirectory(),
+        window.electronAPI.getModelInfo(),
+      ]);
+
+      setHasModelDirectory(!!storedDir);
+      setModelDirectory(storedDir || "");
+      setModelInfo(info);
+    } catch (error) {
+      console.error("Error loading model info:", error);
+    }
+  };
+
+  const handleReloadModel = async () => {
+    if (!window.electronAPI || !modelDirectory.trim()) return;
+
+    setIsReloading(true);
+    setReloadMessage(null);
+
+    try {
+      const result = await window.electronAPI.reloadModel(
+        modelDirectory.trim()
+      );
+
+      if (result.success) {
+        setReloadMessage({
+          type: "success",
+          text: "Model reloaded successfully!",
+        });
+        await loadModelInfo();
+      } else {
+        setReloadMessage({
+          type: "error",
+          text: result.error || "Failed to reload model",
+        });
+      }
+    } catch (error) {
+      console.error("Error reloading model:", error);
+      setReloadMessage({
+        type: "error",
+        text: error instanceof Error ? error.message : "Unknown error",
+      });
+    } finally {
+      setIsReloading(false);
+    }
+  };
+
+  const handleSaveModelDirectory = async () => {
+    if (!window.electronAPI) return;
+
+    try {
+      const result = await window.electronAPI.setModelDirectory(
+        modelDirectory.trim()
+      );
+
+      if (result.success) {
+        setHasModelDirectory(!!modelDirectory.trim());
+        setMessage({
+          type: "success",
+          text: "Model directory saved. Click 'Reload Model' to apply.",
+        });
+      } else {
+        setMessage({
+          type: "error",
+          text: result.error || "Failed to save model directory",
+        });
+      }
+    } catch (error) {
+      console.error("Error saving model directory:", error);
+      setMessage({ type: "error", text: "Failed to save model directory" });
     }
   };
 
@@ -233,6 +321,88 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               <p className="text-xs text-slate-500 mt-1">
                 URL of the Privacy Proxy forward endpoint
               </p>
+            </div>
+
+            {/* PII Model Directory */}
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
+                <Server className="w-4 h-4" />
+                PII Model Directory
+              </label>
+
+              {/* Current Model Info */}
+              {modelInfo && (
+                <div
+                  className={`mb-2 p-2 rounded ${
+                    modelInfo.healthy
+                      ? "bg-green-50 border border-green-200"
+                      : "bg-red-50 border border-red-200"
+                  }`}
+                >
+                  <div className="text-xs">
+                    <span
+                      className={
+                        modelInfo.healthy ? "text-green-700" : "text-red-700"
+                      }
+                    >
+                      Status: {modelInfo.healthy ? "Healthy" : "Unhealthy"}
+                    </span>
+                    {modelInfo.directory && (
+                      <div className="text-slate-600 mt-1 break-all">
+                        Current: {modelInfo.directory}
+                      </div>
+                    )}
+                    {modelInfo.error && (
+                      <div className="text-red-700 mt-1 break-all">
+                        Error: {modelInfo.error}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <input
+                type="text"
+                value={modelDirectory}
+                onChange={(e) => setModelDirectory(e.target.value)}
+                placeholder="/path/to/model/directory"
+                className="w-full px-4 py-2 border-2 border-slate-200 rounded-lg focus:border-blue-500 focus:outline-none font-mono text-sm placeholder:text-gray-400"
+              />
+
+              <p className="text-xs text-slate-500 mt-1">
+                Directory must contain: model_quantized.onnx, tokenizer.json,
+                label_mappings.json
+              </p>
+
+              {/* Action Buttons */}
+              <div className="flex gap-2 mt-2">
+                <button
+                  onClick={handleSaveModelDirectory}
+                  className="px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 text-sm transition-colors"
+                >
+                  Save Directory
+                </button>
+                <button
+                  onClick={handleReloadModel}
+                  disabled={isReloading || !modelDirectory.trim()}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm transition-colors"
+                >
+                  {isReloading ? "Reloading..." : "Reload Model"}
+                </button>
+              </div>
+
+              {/* Reload Message */}
+              {reloadMessage && (
+                <div
+                  className={`mt-2 p-2 rounded text-sm ${
+                    reloadMessage.type === "success"
+                      ? "bg-green-50 text-green-800 border border-green-200"
+                      : "bg-red-50 text-red-800 border border-red-200"
+                  }`}
+                >
+                  {reloadMessage.text}
+                </div>
+              )}
             </div>
 
             {/* Message */}
