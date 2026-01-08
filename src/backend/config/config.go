@@ -38,6 +38,7 @@ type ProxyConfig struct {
 	ProxyPort          string   `json:"proxy_port"`
 	CAPath             string   `json:"ca_path"`
 	KeyPath            string   `json:"key_path"`
+	EnablePAC          bool     `json:"enable_pac"` // Enable PAC (Proxy Auto-Config) for automatic system proxy setup
 }
 
 // Config holds all configuration for the PII proxy service
@@ -96,6 +97,7 @@ func DefaultConfig() *Config {
 			ProxyPort:          ":8081",
 			CAPath:             caPath,
 			KeyPath:            keyPath,
+			EnablePAC:          true, // Enable PAC by default for automatic proxy configuration
 		},
 	}
 }

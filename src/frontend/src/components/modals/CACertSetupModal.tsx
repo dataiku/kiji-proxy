@@ -108,6 +108,10 @@ export default function CACertSetupModal({
                     {"  "}~/.yaak-proxy/certs/ca.crt
                   </code>
                 </div>
+                <p className="text-xs text-slate-600 mt-2">
+                  This command requires administrator privileges and will
+                  install the certificate system-wide.
+                </p>
               </div>
 
               <div>
@@ -120,15 +124,7 @@ export default function CACertSetupModal({
                       1.
                     </span>
                     <span>
-                      Open <strong>Keychain Access</strong> application
-                    </span>
-                  </li>
-                  <li className="flex gap-2">
-                    <span className="font-semibold text-blue-600 min-w-[20px]">
-                      2.
-                    </span>
-                    <span>
-                      File → Import Items → Select{" "}
+                      Double-click the certificate file:{" "}
                       <code className="bg-slate-100 px-1.5 py-0.5 rounded text-xs">
                         ~/.yaak-proxy/certs/ca.crt
                       </code>
@@ -136,10 +132,20 @@ export default function CACertSetupModal({
                   </li>
                   <li className="flex gap-2">
                     <span className="font-semibold text-blue-600 min-w-[20px]">
+                      2.
+                    </span>
+                    <span>
+                      This opens <strong>Keychain Access</strong> - click{" "}
+                      <strong>Add</strong> to install
+                    </span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="font-semibold text-blue-600 min-w-[20px]">
                       3.
                     </span>
                     <span>
-                      Double-click <strong>"Yaak Proxy CA"</strong> certificate
+                      In Keychain Access, select <strong>System</strong>{" "}
+                      keychain in the left sidebar
                     </span>
                   </li>
                   <li className="flex gap-2">
@@ -147,8 +153,55 @@ export default function CACertSetupModal({
                       4.
                     </span>
                     <span>
-                      Expand <strong>Trust</strong> section → Set to{" "}
-                      <strong>Always Trust</strong>
+                      Search for <strong>"Yaak Proxy CA"</strong> and
+                      double-click it
+                    </span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="font-semibold text-blue-600 min-w-[20px]">
+                      5.
+                    </span>
+                    <span>
+                      Click the <strong>▶ triangle next to "Trust"</strong> to
+                      expand the section
+                    </span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="font-semibold text-blue-600 min-w-[20px]">
+                      6.
+                    </span>
+                    <span>
+                      Set <strong>"When using this certificate"</strong> to{" "}
+                      <strong className="text-green-600">"Always Trust"</strong>
+                    </span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="font-semibold text-blue-600 min-w-[20px]">
+                      7.
+                    </span>
+                    <span>
+                      Set <strong>"Secure Sockets Layer (SSL)"</strong> to{" "}
+                      <strong className="text-green-600">"Always Trust"</strong>
+                    </span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="font-semibold text-blue-600 min-w-[20px]">
+                      8.
+                    </span>
+                    <span>
+                      <strong>Close the window</strong> and enter your password
+                      when prompted
+                    </span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="font-semibold text-blue-600 min-w-[20px]">
+                      9.
+                    </span>
+                    <span>
+                      <strong className="text-amber-600">
+                        Restart your browser completely
+                      </strong>{" "}
+                      (Cmd+Q, then reopen)
                     </span>
                   </li>
                 </ol>
@@ -156,9 +209,20 @@ export default function CACertSetupModal({
 
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
                 <p className="text-xs text-amber-900">
-                  <strong>Note:</strong> System-wide trust will work for most
-                  applications including Safari and Chrome. Firefox requires
-                  separate configuration (see Browser-Specific tab).
+                  <strong>Important:</strong> You must restart your browser
+                  after trusting the certificate. System-wide trust works for
+                  Safari and Chrome. Firefox requires separate configuration
+                  (see Browser-Specific tab).
+                </p>
+              </div>
+
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <p className="text-xs text-red-900">
+                  <strong>⚠️ Common Issue:</strong> If the certificate shows
+                  "Number of trust settings: 0" in terminal, it means you
+                  haven't set it to "Always Trust" in steps 6-7 above. The
+                  certificate must be marked as trusted for SSL, not just
+                  installed.
                 </p>
               </div>
             </div>
