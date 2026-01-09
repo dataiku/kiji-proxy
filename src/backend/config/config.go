@@ -93,7 +93,7 @@ func DefaultConfig() *Config {
 		},
 		Proxy: ProxyConfig{
 			TransparentEnabled: true,
-			InterceptDomains:   []string{"api.openai.com", "openai.com"},
+			InterceptDomains:   []string{"api.openai.com"},
 			ProxyPort:          ":8081",
 			CAPath:             caPath,
 			KeyPath:            keyPath,
