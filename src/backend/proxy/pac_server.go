@@ -50,6 +50,17 @@ func (p *PACServer) Shutdown() error {
 
 // servePAC handles requests for the PAC file
 func (p *PACServer) servePAC(w http.ResponseWriter, r *http.Request) {
+	// Add CORS headers to allow browser requests from demo pages
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+
+	// Handle preflight requests
+	if r.Method == "OPTIONS" {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/x-ns-proxy-autoconfig")
 	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 	w.Header().Set("Pragma", "no-cache")
