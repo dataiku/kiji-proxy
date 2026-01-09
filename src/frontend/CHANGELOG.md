@@ -1,5 +1,12 @@
 # yaak-privacy-proxy
 
+## 0.3.1
+
+### Patch Changes
+
+- 5f997ef: fix and updated proxy setup, updated docs and setup instructions
+- 9c8bbb3: Minor proxy tweaks
+
 ## 0.3.0
 
 ### Minor Changes
