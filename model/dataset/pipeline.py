@@ -125,8 +125,8 @@ class DatasetPipeline:
         api_model: str,
         output_dir: str,
         num_samples: int,
-        max_workers: Optional[int] = None,
-        pipeline_id: Optional[str] = None,
+        max_workers: int | None = None,
+        pipeline_id: str | None = None,
         enable_review: bool = False,
     ):
         """
@@ -338,7 +338,7 @@ class DatasetPipeline:
                 coref_results_path = coref_completion["results_path"]
 
                 # Parse coref results for review
-                with open(coref_results_path, "r") as f:
+                with open(coref_results_path) as f:
                     coref_content = f.read()
 
                 samples_for_review = self.processor.parse_samples_for_review(
@@ -427,7 +427,7 @@ class DatasetPipeline:
                 source = "coref"
 
             # Process and save results
-            with open(results_path, "r") as f:
+            with open(results_path) as f:
                 content = f.read()
 
             results = self.processor.process_batch_content(content, file_id="final")
@@ -457,7 +457,7 @@ class DatasetPipeline:
                 source = final_info.get("source", "unknown")
                 logging.info(f"Quality: Reviewed and validated (source: {source})")
             else:
-                logging.info(f"Quality: Standard (no review)")
+                logging.info("Quality: Standard (no review)")
         logging.info("=" * 80)
 
         return []
