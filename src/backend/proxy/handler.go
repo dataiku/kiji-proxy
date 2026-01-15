@@ -107,7 +107,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check for PII in the request and get redacted body
-	redactedBody, maskedToOriginal, entities := h.checkRequestPII(string(body))
+	redactedBody, maskedToOriginal, entities := h.checkRequestPII(string(body), &provider)
 
 	// Log initial request if logging is available
 	if h.loggingDB != nil {
@@ -184,7 +184,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 
 			// Extract response text
-			responseText, _ := h.extractTextFromResponse(responseData)
+			responseText, _ := h.extractTextFromResponse(responseData) //  TODO: replace for provider function, and then delete method from handler.go
 
 			// Create masked response text
 			maskedResponseText := responseText
@@ -270,7 +270,7 @@ func (h *Handler) maskPIIInText(text string, logPrefix string) (string, map[stri
 
 // checkRequestPII checks for PII in the request body and creates mappings
 // It only redacts PII from message content, not from other fields like "model"
-func (h *Handler) checkRequestPII(body string) (string, map[string]string, []pii.Entity) {
+func (h *Handler) checkRequestPII(body string, provider *providers.Provider) (string, map[string]string, []pii.Entity) {
 	log.Println("[Proxy] Checking for PII in request...")
 
 	// Parse the JSON request
@@ -286,7 +286,7 @@ func (h *Handler) checkRequestPII(body string) (string, map[string]string, []pii
 	}
 
 	// Use createMaskedRequest to properly mask only message content
-	maskedRequest, maskedToOriginal, entities := h.createMaskedRequest(requestData)
+	maskedRequest, maskedToOriginal, entities := h.createMaskedRequest(requestData, provider)
 
 	if len(entities) > 0 {
 		// Set the mapping in the response processor
@@ -530,9 +530,9 @@ func (h *Handler) extractTextFromResponse(responseData map[string]interface{}) (
 }
 
 // createMaskedRequest creates a masked version of the request by detecting and masking PII in messages
-func (h *Handler) createMaskedRequest(originalRequest map[string]interface{}) (map[string]interface{}, map[string]string, []pii.Entity) {
+func (h *Handler) createMaskedRequest(originalRequest map[string]interface{}, provider *providers.Provider) (map[string]interface{}, map[string]string, []pii.Entity) {
 	// Extract text content from messages to validate
-	_, err := h.extractTextFromMessages(originalRequest)
+	_, err := (*provider).ExtractRequestText(originalRequest)
 	if err != nil {
 		log.Printf("Failed to extract text from messages: %v", err)
 		return originalRequest, make(map[string]string), []pii.Entity{}
@@ -551,35 +551,12 @@ func (h *Handler) createMaskedRequest(originalRequest map[string]interface{}) (m
 		return originalRequest, make(map[string]string), []pii.Entity{}
 	}
 
-	var entities []pii.Entity
-	maskedToOriginal := make(map[string]string)
-
-	// Process each message in the masked request
-	if messages, ok := maskedRequest["messages"].([]interface{}); ok {
-		for _, msg := range messages {
-			if message, ok := msg.(map[string]interface{}); ok {
-				if content, ok := message["content"].(string); ok {
-					var maskedText string
-					var _maskedToOriginal map[string]string
-					var _entities []pii.Entity
-
-					// Mask PII in this message's content
-					maskedText, _maskedToOriginal, _entities = h.maskPIIInText(content, "[MaskedRequest]")
-
-					// Update the message content with masked text
-					message["content"] = maskedText
-
-					// Collect entities and mappings
-					entities = append(entities, _entities...)
-					for k, v := range _maskedToOriginal {
-						maskedToOriginal[k] = v
-					}
-				}
-			}
-		}
+	maskedToOriginal, entities, err := (*provider).CreateMaskedRequest(&maskedRequest, h.maskPIIInText)
+	if err != nil {
+		log.Printf("Provider failed to create masked request: %v", err)
 	}
 
-	return maskedRequest, maskedToOriginal, entities
+	return maskedRequest, *maskedToOriginal, *entities
 }
 
 // HandleLogs handles requests to retrieve log entries

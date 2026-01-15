@@ -5,6 +5,8 @@ package providers
 import (
 	"fmt"
 	"net/http"
+
+	pii "github.com/hannes/yaak-private/src/backend/pii/detectors"
 )
 
 const (
@@ -33,6 +35,13 @@ func (p *AnthropicProvider) GetName() string {
 
 func (p *AnthropicProvider) GetType() ProviderType {
 	return ProviderTypeAnthropic
+}
+
+func (p *AnthropicProvider) CreateMaskedRequest(maskedRequest *map[string]interface{}, maskPIIInText maskPIIInTextType) (*map[string]string, *[]pii.Entity, error) {
+	maskedToOriginal := make(map[string]string)
+	var entities []pii.Entity
+
+	return &maskedToOriginal, &entities, nil
 }
 
 // edited to here

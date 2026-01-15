@@ -1,10 +1,11 @@
 // TODO: (mainly) copied from PR suggestion, will need edits!
-
 package providers
 
 import (
 	"fmt"
 	"net/http"
+
+	pii "github.com/hannes/yaak-private/src/backend/pii/detectors"
 )
 
 const (
@@ -48,8 +49,44 @@ func (p *OpenAIProvider) ExtractRequestText(data map[string]interface{}) (string
 	return result, nil
 }
 
-func (p *OpenAIProvider) CreateMaskedRequest(data map[string]interface{}) (string, error) {
-	return "", nil
+func (p *OpenAIProvider) CreateMaskedRequest(maskedRequest *map[string]interface{}, maskPIIInText maskPIIInTextType) (*map[string]string, *[]pii.Entity, error) {
+	maskedToOriginal := make(map[string]string)
+	var entities []pii.Entity
+
+	messages, ok := (*maskedRequest)["messages"].([]interface{})
+	if !ok {
+		return &maskedToOriginal, &entities, fmt.Errorf("no messages field in request")
+	}
+
+	for _, msg := range messages {
+		msgMap, ok := msg.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		content, ok := msgMap["content"].(string)
+		if !ok {
+			continue
+		}
+
+		//var maskedText string
+		//var _maskedToOriginal map[string]string
+		//var _entities []pii.Entity
+
+		// Mask PII in this message's content
+		maskedText, _maskedToOriginal, _entities := maskPIIInText(content, "[MaskedRequest]")
+
+		// Update the message content with masked text
+		msgMap["content"] = maskedText
+
+		// Collect entities and mappings
+		entities = append(entities, _entities...)
+		for k, v := range _maskedToOriginal {
+			maskedToOriginal[k] = v
+		}
+	}
+
+	return &maskedToOriginal, &entities, nil
 }
 
 // edited / verfified to here
