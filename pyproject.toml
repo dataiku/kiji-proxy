@@ -3,9 +3,9 @@ name = "yaak-proxy"
 version = "0.1.0"
 description = "PII Detection and Masking Proxy - Minimal Production"
 requires-python = ">=3.11,<3.14"
-license = {text = "MIT"}
+license = {text = "Apache 2.0"}
 authors = [
-    {name = "Yaak Team"},
+    {name = "Dataiku Open Source Lab"},
 ]
 
 # Minimal production dependencies - only what's absolutely necessary

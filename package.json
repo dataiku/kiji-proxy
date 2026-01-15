@@ -1,16 +1,46 @@
 {
-  "name": "yaak-proxy-monorepo",
-  "version": "1.0.0",
+  "name": "yaak-privacy-proxy",
+  "productName": "Yaak Privacy Proxy",
+  "version": "0.2.5",
+  "description": "Dataiku's Yaak Privacy Proxy - PII detection and masking proxy for LLMs",
+  "author": "Dataiku - Open Source Lab",
+  "license": "Apache-2.0",
   "private": true,
+  "_comment": "NOTE: Version must be kept in sync with src/frontend/package.json",
   "workspaces": [
     "src/frontend"
   ],
+  "devDependencies": {
+    "@changesets/cli": "^2.27.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dataiku/yaak-proxy"
+  },
+  "keywords": [
+    "pii",
+    "privacy",
+    "proxy",
+    "llm",
+    "openai",
+    "data-protection"
+  ],
   "scripts": {
+    "build": "cd src/frontend && npm run build",
+    "build:electron": "cd src/frontend && npm run build:electron",
+    "dev": "cd src/frontend && npm run dev",
+    "electron": "cd src/frontend && npm run electron",
+    "electron:dev": "cd src/frontend && npm run electron:dev",
+    "electron:pack": "cd src/frontend && npm run electron:pack",
+    "lint": "cd src/frontend && npm run lint",
+    "lint:fix": "cd src/frontend && npm run lint:fix",
+    "type-check": "cd src/frontend && npm run type-check",
     "changeset": "changeset",
     "version": "changeset version",
     "release": "changeset publish"
   },
-  "devDependencies": {
-    "@changesets/cli": "^2.27.1"
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
   }
 }

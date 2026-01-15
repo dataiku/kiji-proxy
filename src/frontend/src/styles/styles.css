@@ -1,0 +1,38 @@
+@import "tailwindcss";
+
+/* Force placeholder text to be light grey */
+::placeholder {
+  color: #9ca3af !important;
+  opacity: 1 !important;
+}
+
+::-webkit-input-placeholder {
+  color: #9ca3af !important;
+  opacity: 1 !important;
+}
+
+::-moz-placeholder {
+  color: #9ca3af !important;
+  opacity: 1 !important;
+}
+
+:-ms-input-placeholder {
+  color: #9ca3af !important;
+  opacity: 1 !important;
+}
+
+/* Custom styles for better UI */
+@layer utilities {
+  .animate-spin {
+    animation: spin 1s linear infinite;
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
