@@ -1,7 +1,6 @@
 """Monitor batch job progress and handle downloads."""
 
 import time
-from typing import Optional
 
 from absl import logging
 from tqdm import tqdm
@@ -28,7 +27,7 @@ class BatchMonitor:
         self,
         batch_id: str,
         poll_interval: int = 60,
-        timeout: Optional[int] = None,
+        timeout: int | None = None,
         show_progress: bool = True,
     ) -> str:
         """

@@ -424,11 +424,11 @@ def main(argv):
             print(f"Batch ID: {batch_id}")
             print(f"Review batch file: {batch_file_path}")
             print(f"{'=' * 60}")
-            print(f"\nTo process the reviewed samples, use:")
+            print("\nTo process the reviewed samples, use:")
             print(
-                f"  python model/dataset/training_set_doubleword_result_processing.py \\"
+                "  python model/dataset/training_set_doubleword_result_processing.py \\"
             )
-            print(f"    --batch_output_file_ids=<output_file_id_from_batch>")
+            print("    --batch_output_file_ids=<output_file_id_from_batch>")
             print(f"{'=' * 60}\n")
         except Exception as e:
             logging.error(f"Failed to submit review batch: {e}")
@@ -440,7 +440,7 @@ def main(argv):
         print(f"Review batch file: {batch_file_path}")
         print(f"Number of review requests: {len(review_requests)}")
         print(f"{'=' * 60}")
-        print(f"\nTo submit manually, upload the file to Doubleword API.")
+        print("\nTo submit manually, upload the file to Doubleword API.")
         print(f"{'=' * 60}\n")
 
 

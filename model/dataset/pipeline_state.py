@@ -3,7 +3,7 @@
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from absl import logging
 
@@ -11,7 +11,7 @@ from absl import logging
 class PipelineState:
     """Manages pipeline state persistence for resumability."""
 
-    def __init__(self, output_dir: str, pipeline_id: Optional[str] = None):
+    def __init__(self, output_dir: str, pipeline_id: str | None = None):
         """
         Initialize pipeline state manager.
 
@@ -32,7 +32,7 @@ class PipelineState:
     def _load_state(self) -> dict:
         """Load state from file if it exists."""
         if self.state_file.exists():
-            with open(self.state_file, "r") as f:
+            with open(self.state_file) as f:
                 state = json.load(f)
                 logging.info(f"Loaded pipeline state from {self.state_file}")
                 return state
@@ -69,7 +69,7 @@ class PipelineState:
         self._save_state()
         logging.info(f"Stage '{stage_name}' marked as completed")
 
-    def get_stage(self, stage_name: str) -> Optional[dict[str, Any]]:
+    def get_stage(self, stage_name: str) -> dict[str, Any] | None:
         """
         Get stage data if it exists.
 

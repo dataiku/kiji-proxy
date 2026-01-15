@@ -248,8 +248,6 @@ class PromptBuilder:
         Returns:
             Prompt string for coreference generation
         """
-        sample_text = ner_sample["text"]
-        privacy_mask = ner_sample["privacy_mask"]
 
         # Show example with coreferences
         example_index = 0

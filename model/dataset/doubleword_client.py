@@ -2,7 +2,6 @@
 
 import os
 from pathlib import Path
-from typing import Optional
 
 import requests
 from absl import logging
@@ -20,7 +19,7 @@ class DoublewordClient:
 
     BASE_URL = "https://api.doubleword.ai/v1"
 
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: str | None = None):
         """
         Initialize Doubleword client.
 

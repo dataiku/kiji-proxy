@@ -2,7 +2,6 @@
 
 import sys
 from pathlib import Path
-from typing import Optional
 
 from absl import app, flags, logging
 from absl.flags import DuplicateFlagError
@@ -120,8 +119,8 @@ class DatasetPipeline:
         api_model: str,
         output_dir: str,
         num_samples: int,
-        max_workers: Optional[int] = None,
-        pipeline_id: Optional[str] = None,
+        max_workers: int | None = None,
+        pipeline_id: str | None = None,
     ):
         """
         Initialize dataset pipeline.
@@ -153,7 +152,7 @@ class DatasetPipeline:
         self,
         auto_poll: bool = True,
         poll_interval: int = 60,
-        timeout: Optional[int] = None,
+        timeout: int | None = None,
     ) -> list[str]:
         """
         Run the complete pipeline.
@@ -252,7 +251,7 @@ class DatasetPipeline:
             ner_results_path = ner_completion["results_path"]
 
             # Parse NER results
-            with open(ner_results_path, "r") as f:
+            with open(ner_results_path) as f:
                 ner_content = f.read()
 
             ner_samples = self.processor.parse_ner_results(ner_content)
@@ -329,7 +328,7 @@ class DatasetPipeline:
             coref_results_path = coref_completion["results_path"]
 
             # Process and save results
-            with open(coref_results_path, "r") as f:
+            with open(coref_results_path) as f:
                 coref_content = f.read()
 
             results = self.processor.process_batch_content(
