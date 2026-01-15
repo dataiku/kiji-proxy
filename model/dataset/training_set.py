@@ -50,8 +50,8 @@ try:
     )
     flags.DEFINE_string(
         "api_model",
-        "openai/gpt-oss-120b",
-        "Model name to use when api_url is specified (e.g., 'openai/gpt-oss-120b')",
+        "Qwen/Qwen3-VL-235B-A22B-Instruct-FP8",
+        "Model name to use when api_url is specified (e.g., 'Qwen/Qwen3-VL-235B-A22B-Instruct-FP8')",
     )
     flags.DEFINE_string(
         "output_dir", "model/dataset", "Output directory for generated samples"
