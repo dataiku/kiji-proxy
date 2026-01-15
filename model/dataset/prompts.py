@@ -123,6 +123,198 @@ class PromptBuilder:
     ]
 
     @staticmethod
+    def build_ner_generation_prompt(
+        labels: dict[str, str],
+        languages_countries: list[tuple[str, str]],
+        sample_index: int = 0,
+    ) -> tuple[str, str, str]:
+        """
+        Build a prompt for generating NER (Named Entity Recognition) samples with PII annotations.
+
+        Args:
+            labels: Dictionary of PII labels to include
+            languages_countries: List of (language, country) tuples
+            sample_index: Index of sample being generated (for variation)
+
+        Returns:
+            Tuple of (prompt, language, country)
+        """
+        # Use sample_index to select example (for more variation)
+        example_index = sample_index % len(PromptBuilder.SAMPLE_DATA)
+        random_sample = PromptBuilder.SAMPLE_DATA[example_index]
+
+        # Extract only text and privacy_mask for NER example
+        ner_example = {
+            "text": random_sample["text"],
+            "privacy_mask": random_sample["privacy_mask"],
+        }
+        example_string = f"```json\n{json.dumps(ner_example, indent=2)}\n```"
+
+        # Pick one language randomly from the list
+        selected_language_country = (
+            random.choice(languages_countries)
+            if languages_countries
+            else ("English", "United States")
+        )
+
+        # Add variety in writing style and context
+        writing_styles = [
+            "formal business email",
+            "casual personal message",
+            "official document or form",
+            "news article or blog post",
+            "social media post",
+            "customer service interaction",
+            "medical record entry",
+            "legal document excerpt",
+            "academic paper citation",
+            "job application form",
+        ]
+        style = writing_styles[sample_index % len(writing_styles)]
+
+        # Vary sentence complexity
+        complexity_hints = [
+            "Use simple, straightforward sentences.",
+            "Use varied sentence lengths and structures.",
+            "Include some complex sentences with subordinate clauses.",
+            "Mix short and long sentences for natural flow.",
+            "Use a conversational tone with varied sentence patterns.",
+        ]
+        complexity = complexity_hints[sample_index % len(complexity_hints)]
+
+        # Create instruction text with proper escaping for JSON examples
+        incorrect_example = '{"value": "Ravi Patel", "label": "FIRSTNAME"}'
+        correct_surname_only = '{"value": "Patel", "label": "SURNAME"}'
+        correct_firstname_only = '{"value": "Ravi", "label": "FIRSTNAME"}'
+        correct_both = '{"value": "Ravi", "label": "FIRSTNAME"} {"value": "Patel", "label": "SURNAME"}'
+
+        language = selected_language_country[0]
+        country = selected_language_country[1]
+        labels_list = ", ".join(labels.keys())
+
+        return (
+            f"""
+        Generate one text sample in the style of a {style} that contains the following PII types:
+        {labels_list}
+
+        Instructions:
+            1. Generate the sample in `{language}` and make the text as well as the PII data as realistic to the geographic area of `{country}`.
+            2. Use only the PII types listed above
+            3. Write in the style of a {style} - make it realistic and contextually appropriate
+            4. {complexity}
+            5. Contain 2-5 sentences with multiple entities (vary the number of sentences)
+            6. Vary the position of PII in sentences - don't always put names at the beginning
+            7. Return the text sample with the included PII data and the type of PII (see example below)
+            8. This is incorrect: {incorrect_example}. If the required labels only contain "surname", only generate a sample with a surname {correct_surname_only}. If the required labels only contain "first name", only generate a sample with a first name {correct_firstname_only}. If first name and surname are required, this is correct: {correct_both}.
+            9. Be creative with your first and last names (use diverse ethnic backgrounds, cultural origins, and avoid common names like "John Smith", "Jane Doe", "Sarah Johnson", "Mike Wilson", etc.).
+            10. Use diverse street names and city names (use names from different countries, cultures, and avoid common ones like "Main Street", "Oak Avenue", "New York", "Los Angeles", "London", "Paris", etc.).
+            11. Vary the format of dates, phone numbers, and addresses to reflect different countries and regions
+            12. Make the text feel natural and contextually appropriate - don't just list PII items
+            13. Review your work before returning the samples. DO NOT create new label names. You can only use the labels listed above.
+            14. Return the text sample in the following JSON format:
+            ```json
+            [{{
+                "text": "The text sample",
+                "privacy_mask": [
+                    {{
+                        "value": "The value",
+                        "label": "The label"
+                    }}
+                ]
+            }}]
+            ```
+
+        Here is an example:
+        {example_string}
+        """.strip(),
+            language,
+            country,
+        )
+
+    @staticmethod
+    def build_coreference_generation_prompt(
+        ner_sample: dict[str, Any],
+        language: str,
+        country: str,
+    ) -> str:
+        """
+        Build a prompt for generating coreference annotations for an existing NER sample.
+
+        Args:
+            ner_sample: Dictionary containing 'text' and 'privacy_mask' fields
+            language: Language of the text
+            country: Country/region for the text
+
+        Returns:
+            Prompt string for coreference generation
+        """
+        sample_text = ner_sample["text"]
+        privacy_mask = ner_sample["privacy_mask"]
+
+        # Show example with coreferences
+        example_index = 0
+        example_sample = PromptBuilder.SAMPLE_DATA[example_index]
+        example_string = f"```json\n{json.dumps(example_sample, indent=2)}\n```"
+
+        current_sample_string = f"```json\n{json.dumps(ner_sample, indent=2)}\n```"
+
+        return f"""
+        You are provided with a text sample that already has PII (Personally Identifiable Information) annotations. Your task is to add coreference information to this sample.
+
+        **Text Language:** {language}
+        **Geographic Region:** {country}
+
+        **Coreference Guidelines:**
+        1. Identify all mentions that refer to the same real-world entity in third person (person, and organization)
+        2. Group these mentions into coreference clusters
+        3. Each cluster should have:
+           - `cluster_id`: A unique integer identifier
+           - `entity_type`: Type of entity ("person" or "organization")
+           - `mentions`: Array of mention objects, each containing:
+             * `text`: The exact string as it appears in the text (case-sensitive)
+             * `type`: One of "name", "pronoun", or "reference"
+             * `privacy_mask_labels`: (Optional) Array of privacy_mask labels this mention maps to (e.g., ["FIRSTNAME", "SURNAME"] for "John Doe")
+
+        **Important Rules:**
+        - Include pronouns (he, she, they, it, his, her, their) or the language equivalents
+        - Include definite descriptions ("the customer", "the patient", "the employee")
+        - Include proper names and variations (e.g., "Maria Santos", "Ms. Santos")
+        - CRITICAL: Each mention "text" must be an EXACT string that appears as a complete word in the text
+        - Do NOT include substrings (e.g., do not include "her" if the text only contains "here" or "there")
+        - Verify word boundaries - "her" should match "her" but not "where", "here", or "there"
+        - If a mention appears multiple times in the text, include it once in the mentions array
+        - For names that appear in privacy_mask, include the "privacy_mask_labels" field to indicate which labels correspond to this mention
+
+        **Current Sample (needs coreference annotations):**
+        {current_sample_string}
+
+        **Example with Coreferences:**
+        {example_string}
+
+        **Your Task:**
+        Add coreference annotations to the provided sample. Return the complete sample with the added "coreferences" field in JSON format. Just return the JSON structure, no explanation, no extra text.
+
+        Expected output format:
+        ```json
+        {{
+            "text": "...",
+            "privacy_mask": [...],
+            "coreferences": [
+                {{
+                    "cluster_id": 0,
+                    "entity_type": "person",
+                    "mentions": [
+                        {{"text": "John Doe", "type": "name", "privacy_mask_labels": ["FIRSTNAME", "SURNAME"]}},
+                        {{"text": "He", "type": "pronoun"}},
+                        {{"text": "his", "type": "pronoun"}}
+                    ]
+                }}
+            ]
+        }}
+        ```
+        """.strip()
+
+    @staticmethod
     def build_generation_prompt(
         labels: dict[str, str],
         languages_countries: list[tuple[str, str]],
