@@ -76,3 +76,13 @@ release/
 # But ignore any accidentally added large files
 *.onnx.bak
 *.safetensors.bak
+src/frontend/resources
+src/backend/model/
+
+
+# Dataset folders
+model/dataset/samples/
+model/dataset/reviewed_samples/
+model/dataset/annotation_samples/
+model/dataset/training_samples/
+Archive.zip

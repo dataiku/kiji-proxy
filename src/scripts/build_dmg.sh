@@ -49,28 +49,22 @@ echo "-----------------------------------------------------------"
 
 # Set up Python virtual environment if it doesn't exist
 if [ ! -d ".venv" ]; then
-    echo "Creating Python virtual environment..."
-    python3 -m venv .venv
+    echo "Creating Python virtual environment with Python 3.13..."
+    if command -v uv >/dev/null 2>&1; then
+        uv venv --python 3.13
+    else
+        echo "❌ uv not found. Please install uv first."
+        exit 1
+    fi
 fi
 
-# Activate virtual environment
-source .venv/bin/activate
-
 # Check if onnxruntime is already installed (cache check)
-if python3 -c "import onnxruntime" 2>/dev/null; then
+if .venv/bin/python -c "import onnxruntime" 2>/dev/null; then
     echo "✅ onnxruntime already installed (using cache)"
 else
     # Install onnxruntime if not already installed
-    echo "Installing Python dependencies..."
-    pip install --quiet onnxruntime 2>/dev/null || {
-        echo "⚠️  Could not install onnxruntime via pip, trying uv..."
-        # Try uv if available
-        if command -v uv >/dev/null 2>&1; then
-            uv pip install onnxruntime
-        else
-            echo "⚠️  Neither pip nor uv could install onnxruntime, continuing..."
-        fi
-    }
+    echo "Installing Python dependencies with uv..."
+    uv pip install onnxruntime
 fi
 
 echo ""
@@ -92,20 +86,51 @@ else
 fi
 
 echo ""
-echo "📦 Step 3: Building tokenizers library (if needed)..."
+echo "📦 Step 3: Restoring build files from git (if needed)..."
+echo "--------------------------------------------------------"
+
+# Create build directories if they don't exist
+mkdir -p build/tokenizers
+mkdir -p build/scripts
+
+# Restore tokenizers library from git if missing
+if [ ! -f "build/tokenizers/libtokenizers.a" ] && git ls-tree -r HEAD --name-only | grep -q "build/tokenizers/libtokenizers.a"; then
+    echo "Restoring libtokenizers.a from git..."
+    cd build/tokenizers
+    git checkout HEAD -- .
+    cd "$PROJECT_ROOT"
+fi
+
+# Restore build scripts from git if missing
+if [ ! -f "build/scripts/remove-locales.js" ] && git ls-tree -r HEAD --name-only | grep -q "build/scripts/remove-locales.js"; then
+    echo "Restoring build scripts from git..."
+    cd build/scripts
+    git checkout HEAD -- .
+    cd "$PROJECT_ROOT"
+fi
+
+echo ""
+echo "📦 Step 4: Building tokenizers library (if needed)..."
 echo "-----------------------------------------------------"
 
 cd build/tokenizers
+
 if [ -f "libtokenizers.a" ]; then
     echo "✅ Using existing libtokenizers.a (cached)"
+    echo "Running ranlib to ensure archive has proper index..."
+    ranlib libtokenizers.a
 elif [ -f "libtokenizers.darwin-arm64.tar.gz" ]; then
     echo "Extracting pre-built library..."
     tar -xzf libtokenizers.darwin-arm64.tar.gz
+    echo "Running ranlib to ensure archive has proper index..."
+    ranlib libtokenizers.a
 elif [ -f "Makefile" ]; then
     echo "Building with Makefile (parallel jobs: $PARALLEL_JOBS)..."
     make build -j$PARALLEL_JOBS || cargo build --release --jobs $PARALLEL_JOBS
     if [ -f "target/release/libtokenizers.a" ]; then
         cp target/release/libtokenizers.a ./libtokenizers.a
+        echo "Running ranlib to ensure archive has proper index..."
+        ranlib libtokenizers.a
     fi
 else
     echo "Building with cargo (parallel jobs: $PARALLEL_JOBS)..."
@@ -113,6 +138,8 @@ else
         cargo build --release --jobs $PARALLEL_JOBS
         if [ -f "target/release/libtokenizers.a" ]; then
             cp target/release/libtokenizers.a ./libtokenizers.a
+            echo "Running ranlib to ensure archive has proper index..."
+            ranlib libtokenizers.a
         fi
     else
         echo "⚠️  Cargo not found, skipping tokenizers build"
@@ -121,13 +148,14 @@ fi
 
 if [ ! -f "libtokenizers.a" ]; then
     echo "❌ Failed to obtain libtokenizers.a"
+    echo "💡 Try: mkdir -p build/tokenizers && cd build/tokenizers && git checkout HEAD -- ."
     exit 1
 fi
 
 cd "$PROJECT_ROOT"
 
 echo ""
-echo "📦 Step 4: Installing Electron dependencies..."
+echo "📦 Step 5: Installing Electron dependencies..."
 echo "----------------------------------------------"
 
 cd "$ELECTRON_DIR"
@@ -147,7 +175,7 @@ else
 fi
 
 echo ""
-echo "📦 Step 5: Building Electron app..."
+echo "📦 Step 6: Building Electron app..."
 echo "-----------------------------------"
 
 npm run build:electron
@@ -162,8 +190,8 @@ echo "✅ Electron app built successfully"
 cd "$PROJECT_ROOT"
 
 echo ""
-echo "📦 Step 6: Verifying LFS files are downloaded..."
-echo "------------------------------------------------"
+echo "📦 Step 7: Verifying LFS files are downloaded..."
+echo "-----------------------------------------------"
 
 # Check if model file exists
 if [ ! -f "model/quantized/model_quantized.onnx" ]; then
@@ -220,7 +248,7 @@ for file in tokenizer.json vocab.txt model_manifest.json; do
 done
 
 echo ""
-echo "📦 Step 7: Preparing files for Go embedding..."
+echo "📦 Step 8: Preparing files for Go embedding..."
 echo "----------------------------------------------"
 
 # Copy frontend/dist files to src/backend/frontend/dist/ for embedding
@@ -266,7 +294,7 @@ else
 fi
 
 echo ""
-echo "📦 Step 8: Building Go binary..."
+echo "📦 Step 9: Building Go binary..."
 echo "--------------------------------"
 
 # Extract version from package.json
@@ -293,17 +321,45 @@ fi
 echo "✅ Go binary created: build/yaak-proxy"
 
 echo ""
-echo "📦 Step 9: Preparing Electron resources..."
-echo "------------------------------------------"
+echo "📦 Step 10: Preparing Electron resources..."
+echo "-------------------------------------------"
 
 mkdir -p src/frontend/resources
 cp build/yaak-proxy src/frontend/resources/yaak-proxy
 chmod +x src/frontend/resources/yaak-proxy
 
 # Copy ONNX library if it exists (to root of resources for easier access)
-if [ -f "build/libonnxruntime.1.23.1.dylib" ]; then
-    cp build/libonnxruntime.1.23.1.dylib src/frontend/resources/libonnxruntime.1.23.1.dylib
-    echo "✅ ONNX library copied to resources/"
+if [ -f "build/libonnxruntime.1.23.1.dylib" ] || [ -L "build/libonnxruntime.1.23.1.dylib" ]; then
+    # Check if it's a symlink
+    if [ -L "build/libonnxruntime.1.23.1.dylib" ]; then
+        # It's a symlink - check if target is already in resources
+        ONNX_TARGET=$(readlink "build/libonnxruntime.1.23.1.dylib")
+        # Convert to absolute path if relative
+        if [[ "$ONNX_TARGET" != /* ]]; then
+            ONNX_TARGET="$(cd "$(dirname "build/libonnxruntime.1.23.1.dylib")" && cd "$(dirname "$ONNX_TARGET")" && pwd)/$(basename "$ONNX_TARGET")"
+        fi
+        RESOURCES_LIB="$(cd "$(dirname "src/frontend/resources/libonnxruntime.1.23.1.dylib")" 2>/dev/null && pwd)/$(basename "src/frontend/resources/libonnxruntime.1.23.1.dylib")"
+
+        if [ "$ONNX_TARGET" = "$RESOURCES_LIB" ]; then
+            echo "✅ ONNX library already in resources/ (symlink points there)"
+        elif [ -f "$ONNX_TARGET" ]; then
+            cp -f "$ONNX_TARGET" src/frontend/resources/libonnxruntime.1.23.1.dylib
+            echo "✅ ONNX library copied to resources/ (from symlink)"
+        else
+            echo "⚠️  Symlink target not found: $ONNX_TARGET"
+        fi
+    elif [ -f "src/frontend/resources/libonnxruntime.1.23.1.dylib" ]; then
+        # Check if files are identical
+        if cmp -s "build/libonnxruntime.1.23.1.dylib" "src/frontend/resources/libonnxruntime.1.23.1.dylib"; then
+            echo "✅ ONNX library already in resources/ (identical)"
+        else
+            cp -f build/libonnxruntime.1.23.1.dylib src/frontend/resources/libonnxruntime.1.23.1.dylib
+            echo "✅ ONNX library copied to resources/"
+        fi
+    else
+        cp build/libonnxruntime.1.23.1.dylib src/frontend/resources/libonnxruntime.1.23.1.dylib
+        echo "✅ ONNX library copied to resources/"
+    fi
 else
     echo "⚠️  ONNX library not found at build/libonnxruntime.1.23.1.dylib"
 fi
@@ -349,15 +405,44 @@ if [ -d "src/frontend/resources/model/quantized" ]; then
 fi
 
 echo ""
-echo "📦 Step 10: Packaging Electron app (DMG)..."
+echo "📦 Step 11: Packaging Electron app (DMG)..."
 echo "--------------------------------------------"
 
 cd src/frontend
 
+# Clean up old DMG files to avoid confusion with outdated builds
+if [ -d "release" ]; then
+    echo "Cleaning up old DMG files..."
+    rm -f release/*.dmg
+    echo "✅ Old DMG files removed"
+fi
+
+# Build frontend first
+npm run build:electron
+
+if [ $? -ne 0 ]; then
+    echo "❌ Frontend build failed!"
+    exit 1
+fi
+
+# Create symlink to electron in local node_modules for electron-builder (workspace fix)
+echo "Creating symlink to electron from root node_modules..."
+mkdir -p node_modules
+ln -sf ../../../node_modules/electron node_modules/electron
+ln -sf ../../../node_modules/electron-builder node_modules/electron-builder
+
+# Verify symlinks
+if [ -L "node_modules/electron" ]; then
+    echo "✅ Electron symlink created"
+else
+    echo "⚠️  Failed to create electron symlink"
+fi
+
 # Package the app (this will create the DMG)
 # Disable code signing (compression level set in package.json)
+echo "Running electron-builder..."
 CSC_IDENTITY_AUTO_DISCOVERY=false \
-npm run electron:pack
+npx electron-builder
 
 if [ $? -ne 0 ]; then
     echo "❌ electron-builder packaging failed!"
@@ -365,8 +450,8 @@ if [ $? -ne 0 ]; then
 fi
 
 echo ""
-echo "📦 Step 11: Ad-hoc signing app and rebuilding DMG..."
-echo "----------------------------------------------------"
+echo "📦 Step 12: Ad-hoc signing app and rebuilding DMG..."
+echo "---------------------------------------------------"
 
 # Check if we should skip signing (for faster local builds)
 if [ "${SKIP_DMG_SIGNING:-}" = "true" ]; then
@@ -456,7 +541,8 @@ ls -lh "$ELECTRON_DIR/release"/*.dmg 2>/dev/null || echo "   (DMG files will be 
 echo ""
 
 # Show size optimization results
-if [ -f "$ELECTRON_DIR/release"/*.dmg ]; then
+DMG_FILES=("$ELECTRON_DIR/release"/*.dmg)
+if [ -f "${DMG_FILES[0]}" ]; then
     DMG_SIZE=$(du -sh "$ELECTRON_DIR/release"/*.dmg 2>/dev/null | awk '{print $1}' | head -1)
     echo "📊 Final DMG size: $DMG_SIZE"
     echo ""
