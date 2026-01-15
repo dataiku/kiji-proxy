@@ -19,23 +19,29 @@ Usage:
 """
 
 import json
-import logging
 import os
 import sys
 from pathlib import Path
 
 import onnx
 import torch
-from absl import app, flags
+from absl import app, flags, logging
 from optimum.onnxruntime import ORTQuantizer
 from optimum.onnxruntime.configuration import AutoQuantizationConfig
 from safetensors import safe_open
 from transformers import AutoTokenizer
 
+# Add project root to path for imports BEFORE any local imports
+# __file__ is model/src/quantitize.py, so parent.parent.parent is the project root
+project_root = Path(__file__).parent.parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
 try:
-    from .model_signing import sign_trained_model
+    from model.src.model_signing import sign_trained_model
 except ImportError:
-    # Fallback for direct execution
+    # Fallback for direct execution - import from same directory
+    sys.path.insert(0, str(Path(__file__).parent))
     from model_signing import sign_trained_model
 
 # Define command-line flags
@@ -62,21 +68,14 @@ flags.DEFINE_boolean(
     "skip_quantization", False, "Skip quantization, only export to ONNX"
 )
 
-# Add project root to path for imports
-project_root = Path(__file__).parent.parent
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
-
 try:
-    from model.model import MultiTaskPIIDetectionModel
+    from model.src.model import MultiTaskPIIDetectionModel
 except ImportError:
-    from .model import MultiTaskPIIDetectionModel
+    # Fallback to importing from same directory
+    sys.path.insert(0, str(Path(__file__).parent))
+    from model import MultiTaskPIIDetectionModel
 
-# Set up logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
+# absl.logging is already configured, no need for basicConfig
 
 
 def load_multitask_model(
@@ -95,7 +94,7 @@ def load_multitask_model(
     if not model_path.exists():
         raise FileNotFoundError(f"Model path not found: {model_path}")
 
-    logger.info(f"📥 Loading model from: {model_path}")
+    logging.info(f"📥 Loading model from: {model_path}")
 
     # Load label mappings
     mappings_path = model_path / "label_mappings.json"
@@ -113,11 +112,11 @@ def load_multitask_model(
         else {0: "NO_COREF", 1: "CLUSTER_0"}
     )
 
-    logger.info(f"✅ Loaded {len(pii_label2id)} PII label mappings")
+    logging.info(f"✅ Loaded {len(pii_label2id)} PII label mappings")
 
     # Load tokenizer
     tokenizer = AutoTokenizer.from_pretrained(model_path)
-    logger.info("✅ Loaded tokenizer")
+    logging.info("✅ Loaded tokenizer")
 
     # Load model config
     config_path = model_path / "config.json"
@@ -131,7 +130,9 @@ def load_multitask_model(
             base_model_name = "distilbert-base-cased"
     else:
         base_model_name = "distilbert-base-cased"
-        logger.warning("⚠️  config.json not found, using default: distilbert-base-cased")
+        logging.warning(
+            "⚠️  config.json not found, using default: distilbert-base-cased"
+        )
 
     # Determine number of labels
     num_pii_labels = len(pii_label2id)
@@ -156,10 +157,10 @@ def load_multitask_model(
             bin_files = list(model_path.glob("*.bin"))
             if bin_files:
                 model_weights_path = bin_files[0]
-                logger.info(f"   Found weights: {model_weights_path.name}")
+                logging.info(f"   Found weights: {model_weights_path.name}")
 
     if model_weights_path.exists():
-        logger.info(f"📦 Loading weights from: {model_weights_path.name}")
+        logging.info(f"📦 Loading weights from: {model_weights_path.name}")
 
         # Handle safetensors files
         if model_weights_path.suffix == ".safetensors":
@@ -181,7 +182,7 @@ def load_multitask_model(
                 if k.startswith("model.")
             }
         model.load_state_dict(state_dict, strict=False)
-        logger.info("✅ Model weights loaded")
+        logging.info("✅ Model weights loaded")
     else:
         raise FileNotFoundError(f"Model weights not found in {model_path}")
 
@@ -224,7 +225,7 @@ def export_to_onnx(
         output_path: Path to save the ONNX model
         opset: ONNX opset version
     """
-    logger.info("🔄 Exporting multi-task model to ONNX...")
+    logging.info("🔄 Exporting multi-task model to ONNX...")
 
     # Wrap model to return tuple instead of dict (required for ONNX export)
     wrapped_model = MultiTaskModelWrapper(model)
@@ -261,11 +262,11 @@ def export_to_onnx(
         do_constant_folding=True,
     )
 
-    logger.info(f"✅ Multi-task model exported to: {onnx_path}")
-    logger.info("   Outputs: pii_logits, coref_logits")
+    logging.info(f"✅ Multi-task model exported to: {onnx_path}")
+    logging.info("   Outputs: pii_logits, coref_logits")
 
     # Copy tokenizer files to output directory
-    logger.info("📋 Copying tokenizer files...")
+    logging.info("📋 Copying tokenizer files...")
     tokenizer_files = [
         "tokenizer_config.json",
         "tokenizer.json",
@@ -294,7 +295,7 @@ def export_to_onnx(
 
     # Save tokenizer to output directory
     tokenizer.save_pretrained(str(output_path))
-    logger.info("✅ Tokenizer files saved")
+    logging.info("✅ Tokenizer files saved")
 
     return str(onnx_path)
 
@@ -313,7 +314,7 @@ def quantize_model(
         quantization_mode (str): Quantization configuration to use. Supported values include "avx512_vnni", "avx2", and "q8"; unknown values default to "avx512_vnni".
 
     """
-    logger.info("🔢 Quantizing model...")
+    logging.info("🔢 Quantizing model...")
 
     output_path = Path(output_path)
     output_path.mkdir(parents=True, exist_ok=True)
@@ -333,17 +334,17 @@ def quantize_model(
     elif quantization_mode == "q8":
         qconfig = AutoQuantizationConfig.q8()
     else:
-        logger.warning(
+        logging.warning(
             f"Unknown quantization mode: {quantization_mode}, using avx512_vnni"
         )
         qconfig = AutoQuantizationConfig.avx512_vnni(is_static=False)
 
-    logger.info(f"   Using quantization mode: {quantization_mode}")
+    logging.info(f"   Using quantization mode: {quantization_mode}")
 
     # Quantize
     quantizer.quantize(save_dir=str(output_path), quantization_config=qconfig)
 
-    logger.info(f"✅ Quantized model saved to: {output_path}")
+    logging.info(f"✅ Quantized model saved to: {output_path}")
 
     # Load and inspect the quantized model
     quantized_model_path = output_path / "model_quantized.onnx"
@@ -352,13 +353,13 @@ def quantize_model(
         onnx_files = list(output_path.glob("*.onnx"))
         if onnx_files:
             quantized_model_path = onnx_files[0]
-            logger.info(f"   Found quantized model: {quantized_model_path.name}")
+            logging.info(f"   Found quantized model: {quantized_model_path.name}")
 
     if quantized_model_path.exists():
         model_onnx = onnx.load(str(quantized_model_path))
-        logger.info("\n📊 Quantized Model Information:")
-        logger.info(f"   Inputs: {[input.name for input in model_onnx.graph.input]}")
-        logger.info(
+        logging.info("\n📊 Quantized Model Information:")
+        logging.info(f"   Inputs: {[input.name for input in model_onnx.graph.input]}")
+        logging.info(
             f"   Outputs: {[output.name for output in model_onnx.graph.output]}"
         )
 
@@ -368,9 +369,9 @@ def quantize_model(
 
         # Get model size
         model_size_mb = quantized_model_path.stat().st_size / (1024 * 1024)
-        logger.info(f"   Model size: {model_size_mb:.2f} MB")
+        logging.info(f"   Model size: {model_size_mb:.2f} MB")
     else:
-        logger.warning("⚠️  Could not find quantized model file")
+        logging.warning("⚠️  Could not find quantized model file")
 
 
 def main(argv):
@@ -384,9 +385,9 @@ def main(argv):
     """
     del argv  # Unused
 
-    logger.info("=" * 80)
-    logger.info("PII Detection Model Quantization")
-    logger.info("=" * 80)
+    logging.info("=" * 80)
+    logging.info("PII Detection Model Quantization")
+    logging.info("=" * 80)
 
     try:
         # Load model
@@ -404,7 +405,7 @@ def main(argv):
         mappings_path = output_path / "label_mappings.json"
         with mappings_path.open("w") as f:
             json.dump(label_mappings, f, indent=2)
-        logger.info(f"✅ Label mappings saved to: {mappings_path}")
+        logging.info(f"✅ Label mappings saved to: {mappings_path}")
 
         # Copy config.json if it exists
         config_path = Path(FLAGS.model_path) / "config.json"
@@ -412,33 +413,35 @@ def main(argv):
             import shutil
 
             shutil.copy(config_path, output_path / "config.json")
-            logger.info("✅ Config file copied")
+            logging.info("✅ Config file copied")
 
         # Quantize if requested
         if not FLAGS.skip_quantization:
             # The output_path directory now contains model.onnx, use it for quantization
             quantize_model(str(output_path), str(output_path), FLAGS.quantization_mode)
         else:
-            logger.info("⏭️  Skipping quantization (--skip_quantization)")
+            logging.info("⏭️  Skipping quantization (--skip_quantization)")
 
-        logger.info("\n" + "=" * 80)
-        logger.info("✅ Quantization Complete!")
-        logger.info("=" * 80)
-        logger.info(f"Model saved to: {FLAGS.output_path}")
+        logging.info("\n" + "=" * 80)
+        logging.info("✅ Quantization Complete!")
+        logging.info("=" * 80)
+        logging.info(f"Model saved to: {FLAGS.output_path}")
         if FLAGS.skip_quantization:
-            logger.info(f"saved non-quantized ONNX model: {output_path / 'model.onnx'}")
+            logging.info(
+                f"saved non-quantized ONNX model: {output_path / 'model.onnx'}"
+            )
         else:
             os.remove(output_path / "model.onnx")
-            logger.info(
+            logging.info(
                 f"removed non-quantized ONNX model: {output_path / 'model.onnx'}"
             )
         if not FLAGS.skip_quantization:
-            logger.info(
+            logging.info(
                 f"saved quantized ONNX model: {output_path / 'model_quantized.onnx'}"
             )
 
     except Exception as e:
-        logger.error(f"\n❌ Error: {e}", exc_info=True)
+        logging.error(f"\n❌ Error: {e}", exc_info=True)
         sys.exit(1)
 
 

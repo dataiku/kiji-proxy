@@ -16,7 +16,6 @@ class LabelUtils:
         "DATEOFBIRTH": "date of birth",
         "EMAIL": "email",
         "PHONENUMBER": "phone number",
-        "DOB": "date of birth",
         "CITY": "city",
         "URL": "url",
         "COMPANYNAME": "company name",

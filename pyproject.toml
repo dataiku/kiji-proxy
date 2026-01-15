@@ -44,11 +44,11 @@ training = [
     "accelerate>=0.26.0",
     "scipy>=1.0.0",
     "pandas>=1.0.0",
-    "pyarrow>=18.1.0,<19.0.0",
     "sympy>=1.0.0",
     "datasets>=2.0.0",
-    "outerbounds>=0.10.31"
+    "outerbounds>=0.10.31",
     # "metaflow>=2.19.14"
+
 ]
 
 # ONNX quantization dependencies
@@ -56,7 +56,9 @@ quantization = [
     "optimum[onnxruntime]>=1.15.0",
     "onnx>=1.15.0",
     "onnxruntime>=1.16.0",
-    # "ml_dtypes>=0.5.0" # https://github.com/onnx/onnx/issues/7249  - Commented out to give precedence to labelstudio.
+    "onnxscript>=0.1.0",  # Required by torch.onnx.export
+    "ml_dtypes>=0.5.0; python_version < '3.13'", # For Python <3.13, use any ml_dtypes>=0.5.0
+    "ml_dtypes>=0.5.0; python_version >= '3.13'", # For Python 3.13+, requires numpy>=2.1
 ]
 
 # Model signing and verification
@@ -64,9 +66,9 @@ signing = [
     "model-signing>=1.1.1",
 ]
 
-# Label Studio dependencies (NOTE - requires numpy<2.0 conflicting with quantization.ml_dtypes on Python 3.13)
+# Label Studio dependencies
 labelstudio = [
-    "Label-studio==1.21.0",
+    "Label-studio==1.22.0",
 ]
 
 # Note: 'all' group removed - use 'dev' instead for development dependencies
@@ -79,6 +81,13 @@ Documentation = "https://github.com/yaak/pii-detection/blob/main/README.md"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.uv]
+# All extras are now compatible:
+# - labelstudio: numpy>=2.2.6,<3.0.0, pyarrow>=22.0.0,<23.0.0
+# - training: no pyarrow constraint (removed), numpy constraint commented out
+# - quantization: numpy>=2.1 (via ml_dtypes on Python 3.13+)
+# All can be used together
 
 [tool.hatch.build.targets.wheel]
 packages = ["model", ]

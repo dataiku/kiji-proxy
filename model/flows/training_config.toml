@@ -10,9 +10,16 @@ batch_size = 16
 learning_rate = 3e-5
 
 [paths]
-training_samples_dir = "model/dataset/reviewed_samples"
+training_samples_dir = "model/dataset/training_samples"
 output_dir = "model/trained"
+
+[labelstudio]
+# Label Studio base url
+base_url = "http://localhost:8080"
+# ID of the label studio project
+project_id = 5
+
 
 [data]
 # Limit samples for quick iteration (0 = use all)
-subsample_count = 160
+subsample_count = 0

@@ -2,11 +2,12 @@
 Metaflow pipeline for PII detection model training.
 
 This pipeline orchestrates:
-1. Dataset loading and preprocessing
-2. Model training with multi-task learning
-3. Model evaluation
-4. Model quantization (ONNX)
-5. Model signing (cryptographic hash)
+1. Data export from Label Studio (optional, can be skipped)
+2. Dataset loading and preprocessing from model/dataset/training_samples/
+3. Model training with multi-task learning
+4. Model evaluation
+5. Model quantization (ONNX)
+6. Model signing (cryptographic hash)
 
 Usage:
     # Run locally (with uv extras)
@@ -17,7 +18,7 @@ Usage:
     # Custom config file
     uv run --extra training python model/flows/training_pipeline.py --config-file custom_config.toml run
 
-    # Remote Kubernetes execution (uncomment @pypi and @kubernetesdecorators for dependencies)
+    # Remote Kubernetes execution (uncomment @pypi and @kubernetes decorators for dependencies)
     python model/flows/training_pipeline.py --environment=pypi run --with kubernetes
 """
 
@@ -32,7 +33,6 @@ from pathlib import Path
 from metaflow import (
     Config,
     FlowSpec,
-    IncludeFile,
     card,
     checkpoint,
     current,
@@ -63,6 +63,13 @@ BASE_PACKAGES = {
     "safetensors": ">=0.3.0",
     "absl-py": ">=2.0.0",
     "python-dotenv": ">=1.0.0",
+}
+###############################
+EXPORT_PACKAGES = {
+    **BASE_PACKAGES,
+    "label-studio-sdk": ">=0.0.24",
+    "requests": ">=2.28.0",
+    "tqdm": ">=4.64.0",
 }
 ###############################
 TRAINING_PACKAGES = {
@@ -102,14 +109,7 @@ class PIITrainingPipeline(FlowSpec):
         help="TOML config file with training hyperparameters",
     )
 
-    dataset_zip = IncludeFile(
-        "dataset-zip",
-        default=os.path.join(
-            "dataset.zip"
-        ),  # FIXME: On full-scale / production runs, set this to None and configure S3.
-        is_text=False,
-        help="Zipped dataset file (dataset.zip) to include with the flow. The directory should relative to the directory the flow is launched from.",
-    )
+    # Dataset is now directly accessed from model/dataset/training_samples/
 
     # @pypi(packages=BASE_PACKAGES, python="3.13")
     @step
@@ -130,20 +130,47 @@ class PIITrainingPipeline(FlowSpec):
             batch_size=cfg.get("training", {}).get("batch_size", 16),
             learning_rate=cfg.get("training", {}).get("learning_rate", 3e-5),
             training_samples_dir=cfg.get("paths", {}).get(
-                "training_samples_dir", "model/dataset/samples"
+                "training_samples_dir", "model/dataset/training_samples"
             ),
             output_dir=cfg.get("paths", {}).get("output_dir", "model/trained"),
         )
+        self.skip_export = cfg.get("pipeline", {}).get("skip_export", False)
         self.skip_quantization = cfg.get("pipeline", {}).get("skip_quantization", False)
         self.skip_signing = cfg.get("pipeline", {}).get("skip_signing", False)
         self.subsample_count = cfg.get("data", {}).get("subsample_count", 0)
         self.pipeline_start_time = datetime.utcnow().isoformat()
+        # Store raw config for export step
+        self.raw_config = cfg
 
         print(f"Model: {self.config.model_name}")
         print(
             f"Epochs: {self.config.num_epochs}, Batch: {self.config.batch_size}, LR: {self.config.learning_rate}"
         )
         print(f"Data: {self.config.training_samples_dir}")
+
+        self.next(
+            {True: self.preprocess_data, False: self.export_data},
+            condition="skip_export",
+        )
+
+    # @pypi(packages=EXPORT_PACKAGES, python="3.13")
+    @step
+    def export_data(self):
+        """Export data from Label Studio to local files."""
+        from src.export_data import ExportDataProcessor
+
+        print("Exporting data from Label Studio...")
+        print("-" * 40)
+
+        # Initialize export processor with config
+        processor = ExportDataProcessor(self.config, raw_config=self.raw_config)
+
+        # Export data
+        results = processor.export_data()
+
+        print(
+            f"✅ Exported {results['exported_count']} samples to {results['output_dir']}"
+        )
 
         self.next(self.preprocess_data)
 
@@ -152,61 +179,50 @@ class PIITrainingPipeline(FlowSpec):
     @environment(vars={"TOKENIZERS_PARALLELISM": "false"})
     @step
     def preprocess_data(self):
-        """Load and preprocess training data."""
-        import tempfile
-        import zipfile
-
+        """Load and preprocess training data from training_samples directory."""
         from src.preprocessing import DatasetProcessor
 
-        # Extract dataset from included zip file
-        if self.dataset_zip:
-            print("Extracting dataset from included zip file...")
-            extract_dir = tempfile.mkdtemp(prefix="pii_dataset_")
-            zip_path = os.path.join(extract_dir, "dataset.zip")
+        # Use the training_samples directory directly
+        # This is the curated, high-quality dataset for training
+        training_samples_dir = Path("model/dataset/training_samples")
 
-            # Write the zip bytes to a file
-            with open(zip_path, "wb") as f:
-                f.write(self.dataset_zip)
+        # Verify the dataset directory exists and contains data
+        if not training_samples_dir.exists():
+            raise ValueError(
+                f"Dataset directory not found: {training_samples_dir}. "
+                "Please ensure the training_samples directory is present."
+            )
 
-            # Extract the zip and list contents
-            with zipfile.ZipFile(zip_path, "r") as zf:
-                namelist = zf.namelist()
-                print(
-                    f"Zip contains {len(namelist)} entries, first 10: {namelist[:10]}"
-                )
-                zf.extractall(extract_dir)
+        json_files = list(training_samples_dir.glob("*.json"))
+        if not json_files:
+            raise ValueError(
+                f"No JSON files found in {training_samples_dir}. "
+                "Please ensure the dataset is properly populated."
+            )
 
-            # Find directory containing JSON files by walking the extracted tree
-            samples_dir = None
-            for root, _, files in os.walk(extract_dir):
-                json_files = [f for f in files if f.endswith(".json")]
-                if json_files:
-                    samples_dir = root
-                    print(f"Found {len(json_files)} JSON files in {samples_dir}")
-                    break
+        print(f"Found {len(json_files)} training samples in {training_samples_dir}")
 
-            if not samples_dir:
-                # List what we extracted for debugging
-                all_files = []
-                for root, _, files in os.walk(extract_dir):
-                    all_files.extend([os.path.join(root, f) for f in files[:5]])
-                print(f"No JSON files found! Extracted contents: {all_files[:10]}")
-                raise ValueError("No JSON files found in extracted zip")
-
-            self.config.training_samples_dir = samples_dir
-            print(f"Dataset extracted to: {samples_dir}")
+        # Update config to use training_samples directory
+        self.config.training_samples_dir = str(training_samples_dir)
 
         # Ensure output directory exists
         Path(self.config.output_dir).mkdir(parents=True, exist_ok=True)
 
+        # Process the dataset
         processor = DatasetProcessor(self.config)
         train_dataset, val_dataset, mappings, coref_info = processor.prepare_datasets(
             subsample_count=self.subsample_count
         )
+
         self.train_dataset = train_dataset
         self.val_dataset = val_dataset
         self.label_mappings = mappings
         self.coref_info = coref_info
+
+        print(f"Training samples: {len(train_dataset)}")
+        print(f"Validation samples: {len(val_dataset)}")
+        print(f"PII labels: {len(mappings['pii']['label2id'])}")
+
         self.next(self.train_model)
 
     # @pypi(packages=TRAINING_PACKAGES, python="3.13")

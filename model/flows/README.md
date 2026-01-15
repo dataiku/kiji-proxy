@@ -4,11 +4,12 @@ Metaflow pipeline for PII detection model training.
 
 ## Pipeline Steps
 
-1. Dataset loading and preprocessing
-2. Model training with multi-task learning
-3. Model evaluation
-4. Model quantization (ONNX) - Linux only
-5. Model signing (cryptographic hash)
+1. Data export from Label Studio (optional, can be skipped with `pipeline.skip_export = true`)
+2. Dataset loading and preprocessing
+3. Model training with multi-task learning
+4. Model evaluation
+5. Model quantization (ONNX) - Linux only
+6. Model signing (cryptographic hash)
 
 ## Usage
 
@@ -44,3 +45,7 @@ Edit `training_config.toml` to change:
 - `data.subsample_count` - Limit samples for testing (0 = use all)
 - `paths.training_samples_dir` - Path to training data
 - `paths.output_dir` - Where to save trained model
+- `labelstudio.project_id` - Label Studio project ID (required for export step)
+- `labelstudio.base_url` - Label Studio base URL (default: http://localhost:8080)
+- `labelstudio.api_key` - Label Studio API key (or set LABEL_STUDIO_API_KEY env var)
+- `pipeline.skip_export` - Skip Label Studio export step (default: false)
