@@ -8,6 +8,8 @@ python -m model.dataset.pipeline --command=start --num_samples=100
 
 > **Note:** The default model is `Qwen/Qwen3-VL-235B-A22B-Instruct-FP8`. Use `--api_model="your-model"` to specify a different model.
 
+> **Quality Enhancement:** Add `--enable_review` to include an optional review stage that validates and improves sample quality!
+
 ## ⚡ Commands
 
 ```bash
@@ -50,14 +52,17 @@ python -m model.dataset.pipeline --command=cancel
 
 # Debug mode
 --log_level=DEBUG
+
+# Enable optional review stage for quality improvement
+--enable_review
 ```
 
-> **Boolean Flag Syntax:** For boolean flags like `auto_poll`, absl.flags uses:
-> - No flag = default value (True for auto_poll)
+> **Boolean Flag Syntax:** For boolean flags like `auto_poll` and `enable_review`, absl.flags uses:
+> - No flag = default value (True for auto_poll, False for enable_review)
 > - `--flagname` = explicitly True
 > - `--noflagname` = explicitly False
 > 
-> Example: `--noauto_poll` disables automatic polling
+> Example: `--noauto_poll` disables automatic polling, `--enable_review` enables quality review
 
 ## 📝 Setup
 
@@ -101,6 +106,15 @@ python -m model.dataset.pipeline \
   --num_samples=1000 \
   --max_workers=50 \
   --poll_interval=60
+```
+
+### High-Quality Production Batch (with Review)
+```bash
+python -m model.dataset.pipeline \
+  --command=start \
+  --num_samples=1000 \
+  --enable_review \
+  --max_workers=50
 ```
 
 ### Resume After Interrupt
@@ -185,14 +199,14 @@ That's it! ☕
 
 ## ⏱️ Time Estimates
 
-| Samples | Time Estimate | Notes |
-|---------|---------------|-------|
-| 5-10 | ~2-5 minutes | Quick test |
-| 50-100 | ~10-20 minutes | Small batch |
-| 500-1000 | ~30-60 minutes | Medium batch |
-| 5000+ | ~2-4 hours | Large batch |
+| Samples | Time Estimate (No Review) | Time Estimate (With Review) | Notes |
+|---------|---------------------------|----------------------------|-------|
+| 5-10 | ~2-5 minutes | ~3-7 minutes | Quick test |
+| 50-100 | ~10-20 minutes | ~15-30 minutes | Small batch |
+| 500-1000 | ~30-60 minutes | ~45-90 minutes | Medium batch |
+| 5000+ | ~2-4 hours | ~3-6 hours | Large batch |
 
-*Times vary based on API load and model speed*
+*Times vary based on API load and model speed. Review adds ~30-50% more time.*
 
 ## 🎯 Common Issues
 
@@ -219,6 +233,66 @@ That's it! ☕
 - [ ] Tested with small batch (`--num_samples=5`)
 - [ ] Verified output (`ls model/dataset/annotation_samples/`)
 - [ ] Ready for production! 🚀
+
+---
+
+## 🔍 Optional: Review & Quality Improvement
+
+The pipeline generates high-quality samples, but you can optionally add a **review stage** to validate and improve them:
+
+### What is the Review Stage?
+
+When you add `--enable_review`, the pipeline includes two additional stages:
+1. **Review Submission**: Creates review prompts to validate/correct annotations
+2. **Review Completion**: Processes reviewed and corrected samples
+
+This adds quality control directly into the pipeline flow:
+
+```
+NER → Coref → Review (optional) → Final Output
+```
+
+### When to Use It?
+
+- **Production datasets** where quality is critical
+- When you notice annotation errors in samples
+- To improve label consistency across the dataset
+- For datasets that will be used for model evaluation
+
+### How to Use It
+
+Simply add the `--enable_review` flag:
+
+```bash
+# Standard pipeline (no review)
+python -m model.dataset.pipeline --command=start --num_samples=100
+
+# With review for higher quality
+python -m model.dataset.pipeline \
+  --command=start \
+  --num_samples=100 \
+  --enable_review
+```
+
+### Pipeline Flow with Review
+
+```
+Stage 1: NER Generation
+Stage 2: NER Completion
+Stage 3: Coref Generation
+Stage 4: Coref Completion
+Stage 5: Review Generation (if --enable_review)
+Stage 6: Review Completion (if --enable_review)
+Stage 7: Final Processing
+```
+
+### Time Estimate
+
+Review adds approximately 30-50% more time to the pipeline:
+- Without review: ~30 min for 100 samples
+- With review: ~45 min for 100 samples
+
+**Note:** The review stage is **optional**. Most users can skip it for testing and prototyping.
 
 ---
 

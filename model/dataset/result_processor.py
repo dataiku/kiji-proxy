@@ -243,3 +243,53 @@ class ResultProcessor:
                     continue
 
         return results
+
+    def parse_samples_for_review(self, content: str) -> list[dict[str, Any]]:
+        """
+        Parse batch results into samples suitable for review generation.
+
+        Args:
+            content: The JSONL content as a string
+
+        Returns:
+            List of samples with metadata for review
+        """
+        samples_for_review = []
+        lines = content.strip().split("\n")
+
+        for line_num, line in enumerate(lines):
+            if not line.strip():
+                continue
+
+            try:
+                line_data = json.loads(line)
+            except json.JSONDecodeError as e:
+                logging.error(f"Failed to parse line {line_num + 1}: {e}")
+                continue
+
+            custom_id = line_data.get(
+                "custom_id", line_data.get("customID", f"line_{line_num}")
+            )
+
+            # Extract samples from the line
+            samples = self.process_batch_line(line_data, "review_prep")
+
+            for sample in samples:
+                # Remove file_name if present
+                sample.pop("file_name", None)
+
+                # Get language and country from sample or use defaults
+                language = sample.get("language", "English")
+                country = sample.get("country", "United States")
+
+                samples_for_review.append(
+                    {
+                        "custom_id": custom_id,
+                        "sample": sample,
+                        "language": language,
+                        "country": country,
+                    }
+                )
+
+        logging.info(f"Parsed {len(samples_for_review)} samples for review")
+        return samples_for_review

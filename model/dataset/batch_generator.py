@@ -314,3 +314,103 @@ class BatchRequestGenerator:
             f"Generated {num_samples} coreference batch requests in {output_path}"
         )
         return output_path
+
+    def _generate_single_review_request(
+        self,
+        sample_data: dict[str, Any],
+    ) -> dict:
+        """
+        Generate a single review batch request from a completed sample.
+
+        Args:
+            sample_data: Dictionary containing sample and metadata
+
+        Returns:
+            Batch request dictionary
+        """
+        sample = sample_data["sample"]
+        custom_id = sample_data["custom_id"]
+        language = sample_data.get("language", "English")
+        country = sample_data.get("country", "United States")
+
+        # Get all PII labels for the review prompt
+        all_labels = LabelUtils.LABEL_DESCRIPTIONS.copy()
+        expected_labels = ", ".join(all_labels.keys())
+
+        # Build the review prompt
+        prompt = PromptBuilder.build_review_prompt(
+            sample, expected_labels, language=language, country=country
+        )
+
+        # Create batch request in Doubleword format
+        batch_request = {
+            "custom_id": f"review-{custom_id}",
+            "method": "POST",
+            "url": "/v1/chat/completions",
+            "body": {
+                "model": self.api_model,
+                "messages": [{"role": "user", "content": prompt}],
+                "metadata": {
+                    "language": language,
+                    "country": country,
+                    "source_sample_id": custom_id,
+                },
+            },
+        }
+
+        return batch_request
+
+    def generate_review_batch_requests(
+        self,
+        samples: list[dict[str, Any]],
+        output_file: str = "batch_requests_review.jsonl",
+    ) -> Path:
+        """
+        Generate review batch requests from completed samples.
+
+        Args:
+            samples: List of samples with metadata (from coref completion)
+            output_file: Output JSONL filename
+
+        Returns:
+            Path to the generated JSONL file
+        """
+        num_samples = len(samples)
+        batch_requests = []
+
+        # Generate requests in parallel
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            # Submit all tasks
+            future_to_index = {
+                executor.submit(self._generate_single_review_request, sample): i
+                for i, sample in enumerate(samples)
+            }
+
+            # Collect results with progress bar
+            with tqdm(total=num_samples, desc="Generating review requests") as pbar:
+                for future in as_completed(future_to_index):
+                    sample_index = future_to_index[future]
+                    try:
+                        batch_request = future.result()
+                        batch_requests.append((sample_index, batch_request))
+                        pbar.update(1)
+                    except Exception as exc:
+                        logging.error(
+                            f"Sample {sample_index} generated an exception: {exc}"
+                        )
+                        raise
+
+        # Sort by sample_index to maintain order
+        batch_requests.sort(key=lambda x: x[0])
+        batch_requests = [req for _, req in batch_requests]
+
+        # Write to JSONL file
+        output_path = self.output_dir / output_file
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        with open(output_path, "w") as f:
+            for request in batch_requests:
+                f.write(json.dumps(request) + "\n")
+
+        logging.info(f"Generated {num_samples} review batch requests in {output_path}")
+        return output_path

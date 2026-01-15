@@ -107,6 +107,8 @@ class PipelineState:
             "ner_completion",
             "coref_submission",
             "coref_completion",
+            "review_submission",  # Optional stage
+            "review_completion",  # Optional stage
             "final_processing",
         ]
 
@@ -141,6 +143,8 @@ class PipelineState:
             ("ner_completion", "NER Batch Completion"),
             ("coref_submission", "Coreference Batch Submission"),
             ("coref_completion", "Coreference Batch Completion"),
+            ("review_submission", "Review Batch Submission (Optional)"),
+            ("review_completion", "Review Batch Completion (Optional)"),
             ("final_processing", "Final Processing"),
         ]
 

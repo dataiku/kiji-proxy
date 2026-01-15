@@ -108,6 +108,12 @@ _define_flag(
     None,
     "Pipeline ID to resume (if not provided, uses most recent)",
 )
+_define_flag(
+    flags.DEFINE_boolean,
+    "enable_review",
+    False,
+    "Enable optional review stage for quality improvement",
+)
 
 
 class DatasetPipeline:
@@ -119,8 +125,9 @@ class DatasetPipeline:
         api_model: str,
         output_dir: str,
         num_samples: int,
-        max_workers: int | None = None,
-        pipeline_id: str | None = None,
+        max_workers: Optional[int] = None,
+        pipeline_id: Optional[str] = None,
+        enable_review: bool = False,
     ):
         """
         Initialize dataset pipeline.
@@ -132,12 +139,14 @@ class DatasetPipeline:
             num_samples: Number of samples to generate
             max_workers: Maximum number of parallel workers
             pipeline_id: Optional pipeline ID to resume
+            enable_review: Whether to enable optional review stage
         """
         self.api_key = api_key
         self.api_model = api_model
         self.output_dir = Path(output_dir)
         self.num_samples = num_samples
         self.max_workers = max_workers
+        self.enable_review = enable_review
 
         # Initialize components
         self.client = DoublewordClient(api_key)
@@ -316,24 +325,112 @@ class DatasetPipeline:
                 logging.info("Run with --command=resume when batch is complete")
                 return []
 
-        # Stage 5: Process final results
+        # Stage 5: Optional Review (if enabled)
+        if self.enable_review:
+            if not self.state.is_stage_complete("review_submission"):
+                logging.info("=" * 80)
+                logging.info("Stage 5: Generating review batch requests (OPTIONAL)...")
+                logging.info("=" * 80)
+
+                coref_completion = self.state.get_stage("coref_completion")
+                if not coref_completion:
+                    raise RuntimeError("Coref completion stage not found.")
+                coref_results_path = coref_completion["results_path"]
+
+                # Parse coref results for review
+                with open(coref_results_path, "r") as f:
+                    coref_content = f.read()
+
+                samples_for_review = self.processor.parse_samples_for_review(
+                    coref_content
+                )
+                logging.info(f"Parsed {len(samples_for_review)} samples for review")
+
+                # Generate review batch
+                review_batch_path = self.generator.generate_review_batch_requests(
+                    samples_for_review, output_file="batch_requests_review.jsonl"
+                )
+
+                logging.info("Submitting review batch to Doubleword...")
+                file_id, batch_id = self.client.submit_batch(str(review_batch_path))
+
+                self.state.save_stage(
+                    "review_submission",
+                    {
+                        "batch_id": batch_id,
+                        "file_id": file_id,
+                        "batch_file": str(review_batch_path),
+                    },
+                )
+
+                logging.info(f"✓ Review batch submitted: {batch_id}")
+
+            # Stage 6: Wait for review completion and download
+            if not self.state.is_stage_complete("review_completion"):
+                review_info = self.state.get_stage("review_submission")
+                if not review_info:
+                    raise RuntimeError("Review submission stage not found.")
+                batch_id = review_info["batch_id"]
+
+                if auto_poll:
+                    logging.info("=" * 80)
+                    logging.info("Stage 6: Waiting for review batch completion...")
+                    logging.info("=" * 80)
+                    logging.info(f"Batch ID: {batch_id}")
+                    logging.info(f"Poll interval: {poll_interval}s")
+
+                    try:
+                        review_content = self.monitor.wait_for_completion(
+                            batch_id, poll_interval, timeout
+                        )
+                    except KeyboardInterrupt:
+                        logging.warning("Interrupted by user. Progress saved.")
+                        logging.info("Run with --command=resume to continue later.")
+                        return []
+
+                    # Save results
+                    review_results_path = self.output_dir / "review_results.jsonl"
+                    review_results_path.write_text(review_content)
+
+                    self.state.save_stage(
+                        "review_completion", {"results_path": str(review_results_path)}
+                    )
+
+                    logging.info(f"✓ Review results downloaded: {review_results_path}")
+                else:
+                    logging.info("=" * 80)
+                    logging.info("Stage 6: Review batch pending")
+                    logging.info("=" * 80)
+                    logging.info(f"Review Batch ID: {batch_id}")
+                    logging.info("Run with --command=resume when batch is complete")
+                    return []
+
+        # Stage 7 (or 5 if no review): Process final results
+        final_stage = "Stage 7" if self.enable_review else "Stage 5"
         if not self.state.is_stage_complete("final_processing"):
             logging.info("=" * 80)
-            logging.info("Stage 5: Processing final results...")
+            logging.info(f"{final_stage}: Processing final results...")
             logging.info("=" * 80)
 
-            coref_completion = self.state.get_stage("coref_completion")
-            if not coref_completion:
-                raise RuntimeError("Coref completion stage not found.")
-            coref_results_path = coref_completion["results_path"]
+            # Use review results if available, otherwise use coref results
+            if self.enable_review and self.state.is_stage_complete("review_completion"):
+                review_completion = self.state.get_stage("review_completion")
+                if not review_completion:
+                    raise RuntimeError("Review completion stage not found.")
+                results_path = review_completion["results_path"]
+                source = "review"
+            else:
+                coref_completion = self.state.get_stage("coref_completion")
+                if not coref_completion:
+                    raise RuntimeError("Coref completion stage not found.")
+                results_path = coref_completion["results_path"]
+                source = "coref"
 
             # Process and save results
-            with open(coref_results_path) as f:
-                coref_content = f.read()
+            with open(results_path, "r") as f:
+                content = f.read()
 
-            results = self.processor.process_batch_content(
-                coref_content, file_id="final"
-            )
+            results = self.processor.process_batch_content(content, file_id="final")
 
             saved_files = [file_name for _, file_name in results]
 
@@ -342,6 +439,7 @@ class DatasetPipeline:
                 {
                     "num_samples": len(saved_files),
                     "output_dir": str(self.output_dir / "annotation_samples"),
+                    "source": source,
                 },
             )
 
@@ -355,6 +453,11 @@ class DatasetPipeline:
         if final_info:
             logging.info(f"Generated {final_info['num_samples']} training samples")
             logging.info(f"Output directory: {final_info['output_dir']}")
+            if self.enable_review:
+                source = final_info.get("source", "unknown")
+                logging.info(f"Quality: Reviewed and validated (source: {source})")
+            else:
+                logging.info(f"Quality: Standard (no review)")
         logging.info("=" * 80)
 
         return []
@@ -462,6 +565,7 @@ def main(argv):
             num_samples=FLAGS.num_samples,
             max_workers=FLAGS.max_workers,
             pipeline_id=FLAGS.pipeline_id if FLAGS.command == "resume" else None,
+            enable_review=FLAGS.enable_review,
         )
 
         try:

@@ -43,6 +43,12 @@ python -m model.dataset.pipeline \
   --command=start \
   --num_samples=100
 
+# Generate with optional review stage for higher quality
+python -m model.dataset.pipeline \
+  --command=start \
+  --num_samples=100 \
+  --enable_review
+
 # Check status anytime
 python -m model.dataset.pipeline --command=status
 
@@ -97,6 +103,7 @@ python model/dataset/upload_to_hf.py --repo-id "username/pii-training-data" --pu
 | `--num_samples` | 100 | Number of samples to generate |
 | `--api_model` | `Qwen/Qwen3-VL-235B-A22B-Instruct-FP8` | Model name for generation |
 | `--[no]auto_poll` | `true` | Automatically wait for batch completion (use `--noauto_poll` to disable) |
+| `--[no]enable_review` | `false` | Enable optional review stage for quality improvement |
 | `--poll_interval` | 60 | Seconds between status checks |
 | `--output_dir` | `model/dataset` | Output directory for samples |
 | `--max_workers` | auto | Parallel workers (default: min(32, num_samples + 4)) |
@@ -250,9 +257,15 @@ Generated samples follow this JSON structure:
          │                                                │
          ▼                                                ▼
 ┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐
-│  Automatic Poll  │───►│  Process Results │───►│  Label Studio    │
-│  & Download      │    │  & Convert       │    │  Samples         │
+│  Automatic Poll  │───►│  Review (opt)    │───►│  Process Results │
+│  & Download      │    │  Quality Check   │    │  & Convert       │
 └──────────────────┘    └──────────────────┘    └──────────────────┘
+                                                          │
+                                                          ▼
+                                                 ┌──────────────────┐
+                                                 │  Label Studio    │
+                                                 │  Samples         │
+                                                 └──────────────────┘
 ```
 
 **Features:**
@@ -260,6 +273,7 @@ Generated samples follow this JSON structure:
 - ✅ Resumable at any stage
 - ✅ State persistence across runs
 - ✅ Parallel request generation
+- ✅ Optional review stage with `--enable_review`
 
 ### Direct Generation Pipeline
 
@@ -327,7 +341,11 @@ python model/dataset/training_set_doubleword_result_processing.py --batch_output
 
 ### New Workflow (Recommended)
 ```bash
+# Standard quality
 python -m model.dataset.pipeline --command=start --num_samples=100
+
+# High quality (with review)
+python -m model.dataset.pipeline --command=start --num_samples=100 --enable_review
 ```
 
 **Benefits:**
@@ -336,5 +354,6 @@ python -m model.dataset.pipeline --command=start --num_samples=100
 - ✅ Resumable from any point
 - ✅ Single command operation
 - ✅ Better error handling and logging
+- ✅ Optional quality review stage integrated
 
 The old scripts still work but will be removed in a future version. Please migrate to the new pipeline.
