@@ -27,7 +27,9 @@ while [[ $# -gt 0 ]]; do
             exit 0
             ;;
         --config)
-            CONFIG_FLAG="--config config-file $2"
+            # Resolve to absolute path
+            CONFIG_PATH="$(cd "$(dirname "$2")" && pwd)/$(basename "$2")"
+            CONFIG_FLAG="--config config-file $CONFIG_PATH"
             shift 2
             ;;
         *)
