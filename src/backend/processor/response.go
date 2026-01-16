@@ -7,6 +7,7 @@ import (
 	"time"
 
 	pii "github.com/hannes/yaak-private/src/backend/pii/detectors"
+	"github.com/hannes/yaak-private/src/backend/providers"
 )
 
 // LoggingConfig interface for logging configuration
@@ -33,7 +34,7 @@ func NewResponseProcessor(piiDetector *pii.Detector, logging LoggingConfig) *Res
 }
 
 // ProcessResponse modifies the response body to append interception notice and restore original PII
-func (rp *ResponseProcessor) ProcessResponse(body []byte, contentType string) []byte {
+func (rp *ResponseProcessor) ProcessResponse(body []byte, contentType string, provider *providers.Provider) []byte {
 	// Only modify JSON responses (typical for OpenAI API)
 	if !strings.Contains(contentType, "application/json") {
 		return body
@@ -49,8 +50,26 @@ func (rp *ResponseProcessor) ProcessResponse(body []byte, contentType string) []
 	// Store original response in a new field
 	data["original_response"] = json.RawMessage(body)
 
-	// Process different response types
-	rp.processChatCompletions(data)
+	// Restore masked PII text back to original text
+	content, err := (*provider).ExtractResponseText(data)
+	if err != nil {
+		log.Printf("Failed to extract masked content: %v", err)
+	}
+
+	restoredContent := rp.RestorePII(content)
+	if restoredContent != content && rp.logging.GetLogResponses() {
+		log.Printf("PII restored in response content")
+		if rp.logging.GetLogVerbose() {
+			log.Printf("Original response content: %s", content)
+			log.Printf("Restored response content: %s", restoredContent)
+		}
+	}
+
+	restoredContent += "\n\n[This response was intercepted and processed by Yaak proxy service]"
+	err = (*provider).SetResponseText(data, restoredContent)
+	if err != nil {
+		log.Printf("Failed to set restored content: %v", err)
+	}
 
 	// Add proxy metadata
 	data["proxy_metadata"] = map[string]interface{}{
@@ -80,38 +99,4 @@ func (rp *ResponseProcessor) RestorePII(text string) string {
 		text = strings.ReplaceAll(text, maskedText, originalText)
 	}
 	return text
-}
-
-// processChatCompletions handles chat completion responses
-func (rp *ResponseProcessor) processChatCompletions(data map[string]interface{}) {
-	choices, ok := data["choices"].([]interface{})
-	if !ok || len(choices) == 0 {
-		return
-	}
-
-	choice, ok := choices[0].(map[string]interface{})
-	if !ok {
-		return
-	}
-
-	message, ok := choice["message"].(map[string]interface{})
-	if !ok {
-		return
-	}
-
-	content, ok := message["content"].(string)
-	if !ok {
-		return
-	}
-
-	// Restore original PII from dummy data
-	restoredContent := rp.RestorePII(content)
-	if restoredContent != content && rp.logging.GetLogResponses() {
-		log.Printf("PII restored in response content")
-		if rp.logging.GetLogVerbose() {
-			log.Printf("Original response content: %s", content)
-			log.Printf("Restored response content: %s", restoredContent)
-		}
-	}
-	message["content"] = restoredContent + "\n\n[This response was intercepted and processed by Yaak proxy service]"
 }

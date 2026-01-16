@@ -122,7 +122,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create and send proxy request with redacted body
-	resp, err := h.createAndSendProxyRequest(r, []byte(redactedBody))
+	resp, err := h.createAndSendProxyRequest(r, []byte(redactedBody), &provider)
 	if err != nil {
 		log.Printf("[Proxy] ❌ Failed to create proxy request: %v", err)
 		http.Error(w, fmt.Sprintf("Failed to proxy request: %v", err), http.StatusInternalServerError)
@@ -139,7 +139,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Process the response
-	modifiedBody := h.responseProcessor.ProcessResponse(respBody, resp.Header.Get("Content-Type"))
+	modifiedBody := h.responseProcessor.ProcessResponse(respBody, resp.Header.Get("Content-Type"), &provider)
 
 	// Log final response if logging is available
 	if h.loggingDB != nil {
@@ -156,7 +156,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// If details are requested, enhance response with PII metadata
 	if includeDetails && resp.StatusCode == http.StatusOK {
-		// Parse the OpenAI response
+		// Parse the response
 		var responseData map[string]interface{}
 		if err := json.Unmarshal(modifiedBody, &responseData); err != nil {
 			log.Printf("[Proxy] ⚠️  Failed to parse response for details: %v", err)
@@ -184,7 +184,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 
 			// Extract response text
-			responseText, _ := h.extractTextFromResponse(responseData) //  TODO: replace for provider function, and then delete method from handler.go
+			responseText, _ := provider.ExtractResponseText(responseData)
 
 			// Create masked response text
 			maskedResponseText := responseText
@@ -312,8 +312,8 @@ func (h *Handler) checkRequestPII(body string, provider *providers.Provider) (st
 }
 
 // createAndSendProxyRequest creates and sends the proxy request to OpenAI
-func (h *Handler) createAndSendProxyRequest(r *http.Request, body []byte) (*http.Response, error) {
-	targetURL, err := h.buildTargetURL(r)
+func (h *Handler) createAndSendProxyRequest(r *http.Request, body []byte, provider *providers.Provider) (*http.Response, error) {
+	targetURL, err := h.buildTargetURL(r, provider)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build target URL: %w", err)
 	}
@@ -326,14 +326,14 @@ func (h *Handler) createAndSendProxyRequest(r *http.Request, body []byte) (*http
 	// Copy headers from original request
 	h.copyHeaders(r.Header, proxyReq.Header)
 
-	// Add OpenAI API key (from header or config)
-	apiKey := h.getOpenAIAPIKey(r)
-	proxyReq.Header.Set("Authorization", "Bearer "+apiKey)
+	// Set auth and additional headers
+	(*provider).SetAuthHeaders(proxyReq)
+	(*provider).SetAddlHeaders(proxyReq)
 
 	// Explicitly set Accept-Encoding to identity to avoid compressed responses
 	proxyReq.Header.Set("Accept-Encoding", "identity")
 
-	// Send request to OpenAI
+	// Send request to provider
 	resp, err := h.client.Do(proxyReq)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request to OpenAI: %w", err)
@@ -342,21 +342,12 @@ func (h *Handler) createAndSendProxyRequest(r *http.Request, body []byte) (*http
 	return resp, nil
 }
 
-// getOpenAIAPIKey gets the OpenAI API key from request header or falls back to config
-func (h *Handler) getOpenAIAPIKey(r *http.Request) string {
-	// Check for API key in custom header (for Electron app)
-	if apiKey := r.Header.Get("X-OpenAI-API-Key"); apiKey != "" {
-		return apiKey
-	}
-	// Fall back to config
-	// TODO: this is a temporary fix!
-	return h.config.OpenAIProviderConfig.APIKey
-}
-
 // getForwardEndpoint reads the forward endpoint from Electron config file
 // Returns error if config file doesn't exist or forwardEndpoint is invalid
-func (h *Handler) getForwardEndpoint() (string, error) {
+func (h *Handler) getForwardEndpoint(provider *providers.Provider) (string, error) {
 	// If electron config path is set, read from it
+	// TODO: the electron portion will probably change once the UI accepts forwarding
+	// to multiple providers?
 	if h.electronConfigPath != "" {
 		forwardEndpoint, err := config.ReadForwardEndpoint(h.electronConfigPath)
 		if err != nil {
@@ -364,31 +355,24 @@ func (h *Handler) getForwardEndpoint() (string, error) {
 		}
 		return forwardEndpoint, nil
 	}
-	// Fall back to config if electron config path is not set
-	// TODO: this is a temporary fix
-	return h.config.OpenAIProviderConfig.BaseURL, nil
+	// Fall back to provider if electron config path is not set
+	return (*provider).GetBaseURL(), nil // return provider baseURL method here
 }
 
 // buildTargetURL builds the target URL for the proxy request
-func (h *Handler) buildTargetURL(r *http.Request) (string, error) {
-	// Get forward endpoint (from Electron config or fallback to config)
-	forwardEndpoint, err := h.getForwardEndpoint()
+func (h *Handler) buildTargetURL(r *http.Request, provider *providers.Provider) (string, error) {
+	// Get forward endpoint (from Electron config or fallback to provider config)
+	forwardEndpoint, err := h.getForwardEndpoint(provider)
 	if err != nil {
 		return "", err
 	}
-
-	// Get the request path
-	path := r.URL.Path
-
-	// Remove trailing slash from forwardEndpoint to avoid double slashes
 	forwardEndpoint = strings.TrimSuffix(forwardEndpoint, "/")
 
-	// If the base URL already includes /v1, strip /v1 from the path to avoid duplication
-	// Otherwise, keep the path as-is (it may include /v1)
-	if strings.HasSuffix(forwardEndpoint, "/v1") {
-		path = strings.TrimPrefix(path, "/v1")
-	}
+	// Get the request path
+	// TODO: should we be using the path from the config?
+	path := r.URL.Path
 
+	// Construct and return target URL
 	targetURL := forwardEndpoint + path
 	if r.URL.RawQuery != "" {
 		targetURL += "?" + r.URL.RawQuery
@@ -475,58 +459,6 @@ func NewHandler(cfg *config.Config, electronConfigPath string) (*Handler, error)
 		electronConfigPath: electronConfigPath,
 		loggingDB:          loggingDB,
 	}, nil
-}
-
-// extractTextFromMessages extracts text content from OpenAI messages array
-func (h *Handler) extractTextFromMessages(requestData map[string]interface{}) (string, error) {
-	messages, ok := requestData["messages"].([]interface{})
-	if !ok {
-		return "", fmt.Errorf("messages field not found or invalid")
-	}
-
-	var textParts []string
-	for _, msg := range messages {
-		message, ok := msg.(map[string]interface{})
-		if !ok {
-			continue
-		}
-		content, ok := message["content"].(string)
-		if !ok {
-			continue
-		}
-		textParts = append(textParts, content)
-	}
-
-	if len(textParts) == 0 {
-		return "", fmt.Errorf("no text content found in messages")
-	}
-
-	return strings.Join(textParts, " "), nil
-}
-
-// extractTextFromResponse extracts text content from OpenAI response
-func (h *Handler) extractTextFromResponse(responseData map[string]interface{}) (string, error) {
-	choices, ok := responseData["choices"].([]interface{})
-	if !ok || len(choices) == 0 {
-		return "", fmt.Errorf("choices field not found or empty")
-	}
-
-	choice, ok := choices[0].(map[string]interface{})
-	if !ok {
-		return "", fmt.Errorf("invalid choice format")
-	}
-
-	message, ok := choice["message"].(map[string]interface{})
-	if !ok {
-		return "", fmt.Errorf("message field not found")
-	}
-
-	content, ok := message["content"].(string)
-	if !ok {
-		return "", fmt.Errorf("content field not found or invalid")
-	}
-
-	return content, nil
 }
 
 // createMaskedRequest creates a masked version of the request by detecting and masking PII in messages

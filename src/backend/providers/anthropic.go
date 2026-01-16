@@ -37,6 +37,10 @@ func (p *AnthropicProvider) GetType() ProviderType {
 	return ProviderTypeAnthropic
 }
 
+func (p *AnthropicProvider) GetBaseURL() string {
+	return p.baseURL
+}
+
 func (p *AnthropicProvider) CreateMaskedRequest(maskedRequest *map[string]interface{}, maskPIIInText maskPIIInTextType) (*map[string]string, *[]pii.Entity, error) {
 	maskedToOriginal := make(map[string]string)
 	var entities []pii.Entity
@@ -51,8 +55,11 @@ func (p *AnthropicProvider) BuildURL(endpoint string) string {
 	return p.baseURL + "/messages"
 }
 
-func (p *AnthropicProvider) SetAuthHeaders(req *http.Request, apiKey string) {
-	req.Header.Set("x-api-key", apiKey)
+func (p *AnthropicProvider) SetAuthHeaders(req *http.Request) {
+	req.Header.Set("x-api-key", p.apiKey)
+}
+
+func (p *AnthropicProvider) SetAddlHeaders(req *http.Request) {
 	req.Header.Set("Content-Type", "application/json")
 
 	// Add required headers (e.g., anthropic-version)
@@ -106,6 +113,22 @@ func (p *AnthropicProvider) ExtractResponseText(data map[string]interface{}) (st
 	}
 
 	return result, nil
+}
+
+func (p *AnthropicProvider) SetResponseText(data map[string]interface{}, restoredContent string) error {
+	choices, ok := data["choices"].([]interface{})
+	if !ok || len(choices) == 0 {
+		return fmt.Errorf("no choices in response")
+	}
+	choice := choices[0].(map[string]interface{})
+
+	message, ok := choice["message"].(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("no message in choice")
+	}
+
+	message["content"] = restoredContent + "\n\n[This response was intercepted and processed by Yaak proxy service]"
+	return nil
 }
 
 func (p *AnthropicProvider) ValidateConfig() error {

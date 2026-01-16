@@ -30,6 +30,10 @@ func (p *OpenAIProvider) GetType() ProviderType {
 	return ProviderTypeOpenAI
 }
 
+func (p *OpenAIProvider) GetBaseURL() string {
+	return p.baseURL
+}
+
 func (p *OpenAIProvider) ExtractRequestText(data map[string]interface{}) (string, error) {
 	messages, ok := data["messages"].([]interface{})
 	if !ok {
@@ -63,20 +67,13 @@ func (p *OpenAIProvider) CreateMaskedRequest(maskedRequest *map[string]interface
 		if !ok {
 			continue
 		}
-
 		content, ok := msgMap["content"].(string)
 		if !ok {
 			continue
 		}
 
-		//var maskedText string
-		//var _maskedToOriginal map[string]string
-		//var _entities []pii.Entity
-
-		// Mask PII in this message's content
+		// Mask PII in this message's content and update message content with masked text
 		maskedText, _maskedToOriginal, _entities := maskPIIInText(content, "[MaskedRequest]")
-
-		// Update the message content with masked text
 		msgMap["content"] = maskedText
 
 		// Collect entities and mappings
@@ -89,14 +86,19 @@ func (p *OpenAIProvider) CreateMaskedRequest(maskedRequest *map[string]interface
 	return &maskedToOriginal, &entities, nil
 }
 
-// edited / verfified to here
+func (p *OpenAIProvider) SetAuthHeaders(req *http.Request) {
+	// Check if API key already present in request
+	if apiKey := req.Header.Get("X-OpenAI-API-Key"); apiKey != "" {
+		return
+	} else if apiKey := req.Header.Get("Authorization"); apiKey != "" {
+		return
+	}
 
-func (p *OpenAIProvider) BuildURL(endpoint string) string {
-	return p.baseURL + endpoint
+	req.Header.Set("Authorization", "Bearer "+p.apiKey)
+	req.Header.Set("Content-Type", "application/json")
 }
 
-func (p *OpenAIProvider) SetAuthHeaders(req *http.Request, apiKey string) {
-	req.Header.Set("Authorization", "Bearer "+apiKey)
+func (p *OpenAIProvider) SetAddlHeaders(req *http.Request) {
 	req.Header.Set("Content-Type", "application/json")
 }
 
@@ -105,16 +107,37 @@ func (p *OpenAIProvider) ExtractResponseText(data map[string]interface{}) (strin
 	if !ok || len(choices) == 0 {
 		return "", fmt.Errorf("no choices in response")
 	}
-
 	choice := choices[0].(map[string]interface{})
-	message := choice["message"].(map[string]interface{})
-	content, ok := message["content"].(string)
+
+	message, ok := choice["message"].(map[string]interface{})
 	if !ok {
-		return "", fmt.Errorf("no content in response")
+		return "", fmt.Errorf("no message in choice")
 	}
 
+	content, ok := message["content"].(string)
+	if !ok {
+		return "", fmt.Errorf("no content in message")
+	}
 	return content, nil
 }
+
+func (p *OpenAIProvider) SetResponseText(data map[string]interface{}, restoredContent string) error {
+	choices, ok := data["choices"].([]interface{})
+	if !ok || len(choices) == 0 {
+		return fmt.Errorf("no choices in response")
+	}
+	choice := choices[0].(map[string]interface{})
+
+	message, ok := choice["message"].(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("no message in choice")
+	}
+
+	message["content"] = restoredContent + "\n\n[This response was intercepted and processed by Yaak proxy service]"
+	return nil
+}
+
+// edited / verfified to here
 
 func (p *OpenAIProvider) ValidateConfig() error {
 	if p.baseURL == "" {

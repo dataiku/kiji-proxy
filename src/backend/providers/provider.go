@@ -14,6 +14,7 @@ type maskPIIInTextType func(string, string) (string, map[string]string, []pii.En
 type Provider interface {
 	GetType() ProviderType
 	GetName() string
+	GetBaseURL() string
 
 	// ExtractRequestText extracts text from provider request format
 	ExtractRequestText(data map[string]interface{}) (string, error)
@@ -21,14 +22,13 @@ type Provider interface {
 	// CreateMaskedRequest masks the PII in messages
 	CreateMaskedRequest(maskedRequest *map[string]interface{}, maskPIIInText maskPIIInTextType) (*map[string]string, *[]pii.Entity, error)
 
-	//GetSubpath() string
-	BuildURL(endpoint string) string
+	// Methods to set headers
+	SetAuthHeaders(req *http.Request)
+	SetAddlHeaders(req *http.Request)
 
-	// SetAuthHeaders adds authentication to the HTTP request
-	SetAuthHeaders(req *http.Request, apiKey string)
-
-	// ExtractResponseText extracts text from provider response format
+	// Extract and set text from provider response format
 	ExtractResponseText(data map[string]interface{}) (string, error)
+	SetResponseText(data map[string]interface{}, restoredContent string) error
 
 	// ValidateConfig checks if provider configuration is valid
 	ValidateConfig() error
