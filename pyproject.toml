@@ -71,7 +71,10 @@ labelstudio = [
     "Label-studio==1.22.0",
 ]
 
-# Note: 'all' group removed - use 'dev' instead for development dependencies
+# All optional dependencies combined
+all = [
+    "yaak-proxy[dev,training,quantization,signing,labelstudio]",
+]
 
 [project.urls]
 Homepage = "https://github.com/yaak/pii-detection"
