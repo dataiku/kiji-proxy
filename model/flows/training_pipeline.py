@@ -182,15 +182,15 @@ class PIITrainingPipeline(FlowSpec):
         """Load and preprocess training data from training_samples directory."""
         from src.preprocessing import DatasetProcessor
 
-        # Use the training_samples directory directly
-        # This is the curated, high-quality dataset for training
-        training_samples_dir = Path("model/dataset/training_samples")
+        # Use the training_samples directory from config
+        training_samples_dir = Path(self.config.training_samples_dir)
 
         # Verify the dataset directory exists and contains data
         if not training_samples_dir.exists():
             raise ValueError(
                 f"Dataset directory not found: {training_samples_dir}. "
-                "Please ensure the training_samples directory is present."
+                "Please ensure the training_samples directory is present, "
+                "or set paths.training_samples_dir in your config file."
             )
 
         json_files = list(training_samples_dir.glob("*.json"))
@@ -201,9 +201,6 @@ class PIITrainingPipeline(FlowSpec):
             )
 
         print(f"Found {len(json_files)} training samples in {training_samples_dir}")
-
-        # Update config to use training_samples directory
-        self.config.training_samples_dir = str(training_samples_dir)
 
         # Ensure output directory exists
         Path(self.config.output_dir).mkdir(parents=True, exist_ok=True)

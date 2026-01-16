@@ -10,6 +10,7 @@ batch_size = 16
 learning_rate = 3e-5
 
 [paths]
+# Directory containing JSON training samples (relative to working directory or absolute)
 training_samples_dir = "model/dataset/training_samples"
 output_dir = "model/trained"
 
@@ -23,3 +24,11 @@ project_id = 5
 [data]
 # Limit samples for quick iteration (0 = use all)
 subsample_count = 0
+
+[pipeline]
+# Skip Label Studio export and use existing data from paths.training_samples_dir
+skip_export = true
+# Skip ONNX quantization (only works on Linux)
+skip_quantization = false
+# Skip model signing
+skip_signing = false
