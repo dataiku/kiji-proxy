@@ -336,7 +336,7 @@ func (h *Handler) createAndSendProxyRequest(r *http.Request, body []byte, provid
 	// Send request to provider
 	resp, err := h.client.Do(proxyReq)
 	if err != nil {
-		return nil, fmt.Errorf("failed to send request to OpenAI: %w", err)
+		return nil, fmt.Errorf("failed to send request to provider: %w", err)
 	}
 
 	return resp, nil

@@ -4,6 +4,7 @@ package providers
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 
 	pii "github.com/hannes/yaak-private/src/backend/pii/detectors"
@@ -26,7 +27,7 @@ func NewAnthropicProvider(baseURL string, apiKey string, requiredHeaders map[str
 			"anthropic-version": "2023-06-01",
 		}
 	}
-	return &AnthropicProvider{baseURL: baseURL, requiredHeaders: requiredHeaders}
+	return &AnthropicProvider{baseURL: baseURL, requiredHeaders: requiredHeaders, apiKey: apiKey}
 }
 
 func (p *AnthropicProvider) GetName() string {
@@ -39,33 +40,6 @@ func (p *AnthropicProvider) GetType() ProviderType {
 
 func (p *AnthropicProvider) GetBaseURL() string {
 	return p.baseURL
-}
-
-func (p *AnthropicProvider) CreateMaskedRequest(maskedRequest *map[string]interface{}, maskPIIInText maskPIIInTextType) (*map[string]string, *[]pii.Entity, error) {
-	maskedToOriginal := make(map[string]string)
-	var entities []pii.Entity
-
-	return &maskedToOriginal, &entities, nil
-}
-
-// edited to here
-
-func (p *AnthropicProvider) BuildURL(endpoint string) string {
-	// Anthropic uses /v1/messages for chat
-	return p.baseURL + "/messages"
-}
-
-func (p *AnthropicProvider) SetAuthHeaders(req *http.Request) {
-	req.Header.Set("x-api-key", p.apiKey)
-}
-
-func (p *AnthropicProvider) SetAddlHeaders(req *http.Request) {
-	req.Header.Set("Content-Type", "application/json")
-
-	// Add required headers (e.g., anthropic-version)
-	for key, value := range p.requiredHeaders {
-		req.Header.Set(key, value)
-	}
 }
 
 func (p *AnthropicProvider) ExtractRequestText(data map[string]interface{}) (string, error) {
@@ -86,6 +60,58 @@ func (p *AnthropicProvider) ExtractRequestText(data map[string]interface{}) (str
 		}
 	}
 	return result, nil
+}
+
+func (p *AnthropicProvider) CreateMaskedRequest(maskedRequest *map[string]interface{}, maskPIIInText maskPIIInTextType) (*map[string]string, *[]pii.Entity, error) {
+	// Anthropic uses same "messages" format as OpenAI
+	maskedToOriginal := make(map[string]string)
+	var entities []pii.Entity
+
+	messages, ok := (*maskedRequest)["messages"].([]interface{})
+	if !ok {
+		return &maskedToOriginal, &entities, fmt.Errorf("no messages field in request")
+	}
+
+	for _, msg := range messages {
+		msgMap, ok := msg.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		content, ok := msgMap["content"].(string)
+		if !ok {
+			continue
+		}
+
+		// Mask PII in this message's content and update message content with masked text
+		maskedText, _maskedToOriginal, _entities := maskPIIInText(content, "[MaskedRequest]")
+		msgMap["content"] = maskedText
+
+		// Collect entities and mappings
+		entities = append(entities, _entities...)
+		for k, v := range _maskedToOriginal {
+			maskedToOriginal[k] = v
+		}
+	}
+
+	return &maskedToOriginal, &entities, nil
+}
+
+func (p *AnthropicProvider) SetAuthHeaders(req *http.Request) {
+	// Check if API key already present in request
+	if apiKey := req.Header.Get("X-Api-Key"); apiKey != "" {
+		return
+	}
+	log.Printf("[Proxy] anthropic api key %s header set.", p.apiKey)
+	req.Header.Set("X-Api-Key", p.apiKey)
+}
+
+func (p *AnthropicProvider) SetAddlHeaders(req *http.Request) {
+	req.Header.Set("Content-Type", "application/json")
+
+	// Add required headers (e.g., anthropic-version)
+	for key, value := range p.requiredHeaders {
+		req.Header.Set(key, value)
+	}
 }
 
 func (p *AnthropicProvider) ExtractResponseText(data map[string]interface{}) (string, error) {
@@ -116,18 +142,23 @@ func (p *AnthropicProvider) ExtractResponseText(data map[string]interface{}) (st
 }
 
 func (p *AnthropicProvider) SetResponseText(data map[string]interface{}, restoredContent string) error {
-	choices, ok := data["choices"].([]interface{})
-	if !ok || len(choices) == 0 {
-		return fmt.Errorf("no choices in response")
-	}
-	choice := choices[0].(map[string]interface{})
+	// TODO: this probably should be refactored to do PII reversal at each chunk, this is just a quick fix.
 
-	message, ok := choice["message"].(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("no message in choice")
+	content, ok := data["content"].([]interface{})
+	if !ok || len(content) == 0 {
+		return fmt.Errorf("no content in response")
 	}
 
-	message["content"] = restoredContent + "\n\n[This response was intercepted and processed by Yaak proxy service]"
+	for _, item := range content {
+		itemMap, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if itemMap["type"] == "text" {
+			itemMap["text"] = restoredContent
+		}
+	}
+
 	return nil
 }
 

@@ -95,7 +95,6 @@ func (p *OpenAIProvider) SetAuthHeaders(req *http.Request) {
 	}
 
 	req.Header.Set("Authorization", "Bearer "+p.apiKey)
-	req.Header.Set("Content-Type", "application/json")
 }
 
 func (p *OpenAIProvider) SetAddlHeaders(req *http.Request) {
@@ -107,7 +106,7 @@ func (p *OpenAIProvider) ExtractResponseText(data map[string]interface{}) (strin
 	if !ok || len(choices) == 0 {
 		return "", fmt.Errorf("no choices in response")
 	}
-	choice := choices[0].(map[string]interface{})
+	choice := choices[0].(map[string]interface{}) // TODO: this should be able to handle a array of arbitrary length
 
 	message, ok := choice["message"].(map[string]interface{})
 	if !ok {
@@ -126,7 +125,7 @@ func (p *OpenAIProvider) SetResponseText(data map[string]interface{}, restoredCo
 	if !ok || len(choices) == 0 {
 		return fmt.Errorf("no choices in response")
 	}
-	choice := choices[0].(map[string]interface{})
+	choice := choices[0].(map[string]interface{}) // TODO: this should be able to handle a array of arbitrary length
 
 	message, ok := choice["message"].(map[string]interface{})
 	if !ok {
