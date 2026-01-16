@@ -27,7 +27,7 @@ while [[ $# -gt 0 ]]; do
             exit 0
             ;;
         --config)
-            CONFIG_FLAG="--config-file $2"
+            CONFIG_FLAG="--config config-file $2"
             shift 2
             ;;
         *)

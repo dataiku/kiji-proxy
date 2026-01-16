@@ -16,7 +16,7 @@ Usage:
     uv run --extra training --extra quantization --extra signing python model/flows/training_pipeline.py run
 
     # Custom config file
-    uv run --extra training python model/flows/training_pipeline.py --config-file custom_config.toml run
+    uv run --extra training python model/flows/training_pipeline.py --config config-file custom_config.toml run
 
     # Remote Kubernetes execution (uncomment @pypi and @kubernetes decorators for dependencies)
     python model/flows/training_pipeline.py --environment=pypi run --with kubernetes
