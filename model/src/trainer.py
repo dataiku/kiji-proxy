@@ -548,9 +548,15 @@ class PIITrainer:
             return batch
 
         # Suppress transformers logging output (we use custom callback)
+        import logging as python_logging
+
         import transformers
 
         transformers.logging.set_verbosity_error()
+
+        # Suppress the default trainer logging that prints dicts
+        trainer_logger = python_logging.getLogger("transformers.trainer")
+        trainer_logger.setLevel(python_logging.ERROR)
 
         # Training arguments
         training_args = TrainingArguments(

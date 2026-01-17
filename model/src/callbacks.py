@@ -22,32 +22,32 @@ class CleanMetricsCallback(TrainerCallback):
             step = state.global_step
             epoch = logs.get("epoch", 0)
 
-            logging.info(f"\n{'=' * 60}")
-            logging.info(f"📊 Evaluation at Step {step} (Epoch {epoch:.2f})")
-            logging.info(f"={'=' * 60}")
+            logging.warning(f"\n{'=' * 60}")
+            logging.warning(f"📊 Evaluation at Step {step} (Epoch {epoch:.2f})")
+            logging.warning(f"={'=' * 60}")
 
             # PII metrics
             pii_f1 = logs.get("eval_pii_f1_weighted") or logs.get("eval_pii_f1")
             pii_acc = logs.get("eval_pii_accuracy")
             if pii_f1 is not None:
-                logging.info(f"🔍 PII Detection:")
-                logging.info(f"   F1:  {pii_f1:.4f}")
+                logging.warning(f"🔍 PII Detection:")
+                logging.warning(f"   F1:  {pii_f1:.4f}")
                 if pii_acc is not None:
-                    logging.info(f"   Acc: {pii_acc:.4f}")
+                    logging.warning(f"   Acc: {pii_acc:.4f}")
 
             # Coref metrics
             coref_f1 = logs.get("eval_coref_f1_weighted") or logs.get("eval_coref_f1")
             coref_acc = logs.get("eval_coref_accuracy")
             if coref_f1 is not None:
-                logging.info(f"🔗 Co-reference:")
-                logging.info(f"   F1:  {coref_f1:.4f}")
+                logging.warning(f"🔗 Co-reference:")
+                logging.warning(f"   F1:  {coref_f1:.4f}")
                 if coref_acc is not None:
-                    logging.info(f"   Acc: {coref_acc:.4f}")
+                    logging.warning(f"   Acc: {coref_acc:.4f}")
 
             # Loss
             loss = logs.get("eval_loss")
             if loss is not None:
-                logging.info(f"📉 Loss: {loss:.4f}")
+                logging.warning(f"📉 Loss: {loss:.4f}")
 
-            logging.info(f"{'=' * 60}\n")
+            logging.warning(f"={'=' * 60}\n")
             # Don't clear logs - trainer needs them for best model tracking
