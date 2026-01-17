@@ -9,6 +9,11 @@ num_epochs = 5
 batch_size = 16
 learning_rate = 3e-5
 
+# Early stopping settings
+early_stopping_enabled = true
+early_stopping_patience = 3  # Number of eval steps with no improvement before stopping
+early_stopping_threshold = 0.01  # Minimum improvement (1%) to qualify as improvement
+
 [paths]
 # Directory containing JSON training samples (relative to working directory or absolute)
 training_samples_dir = "model/dataset/training_samples"

@@ -124,15 +124,19 @@ class PIITrainingPipeline(FlowSpec):
         EnvironmentSetup.check_gpu()
 
         cfg = self.config_file
+        training_cfg = cfg.get("training", {})
         self.config = TrainingConfig(
             model_name=cfg.get("model", {}).get("name", "distilbert-base-cased"),
-            num_epochs=cfg.get("training", {}).get("num_epochs", 5),
-            batch_size=cfg.get("training", {}).get("batch_size", 16),
-            learning_rate=cfg.get("training", {}).get("learning_rate", 3e-5),
+            num_epochs=training_cfg.get("num_epochs", 5),
+            batch_size=training_cfg.get("batch_size", 16),
+            learning_rate=training_cfg.get("learning_rate", 3e-5),
             training_samples_dir=cfg.get("paths", {}).get(
                 "training_samples_dir", "model/dataset/training_samples"
             ),
             output_dir=cfg.get("paths", {}).get("output_dir", "model/trained"),
+            early_stopping_enabled=training_cfg.get("early_stopping_enabled", True),
+            early_stopping_patience=training_cfg.get("early_stopping_patience", 3),
+            early_stopping_threshold=training_cfg.get("early_stopping_threshold", 0.01),
         )
         self.skip_export = cfg.get("pipeline", {}).get("skip_export", False)
         self.skip_quantization = cfg.get("pipeline", {}).get("skip_quantization", False)
