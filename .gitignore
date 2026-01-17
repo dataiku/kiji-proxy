@@ -80,6 +80,8 @@ src/frontend/resources
 src/backend/model/
 model/trained/
 
+# model signing key
+model/keys/**
 
 # Dataset folders
 model/dataset/samples/

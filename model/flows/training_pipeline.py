@@ -399,6 +399,9 @@ class PIITrainingPipeline(FlowSpec):
         try:
             from src.model_signing import sign_trained_model
 
+            # Get private key path from environment
+            private_key_path = os.getenv("MODEL_SIGNING_KEY_PATH")
+
             # Try to load quantized model if it exists
             quantized_path = None
             if getattr(self, "quantized_model", None) is not None:
@@ -415,11 +418,14 @@ class PIITrainingPipeline(FlowSpec):
                 model_to_sign = current.model.loaded["trained_model"]
                 model_type = "trained"
 
-            model_hash = sign_trained_model(model_to_sign)
+            model_hash = sign_trained_model(
+                model_to_sign, private_key_path=private_key_path
+            )
             self.model_signature = {
                 "sha256": model_hash,
                 "signed_at": datetime.utcnow().isoformat(),
                 "model_type": model_type,
+                "signing_method": ("private_key" if private_key_path else "hash_only"),
             }
             print(f"Signed ({model_type}): {model_hash[:16]}...")
 

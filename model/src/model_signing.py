@@ -190,15 +190,25 @@ class ModelSigner:
         return manifest
 
 
-def sign_trained_model(model_dir: str = "model/quantized", ci_mode: bool = None):
+def sign_trained_model(
+    model_dir: str = "model/quantized",
+    ci_mode: bool = None,
+    private_key_path: str = None,
+):
     """
     Sign the trained model and generate manifest.
 
     Args:
         model_dir: Directory containing the trained model
         ci_mode: Force CI mode (auto-detected if None)
+        private_key_path: Path to private key file (if using key-based signing)
+                         Can also be set via MODEL_SIGNING_KEY_PATH environment variable
     """
     signer = ModelSigner(model_dir)
+
+    # Auto-detect private key from environment if not provided
+    if private_key_path is None:
+        private_key_path = os.getenv("MODEL_SIGNING_KEY_PATH")
 
     # Auto-detect CI environment if not specified
     if ci_mode is None:
@@ -216,10 +226,17 @@ def sign_trained_model(model_dir: str = "model/quantized", ci_mode: bool = None)
 
     # Sign model (using appropriate mode)
     try:
-        if ci_mode:
+        if private_key_path:
+            print(f"Using private key signing from: {private_key_path}")
+            sig_path = signer.sign_model(private_key_path=private_key_path)
+            print(f"Model signed successfully: {sig_path}")
+        elif ci_mode:
             print("Using CI mode for model signing...")
-        sig_path = signer.sign_model(use_ci_mode=ci_mode)
-        print(f"Model signed successfully: {sig_path}")
+            sig_path = signer.sign_model(use_ci_mode=ci_mode)
+            print(f"Model signed successfully: {sig_path}")
+        else:
+            print("No private key or CI mode available, skipping signature generation")
+            print("Model hash is still available for verification")
     except Exception as e:
         print(f"Warning: Model signing failed: {e}")
         print("Model hash is still available for verification")
