@@ -18,6 +18,7 @@ from transformers import (
     AutoTokenizer,
     EarlyStoppingCallback,
     Trainer,
+    TrainerCallback,
     TrainingArguments,
 )
 
@@ -38,6 +39,52 @@ except ImportError:
         MultiTaskLoss,
         MultiTaskPIIDetectionModel,
     )
+
+
+class CleanMetricsCallback(TrainerCallback):
+    """Custom callback to print clean, readable metrics during training."""
+
+    def on_log(self, args, state, control, logs=None, **kwargs):
+        """Called when logging metrics."""
+        if logs is None:
+            return
+
+        # Only print eval metrics (skip training loss logs for cleaner output)
+        if not any(k.startswith("eval_") for k in logs.keys()):
+            return
+
+        # Format and print metrics cleanly
+        step = state.global_step
+        epoch = logs.get("epoch", 0)
+
+        logging.info(f"\n{'=' * 60}")
+        logging.info(f"📊 Evaluation at Step {step} (Epoch {epoch:.2f})")
+        logging.info(f"{'=' * 60}")
+
+        # PII metrics
+        pii_f1 = logs.get("eval_pii_f1_weighted") or logs.get("eval_pii_f1")
+        pii_acc = logs.get("eval_pii_accuracy")
+        if pii_f1 is not None:
+            logging.info(f"🔍 PII Detection:")
+            logging.info(f"   F1:  {pii_f1:.4f}")
+            if pii_acc is not None:
+                logging.info(f"   Acc: {pii_acc:.4f}")
+
+        # Coref metrics
+        coref_f1 = logs.get("eval_coref_f1_weighted") or logs.get("eval_coref_f1")
+        coref_acc = logs.get("eval_coref_accuracy")
+        if coref_f1 is not None:
+            logging.info(f"🔗 Co-reference:")
+            logging.info(f"   F1:  {coref_f1:.4f}")
+            if coref_acc is not None:
+                logging.info(f"   Acc: {coref_acc:.4f}")
+
+        # Loss
+        loss = logs.get("eval_loss")
+        if loss is not None:
+            logging.info(f"📉 Loss: {loss:.4f}")
+
+        logging.info(f"{'=' * 60}\n")
 
 
 class MultiTaskTrainer(Trainer):
@@ -568,10 +615,16 @@ class PIITrainer:
             seed=self.config.seed,
             dataloader_pin_memory=False,
             remove_unused_columns=False,
+            logging_first_step=False,
+            disable_tqdm=False,  # Keep progress bar
         )
 
         # Set up callbacks
         callbacks = []
+
+        # Add clean metrics logging callback
+        callbacks.append(CleanMetricsCallback())
+
         if self.config.early_stopping_enabled:
             early_stopping_callback = EarlyStoppingCallback(
                 early_stopping_patience=self.config.early_stopping_patience,
