@@ -5,14 +5,35 @@
 name = "distilbert-base-cased"
 
 [training]
-num_epochs = 5
-batch_size = 16
+num_epochs = 40
+batch_size = 64
 learning_rate = 3e-5
 
+# Early stopping settings
+early_stopping_enabled = true
+early_stopping_patience = 3  # Number of eval steps with no improvement before stopping
+early_stopping_threshold = 0.01  # Minimum improvement (1%) to qualify as improvement
+
 [paths]
-training_samples_dir = "model/dataset/reviewed_samples"
+# Directory containing JSON training samples (relative to working directory or absolute)
+training_samples_dir = "model/dataset/training_samples"
 output_dir = "model/trained"
+
+[labelstudio]
+# Label Studio base url
+base_url = "http://localhost:8080"
+# ID of the label studio project
+project_id = 5
+
 
 [data]
 # Limit samples for quick iteration (0 = use all)
-subsample_count = 160
+subsample_count = 0
+
+[pipeline]
+# Skip Label Studio export and use existing data from paths.training_samples_dir
+skip_export = true
+# Skip ONNX quantization (only works on Linux)
+skip_quantization = false
+# Skip model signing
+skip_signing = false

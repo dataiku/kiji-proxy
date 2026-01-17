@@ -8,10 +8,10 @@
     "resolveJsonModule": true,
     "allowJs": true,
     "checkJs": false,
-    "strict": false,
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
-    "noImplicitReturns": false,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -19,9 +19,9 @@
     "allowSyntheticDefaultImports": true
   },
   "include": [
-    "**/*.ts",
-    "**/*.tsx",
-    "*.d.ts"
+    "../**/*.ts",
+    "../**/*.tsx",
+    "../src/types/*.d.ts"
   ],
   "exclude": [
     "node_modules",

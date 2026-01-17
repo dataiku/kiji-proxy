@@ -24,13 +24,13 @@ Usage:
 
 import argparse
 import json
-import logging
 import sys
 import time
 from pathlib import Path
 
 import torch
 import torch.nn.functional as F
+from absl import logging
 from safetensors import safe_open
 from transformers import AutoTokenizer
 
@@ -43,10 +43,6 @@ try:
     from model.model import MultiTaskPIIDetectionModel
 except ImportError:
     from model import MultiTaskPIIDetectionModel
-
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 
 # =============================================================================
@@ -89,7 +85,7 @@ class DetailedPIIModelLoader:
 
     def load_model(self):
         """Load multi-task model, tokenizer, and label mappings."""
-        logger.info(f"\n📥 Loading model from: {self.model_path}")
+        logging.info(f"\n📥 Loading model from: {self.model_path}")
 
         # Load label mappings
         mappings_path = Path(self.model_path) / "label_mappings.json"
@@ -105,38 +101,23 @@ class DetailedPIIModelLoader:
         # Load PII label mappings
         self.pii_label2id = mappings["pii"]["label2id"]
         self.pii_id2label = {int(k): v for k, v in mappings["pii"]["id2label"].items()}
-        logger.info(f"✅ Loaded {len(self.pii_label2id)} PII label mappings")
+        logging.info(f"✅ Loaded {len(self.pii_label2id)} PII label mappings")
 
         # Load co-reference label mappings
         if "coref" in mappings:
             self.coref_id2label = {
                 int(k): v for k, v in mappings["coref"]["id2label"].items()
             }
-            logger.info(
+            logging.info(
                 f"✅ Loaded {len(self.coref_id2label)} co-reference label mappings"
             )
 
         # Load tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_path)
-        logger.info("✅ Loaded tokenizer")
+        logging.info("✅ Loaded tokenizer")
 
-        # Load model config to get base model name
-        config_path = Path(self.model_path) / "config.json"
-        if config_path.exists():
-            with config_path.open() as f:
-                model_config = json.load(f)
-            # Try to get base model name from config
-            base_model_name = model_config.get("_name_or_path") or model_config.get(
-                "model_type", "modernbert"
-            )
-            # Convert model_type to full model name if needed
-            if base_model_name == "modernbert":
-                base_model_name = "answerdotai/ModernBERT-base"
-        else:
-            base_model_name = "answerdotai/ModernBERT-base"
-            logger.warning(
-                "⚠️  config.json not found, using default: answerdotai/ModernBERT-base"
-            )
+        # Use ModernBERT as the base model
+        base_model_name = "answerdotai/ModernBERT-base"
 
         # Determine number of labels
         num_pii_labels = len(self.pii_label2id)
@@ -157,12 +138,12 @@ class DetailedPIIModelLoader:
                 bin_files = list(Path(self.model_path).glob("*.bin"))
                 if bin_files:
                     model_weights_path = bin_files[0]
-                    logger.info(f"   Found weights: {model_weights_path.name}")
+                    logging.info(f"   Found weights: {model_weights_path.name}")
 
         # Load model weights first to determine correct num_coref_labels
         state_dict = None
         if model_weights_path.exists():
-            logger.info(f"📦 Loading weights from: {model_weights_path.name}")
+            logging.info(f"📦 Loading weights from: {model_weights_path.name}")
 
             # Handle safetensors files
             if model_weights_path.suffix == ".safetensors":
@@ -188,15 +169,15 @@ class DetailedPIIModelLoader:
             for key in state_dict.keys():
                 if "coref_classifier.weight" in key:
                     num_coref_labels = state_dict[key].shape[0]
-                    logger.info(
+                    logging.info(
                         f"   Detected {num_coref_labels} co-reference labels from model weights"
                     )
                     break
 
-        logger.info("📋 Model configuration:")
-        logger.info(f"   Base model: {base_model_name}")
-        logger.info(f"   PII labels: {num_pii_labels}")
-        logger.info(f"   Co-reference labels: {num_coref_labels}")
+        logging.info("📋 Model configuration:")
+        logging.info(f"   Base model: {base_model_name}")
+        logging.info(f"   PII labels: {num_pii_labels}")
+        logging.info(f"   Co-reference labels: {num_coref_labels}")
 
         # Load multi-task model
         self.model = MultiTaskPIIDetectionModel(
@@ -230,9 +211,9 @@ class DetailedPIIModelLoader:
                     }
 
             self.model.load_state_dict(state_dict, strict=False)
-            logger.info("✅ Model weights loaded")
+            logging.info("✅ Model weights loaded")
         else:
-            logger.warning(
+            logging.warning(
                 "⚠️  Model weights not found, using randomly initialized model"
             )
 
@@ -242,7 +223,7 @@ class DetailedPIIModelLoader:
         device_name = (
             "MPS (Apple Silicon)" if self.device.type == "mps" else str(self.device)
         )
-        logger.info(f"✅ Loaded model on device: {device_name}")
+        logging.info(f"✅ Loaded model on device: {device_name}")
 
     def predict_detailed(
         self, text: str, top_k: int = 3, show_logits: bool = False
@@ -413,21 +394,21 @@ def print_detailed_results(
     coref_top_k = detailed_output["coref_top_k"]
     inference_time = detailed_output["inference_time_ms"]
 
-    logger.info(f"\n{'=' * 80}")
-    logger.info(f"Test Case {case_num} - Detailed Output")
-    logger.info(f"{'=' * 80}")
-    logger.info(f"Input Text: {text}")
-    logger.info(f"Inference Time: {inference_time:.2f} ms")
-    logger.info(f"Total Tokens: {len(tokens)}")
+    logging.info(f"\n{'=' * 80}")
+    logging.info(f"Test Case {case_num} - Detailed Output")
+    logging.info(f"{'=' * 80}")
+    logging.info(f"Input Text: {text}")
+    logging.info(f"Inference Time: {inference_time:.2f} ms")
+    logging.info(f"Total Tokens: {len(tokens)}")
 
     # Token-by-token breakdown
-    logger.info(f"\n{'=' * 80}")
-    logger.info("Token-by-Token Predictions")
-    logger.info(f"{'=' * 80}")
-    logger.info(
+    logging.info(f"\n{'=' * 80}")
+    logging.info("Token-by-Token Predictions")
+    logging.info(f"{'=' * 80}")
+    logging.info(
         f"{'Token':<20} {'PII Label':<20} {'PII Conf':<10} {'Coref':<15} {'Coref Conf':<10}"
     )
-    logger.info("-" * 80)
+    logging.info("-" * 80)
 
     for i, (token, pii_label, coref_id) in enumerate(
         zip(tokens, pii_preds, coref_preds, strict=True)
@@ -451,31 +432,31 @@ def print_detailed_results(
         # Truncate token if too long
         token_display = token[:18] + ".." if len(token) > 20 else token
 
-        logger.info(
+        logging.info(
             f"{token_display:<20} {pii_label:<20} {pii_conf:.4f}     {coref_label:<15} {coref_conf:.4f}"
         )
 
     # Top-k predictions per token
-    logger.info(f"\n{'=' * 80}")
-    logger.info(f"Top-{top_k} PII Predictions Per Token")
-    logger.info(f"{'=' * 80}")
+    logging.info(f"\n{'=' * 80}")
+    logging.info(f"Top-{top_k} PII Predictions Per Token")
+    logging.info(f"{'=' * 80}")
 
     for i, (token, top_k_items) in enumerate(zip(tokens, pii_top_k, strict=True)):
         # Skip special tokens
         if token in ["[CLS]", "[SEP]", "[PAD]"]:
             continue
 
-        logger.info(f"\nToken {i}: '{token}'")
+        logging.info(f"\nToken {i}: '{token}'")
         for rank, item in enumerate(top_k_items, 1):
-            logger.info(
+            logging.info(
                 f"  {rank}. {item['label']:<20} (ID: {item['label_id']:3d}) "
                 f"Probability: {item['probability']:.4f}"
             )
 
     # Co-reference top-k
-    logger.info(f"\n{'=' * 80}")
-    logger.info(f"Top-{top_k} Co-reference Predictions Per Token")
-    logger.info(f"{'=' * 80}")
+    logging.info(f"\n{'=' * 80}")
+    logging.info(f"Top-{top_k} Co-reference Predictions Per Token")
+    logging.info(f"{'=' * 80}")
 
     for i, (token, top_k_items) in enumerate(zip(tokens, coref_top_k, strict=True)):
         # Skip special tokens and NO_COREF predictions
@@ -484,39 +465,39 @@ def print_detailed_results(
 
         # Only show if there are interesting predictions
         if any(item["label_id"] > 0 for item in top_k_items):
-            logger.info(f"\nToken {i}: '{token}'")
+            logging.info(f"\nToken {i}: '{token}'")
             for rank, item in enumerate(top_k_items, 1):
-                logger.info(
+                logging.info(
                     f"  {rank}. {item['label']:<15} (ID: {item['label_id']:3d}) "
                     f"Probability: {item['probability']:.4f}"
                 )
 
     # Show raw logits if requested
     if show_logits:
-        logger.info(f"\n{'=' * 80}")
-        logger.info("Raw Logits (First 10 tokens, first 10 labels)")
-        logger.info(f"{'=' * 80}")
+        logging.info(f"\n{'=' * 80}")
+        logging.info("Raw Logits (First 10 tokens, first 10 labels)")
+        logging.info(f"{'=' * 80}")
 
         pii_logits = detailed_output.get("pii_logits", [])
         coref_logits = detailed_output.get("coref_logits", [])
 
         if pii_logits and pii_id2label:
-            logger.info("\nPII Logits (sample):")
+            logging.info("\nPII Logits (sample):")
             for i in range(min(10, len(tokens))):
                 if tokens[i] not in ["[CLS]", "[SEP]", "[PAD]"]:
-                    logger.info(f"\nToken {i} '{tokens[i]}':")
+                    logging.info(f"\nToken {i} '{tokens[i]}':")
                     # Show first 10 label logits
                     label_items = list(pii_id2label.items())[:10]
                     for label_id, label_name in label_items:
                         if label_id < len(pii_logits[i]):
                             logit_val = pii_logits[i][label_id]
-                            logger.info(f"  {label_name:<20} logit: {logit_val:.4f}")
+                            logging.info(f"  {label_name:<20} logit: {logit_val:.4f}")
 
         if coref_logits:
-            logger.info("\nCo-reference Logits (sample):")
+            logging.info("\nCo-reference Logits (sample):")
             for i in range(min(10, len(tokens))):
                 if tokens[i] not in ["[CLS]", "[SEP]", "[PAD]"]:
-                    logger.info(f"\nToken {i} '{tokens[i]}':")
+                    logging.info(f"\nToken {i} '{tokens[i]}':")
                     for label_id in range(min(10, len(coref_logits[i]))):
                         logit_val = coref_logits[i][label_id]
                         label_name = (
@@ -524,20 +505,20 @@ def print_detailed_results(
                             if coref_id2label
                             else f"CLUSTER_{label_id}"
                         )
-                        logger.info(f"  {label_name:<15} logit: {logit_val:.4f}")
+                        logging.info(f"  {label_name:<15} logit: {logit_val:.4f}")
 
     # Summary statistics
-    logger.info(f"\n{'=' * 80}")
-    logger.info("Summary Statistics")
-    logger.info(f"{'=' * 80}")
+    logging.info(f"\n{'=' * 80}")
+    logging.info("Summary Statistics")
+    logging.info(f"{'=' * 80}")
 
     # Count entities
     pii_entities = sum(1 for label in pii_preds if label.startswith("B-"))
-    logger.info(f"PII entities detected: {pii_entities}")
+    logging.info(f"PII entities detected: {pii_entities}")
 
     # Count co-reference clusters
     coref_clusters = set(coref_preds) - {0}
-    logger.info(f"Co-reference clusters: {len(coref_clusters)}")
+    logging.info(f"Co-reference clusters: {len(coref_clusters)}")
 
     # Average confidence
     valid_tokens = [
@@ -552,10 +533,10 @@ def print_detailed_results(
             detailed_output["coref_probabilities"][i][coref_preds[i]]
             for i in valid_tokens
         ) / len(valid_tokens)
-        logger.info(f"Average PII confidence: {avg_pii_conf:.4f}")
-        logger.info(f"Average co-reference confidence: {avg_coref_conf:.4f}")
+        logging.info(f"Average PII confidence: {avg_pii_conf:.4f}")
+        logging.info(f"Average co-reference confidence: {avg_coref_conf:.4f}")
 
-    logger.info(f"{'=' * 80}\n")
+    logging.info(f"{'=' * 80}\n")
 
 
 def main():
@@ -589,44 +570,44 @@ def main():
 
     args = parser.parse_args()
 
-    logger.info("=" * 80)
-    logger.info("PII Detection Model - Detailed Evaluation")
-    logger.info("=" * 80)
+    logging.info("=" * 80)
+    logging.info("PII Detection Model - Detailed Evaluation")
+    logging.info("=" * 80)
 
     # Determine model path
     model_path = args.local_model
 
     # Try to find model if path doesn't exist
     if not Path(model_path).exists():
-        logger.warning(f"⚠️  Model path not found: {model_path}")
+        logging.warning(f"⚠️  Model path not found: {model_path}")
         # Try common locations
         local_paths = ["./model/trained", "../model/trained", "model/trained"]
         for path in local_paths:
             if Path(path).exists():
                 model_path = path
-                logger.info(f"✅ Found model at: {model_path}")
+                logging.info(f"✅ Found model at: {model_path}")
                 break
 
     if not Path(model_path).exists():
-        logger.error("\n❌ No model found! Please specify a valid model path.")
-        logger.error(f"   Searched: {args.local_model}")
-        logger.error("   Use --local-model <path> to specify a local model")
+        logging.error("\n❌ No model found! Please specify a valid model path.")
+        logging.error(f"   Searched: {args.local_model}")
+        logging.error("   Use --local-model <path> to specify a local model")
         return
 
-    logger.info(f"\n📁 Using model: {model_path}")
+    logging.info(f"\n📁 Using model: {model_path}")
 
     # Check device availability
     device = get_device()
     device_name = "MPS (Apple Silicon)" if device.type == "mps" else str(device)
-    logger.info(f"🖥️  Device: {device_name}")
+    logging.info(f"🖥️  Device: {device_name}")
 
     # Load model
-    logger.info("\n📥 Loading model...")
+    logging.info("\n📥 Loading model...")
     loader = DetailedPIIModelLoader(model_path)
     loader.load_model()
 
     # Run inference on test cases
-    logger.info(
+    logging.info(
         f"\n🚀 Running detailed inference on {min(args.num_tests, len(TEST_CASES))} test cases..."
     )
 
@@ -654,19 +635,19 @@ def main():
     total_time = sum(inference_times)
 
     # Summary
-    logger.info(f"\n{'=' * 80}")
-    logger.info("✅ Detailed Evaluation Complete!")
-    logger.info(f"{'=' * 80}")
-    logger.info(f"Model: {model_path}")
-    logger.info(f"Device: {loader.device}")
-    logger.info(f"Test cases processed: {min(args.num_tests, len(TEST_CASES))}")
-    logger.info("\n📊 Inference Time Statistics:")
-    logger.info(f"  Total time: {total_time:.2f} ms ({total_time / 1000:.3f} seconds)")
-    logger.info(f"  Average time per test: {avg_time:.2f} ms")
-    logger.info(f"  Min time: {min_time:.2f} ms")
-    logger.info(f"  Max time: {max_time:.2f} ms")
-    logger.info(f"  Throughput: {1000 / avg_time:.2f} texts/second")
-    logger.info(f"{'=' * 80}\n")
+    logging.info(f"\n{'=' * 80}")
+    logging.info("✅ Detailed Evaluation Complete!")
+    logging.info(f"{'=' * 80}")
+    logging.info(f"Model: {model_path}")
+    logging.info(f"Device: {loader.device}")
+    logging.info(f"Test cases processed: {min(args.num_tests, len(TEST_CASES))}")
+    logging.info("\n📊 Inference Time Statistics:")
+    logging.info(f"  Total time: {total_time:.2f} ms ({total_time / 1000:.3f} seconds)")
+    logging.info(f"  Average time per test: {avg_time:.2f} ms")
+    logging.info(f"  Min time: {min_time:.2f} ms")
+    logging.info(f"  Max time: {max_time:.2f} ms")
+    logging.info(f"  Throughput: {1000 / avg_time:.2f} texts/second")
+    logging.info(f"{'=' * 80}\n")
 
 
 if __name__ == "__main__":

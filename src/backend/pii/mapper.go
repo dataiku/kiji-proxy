@@ -131,6 +131,29 @@ func (m *PIIMapping) Clear() {
 	m.DummyToOriginal = make(map[string]string)
 }
 
+// ClearAll removes all mappings from both cache and database
+func (m *PIIMapping) ClearAll() error {
+	// Clear cache first
+	m.mutex.Lock()
+	m.OriginalToDummy = make(map[string]string)
+	m.DummyToOriginal = make(map[string]string)
+	m.mutex.Unlock()
+
+	// Clear database
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	return m.db.ClearMappings(ctx)
+}
+
+// GetMappingsCount returns the total number of mappings in database
+func (m *PIIMapping) GetMappingsCount() (int, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	return m.db.GetMappingsCount(ctx)
+}
+
 // Close closes the database connection
 func (m *PIIMapping) Close() error {
 	return m.db.Close()
