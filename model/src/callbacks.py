@@ -1,7 +1,5 @@
 """Custom callbacks for training."""
 
-import sys
-
 from absl import logging
 from transformers import TrainerCallback
 
@@ -30,7 +28,7 @@ class CleanMetricsCallback(TrainerCallback):
             pii_f1 = logs.get("eval_pii_f1_weighted") or logs.get("eval_pii_f1")
             pii_acc = logs.get("eval_pii_accuracy")
             if pii_f1 is not None:
-                logging.warning(f"🔍 PII Detection:")
+                logging.warning("🔍 PII Detection:")
                 logging.warning(f"   F1:  {pii_f1:.4f}")
                 if pii_acc is not None:
                     logging.warning(f"   Acc: {pii_acc:.4f}")
@@ -39,7 +37,7 @@ class CleanMetricsCallback(TrainerCallback):
             coref_f1 = logs.get("eval_coref_f1_weighted") or logs.get("eval_coref_f1")
             coref_acc = logs.get("eval_coref_accuracy")
             if coref_f1 is not None:
-                logging.warning(f"🔗 Co-reference:")
+                logging.warning("🔗 Co-reference:")
                 logging.warning(f"   F1:  {coref_f1:.4f}")
                 if coref_acc is not None:
                     logging.warning(f"   Acc: {coref_acc:.4f}")
