@@ -547,6 +547,11 @@ class PIITrainer:
 
             return batch
 
+        # Suppress transformers logging output (we use custom callback)
+        import transformers
+
+        transformers.logging.set_verbosity_error()
+
         # Training arguments
         training_args = TrainingArguments(
             output_dir=self.config.output_dir,
@@ -572,6 +577,7 @@ class PIITrainer:
             remove_unused_columns=False,
             logging_first_step=False,
             disable_tqdm=False,  # Keep progress bar
+            log_level="error",  # Suppress info logs
         )
 
         # Set up callbacks
@@ -602,6 +608,12 @@ class PIITrainer:
             multi_task_loss_fn=self.multi_task_loss_fn,
             callbacks=callbacks if callbacks else None,
         )
+
+        # Remove default ProgressCallback to prevent verbose dict logging
+        from transformers.trainer_callback import ProgressCallback
+
+        trainer.remove_callback(ProgressCallback)
+
         logging.info("✅ Using MultiTaskTrainer with multi-task loss")
 
         # Train
