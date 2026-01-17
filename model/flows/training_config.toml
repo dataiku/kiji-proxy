@@ -2,7 +2,7 @@
 # All pipeline settings are controlled via this file.
 
 [model]
-name = "distilbert-base-cased"
+name = "answerdotai/ModernBERT-base"
 
 [training]
 num_epochs = 40

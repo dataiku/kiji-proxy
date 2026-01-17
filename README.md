@@ -168,7 +168,7 @@ make electron
 ## ✨ Key Features
 
 - **16+ PII Types Detected** - Email, phone, SSN, credit cards, IP addresses, URLs, and more
-- **ML-Powered** - DistilBERT transformer model with ONNX Runtime
+- **ML-Powered** - ModernBERT transformer model with ONNX Runtime
 - **Automatic Configuration** - PAC (Proxy Auto-Config) for zero-setup browser integration on macOS
 - **Real-Time Processing** - Sub-100ms latency for most requests
 - **Thread-Safe** - Handles concurrent requests with isolated mappings
@@ -365,7 +365,7 @@ This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENS
 ## 🙏 Acknowledgments
 
 - **ONNX Runtime** - Microsoft's cross-platform ML inference engine
-- **HuggingFace** - DistilBERT model and tokenizers
+- **HuggingFace** - ModernBERT model and tokenizers
 - **Electron** - Cross-platform desktop framework
 - **Go Community** - Excellent libraries and tools
 
