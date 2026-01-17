@@ -347,6 +347,8 @@ class PIITrainingPipeline(FlowSpec):
     def quantize_model(self):
         """Quantize model to ONNX format."""
 
+        import shutil
+
         from src.quantitize import export_to_onnx, load_multitask_model, quantize_model
 
         try:
@@ -360,7 +362,18 @@ class PIITrainingPipeline(FlowSpec):
             with (output_path / "label_mappings.json").open("w") as f:
                 json.dump(label_mappings, f, indent=2)
 
+            # Copy config.json so ORTModel can auto-load the quantized model
+            config_src = Path(model_path) / "config.json"
+            if config_src.exists():
+                shutil.copy(config_src, output_path / "config.json")
+
             quantize_model(str(output_path), str(output_path))
+
+            # Remove non-quantized model after quantization
+            non_quantized = output_path / "model.onnx"
+            if non_quantized.exists():
+                non_quantized.unlink()
+                print(f"Removed non-quantized ONNX model: {non_quantized}")
 
             self.quantized_model_path = quantized_output
             self.quantized_model = current.checkpoint.save(

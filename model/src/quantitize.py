@@ -214,7 +214,7 @@ def export_to_onnx(
     model: MultiTaskPIIDetectionModel,
     tokenizer: AutoTokenizer,
     output_path: str,
-    opset: int = 14,
+    opset: int = 18,
 ):
     """
     Export the full multi-task model to ONNX (both PII and co-reference detection).
