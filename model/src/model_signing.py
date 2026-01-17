@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 
 try:
-    from model_signing import signing
+    from model_signing import hashing, signing
 
     SIGNING_AVAILABLE = True
 except ImportError:
@@ -59,7 +59,8 @@ class ModelSigner:
                 config = signing.Config().use_sigstore_signer()
 
         # Allow symlinks (needed for Metaflow model artifacts which use symlinks)
-        config.set_allow_symlinks(True)
+        hashing_config = hashing.Config().set_allow_symlinks(True)
+        config.set_hashing_config(hashing_config)
 
         config.sign(str(self.model_path), output_path)
         return output_path
