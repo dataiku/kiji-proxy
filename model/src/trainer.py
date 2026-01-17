@@ -16,12 +16,14 @@ from sklearn.metrics import (
 from torch.nn import functional
 from transformers import (
     AutoTokenizer,
+    EarlyStoppingCallback,
     Trainer,
     TrainingArguments,
 )
 
 # Import from local modules
 try:
+    from .callbacks import CleanMetricsCallback
     from .config import TrainingConfig
     from .model import (
         MaskedSparseCategoricalCrossEntropy,
@@ -30,6 +32,7 @@ try:
     )
 except ImportError:
     # Fallback for direct execution
+    from callbacks import CleanMetricsCallback
     from config import TrainingConfig
 
     from model import (
@@ -544,6 +547,17 @@ class PIITrainer:
 
             return batch
 
+        # Suppress transformers logging output (we use custom callback)
+        import logging as python_logging
+
+        import transformers
+
+        transformers.logging.set_verbosity_error()
+
+        # Suppress the default trainer logging that prints dicts
+        trainer_logger = python_logging.getLogger("transformers.trainer")
+        trainer_logger.setLevel(python_logging.ERROR)
+
         # Training arguments
         training_args = TrainingArguments(
             output_dir=self.config.output_dir,
@@ -567,7 +581,27 @@ class PIITrainer:
             seed=self.config.seed,
             dataloader_pin_memory=False,
             remove_unused_columns=False,
+            logging_first_step=False,
+            disable_tqdm=False,  # Keep progress bar
+            log_level="error",  # Suppress info logs
         )
+
+        # Set up callbacks
+        callbacks = []
+
+        # Add clean metrics logging callback
+        callbacks.append(CleanMetricsCallback())
+
+        if self.config.early_stopping_enabled:
+            early_stopping_callback = EarlyStoppingCallback(
+                early_stopping_patience=self.config.early_stopping_patience,
+                early_stopping_threshold=self.config.early_stopping_threshold,
+            )
+            callbacks.append(early_stopping_callback)
+            logging.info(
+                f"✅ Early stopping enabled (patience={self.config.early_stopping_patience}, "
+                f"threshold={self.config.early_stopping_threshold})"
+            )
 
         # Initialize multi-task trainer
         trainer = MultiTaskTrainer(
@@ -578,7 +612,9 @@ class PIITrainer:
             data_collator=multi_task_collator,
             compute_metrics=self.compute_metrics,
             multi_task_loss_fn=self.multi_task_loss_fn,
+            callbacks=callbacks if callbacks else None,
         )
+
         logging.info("✅ Using MultiTaskTrainer with multi-task loss")
 
         # Train

@@ -16,7 +16,7 @@ Usage:
     uv run --extra training --extra quantization --extra signing python model/flows/training_pipeline.py run
 
     # Custom config file
-    uv run --extra training python model/flows/training_pipeline.py --config-file custom_config.toml run
+    uv run --extra training python model/flows/training_pipeline.py --config config-file custom_config.toml run
 
     # Remote Kubernetes execution (uncomment @pypi and @kubernetes decorators for dependencies)
     python model/flows/training_pipeline.py --environment=pypi run --with kubernetes
@@ -124,15 +124,19 @@ class PIITrainingPipeline(FlowSpec):
         EnvironmentSetup.check_gpu()
 
         cfg = self.config_file
+        training_cfg = cfg.get("training", {})
         self.config = TrainingConfig(
             model_name=cfg.get("model", {}).get("name", "distilbert-base-cased"),
-            num_epochs=cfg.get("training", {}).get("num_epochs", 5),
-            batch_size=cfg.get("training", {}).get("batch_size", 16),
-            learning_rate=cfg.get("training", {}).get("learning_rate", 3e-5),
+            num_epochs=training_cfg.get("num_epochs", 5),
+            batch_size=training_cfg.get("batch_size", 16),
+            learning_rate=training_cfg.get("learning_rate", 3e-5),
             training_samples_dir=cfg.get("paths", {}).get(
                 "training_samples_dir", "model/dataset/training_samples"
             ),
             output_dir=cfg.get("paths", {}).get("output_dir", "model/trained"),
+            early_stopping_enabled=training_cfg.get("early_stopping_enabled", True),
+            early_stopping_patience=training_cfg.get("early_stopping_patience", 3),
+            early_stopping_threshold=training_cfg.get("early_stopping_threshold", 0.01),
         )
         self.skip_export = cfg.get("pipeline", {}).get("skip_export", False)
         self.skip_quantization = cfg.get("pipeline", {}).get("skip_quantization", False)
@@ -182,15 +186,15 @@ class PIITrainingPipeline(FlowSpec):
         """Load and preprocess training data from training_samples directory."""
         from src.preprocessing import DatasetProcessor
 
-        # Use the training_samples directory directly
-        # This is the curated, high-quality dataset for training
-        training_samples_dir = Path("model/dataset/training_samples")
+        # Use the training_samples directory from config
+        training_samples_dir = Path(self.config.training_samples_dir)
 
         # Verify the dataset directory exists and contains data
         if not training_samples_dir.exists():
             raise ValueError(
                 f"Dataset directory not found: {training_samples_dir}. "
-                "Please ensure the training_samples directory is present."
+                "Please ensure the training_samples directory is present, "
+                "or set paths.training_samples_dir in your config file."
             )
 
         json_files = list(training_samples_dir.glob("*.json"))
@@ -201,9 +205,6 @@ class PIITrainingPipeline(FlowSpec):
             )
 
         print(f"Found {len(json_files)} training samples in {training_samples_dir}")
-
-        # Update config to use training_samples directory
-        self.config.training_samples_dir = str(training_samples_dir)
 
         # Ensure output directory exists
         Path(self.config.output_dir).mkdir(parents=True, exist_ok=True)
@@ -346,6 +347,8 @@ class PIITrainingPipeline(FlowSpec):
     def quantize_model(self):
         """Quantize model to ONNX format."""
 
+        import shutil
+
         from src.quantitize import export_to_onnx, load_multitask_model, quantize_model
 
         try:
@@ -359,7 +362,18 @@ class PIITrainingPipeline(FlowSpec):
             with (output_path / "label_mappings.json").open("w") as f:
                 json.dump(label_mappings, f, indent=2)
 
+            # Copy config.json so ORTModel can auto-load the quantized model
+            config_src = Path(model_path) / "config.json"
+            if config_src.exists():
+                shutil.copy(config_src, output_path / "config.json")
+
             quantize_model(str(output_path), str(output_path))
+
+            # Remove non-quantized model after quantization
+            non_quantized = output_path / "model.onnx"
+            if non_quantized.exists():
+                non_quantized.unlink()
+                print(f"Removed non-quantized ONNX model: {non_quantized}")
 
             self.quantized_model_path = quantized_output
             self.quantized_model = current.checkpoint.save(
@@ -385,6 +399,9 @@ class PIITrainingPipeline(FlowSpec):
         try:
             from src.model_signing import sign_trained_model
 
+            # Get private key path from environment
+            private_key_path = os.getenv("MODEL_SIGNING_KEY_PATH")
+
             # Try to load quantized model if it exists
             quantized_path = None
             if getattr(self, "quantized_model", None) is not None:
@@ -401,11 +418,14 @@ class PIITrainingPipeline(FlowSpec):
                 model_to_sign = current.model.loaded["trained_model"]
                 model_type = "trained"
 
-            model_hash = sign_trained_model(model_to_sign)
+            model_hash = sign_trained_model(
+                model_to_sign, private_key_path=private_key_path
+            )
             self.model_signature = {
                 "sha256": model_hash,
                 "signed_at": datetime.utcnow().isoformat(),
                 "model_type": model_type,
+                "signing_method": ("private_key" if private_key_path else "hash_only"),
             }
             print(f"Signed ({model_type}): {model_hash[:16]}...")
 
