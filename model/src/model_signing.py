@@ -58,6 +58,9 @@ class ModelSigner:
                 # Interactive mode: use browser-based authentication
                 config = signing.Config().use_sigstore_signer()
 
+        # Allow symlinks (needed for Metaflow model artifacts which use symlinks)
+        config.set_allow_symlinks(True)
+
         config.sign(str(self.model_path), output_path)
         return output_path
 
@@ -132,12 +135,14 @@ class ModelSigner:
         model_files = sorted(self.model_path.rglob("*"))
 
         for file_path in model_files:
-            if file_path.is_file():
+            # Resolve symlinks to get the actual file
+            resolved_path = file_path.resolve()
+            if resolved_path.is_file():
                 # Include file path in hash for structure integrity
                 hasher.update(str(file_path.relative_to(self.model_path)).encode())
 
-                # Hash file contents
-                with open(file_path, "rb") as f:
+                # Hash file contents (follow symlinks)
+                with open(resolved_path, "rb") as f:
                     while chunk := f.read(8192):
                         hasher.update(chunk)
 
@@ -164,8 +169,10 @@ class ModelSigner:
 
         # Add individual file hashes
         for file_path in sorted(self.model_path.rglob("*")):
-            if file_path.is_file():
-                with open(file_path, "rb") as f:
+            # Resolve symlinks to get the actual file
+            resolved_path = file_path.resolve()
+            if resolved_path.is_file():
+                with open(resolved_path, "rb") as f:
                     file_hash = hashlib.sha256(f.read()).hexdigest()
 
                 manifest["files"].append(
