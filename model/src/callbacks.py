@@ -50,6 +50,4 @@ class CleanMetricsCallback(TrainerCallback):
                 logging.info(f"📉 Loss: {loss:.4f}")
 
             logging.info(f"{'=' * 60}\n")
-
-            # Clear the logs dict to prevent default logging from printing it
-            logs.clear()
+            # Don't clear logs - trainer needs them for best model tracking
