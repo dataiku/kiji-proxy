@@ -609,11 +609,6 @@ class PIITrainer:
             callbacks=callbacks if callbacks else None,
         )
 
-        # Remove default ProgressCallback to prevent verbose dict logging
-        from transformers.trainer_callback import ProgressCallback
-
-        trainer.remove_callback(ProgressCallback)
-
         logging.info("✅ Using MultiTaskTrainer with multi-task loss")
 
         # Train
