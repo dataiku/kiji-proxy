@@ -62,7 +62,7 @@ flags.DEFINE_enum(
     "Quantization mode",
 )
 
-flags.DEFINE_integer("opset", 14, "ONNX opset version")
+flags.DEFINE_integer("opset", 18, "ONNX opset version")
 
 flags.DEFINE_boolean(
     "skip_quantization", False, "Skip quantization, only export to ONNX"
@@ -322,9 +322,16 @@ def quantize_model(
     # Use optimum for quantization
     # ORTQuantizer expects a model directory, not a file path
 
-    # Create quantizer from model directory (onnx_path should be the directory)
+    # Create quantizer from model directory with explicit file name
     model_dir = Path(onnx_path).parent if Path(onnx_path).is_file() else Path(onnx_path)
-    quantizer = ORTQuantizer.from_pretrained(str(model_dir))
+
+    # Remove any existing quantized model to avoid "too many ONNX files" error
+    existing_quantized = model_dir / "model_quantized.onnx"
+    if existing_quantized.exists():
+        existing_quantized.unlink()
+        logging.info(f"   Removed existing: {existing_quantized.name}")
+
+    quantizer = ORTQuantizer.from_pretrained(str(model_dir), file_name="model.onnx")
 
     # Select quantization config based on mode
     if quantization_mode == "avx512_vnni":
