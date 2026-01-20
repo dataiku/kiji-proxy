@@ -51,24 +51,10 @@ func (rp *ResponseProcessor) ProcessResponse(body []byte, contentType string, pr
 	data["original_response"] = json.RawMessage(body)
 
 	// Restore masked PII text back to original text
-	content, err := (*provider).ExtractResponseText(data)
+	interceptionNotice := "\n\n[This response was intercepted and processed by Yaak proxy service]"
+	err := (*provider).RestoreMaskedResponse(data, interceptionNotice, rp.RestorePII, rp.logging.GetLogResponses, rp.logging.GetLogVerbose)
 	if err != nil {
-		log.Printf("Failed to extract masked content: %v", err)
-	}
-
-	restoredContent := rp.RestorePII(content)
-	if restoredContent != content && rp.logging.GetLogResponses() {
-		log.Printf("PII restored in response content")
-		if rp.logging.GetLogVerbose() {
-			log.Printf("Original response content: %s", content)
-			log.Printf("Restored response content: %s", restoredContent)
-		}
-	}
-
-	restoredContent += "\n\n[This response was intercepted and processed by Yaak proxy service]"
-	err = (*provider).SetResponseText(data, restoredContent)
-	if err != nil {
-		log.Printf("Failed to set restored content: %v", err)
+		log.Printf("Failed to restore masked content: %v", err)
 	}
 
 	// Add proxy metadata

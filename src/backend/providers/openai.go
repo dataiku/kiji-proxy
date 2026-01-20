@@ -2,6 +2,7 @@ package providers
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 
@@ -39,7 +40,7 @@ func (p *OpenAIProvider) GetBaseURL() string {
 func (p *OpenAIProvider) ExtractRequestText(data map[string]interface{}) (string, error) {
 	messages, ok := data["messages"].([]interface{})
 	if !ok {
-		return "", fmt.Errorf("no messages field in request")
+		return "", fmt.Errorf("No messages field in OpenAI request")
 	}
 
 	var result strings.Builder
@@ -52,6 +53,28 @@ func (p *OpenAIProvider) ExtractRequestText(data map[string]interface{}) (string
 			result.WriteString(content + "\n")
 		}
 	}
+	return result.String(), nil
+}
+
+func (p *OpenAIProvider) ExtractResponseText(data map[string]interface{}) (string, error) {
+	choices, ok := data["choices"].([]interface{})
+	if !ok || len(choices) == 0 {
+		return "", fmt.Errorf("No choices in OpenAI response")
+	}
+
+	var result strings.Builder
+	for i := range choices {
+		choice := choices[i].(map[string]interface{})
+
+		message, ok := choice["message"].(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if content, ok := message["content"].(string); ok {
+			result.WriteString(content + "\n")
+		}
+	}
+
 	return result.String(), nil
 }
 
@@ -88,6 +111,48 @@ func (p *OpenAIProvider) CreateMaskedRequest(maskedRequest map[string]interface{
 	return maskedToOriginal, &entities, nil
 }
 
+func (p *OpenAIProvider) RestoreMaskedResponse(maskedResponse map[string]interface{}, interceptionNotice string, restorePII restorePIIType, getLogResponses getLogResponsesType, getLogVerbose getLogVerboseType) error {
+	// Iterate over all 'choices' contained in 'maskedRequest' (as OpenAI can return more than one).
+	choices, ok := maskedResponse["choices"].([]interface{})
+	if !ok || len(choices) == 0 {
+		return fmt.Errorf("No choices in OpenAI response.")
+	}
+
+	err := fmt.Errorf("No PII to reverse in OpenAI response 'choices' field.")
+	for i := range choices {
+		choice := choices[i].(map[string]interface{})
+
+		message, ok := choice["message"].(map[string]interface{})
+		if !ok {
+			log.Printf("No message in 'choice', continuing to next 'choice'.")
+			continue
+		}
+
+		content, ok := message["content"].(string)
+		if !ok {
+			log.Printf("No content in message, continuing to next 'choice'.")
+			continue
+		}
+
+		// Reverse the PII in the 'content' of the current 'choice'
+		restoredContent := restorePII(content)
+		if restoredContent != content && getLogResponses() {
+			log.Printf("PII restored in response content")
+			if getLogVerbose() {
+				log.Printf("Original response content: %s", content)
+				log.Printf("Restored response content: %s", restoredContent)
+			}
+		}
+		restoredContent += interceptionNotice
+
+		// Replace masked content by reversedContent in 'maskedResponse'
+		message["content"] = restoredContent
+		err = nil
+	}
+
+	return err
+}
+
 func (p *OpenAIProvider) SetAuthHeaders(req *http.Request) {
 	// Check if API key already present in request
 	if apiKey := req.Header.Get("X-OpenAI-API-Key"); apiKey != "" {
@@ -104,43 +169,6 @@ func (p *OpenAIProvider) SetAddlHeaders(req *http.Request) {
 		req.Header.Set(key, value)
 	}
 }
-
-func (p *OpenAIProvider) ExtractResponseText(data map[string]interface{}) (string, error) {
-	choices, ok := data["choices"].([]interface{})
-	if !ok || len(choices) == 0 {
-		return "", fmt.Errorf("no choices in response")
-	}
-	choice := choices[0].(map[string]interface{}) // TODO: this should be able to handle a array of arbitrary length
-
-	message, ok := choice["message"].(map[string]interface{})
-	if !ok {
-		return "", fmt.Errorf("no message in choice")
-	}
-
-	content, ok := message["content"].(string)
-	if !ok {
-		return "", fmt.Errorf("no content in message")
-	}
-	return content, nil
-}
-
-func (p *OpenAIProvider) SetResponseText(data map[string]interface{}, restoredContent string) error {
-	choices, ok := data["choices"].([]interface{})
-	if !ok || len(choices) == 0 {
-		return fmt.Errorf("no choices in response")
-	}
-	choice := choices[0].(map[string]interface{}) // TODO: this should be able to handle a array of arbitrary length
-
-	message, ok := choice["message"].(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("no message in choice")
-	}
-
-	message["content"] = restoredContent + "\n\n[This response was intercepted and processed by Yaak proxy service]"
-	return nil
-}
-
-// edited / verfified to here
 
 func (p *OpenAIProvider) ValidateConfig() error {
 	if p.baseURL == "" {

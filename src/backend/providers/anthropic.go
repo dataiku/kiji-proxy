@@ -41,7 +41,7 @@ func (p *AnthropicProvider) ExtractRequestText(data map[string]interface{}) (str
 	// Anthropic uses same "messages" format as OpenAI
 	messages, ok := data["messages"].([]interface{})
 	if !ok {
-		return "", fmt.Errorf("no messages field in request")
+		return "", fmt.Errorf("No 'messages' field in Anthropic request.")
 	}
 
 	var result strings.Builder
@@ -54,6 +54,27 @@ func (p *AnthropicProvider) ExtractRequestText(data map[string]interface{}) (str
 			result.WriteString(content + "\n")
 		}
 	}
+	return result.String(), nil
+}
+
+func (p *AnthropicProvider) ExtractResponseText(data map[string]interface{}) (string, error) {
+	// Iterate over all entries in the 'content' field of the Anthropic response that have type='text'.
+	content, ok := data["content"].([]interface{})
+	if !ok || len(content) == 0 {
+		return "", fmt.Errorf("No content in Anthropic response.")
+	}
+
+	var result strings.Builder
+	for i := range content {
+		item := content[i].(map[string]interface{})
+
+		if itemType, ok := item["type"].(string); ok && itemType == "text" {
+			if content, ok := item["text"].(string); ok {
+				result.WriteString(content + "\n")
+			}
+		}
+	}
+
 	return result.String(), nil
 }
 
@@ -91,6 +112,50 @@ func (p *AnthropicProvider) CreateMaskedRequest(maskedRequest map[string]interfa
 	return maskedToOriginal, &entities, nil
 }
 
+func (p *AnthropicProvider) RestoreMaskedResponse(maskedResponse map[string]interface{}, interceptionNotice string, restorePII restorePIIType, getLogResponses getLogResponsesType, getLogVerbose getLogVerboseType) error {
+	// Iterate over all entries in the 'content' field of the Anthropic response that have type='text'.
+	content, ok := maskedResponse["content"].([]interface{})
+	if !ok || len(content) == 0 {
+		return fmt.Errorf("No content in Anthropic response.")
+	}
+
+	err := fmt.Errorf("No PII to reverse in Anthropic response 'content' field.")
+	for i := range content {
+		item := content[i].(map[string]interface{})
+
+		itemType, ok := item["type"].(string)
+		if !ok {
+			log.Printf("No 'type' field in 'content' item, continuing to next item.")
+			continue
+		}
+
+		if itemType == "text" {
+			content, ok := item["text"].(string)
+			if !ok {
+				log.Printf("No 'text' field in 'content' item, continuing to next item.")
+				continue
+			}
+
+			// Reverse the PII in the 'text' of the current 'content' item
+			restoredContent := restorePII(content)
+			if restoredContent != content && getLogResponses() {
+				log.Printf("PII restored in response content")
+				if getLogVerbose() {
+					log.Printf("Original response content: %s", content)
+					log.Printf("Restored response content: %s", restoredContent)
+				}
+			}
+			restoredContent += interceptionNotice
+
+			// Replace masked content by reversedContent in 'maskedResponse'
+			item["text"] = restoredContent
+			err = nil
+		}
+	}
+
+	return err
+}
+
 func (p *AnthropicProvider) SetAuthHeaders(req *http.Request) {
 	// Check if API key already present in request
 	if apiKey := req.Header.Get("X-Api-Key"); apiKey != "" {
@@ -104,54 +169,6 @@ func (p *AnthropicProvider) SetAddlHeaders(req *http.Request) {
 	for key, value := range p.additionalHeaders {
 		req.Header.Set(key, value)
 	}
-}
-
-func (p *AnthropicProvider) ExtractResponseText(data map[string]interface{}) (string, error) {
-	// Anthropic response format:
-	// {
-	//   "content": [{"type": "text", "text": "..."}],
-	//   "role": "assistant"
-	// }
-	content, ok := data["content"].([]interface{})
-	if !ok || len(content) == 0 {
-		return "", fmt.Errorf("no content in response")
-	}
-
-	var result string
-	for _, item := range content {
-		itemMap, ok := item.(map[string]interface{})
-		if !ok {
-			continue
-		}
-		if itemMap["type"] == "text" {
-			if text, ok := itemMap["text"].(string); ok {
-				result += text
-			}
-		}
-	}
-
-	return result, nil
-}
-
-func (p *AnthropicProvider) SetResponseText(data map[string]interface{}, restoredContent string) error {
-	// TODO: this probably should be refactored to do PII reversal at each chunk, this is just a quick fix.
-
-	content, ok := data["content"].([]interface{})
-	if !ok || len(content) == 0 {
-		return fmt.Errorf("no content in response")
-	}
-
-	for _, item := range content {
-		itemMap, ok := item.(map[string]interface{})
-		if !ok {
-			continue
-		}
-		if itemMap["type"] == "text" {
-			itemMap["text"] = restoredContent
-		}
-	}
-
-	return nil
 }
 
 func (p *AnthropicProvider) ValidateConfig() error {
