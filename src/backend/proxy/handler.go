@@ -465,7 +465,7 @@ func NewHandler(cfg *config.Config, electronConfigPath string) (*Handler, error)
 
 // createMaskedRequest creates a masked version of the request by detecting and masking PII in messages
 func (h *Handler) createMaskedRequest(originalRequest map[string]interface{}, provider *providers.Provider) (map[string]interface{}, map[string]string, []pii.Entity) {
-	// Create a deep copy of the original request
+	// Create a deep copy of the originalRequest
 	requestBytes, err := json.Marshal(originalRequest)
 	if err != nil {
 		log.Printf("Failed to marshal original request: %v", err)
@@ -478,7 +478,7 @@ func (h *Handler) createMaskedRequest(originalRequest map[string]interface{}, pr
 		return originalRequest, make(map[string]string), []pii.Entity{}
 	}
 
-	maskedToOriginal, entities, err := (*provider).CreateMaskedRequest(&maskedRequest, h.maskPIIInText)
+	maskedToOriginal, entities, err := (*provider).CreateMaskedRequest(maskedRequest, h.maskPIIInText)
 	if err != nil {
 		log.Printf("Provider failed to create masked request: %v", err)
 	}

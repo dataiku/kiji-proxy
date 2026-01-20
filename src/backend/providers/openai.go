@@ -55,11 +55,11 @@ func (p *OpenAIProvider) ExtractRequestText(data map[string]interface{}) (string
 	return result.String(), nil
 }
 
-func (p *OpenAIProvider) CreateMaskedRequest(maskedRequest *map[string]interface{}, maskPIIInText maskPIIInTextType) (*map[string]string, *[]pii.Entity, error) {
+func (p *OpenAIProvider) CreateMaskedRequest(maskedRequest map[string]interface{}, maskPIIInText maskPIIInTextType) (*map[string]string, *[]pii.Entity, error) {
 	maskedToOriginal := make(map[string]string)
 	var entities []pii.Entity
 
-	messages, ok := (*maskedRequest)["messages"].([]interface{})
+	messages, ok := maskedRequest["messages"].([]interface{})
 	if !ok {
 		return &maskedToOriginal, &entities, fmt.Errorf("no messages field in request")
 	}
