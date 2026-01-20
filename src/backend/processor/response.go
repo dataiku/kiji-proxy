@@ -35,7 +35,7 @@ func NewResponseProcessor(piiDetector *pii.Detector, logging LoggingConfig) *Res
 
 // ProcessResponse modifies the response body to append interception notice and restore original PII
 func (rp *ResponseProcessor) ProcessResponse(body []byte, contentType string, provider *providers.Provider) []byte {
-	// Only modify JSON responses (typical for OpenAI API)
+	// Only modify JSON responses (typical for most LLM providers)
 	if !strings.Contains(contentType, "application/json") {
 		return body
 	}

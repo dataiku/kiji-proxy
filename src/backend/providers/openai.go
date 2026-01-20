@@ -100,7 +100,9 @@ func (p *OpenAIProvider) SetAuthHeaders(req *http.Request) {
 }
 
 func (p *OpenAIProvider) SetAddlHeaders(req *http.Request) {
-	req.Header.Set("Content-Type", "application/json")
+	for key, value := range p.additionalHeaders {
+		req.Header.Set(key, value)
+	}
 }
 
 func (p *OpenAIProvider) ExtractResponseText(data map[string]interface{}) (string, error) {

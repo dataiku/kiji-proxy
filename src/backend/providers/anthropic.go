@@ -101,9 +101,6 @@ func (p *AnthropicProvider) SetAuthHeaders(req *http.Request) {
 }
 
 func (p *AnthropicProvider) SetAddlHeaders(req *http.Request) {
-	req.Header.Set("Content-Type", "application/json")
-
-	// Add required headers (e.g., anthropic-version)
 	for key, value := range p.additionalHeaders {
 		req.Header.Set(key, value)
 	}
