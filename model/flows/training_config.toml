@@ -10,6 +10,8 @@ batch_size = 64
 learning_rate = 3e-5
 max_sequence_length = 8192
 weight_decay = 0.02  # Increased from default 0.01 for better regularization
+eval_steps = 250  # Evaluate more frequently to catch overfitting early (was 500)
+save_steps = 250  # Save checkpoints more frequently
 
 # Early stopping settings
 early_stopping_enabled = true
