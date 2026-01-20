@@ -139,15 +139,33 @@ class TokenizationProcessor:
         words_original: list[str] | None = None,
         privacy_mask_with_positions: list[dict[str, Any]] | None = None,
     ) -> list[int]:
-        """Align word-level labels with token IDs."""
+        """
+        Align word-level labels with token IDs using proper BIO tagging.
+
+        BIO tagging rules:
+        - B-LABEL: First token of an entity (Beginning)
+        - I-LABEL: Subsequent tokens of the same entity (Inside)
+        - O: Non-entity tokens (Outside)
+
+        An entity STARTS (B-) when:
+        1. Previous token was O and current is entity
+        2. Previous token was different entity type
+        3. This is the first token of the sequence
+        """
         label_ids = []
         prev_word_idx = None
-        prev_word_label = None
+        prev_effective_label = (
+            "O"  # Track the actual label used (after punctuation handling)
+        )
+        entity_started = False  # Track if we're inside an entity
 
         for idx, word_idx in enumerate(word_ids):
             # Handle special tokens and out-of-bounds
             if word_idx is None or word_idx >= len(word_labels):
                 label_ids.append(-100)
+                # Reset entity tracking on special tokens
+                prev_effective_label = "O"
+                entity_started = False
                 continue
 
             word_label = word_labels[word_idx]
@@ -157,6 +175,7 @@ class TokenizationProcessor:
             is_punct = self._is_punctuation_only(token_text)
 
             # Determine effective label for this token
+            effective_label = word_label
             if is_punct:
                 # Punctuation: only label as entity if it's actually part of entity value
                 if word_label != "O" and not self._is_punctuation_in_entity(
@@ -166,16 +185,35 @@ class TokenizationProcessor:
                     privacy_mask_with_positions,
                 ):
                     # Punctuation after entity (e.g., comma after "Smith") -> "O"
-                    word_label = "O"
+                    effective_label = "O"
 
-            # Determine if this is beginning of entity or inside
-            is_beginning = (prev_word_idx != word_idx) or (
-                prev_word_label != word_label
-            )
-            label_ids.append(self._get_label_id(word_label, is_beginning))
+            # Determine if this is beginning (B-) or inside (I-) of entity
+            # An entity BEGINS when:
+            # 1. Current label is not O AND
+            # 2. Either: previous was O, OR previous was different entity type, OR this is a new word
+            if effective_label == "O":
+                is_beginning = False  # O tokens don't have B-/I- prefix
+                entity_started = False
+            elif prev_effective_label == "O":
+                # Transitioning from O to entity -> Beginning
+                is_beginning = True
+                entity_started = True
+            elif prev_effective_label != effective_label:
+                # Different entity type -> new Beginning
+                is_beginning = True
+                entity_started = True
+            elif prev_word_idx != word_idx:
+                # Same entity type but new word -> still Inside (same entity continues)
+                # This handles multi-word entities like "John Smith" -> B-NAME I-NAME
+                is_beginning = False
+            else:
+                # Same word, same entity type -> Inside (subword token)
+                is_beginning = False
+
+            label_ids.append(self._get_label_id(effective_label, is_beginning))
 
             prev_word_idx = word_idx
-            prev_word_label = word_label
+            prev_effective_label = effective_label
 
         # Truncate to max_length if needed
         if len(label_ids) > self.max_length:
