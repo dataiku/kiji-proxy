@@ -8,6 +8,7 @@ name = "answerdotai/ModernBERT-base"
 num_epochs = 40
 batch_size = 64
 learning_rate = 3e-5
+max_sequence_length = 8192
 
 # Early stopping settings
 early_stopping_enabled = true
