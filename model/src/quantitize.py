@@ -57,9 +57,9 @@ flags.DEFINE_string(
 
 flags.DEFINE_enum(
     "quantization_mode",
-    "avx512_vnni",
-    ["avx512_vnni", "avx2", "q8"],
-    "Quantization mode",
+    "arm64",
+    ["avx512_vnni", "avx2", "arm64", "none"],
+    "Quantization mode: avx512_vnni/avx2 for x86, arm64 for Apple Silicon, none for FP32",
 )
 
 flags.DEFINE_integer("opset", 18, "ONNX opset version")
@@ -321,17 +321,51 @@ def quantize_model(
     quantizer = ORTQuantizer.from_pretrained(str(model_dir), file_name="model.onnx")
 
     # Select quantization config based on mode
+    # Exclude classification heads from quantization to preserve accuracy
+    # These nodes are the final linear layers for PII and coref classification
+    nodes_to_exclude = [
+        "pii_classifier",
+        "coref_classifier",
+        "/pii_classifier/",
+        "/coref_classifier/",
+    ]
+
     if quantization_mode == "avx512_vnni":
-        qconfig = AutoQuantizationConfig.avx512_vnni(is_static=False)
-    elif quantization_mode == "avx2":
-        qconfig = AutoQuantizationConfig.avx2(is_static=False)
-    elif quantization_mode == "q8":
-        qconfig = AutoQuantizationConfig.q8()
-    else:
-        logging.warning(
-            f"Unknown quantization mode: {quantization_mode}, using avx512_vnni"
+        qconfig = AutoQuantizationConfig.avx512_vnni(
+            is_static=False,
+            nodes_to_exclude=nodes_to_exclude,
         )
-        qconfig = AutoQuantizationConfig.avx512_vnni(is_static=False)
+    elif quantization_mode == "avx2":
+        qconfig = AutoQuantizationConfig.avx2(
+            is_static=False,
+            nodes_to_exclude=nodes_to_exclude,
+        )
+    elif quantization_mode == "arm64":
+        qconfig = AutoQuantizationConfig.arm64(
+            is_static=False,
+            nodes_to_exclude=nodes_to_exclude,
+        )
+    elif quantization_mode == "none":
+        # Skip quantization, just copy the model
+        logging.info("   Skipping quantization (mode=none), using FP32 model")
+        import shutil
+
+        src_model = model_dir / "model.onnx"
+        dst_model = output_path / "model_quantized.onnx"
+        if src_model.exists():
+            shutil.copy(src_model, dst_model)
+            # Also copy external data if present
+            src_data = model_dir / "model.onnx.data"
+            if src_data.exists():
+                shutil.copy(src_data, output_path / "model.onnx.data")
+            logging.info(f"✅ Copied FP32 model to: {dst_model}")
+        return
+    else:
+        logging.warning(f"Unknown quantization mode: {quantization_mode}, using arm64")
+        qconfig = AutoQuantizationConfig.arm64(
+            is_static=False,
+            nodes_to_exclude=nodes_to_exclude,
+        )
 
     logging.info(f"   Using quantization mode: {quantization_mode}")
 

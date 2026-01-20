@@ -377,7 +377,11 @@ class PIITrainingPipeline(FlowSpec):
             if config_src.exists():
                 shutil.copy(config_src, output_path / "config.json")
 
-            quantize_model(str(output_path), str(output_path))
+            # Use arm64 quantization for Apple Silicon compatibility
+            # This also excludes classification heads from quantization for better accuracy
+            quantize_model(
+                str(output_path), str(output_path), quantization_mode="arm64"
+            )
 
             # Remove non-quantized model after quantization
             non_quantized = output_path / "model.onnx"
@@ -388,7 +392,7 @@ class PIITrainingPipeline(FlowSpec):
             self.quantized_model_path = quantized_output
             self.quantized_model = current.checkpoint.save(
                 quantized_output,
-                metadata={"quantization_mode": "avx512_vnni"},
+                metadata={"quantization_mode": "arm64"},
                 name="quantized_model",
                 latest=True,
             )
