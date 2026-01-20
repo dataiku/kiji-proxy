@@ -5,15 +5,16 @@
 name = "answerdotai/ModernBERT-base"
 
 [training]
-num_epochs = 40
+num_epochs = 15  # Reduced from 40 to prevent overfitting
 batch_size = 64
 learning_rate = 3e-5
 max_sequence_length = 8192
+weight_decay = 0.02  # Increased from default 0.01 for better regularization
 
 # Early stopping settings
 early_stopping_enabled = true
-early_stopping_patience = 3  # Number of eval steps with no improvement before stopping
-early_stopping_threshold = 0.01  # Minimum improvement (1%) to qualify as improvement
+early_stopping_patience = 2  # Reduced from 3 - stop sooner when not improving
+early_stopping_threshold = 0.005  # More sensitive to detect plateaus earlier
 
 [paths]
 # Directory containing JSON training samples (relative to working directory or absolute)

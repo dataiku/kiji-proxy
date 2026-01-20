@@ -158,6 +158,7 @@ class MultiTaskPIIDetectionModel(nn.Module):
         num_coref_labels: int,
         id2label_pii: dict[int, str],
         id2label_coref: dict[int, str],
+        classifier_dropout: float = 0.1,
     ):
         """
         Initialize multi-task model.
@@ -168,12 +169,16 @@ class MultiTaskPIIDetectionModel(nn.Module):
             num_coref_labels: Number of co-reference detection labels
             id2label_pii: Mapping from PII label IDs to label names
             id2label_coref: Mapping from co-reference label IDs to label names
+            classifier_dropout: Dropout rate for classification heads (default: 0.1)
         """
         super().__init__()
 
         # Shared encoder
         self.encoder = AutoModel.from_pretrained(model_name)
         hidden_size = self.encoder.config.hidden_size
+
+        # Dropout layer for regularization
+        self.dropout = nn.Dropout(classifier_dropout)
 
         # PII detection head
         self.pii_classifier = nn.Linear(hidden_size, num_pii_labels)
@@ -211,6 +216,9 @@ class MultiTaskPIIDetectionModel(nn.Module):
         sequence_output = (
             outputs.last_hidden_state
         )  # (batch_size, seq_len, hidden_size)
+
+        # Apply dropout for regularization (only during training)
+        sequence_output = self.dropout(sequence_output)
 
         # PII detection logits
         pii_logits = self.pii_classifier(sequence_output)
