@@ -26,6 +26,7 @@ try:
     from .callbacks import CleanMetricsCallback
     from .config import TrainingConfig
     from .model import (
+        MaskedFocalLoss,
         MaskedSparseCategoricalCrossEntropy,
         MultiTaskLoss,
         MultiTaskPIIDetectionModel,
@@ -36,6 +37,7 @@ except ImportError:
     from config import TrainingConfig
 
     from model import (
+        MaskedFocalLoss,
         MaskedSparseCategoricalCrossEntropy,
         MultiTaskLoss,
         MultiTaskPIIDetectionModel,
@@ -89,13 +91,14 @@ class MultiTaskTrainer(Trainer):
             coref_labels=coref_labels,
         )
 
-        # Compute multi-task loss
+        # Compute multi-task loss with attention mask for proper padding handling
         if self.multi_task_loss_fn is not None:
             loss = self.multi_task_loss_fn(
                 outputs["pii_logits"],
                 pii_labels,
                 outputs["coref_logits"],
                 coref_labels,
+                attention_mask=attention_mask,  # Pass attention mask to exclude padding from loss
             )
         else:
             # Fallback: simple sum of individual losses
@@ -226,18 +229,30 @@ class PIITrainer:
             id2label_coref=self.coref_id2label,
         )
 
-        # Initialize multi-task loss function
+        # Initialize multi-task loss function with Focal Loss for better class imbalance handling
+        # Focal Loss down-weights easy examples (O tokens) and focuses on hard examples (PII tokens)
         if self.config.use_custom_loss:
-            pii_loss_fn = MaskedSparseCategoricalCrossEntropy(
+            # Get focal loss parameters from config (with defaults)
+            gamma = getattr(self.config, "focal_gamma", 2.0)
+            alpha = getattr(self.config, "focal_alpha", 0.75)
+            label_smoothing = getattr(self.config, "label_smoothing", 0.1)
+
+            pii_loss_fn = MaskedFocalLoss(
                 pad_label=-100,
+                gamma=gamma,  # Focusing parameter - higher values focus more on hard examples
+                alpha=alpha,  # Balance factor - upweight positive (PII) classes
                 class_weights=self.config.class_weights,
                 num_classes=num_pii_labels,
                 reduction="mean",
+                label_smoothing=label_smoothing,  # Slight smoothing to prevent overconfidence
             )
-            coref_loss_fn = MaskedSparseCategoricalCrossEntropy(
+            coref_loss_fn = MaskedFocalLoss(
                 pad_label=-100,
+                gamma=gamma,
+                alpha=alpha,
                 num_classes=self.num_coref_labels,
                 reduction="mean",
+                label_smoothing=label_smoothing,
             )
 
             self.multi_task_loss_fn = MultiTaskLoss(
@@ -247,8 +262,8 @@ class PIITrainer:
                 coref_weight=self.config.coref_loss_weight,
             )
             logging.info(
-                f"✅ Initialized multi-task loss (PII: {num_pii_labels} classes, "
-                f"Co-ref: {self.num_coref_labels} classes)"
+                f"✅ Initialized multi-task Focal Loss (PII: {num_pii_labels} classes, "
+                f"Co-ref: {self.num_coref_labels} classes, gamma={gamma}, alpha={alpha})"
             )
 
         logging.info(

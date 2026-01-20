@@ -130,6 +130,9 @@ class PIITrainingPipeline(FlowSpec):
             num_epochs=training_cfg.get("num_epochs", 5),
             batch_size=training_cfg.get("batch_size", 16),
             learning_rate=training_cfg.get("learning_rate", 3e-5),
+            weight_decay=training_cfg.get("weight_decay", 0.01),
+            eval_steps=training_cfg.get("eval_steps", 500),
+            save_steps=training_cfg.get("save_steps", 1000),
             training_samples_dir=cfg.get("paths", {}).get(
                 "training_samples_dir", "model/dataset/training_samples"
             ),
@@ -137,6 +140,13 @@ class PIITrainingPipeline(FlowSpec):
             early_stopping_enabled=training_cfg.get("early_stopping_enabled", True),
             early_stopping_patience=training_cfg.get("early_stopping_patience", 3),
             early_stopping_threshold=training_cfg.get("early_stopping_threshold", 0.01),
+            # Focal Loss parameters for handling class imbalance
+            focal_gamma=training_cfg.get("focal_gamma", 2.0),
+            focal_alpha=training_cfg.get("focal_alpha", 0.75),
+            label_smoothing=training_cfg.get("label_smoothing", 0.1),
+            # Multi-task loss weights
+            pii_loss_weight=training_cfg.get("pii_loss_weight", 1.0),
+            coref_loss_weight=training_cfg.get("coref_loss_weight", 0.5),
         )
         self.skip_export = cfg.get("pipeline", {}).get("skip_export", False)
         self.skip_quantization = cfg.get("pipeline", {}).get("skip_quantization", False)

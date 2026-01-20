@@ -44,7 +44,14 @@ class TrainingConfig:
 
     # Multi-task learning
     pii_loss_weight: float = 1.0  # Weight for PII detection loss
-    coref_loss_weight: float = 1.0  # Weight for co-reference detection loss
+    coref_loss_weight: float = (
+        0.5  # Weight for co-reference detection loss (secondary task)
+    )
+
+    # Focal Loss parameters (for handling class imbalance with long sequences)
+    focal_gamma: float = 2.0  # Focusing parameter (0=CE, 2=typical for detection)
+    focal_alpha: float = 0.75  # Balance factor for positive classes
+    label_smoothing: float = 0.1  # Prevent overconfidence
 
     # Early stopping
     early_stopping_enabled: bool = True  # Enable early stopping
