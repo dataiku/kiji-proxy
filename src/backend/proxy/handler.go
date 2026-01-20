@@ -311,7 +311,7 @@ func (h *Handler) checkRequestPII(body string, provider *providers.Provider) (st
 	return string(maskedBodyBytes), maskedToOriginal, entities
 }
 
-// createAndSendProxyRequest creates and sends the proxy request to OpenAI
+// createAndSendProxyRequest creates and sends the proxy request to provider
 func (h *Handler) createAndSendProxyRequest(r *http.Request, body []byte, provider *providers.Provider) (*http.Response, error) {
 	targetURL, err := h.buildTargetURL(r, provider)
 	if err != nil {
@@ -346,8 +346,8 @@ func (h *Handler) createAndSendProxyRequest(r *http.Request, body []byte, provid
 // Returns error if config file doesn't exist or forwardEndpoint is invalid
 func (h *Handler) getForwardEndpoint(provider *providers.Provider) (string, error) {
 	// If electron config path is set, read from it
-	// TODO: the electron portion will probably change once the UI accepts forwarding
-	// to multiple providers?
+	// TODO: will the electron code change if the UI accepts forwarding to multiple
+	// providers?
 	if h.electronConfigPath != "" {
 		forwardEndpoint, err := config.ReadForwardEndpoint(h.electronConfigPath)
 		if err != nil {
@@ -356,7 +356,7 @@ func (h *Handler) getForwardEndpoint(provider *providers.Provider) (string, erro
 		return forwardEndpoint, nil
 	}
 	// Fall back to provider if electron config path is not set
-	return (*provider).GetBaseURL(), nil // return provider baseURL method here
+	return (*provider).GetBaseURL(), nil
 }
 
 // buildTargetURL builds the target URL for the proxy request
@@ -369,7 +369,6 @@ func (h *Handler) buildTargetURL(r *http.Request, provider *providers.Provider) 
 	forwardEndpoint = strings.TrimSuffix(forwardEndpoint, "/")
 
 	// Get the request path
-	// TODO: should we be using the path from the config?
 	path := r.URL.Path
 
 	// Construct and return target URL
@@ -482,7 +481,7 @@ func (h *Handler) createMaskedRequest(originalRequest map[string]interface{}, pr
 		log.Printf("Provider failed to create masked request: %v", err)
 	}
 
-	return maskedRequest, *maskedToOriginal, *entities
+	return maskedRequest, maskedToOriginal, *entities
 }
 
 // HandleLogs handles requests to retrieve log entries

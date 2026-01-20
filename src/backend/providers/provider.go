@@ -18,7 +18,7 @@ type Provider interface {
 	ExtractRequestText(data map[string]interface{}) (string, error)
 
 	// CreateMaskedRequest masks the PII in messages
-	CreateMaskedRequest(maskedRequest map[string]interface{}, maskPIIInText maskPIIInTextType) (*map[string]string, *[]pii.Entity, error)
+	CreateMaskedRequest(maskedRequest map[string]interface{}, maskPIIInText maskPIIInTextType) (map[string]string, *[]pii.Entity, error)
 
 	// Methods to set headers
 	SetAuthHeaders(req *http.Request)
