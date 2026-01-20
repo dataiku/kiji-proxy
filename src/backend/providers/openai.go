@@ -1,9 +1,9 @@
-// TODO: (mainly) copied from PR suggestion, will need edits!
 package providers
 
 import (
 	"fmt"
 	"net/http"
+	"strings"
 
 	pii "github.com/hannes/yaak-private/src/backend/pii/detectors"
 )
@@ -11,15 +11,17 @@ import (
 const (
 	ProviderTypeOpenAI    ProviderType = "openai"
 	ProviderSubpathOpenAI string       = "/v1/chat/completions"
+	ProviderBaseURLOpenAI string       = "https://api.openai.com"
 )
 
 type OpenAIProvider struct {
-	baseURL string
-	apiKey  string
+	baseURL           string
+	apiKey            string
+	additionalHeaders map[string]string
 }
 
-func NewOpenAIProvider(baseURL string, apiKey string) *OpenAIProvider {
-	return &OpenAIProvider{baseURL: baseURL, apiKey: apiKey}
+func NewOpenAIProvider(baseURL string, apiKey string, additionalHeaders map[string]string) *OpenAIProvider {
+	return &OpenAIProvider{baseURL: baseURL, apiKey: apiKey, additionalHeaders: additionalHeaders}
 }
 
 func (p *OpenAIProvider) GetName() string {
@@ -40,17 +42,17 @@ func (p *OpenAIProvider) ExtractRequestText(data map[string]interface{}) (string
 		return "", fmt.Errorf("no messages field in request")
 	}
 
-	var result string
+	var result strings.Builder
 	for _, msg := range messages {
 		msgMap, ok := msg.(map[string]interface{})
 		if !ok {
 			continue
 		}
 		if content, ok := msgMap["content"].(string); ok {
-			result += content + "\n"
+			result.WriteString(content + "\n")
 		}
 	}
-	return result, nil
+	return result.String(), nil
 }
 
 func (p *OpenAIProvider) CreateMaskedRequest(maskedRequest *map[string]interface{}, maskPIIInText maskPIIInTextType) (*map[string]string, *[]pii.Entity, error) {

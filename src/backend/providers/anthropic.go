@@ -1,11 +1,10 @@
-// TODO: (mainly) copied from PR suggestion, will need edits!
-
 package providers
 
 import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 
 	pii "github.com/hannes/yaak-private/src/backend/pii/detectors"
 )
@@ -13,21 +12,17 @@ import (
 const (
 	ProviderTypeAnthropic    ProviderType = "anthropic"
 	ProviderSubpathAnthropic string       = "/v1/messages"
+	ProviderBaseURLAnthropic string       = "https://api.anthropic.com"
 )
 
 type AnthropicProvider struct {
-	baseURL         string
-	requiredHeaders map[string]string
-	apiKey          string
+	baseURL           string
+	apiKey            string
+	additionalHeaders map[string]string
 }
 
-func NewAnthropicProvider(baseURL string, apiKey string, requiredHeaders map[string]string) *AnthropicProvider {
-	if requiredHeaders == nil {
-		requiredHeaders = map[string]string{
-			"anthropic-version": "2023-06-01",
-		}
-	}
-	return &AnthropicProvider{baseURL: baseURL, requiredHeaders: requiredHeaders, apiKey: apiKey}
+func NewAnthropicProvider(baseURL string, apiKey string, additionalHeaders map[string]string) *AnthropicProvider {
+	return &AnthropicProvider{baseURL: baseURL, apiKey: apiKey, additionalHeaders: additionalHeaders}
 }
 
 func (p *AnthropicProvider) GetName() string {
@@ -49,17 +44,17 @@ func (p *AnthropicProvider) ExtractRequestText(data map[string]interface{}) (str
 		return "", fmt.Errorf("no messages field in request")
 	}
 
-	var result string
+	var result strings.Builder
 	for _, msg := range messages {
 		msgMap, ok := msg.(map[string]interface{})
 		if !ok {
 			continue
 		}
 		if content, ok := msgMap["content"].(string); ok {
-			result += content + "\n"
+			result.WriteString(content + "\n")
 		}
 	}
-	return result, nil
+	return result.String(), nil
 }
 
 func (p *AnthropicProvider) CreateMaskedRequest(maskedRequest *map[string]interface{}, maskPIIInText maskPIIInTextType) (*map[string]string, *[]pii.Entity, error) {
@@ -109,7 +104,7 @@ func (p *AnthropicProvider) SetAddlHeaders(req *http.Request) {
 	req.Header.Set("Content-Type", "application/json")
 
 	// Add required headers (e.g., anthropic-version)
-	for key, value := range p.requiredHeaders {
+	for key, value := range p.additionalHeaders {
 		req.Header.Set(key, value)
 	}
 }

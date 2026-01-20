@@ -1,5 +1,3 @@
-// TODO: (mainly) copied from PR suggestion, will need edits!
-
 package providers
 
 import (

@@ -1,5 +1,7 @@
 package config
 
+import "github.com/hannes/yaak-private/src/backend/providers"
+
 // LoggingConfig holds logging configuration options
 type LoggingConfig struct {
 	LogRequests   bool // Log request content
@@ -26,45 +28,44 @@ type DatabaseConfig struct {
 
 // Provider config
 type ProviderConfig struct {
-	BaseURL         string
-	APIKey          string
-	RequiredHeaders map[string]string
+	BaseURL           string
+	APIKey            string
+	AdditionalHeaders map[string]string
 }
 
 // Config holds all configuration for the PII proxy service
 type Config struct {
 	OpenAIProviderConfig    *ProviderConfig
 	AnthropicProviderConfig *ProviderConfig
-	//OpenAIBaseURL string
-	//OpenAIAPIKey  string
-	ProxyPort     string
-	DetectorName  string
-	ModelBaseURL  string
-	Database      DatabaseConfig
-	Logging       LoggingConfig
-	ONNXModelPath string
-	TokenizerPath string
-	UIPath        string
+	ProxyPort               string
+	DetectorName            string
+	ModelBaseURL            string
+	Database                DatabaseConfig
+	Logging                 LoggingConfig
+	ONNXModelPath           string
+	TokenizerPath           string
+	UIPath                  string
 }
 
 // DefaultConfig returns the default configuration
 func DefaultConfig() *Config {
 	defaultOpenAIProviderConfig := ProviderConfig{
-		BaseURL: "https://api.openai.com",
+		BaseURL:           providers.ProviderBaseURLOpenAI,
+		AdditionalHeaders: map[string]string{},
 	}
 	defaultAnthropicProviderConfig := ProviderConfig{
-		BaseURL: "https://api.anthropic.com",
+		BaseURL:           providers.ProviderBaseURLAnthropic,
+		AdditionalHeaders: map[string]string{},
 	}
 	return &Config{
 		OpenAIProviderConfig:    &defaultOpenAIProviderConfig,
 		AnthropicProviderConfig: &defaultAnthropicProviderConfig,
-		//OpenAIBaseURL: "https://api.openai.com/v1",
-		ProxyPort:     ":8080",
-		DetectorName:  "onnx_model_detector",
-		ModelBaseURL:  "http://localhost:8000",
-		ONNXModelPath: "model/quantized/model_quantized.onnx",
-		TokenizerPath: "model/quantized/tokenizer.json",
-		UIPath:        "./src/frontend/dist",
+		ProxyPort:               ":8080",
+		DetectorName:            "onnx_model_detector",
+		ModelBaseURL:            "http://localhost:8000",
+		ONNXModelPath:           "model/quantized/model_quantized.onnx",
+		TokenizerPath:           "model/quantized/tokenizer.json",
+		UIPath:                  "./src/frontend/dist",
 		Database: DatabaseConfig{
 			Enabled:      false,
 			Host:         "localhost",
