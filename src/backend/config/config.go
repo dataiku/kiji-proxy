@@ -1,13 +1,20 @@
 package config
 
-import "github.com/hannes/yaak-private/src/backend/providers"
+import (
+	"os"
+	"path/filepath"
+  
+  "github.com/hannes/yaak-private/src/backend/providers"
+)
 
 // LoggingConfig holds logging configuration options
 type LoggingConfig struct {
-	LogRequests   bool // Log request content
-	LogResponses  bool // Log response content
-	LogPIIChanges bool // Log PII detection and restoration
-	LogVerbose    bool // Log detailed PII changes (original vs restored)
+	LogRequests    bool // Log request content
+	LogResponses   bool // Log response content
+	LogPIIChanges  bool // Log PII detection and restoration
+	LogVerbose     bool // Log detailed PII changes (original vs restored)
+	AddProxyNotice bool // Add proxy notice to response content
+	DebugMode      bool // Enable debug logging for database operations
 }
 
 // DatabaseConfig holds database configuration
@@ -33,6 +40,16 @@ type ProviderConfig struct {
 	AdditionalHeaders map[string]string
 }
 
+// ProxyConfig holds transparent proxy configuration
+type ProxyConfig struct {
+	TransparentEnabled bool     `json:"transparent_enabled"`
+	InterceptDomains   []string `json:"intercept_domains"`
+	ProxyPort          string   `json:"proxy_port"`
+	CAPath             string   `json:"ca_path"`
+	KeyPath            string   `json:"key_path"`
+	EnablePAC          bool     `json:"enable_pac"` // Enable PAC (Proxy Auto-Config) for automatic system proxy setup
+}
+
 // Config holds all configuration for the PII proxy service
 type Config struct {
 	OpenAIProviderConfig    *ProviderConfig
@@ -45,6 +62,7 @@ type Config struct {
 	ONNXModelPath           string
 	TokenizerPath           string
 	UIPath                  string
+  Proxy                   ProxyConfig `json:"Proxy"`
 }
 
 // DefaultConfig returns the default configuration
@@ -57,6 +75,11 @@ func DefaultConfig() *Config {
 		BaseURL:           providers.ProviderBaseURLAnthropic,
 		AdditionalHeaders: map[string]string{},
 	}
+  
+	homeDir, _ := os.UserHomeDir()
+	caPath := filepath.Join(homeDir, ".yaak-proxy", "certs", "ca.crt")
+	keyPath := filepath.Join(homeDir, ".yaak-proxy", "certs", "ca.key")
+
 	return &Config{
 		OpenAIProviderConfig:    &defaultOpenAIProviderConfig,
 		AnthropicProviderConfig: &defaultAnthropicProviderConfig,
@@ -81,10 +104,19 @@ func DefaultConfig() *Config {
 			CleanupHours: 24,
 		},
 		Logging: LoggingConfig{
-			LogRequests:   true,
-			LogResponses:  true,
-			LogPIIChanges: true,
-			LogVerbose:    true,
+			LogRequests:    true,
+			LogResponses:   true,
+			LogPIIChanges:  true,
+			LogVerbose:     true,
+			AddProxyNotice: false, // Disabled by default to avoid modifying response content
+		},
+		Proxy: ProxyConfig{
+			TransparentEnabled: true,
+			InterceptDomains:   []string{"api.openai.com"},
+			ProxyPort:          ":8081",
+			CAPath:             caPath,
+			KeyPath:            keyPath,
+			EnablePAC:          true, // Enable PAC by default for automatic proxy configuration
 		},
 	}
 }
@@ -102,4 +134,9 @@ func (lc LoggingConfig) GetLogVerbose() bool {
 // GetLogResponses returns whether to log response content
 func (lc LoggingConfig) GetLogResponses() bool {
 	return lc.LogResponses
+}
+
+// GetAddProxyNotice returns whether to add proxy notice to response content
+func (lc LoggingConfig) GetAddProxyNotice() bool {
+	return lc.AddProxyNotice
 }

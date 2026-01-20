@@ -1,8 +1,8 @@
 .PHONY: help install install-dev venv
-.PHONY: format lint lint-go typecheck check ruff-fix ruff-all
+.PHONY: format lint lint-go lint-frontend lint-frontend-fix lint-all typecheck typecheck-frontend check check-all ruff-fix ruff-all
 .PHONY: test test-go test-all
 .PHONY: clean clean-venv clean-all
-.PHONY: build-dmg
+.PHONY: build-dmg build-linux verify-linux
 .PHONY: electron-build electron-run electron electron-dev electron-install
 .PHONY: list show shell jupyter info quickstart
 
@@ -15,6 +15,9 @@ GREEN := \033[0;32m
 YELLOW := \033[1;33m
 NC := \033[0m # No Color
 
+# Version from package.json
+VERSION := $(shell cd src/frontend && node -p "require('./package.json').version" 2>/dev/null || echo "0.0.0")
+
 ##@ General
 
 help: ## Display this help message
@@ -25,8 +28,10 @@ help: ## Display this help message
 info: ## Show project info
 	@echo "$(BLUE)Project Information$(NC)"
 	@echo "Name:    $(GREEN)yaak-pii-detection$(NC)"
-	@echo "Version: $(GREEN)0.1.0$(NC)"
-	@echo "Python:  $(GREEN)$(shell python --version 2>&1)$(NC)"
+	@echo -n "Version: $(GREEN)"
+	@cd src/frontend && node -p "require('./package.json').version" 2>/dev/null || echo "unknown"
+	@echo "$(NC)"
+	@echo "Python:  $(GREEN)$(shell .venv/bin/python --version 2>&1 || echo "Not installed (run 'make venv')")$(NC)"
 	@echo "UV:      $(GREEN)$(shell uv --version 2>&1)$(NC)"
 	@echo ""
 	@echo "$(BLUE)Virtual Environment$(NC)"
@@ -37,6 +42,12 @@ info: ## Show project info
 		echo "Status:  $(YELLOW)Not created (run 'make venv')$(NC)"; \
 	fi
 	@echo ""
+	@echo "$(BLUE)Version Information$(NC)"
+	@echo "  Version is managed in src/frontend/package.json"
+	@echo "  Backend receives version via ldflags during build"
+	@echo "  Check version: ./build/yaak-proxy --version"
+	@echo "  API endpoint: http://localhost:8080/version"
+	@echo ""
 	@echo "$(BLUE)Quick Commands$(NC)"
 	@echo "  make install     - Install dependencies"
 	@echo "  make test        - Run tests"
@@ -45,8 +56,8 @@ info: ## Show project info
 ##@ Setup & Installation
 
 venv: ## Create virtual environment with uv
-	@echo "$(BLUE)Creating virtual environment...$(NC)"
-	uv venv
+	@echo "$(BLUE)Creating virtual environment with Python 3.13...$(NC)"
+	uv venv --python 3.13
 	@echo "$(GREEN)✅ Virtual environment created at .venv$(NC)"
 	@echo "$(YELLOW)Activate with: source .venv/bin/activate$(NC)"
 
@@ -82,12 +93,44 @@ lint-go: ## Lint Go code with golangci-lint
 	fi
 	@echo "$(GREEN)✅ Go linting complete$(NC)"
 
+lint-frontend: ## Lint frontend code with ESLint
+	@echo "$(BLUE)Linting frontend code...$(NC)"
+	@if [ ! -d "src/frontend/node_modules" ]; then \
+		echo "$(YELLOW)⚠️  Frontend dependencies not installed. Run 'make electron-install' first.$(NC)"; \
+		exit 1; \
+	fi
+	@cd src/frontend && npm run lint
+	@echo "$(GREEN)✅ Frontend linting complete$(NC)"
+
+lint-frontend-fix: ## Lint and auto-fix frontend code with ESLint
+	@echo "$(BLUE)Auto-fixing frontend code...$(NC)"
+	@if [ ! -d "src/frontend/node_modules" ]; then \
+		echo "$(YELLOW)⚠️  Frontend dependencies not installed. Run 'make electron-install' first.$(NC)"; \
+		exit 1; \
+	fi
+	@cd src/frontend && npm run lint:fix
+	@echo "$(GREEN)✅ Frontend auto-fix complete$(NC)"
+
+lint-all: lint lint-go lint-frontend ## Run all linters (Python, Go, Frontend)
+	@echo "$(GREEN)✅ All linting complete$(NC)"
+
 typecheck: ## Run type checker with ruff
 	@echo "$(BLUE)Running type checker...$(NC)"
 	uv run ruff check model/ --select TYP
 	@echo "$(GREEN)✅ Type checking complete$(NC)"
 
-check: format lint typecheck ## Run all code quality checks
+typecheck-frontend: ## Run TypeScript type checking
+	@echo "$(BLUE)Running TypeScript type checker...$(NC)"
+	@if [ ! -d "src/frontend/node_modules" ]; then \
+		echo "$(YELLOW)⚠️  Frontend dependencies not installed. Run 'make electron-install' first.$(NC)"; \
+		exit 1; \
+	fi
+	@cd src/frontend && npm run type-check
+	@echo "$(GREEN)✅ TypeScript type checking complete$(NC)"
+
+check: format lint typecheck ## Run Python code quality checks
+
+check-all: format lint-all typecheck typecheck-frontend ## Run all code quality checks (Python, Go, Frontend)
 
 ruff-fix: ## Auto-fix ruff issues
 	@echo "$(BLUE)Auto-fixing ruff issues...$(NC)"
@@ -139,21 +182,81 @@ electron-install: ## Install Electron UI dependencies
 	@cd src/frontend && npm install
 	@echo "$(GREEN)✅ Electron dependencies installed$(NC)"
 
+setup-onnx: ## Set up ONNX Runtime library for development
+	@echo "$(BLUE)Setting up ONNX Runtime library...$(NC)"
+	@mkdir -p build
+	@if [ -f "build/libonnxruntime.1.23.1.dylib" ]; then \
+		echo "$(GREEN)✅ ONNX library already exists$(NC)"; \
+	elif [ -f "src/frontend/resources/libonnxruntime.1.23.1.dylib" ]; then \
+		ln -sf ../src/frontend/resources/libonnxruntime.1.23.1.dylib build/libonnxruntime.1.23.1.dylib; \
+		echo "$(GREEN)✅ Linked existing ONNX library from resources$(NC)"; \
+	else \
+		if [ ! -d ".venv" ]; then \
+			echo "$(YELLOW)Creating virtual environment with Python 3.13...$(NC)"; \
+			uv venv --python 3.13; \
+		fi; \
+		uv pip install --quiet onnxruntime; \
+		ONNX_LIB=$$(find .venv -name "libonnxruntime*.dylib" | head -1); \
+		if [ -n "$$ONNX_LIB" ]; then \
+			cp "$$ONNX_LIB" build/libonnxruntime.1.23.1.dylib; \
+			echo "$(GREEN)✅ ONNX library installed$(NC)"; \
+		else \
+			echo "$(YELLOW)⚠️  Could not find ONNX library, continuing anyway$(NC)"; \
+		fi; \
+	fi
+
+build-go: ## Build Go binary for development
+	@echo "$(BLUE)Building Go binary for development...$(NC)"
+	@mkdir -p build
+	@CGO_ENABLED=1 \
+	go build \
+	  -ldflags="-X main.version=$(VERSION) -extldflags '-L./build/tokenizers'" \
+	  -o build/yaak-proxy \
+	  ./src/backend
+	@echo "$(GREEN)✅ Go binary built at build/yaak-proxy (version $(VERSION))$(NC)"
+
 electron-build: ## Build Electron app for production
 	@echo "$(BLUE)Building Electron app...$(NC)"
 	@cd src/frontend && npm run build:electron
 	@echo "$(GREEN)✅ Electron app built$(NC)"
 
-electron-run: electron-build ## Run Electron app (builds first)
+electron-run: setup-onnx build-go electron-build ## Run Electron app (builds Go binary and frontend first)
+	@echo "$(BLUE)Preparing resources for Electron...$(NC)"
+	@mkdir -p src/frontend/resources
+	@cp build/yaak-proxy src/frontend/resources/yaak-proxy
+	@chmod +x src/frontend/resources/yaak-proxy
+	@if [ -f "build/libonnxruntime.1.23.1.dylib" ]; then \
+		cp build/libonnxruntime.1.23.1.dylib src/frontend/resources/libonnxruntime.1.23.1.dylib; \
+		echo "$(GREEN)✅ ONNX library copied to resources$(NC)"; \
+	else \
+		echo "$(YELLOW)⚠️  ONNX library not found at build/libonnxruntime.1.23.1.dylib$(NC)"; \
+	fi
+	@echo "$(GREEN)✅ Resources prepared$(NC)"
 	@echo "$(BLUE)Starting Electron app...$(NC)"
-	@cd src/frontend && npm run electron
+	@cd src/frontend && NODE_ENV=development npm run electron
 
 electron: electron-run ## Alias for electron-run
 
-electron-dev: ## Run Electron app in development mode with hot reload
+electron-dev: ## Run Electron app in development mode (assumes backend is running in debugger)
+	@echo "$(BLUE)Building frontend for Electron...$(NC)"
+	@cd src/frontend && npm run build:electron
+	@echo "$(GREEN)✅ Frontend built$(NC)"
 	@echo "$(BLUE)Starting Electron in development mode...$(NC)"
+	@echo "$(YELLOW)Note: Assumes Go backend is running separately (e.g., in VSCode debugger)$(NC)"
 	@echo "$(YELLOW)Note: Run 'npm run dev' in another terminal for hot reload$(NC)"
-	@cd src/frontend && npm run electron:dev
+	@cd src/frontend && EXTERNAL_BACKEND=true npm run electron:dev
+
+electron-dev-external: electron-dev ## Alias for electron-dev (for backwards compatibility)
+
+update-vscode-version: ## Update version in VSCode launch.json
+	@echo "$(BLUE)Updating VSCode launch.json with version $(VERSION)...$(NC)"
+	@if [ -f ".vscode/launch.json" ]; then \
+		sed -i.bak "s/main.version=[0-9.]*-dev/main.version=$(VERSION)-dev/" .vscode/launch.json && \
+		rm -f .vscode/launch.json.bak && \
+		echo "$(GREEN)✅ VSCode launch.json updated with version $(VERSION)-dev$(NC)"; \
+	else \
+		echo "$(YELLOW)⚠️  .vscode/launch.json not found$(NC)"; \
+	fi
 
 ##@ Build
 
@@ -166,3 +269,22 @@ build-dmg: ## Build DMG package with Go binary and Electron app
 	@chmod +x src/scripts/build_dmg.sh
 	@./src/scripts/build_dmg.sh
 	@echo "$(GREEN)✅ DMG build complete$(NC)"
+
+build-linux: ## Build Linux standalone binary (without Electron)
+	@echo "$(BLUE)Building Linux standalone binary...$(NC)"
+	@if [ ! -f "src/scripts/build_linux.sh" ]; then \
+		echo "$(YELLOW)⚠️  build_linux.sh script not found$(NC)"; \
+		exit 1; \
+	fi
+	@chmod +x src/scripts/build_linux.sh
+	@./src/scripts/build_linux.sh
+	@echo "$(GREEN)✅ Linux build complete$(NC)"
+
+verify-linux: ## Verify Linux build includes all required files (tokenizer, model, etc.)
+	@echo "$(BLUE)Verifying Linux build...$(NC)"
+	@if [ ! -f "src/scripts/verify_linux_build.sh" ]; then \
+		echo "$(YELLOW)⚠️  verify_linux_build.sh script not found$(NC)"; \
+		exit 1; \
+	fi
+	@chmod +x src/scripts/verify_linux_build.sh
+	@./src/scripts/verify_linux_build.sh

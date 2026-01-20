@@ -4,12 +4,16 @@ import (
 	"embed"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
+	"time"
 
+	"github.com/getsentry/sentry-go"
 	"github.com/hannes/yaak-private/src/backend/config"
 	"github.com/hannes/yaak-private/src/backend/server"
 	"github.com/joho/godotenv"
@@ -17,7 +21,25 @@ import (
 
 const TRUE = "true"
 
+// version is set by ldflags during build
+var version = "dev"
+
 func main() {
+	// Handle version flag
+	versionFlag := flag.Bool("version", false, "Print version and exit")
+	versionFlagShort := flag.Bool("v", false, "Print version and exit")
+
+	// Check for config file path from command-line flag
+	configPath := flag.String("config", "", "Path to JSON config file")
+	electronConfigPath := flag.String("electron-config", "", "Path to Electron's config.json file")
+	flag.Parse()
+
+	// Print version if requested
+	if *versionFlag || *versionFlagShort {
+		log.Printf("Dataiku's Yaak Privacy Proxy version %s", version)
+		os.Exit(0)
+	}
+
 	// Load .env file if it exists
 	// Try loading from current directory and workspace root
 	if err := godotenv.Load(); err == nil {
@@ -28,13 +50,40 @@ func main() {
 		log.Printf("Note: .env file not found or could not be loaded: %v", err)
 	}
 
+	// Initialize Sentry for error tracking (deferred flush happens in run)
+	environment := "production"
+	if os.Getenv("NODE_ENV") == "development" {
+		environment = "development"
+	}
+	err := sentry.Init(sentry.ClientOptions{
+		Dsn:              "https://d7ad4213601549253c0d313b271f83cf@o4510660510679040.ingest.de.sentry.io/4510660556095568",
+		Environment:      environment,
+		Release:          version,
+		TracesSampleRate: 1.0,
+	})
+	if err != nil {
+		log.Printf("Warning: Failed to initialize Sentry: %v", err)
+	} else {
+		log.Println("Sentry initialized successfully")
+	}
+
+	// Run main logic
+	if err := run(configPath, electronConfigPath); err != nil {
+		log.Printf("Fatal error: %v", err)
+		sentry.CaptureException(err)
+		sentry.Flush(2 * time.Second)
+		os.Exit(1)
+	}
+}
+
+func run(configPath *string, electronConfigPath *string) error {
+	// Log version at startup with banner
+	log.Println("================================================================================")
+	log.Printf("🚀 Starting Dataiku's Yaak Privacy Proxy v%s", version)
+	log.Println("================================================================================")
+
 	// Load configuration
 	cfg := config.DefaultConfig()
-
-	// Check for config file path from command-line flag
-	configPath := flag.String("config", "", "Path to JSON config file")
-	electronConfigPath := flag.String("electron-config", "", "Path to Electron's config.json file")
-	flag.Parse()
 
 	if *configPath != "" {
 		loadConfigFromFile(*configPath, cfg)
@@ -81,9 +130,9 @@ func main() {
 
 	if *configPath != "" {
 		// Development mode - use file system
-		srv, err = server.NewServer(cfg, *electronConfigPath)
+		srv, err = server.NewServer(cfg, *electronConfigPath, version)
 		if err != nil {
-			log.Fatalf("Failed to create server: %v", err)
+			return fmt.Errorf("failed to create server: %w", err)
 		}
 		log.Println("Using file system UI and model files (development mode)")
 	} else {
@@ -104,15 +153,16 @@ func main() {
 			}
 		}
 
-		srv, err = server.NewServerWithEmbedded(cfg, uiFiles, modelFiles, *electronConfigPath)
+		srv, err = server.NewServerWithEmbedded(cfg, uiFiles, modelFiles, *electronConfigPath, version)
 		if err != nil {
-			log.Fatalf("Failed to create server with embedded files: %v", err)
+			return fmt.Errorf("failed to create server with embedded files: %w", err)
 		}
 		log.Println("Using embedded UI and model files (production mode)")
 	}
 
 	// Start server with error handling
 	srv.StartWithErrorHandling()
+	return nil
 }
 
 // loadConfigFromFile loads configuration from a JSON file
@@ -141,6 +191,7 @@ func loadConfigFromEnv(cfg *config.Config) {
 	loadApplicationConfig(cfg)
 	loadPIIDetectorConfig(cfg)
 	loadLoggingConfig(cfg)
+	loadProxyConfig(cfg)
 }
 
 // loadDatabaseConfig loads database configuration from environment variables
@@ -243,6 +294,62 @@ func loadLoggingConfig(cfg *config.Config) {
 	if logResponses := os.Getenv("LOG_RESPONSES"); logResponses != "" {
 		cfg.Logging.LogResponses = logResponses == TRUE
 	}
+}
+
+// loadProxyConfig loads transparent proxy configuration from environment variables
+func loadProxyConfig(cfg *config.Config) {
+	if transparentEnabled := os.Getenv("TRANSPARENT_PROXY_ENABLED"); transparentEnabled != "" {
+		cfg.Proxy.TransparentEnabled = transparentEnabled == TRUE
+	}
+
+	if proxyPort := os.Getenv("TRANSPARENT_PROXY_PORT"); proxyPort != "" {
+		cfg.Proxy.ProxyPort = proxyPort
+	}
+
+	if caPath := os.Getenv("TRANSPARENT_PROXY_CA_PATH"); caPath != "" {
+		cfg.Proxy.CAPath = expandPath(caPath)
+	}
+
+	if keyPath := os.Getenv("TRANSPARENT_PROXY_KEY_PATH"); keyPath != "" {
+		cfg.Proxy.KeyPath = expandPath(keyPath)
+	}
+
+	// Also expand paths if they weren't set from environment
+	cfg.Proxy.CAPath = expandPath(cfg.Proxy.CAPath)
+	cfg.Proxy.KeyPath = expandPath(cfg.Proxy.KeyPath)
+
+	// Note: intercept_domains is not easily set via env vars (would need comma-separated parsing)
+	// It's better to set via JSON config file
+}
+
+// expandPath expands ~ to the user's home directory
+func expandPath(path string) string {
+	if path == "" {
+		return path
+	}
+
+	// If path starts with ~/, replace with home directory
+	if strings.HasPrefix(path, "~/") {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			log.Printf("⚠️  Failed to get home directory: %v", err)
+			return path
+		}
+		return filepath.Join(homeDir, path[2:])
+	}
+
+	// If path is exactly ~, return home directory
+	if path == "~" {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			log.Printf("⚠️  Failed to get home directory: %v", err)
+			return path
+		}
+		return homeDir
+	}
+
+	// Otherwise, return path as-is
+	return path
 }
 
 // extractEmbeddedModelFiles extracts embedded model files to the current directory

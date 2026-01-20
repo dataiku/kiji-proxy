@@ -1,19 +1,20 @@
-
-
-# Yaak PII Detection Proxy
+# Dataiku's Yaak Privacy Proxy
 
 <div align="center">
   <img src="build/static/yaak.png" alt="Yaak Mascot" width="300">
 
   <p>
-    <a href="https://github.com/hanneshapke/yaak-proxy/actions/workflows/build-dmg.yml">
-      <img src="https://github.com/hanneshapke/yaak-proxy/actions/workflows/build-dmg.yml/badge.svg" alt="Build DMG">
+    <a href="https://github.com/hanneshapke/yaak-proxy/actions/workflows/release-dmg.yml">
+      <img src="https://github.com/hanneshapke/yaak-proxy/actions/workflows/release-dmg.yml/badge.svg" alt="Build MacOS">
+    </a>
+    <a href="https://github.com/hanneshapke/yaak-proxy/actions/workflows/release-linux.yml">
+      <img src="https://github.com/hanneshapke/yaak-proxy/actions/workflows/release-linux.yml/badge.svg" alt="Build Linux">
     </a>
     <a href="https://github.com/hanneshapke/yaak-proxy/actions/workflows/lint.yml">
       <img src="https://github.com/hanneshapke/yaak-proxy/actions/workflows/lint.yml/badge.svg" alt="Lint">
     </a>
     <a href="LICENSE">
-      <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
+      <img src="https://img.shields.io/badge/license-Apache%20License%202.0-blue" alt="License: Apache 2.0">
     </a>
     <!-- <a href="https://github.com/hanneshapke/yaak-proxy/stargazers">
       <img src="https://img.shields.io/github/stars/hanneshapke/yaak-proxy?style=social" alt="GitHub Stars">
@@ -25,7 +26,7 @@
 
   <p>
     <img src="https://img.shields.io/badge/go-%3E%3D1.21-00ADD8?logo=go" alt="Go Version">
-    <img src="https://img.shields.io/badge/node-%3E%3D18-339933?logo=node.js&logoColor=white" alt="Node Version">
+    <img src="https://img.shields.io/badge/node-%3E%3D20-339933?logo=node.js&logoColor=white" alt="Node Version">
     <img src="https://img.shields.io/badge/python-%3E%3D3.11-3776AB?logo=python&logoColor=white" alt="Python Version">
     <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey" alt="Platform">
   </p>
@@ -37,352 +38,347 @@
   </p>
 </div>
 
-A secure HTTP proxy service that intercepts requests to the OpenAI API, detects and redacts Personally Identifiable Information (PII), and restores original PII in responses. Built with Go and featuring an Electron desktop app for macOS.
+**An intelligent privacy layer for AI APIs.** Yaak automatically detects and masks personally identifiable information (PII) in requests to AI services, ensuring your sensitive data never leaves your control.
 
-## 🎯 What is Yaak?
+---
 
-Yaak is a privacy-first proxy service that sits between your application and OpenAI's API, automatically detecting and masking PII in requests while seamlessly restoring the original data in responses. This ensures your sensitive data never reaches external APIs while maintaining full functionality.
+## 🎯 Why Yaak?
+
+When using AI services like OpenAI or Anthropic, sensitive data in your prompts gets sent to external servers. Yaak solves this by:
+
+- **🔒 Automatic PII Protection** - ML-powered detection of 16+ PII types (emails, SSNs, credit cards, etc.)
+- **🎭 Seamless Masking** - Replaces sensitive data with realistic dummy values before API calls
+- **🔄 Transparent Restoration** - Restores original data in responses so your app works normally
+- **🚀 Zero Code Changes** - Works as a transparent proxy with automatic configuration (PAC) on macOS
+- **🌐 Browser-Ready** - Automatic proxy setup for Safari, Chrome - no environment variables needed
+- **🏃 Fast Local Inference** - ONNX-optimized model runs locally, no external API calls
+- **💻 Easy to Use** - Desktop app for macOS, standalone server for Linux
+
+**Use Cases:**
+- Protect customer data when using ChatGPT for customer support
+- Sanitize logs before sending to AI for analysis
+- Comply with privacy regulations (GDPR, HIPAA, CCPA)
+- Prevent accidental data leaks in development/testing
+
+---
 
 ## ⚡ Quick Start
 
-### Prerequisites
+### For Users
 
-- **Go 1.21+** with CGO enabled
-- **Node.js 18+** (for Electron frontend)
-- **Python 3.11+** (for ML model training)
-- **Rust toolchain** (for tokenizers library)
+**macOS (Desktop App):**
+```bash
+# Download from releases
+# https://github.com/hanneshapke/yaak-proxy/releases
 
-### Local Development
+# Install
+open Yaak-Privacy-Proxy-*.dmg
+# Drag to Applications folder
+
+# First run - trust certificate
+xattr -cr "/Applications/Yaak Privacy Proxy.app"
+```
+
+**Linux (Standalone Server):**
+```bash
+# Download and extract
+wget https://github.com/hanneshapke/yaak-proxy/releases/download/v0.1.1/yaak-privacy-proxy-0.1.1-linux-amd64.tar.gz
+tar -xzf yaak-privacy-proxy-0.1.1-linux-amd64.tar.gz
+cd yaak-privacy-proxy-0.1.1-linux-amd64
+
+# Run
+./run.sh
+```
+
+**Test It:**
+
+*macOS (with automatic PAC):*
+```bash
+# Start with sudo for automatic browser configuration
+sudo "/Applications/Yaak Privacy Proxy.app/Contents/MacOS/yaak-proxy"
+
+# Open browser - requests to api.openai.com automatically go through proxy!
+# No configuration needed for Safari/Chrome
+
+# For CLI tools, set environment variables:
+export OPENAI_API_KEY="sk-..."
+export HTTP_PROXY=http://127.0.0.1:8081
+export HTTPS_PROXY=http://127.0.0.1:8081
+
+curl https://api.openai.com/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $OPENAI_API_KEY" \
+  -d '{
+    "model": "gpt-4",
+    "messages": [{"role": "user", "content": "My email is john@example.com"}]
+  }'
+```
+
+*Linux (manual proxy configuration):*
+```bash
+# Set environment variables
+export OPENAI_API_KEY="sk-..."
+export HTTP_PROXY=http://127.0.0.1:8081
+export HTTPS_PROXY=http://127.0.0.1:8081
+
+curl https://api.openai.com/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $OPENAI_API_KEY" \
+  -d '{
+    "model": "gpt-4",
+    "messages": [{"role": "user", "content": "My email is john@example.com"}]
+  }'
+```
+
+*What happens:*
+```bash
+# Check logs - "john@example.com" was masked before sending to OpenAI
+# Response contains the original email (restored automatically)
+```
+
+### For Developers
 
 ```bash
 # Clone and setup
-git clone https://github.com/yaak/yaak-proxy.git
+git clone https://github.com/hanneshapke/yaak-proxy.git
 cd yaak-proxy
 
-# Install frontend dependencies
+# Install dependencies
 make electron-install
 
-# Run with VSCode Debugger (recommended)
-# Press F5 or use "Launch yaak-proxy" configuration
+# Run with debugger (VSCode)
+# Press F5
 
-# Or run Electron app directly
+# Or run directly
 make electron
 ```
 
-### Build for Distribution
+**See full documentation:** [docs/README.md](docs/README.md)
 
-```bash
-# Build macOS DMG (includes Electron UI)
-make build-dmg
+---
 
-# Build standalone Go binary (Linux/CLI)
-go build -ldflags="-s -w -extldflags '-L./build/tokenizers'" -o yaak-proxy ./src/backend
-```
-
-## 🖥️ UI Screenshot
+## 🖥️ Screenshot
 
 <div align="center">
   <img src="build/static/ui-screenshot.png" alt="Privacy Proxy Service UI" height="600">
 </div>
 
+---
+
+## ✨ Key Features
+
+- **16+ PII Types Detected** - Email, phone, SSN, credit cards, IP addresses, URLs, and more
+- **ML-Powered** - DistilBERT transformer model with ONNX Runtime
+- **Automatic Configuration** - PAC (Proxy Auto-Config) for zero-setup browser integration on macOS
+- **Real-Time Processing** - Sub-100ms latency for most requests
+- **Thread-Safe** - Handles concurrent requests with isolated mappings
+- **Desktop UI** - Native Electron app for macOS with visual request monitoring
+- **Production Ready** - Systemd service, Docker support, comprehensive logging
+- **Privacy First** - All processing happens locally, no external dependencies
+
+---
+
+## 📚 Documentation
+
+Complete documentation is available in [docs/README.md](docs/README.md):
+
+- **[Getting Started](docs/01-getting-started.md)** - Installation, configuration, first release
+- **[Development Guide](docs/02-development-guide.md)** - Dev setup, debugging, workflows
+- **[Building & Deployment](docs/03-building-deployment.md)** - Building from source, production deployment
+- **[Release Management](docs/04-release-management.md)** - Versioning, changesets, CI/CD
+- **[Advanced Topics](docs/05-advanced-topics.md)** - MITM proxy, model signing, troubleshooting
+
+**Quick Links:**
+- [Installation Guide](docs/01-getting-started.md#quick-installation)
+- [Automatic Proxy Setup (PAC)](docs/transparent-proxy-setup.md)
+- [VSCode Debugging](docs/02-development-guide.md#vscode-debugging)
+- [Build for macOS](docs/03-building-deployment.md#building-for-macos)
+- [Build for Linux](docs/03-building-deployment.md#building-for-linux)
+
+---
+
 ## 🏗️ Architecture
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│     Client      │───►│   Yaak Proxy    │    │   PostgreSQL    │
-│  (Application)  │    │   (Go App)      │◄──►│   (Optional)    │
-│                 │    │   Port: 8080    │    │   Port: 5432    │
+│  Your App/CLI   │───►│   Yaak Proxy    │───►│   OpenAI API    │
+│                 │    │   (Port 8080)   │    │  (Masked Data)  │
+│                 │◄───┤  - Detect PII   │◄───┤                 │
+│  Original Data  │    │  - Mask/Restore │    │                 │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
-                                │
-                                ▼
-                       ┌─────────────────┐
-                       │   OpenAI API    │
-                       │   (External)    │
-                       └─────────────────┘
 ```
 
-## ✨ Features
+**What Happens:**
+1. Your app sends request to Yaak proxy
+2. Yaak detects PII using ML model
+3. PII is replaced with dummy data
+4. Request forwarded to OpenAI (with masked data)
+5. Response received and PII restored
+6. Original-looking response returned to your app
 
-### Core Proxy Features
-- **PII Detection**: Automatically detects emails, phone numbers, SSNs, credit cards, and 16+ PII types
-- **Dummy Data Replacement**: Replaces PII with realistic dummy data
-- **Two-Way Mapping**: Restores original PII in responses using stored mappings
-- **ONNX Runtime**: Fast local inference using quantized transformer model
-- **Concurrent Support**: Thread-safe handling of multiple simultaneous requests
-- **Configurable Logging**: Adjustable logging verbosity and content
+---
 
-### Desktop App (macOS)
-- **Native Electron App**: Beautiful desktop interface
-- **Bundled Backend**: Go proxy runs automatically with the app
-- **Easy Installation**: Drag-and-drop DMG installer
+## 🤝 Contributing
 
-### Developer Experience
-- **VSCode Integration**: Pre-configured debugger launch configurations
-- **Hot Reload**: Electron development with auto-reload
-- **Comprehensive Makefile**: Commands for development, testing, and deployment
+We welcome contributions! Here's how to help:
 
-## 🛠️ Development
+1. **Report Issues** - Found a bug? [Open an issue](https://github.com/hanneshapke/yaak-proxy/issues)
+2. **Submit PRs** - See [docs/02-development-guide.md](docs/02-development-guide.md) for dev setup
+3. **Improve Docs** - Documentation PRs are always welcome
+4. **Share Feedback** - [Start a discussion](https://github.com/hanneshapke/yaak-proxy/discussions)
 
-### VSCode Debugger (Recommended)
+**Quick Contribution Guide:**
+```bash
+# 1. Fork and clone
+git clone https://github.com/YOUR-USERNAME/yaak-proxy.git
 
-The project includes pre-configured VSCode launch configurations:
+# 2. Create feature branch
+git checkout -b feature/my-feature
 
-1. **Open the project in VSCode**
-2. **Press F5** or select "Launch yaak-proxy" from the Run and Debug panel
-3. The proxy starts on `http://localhost:8080`
+# 3. Make changes and add changeset
+cd src/frontend
+npm run changeset
 
-The debugger is configured with:
-- Environment variables for development
-- CGO flags for tokenizers library
-- Config file loading from `src/backend/config/config.development.json`
+# 4. Test
+make test-all
+make check
 
-### Electron Development
+# 5. Submit PR
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
+
+---
+
+## 💖 Support the Project
+
+If you find Yaak useful, here's how you can support its development:
+
+### ⭐ Star the Repository
+Click the ⭐ button at the top of this page - it helps others discover the project!
+
+### 🐛 Report Issues & Request Features
+Found a bug or have an idea? [Open an issue](https://github.com/hanneshapke/yaak-proxy/issues)
+
+### 📝 Contribute Code or Documentation
+Pull requests are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+### 💬 Spread the Word
+- Share on Twitter/LinkedIn
+- Write a blog post about your experience
+- Present at meetups/conferences
+
+### 🎓 Improve the ML Model
+- Contribute training data samples
+- Improve PII detection accuracy
+- Add support for new PII types
+
+### 📚 Write Tutorials
+- Create video tutorials
+- Write integration guides
+- Share use cases and examples
+
+**Every contribution, big or small, makes a difference!**
+
+---
+
+## 🧪 Development
+
+### Prerequisites
+
+- **Go 1.21+** with CGO enabled
+- **Node.js 20+**
+- **Python 3.11+**
+- **Rust toolchain**
+
+### Quick Setup
 
 ```bash
 # Install dependencies
 make electron-install
 
-# Run Electron app (builds and launches)
+# Run with VSCode debugger (F5)
+# Or run directly
 make electron
-
-# Development mode with hot reload
-make electron-dev
-# Note: Run 'npm run dev' in another terminal for frontend hot reload
 ```
 
-### Available Make Commands
+### Available Commands
 
 ```bash
-make help              # Show all available commands
-
-# Electron
-make electron-install  # Install Electron dependencies
+make help              # Show all commands
 make electron          # Build and run Electron app
-make electron-dev      # Run in development mode
-make electron-build    # Build Electron app for production
-
-# Build
-make build-dmg         # Build macOS DMG package
-
-# Code Quality
-make format            # Format Python code with ruff
-make lint              # Lint Python code
-make lint-go           # Lint Go code with golangci-lint
-make check             # Run all code quality checks
-
-# Testing
-make test-python       # Run Python tests
-make test-go           # Run Go tests
+make build-dmg         # Build macOS DMG
+make build-linux       # Build Linux tarball
 make test-all          # Run all tests
+make check             # Code quality checks
 ```
 
-## 📦 Building for Distribution
+See [docs/02-development-guide.md](docs/02-development-guide.md) for detailed development guide.
 
-### macOS (DMG with Electron UI)
+---
 
-```bash
-# Build the complete DMG package
-make build-dmg
+## 📦 Releases
 
-# Or run the script directly
-./src/scripts/build_dmg.sh
-```
+Download the latest release from [GitHub Releases](https://github.com/hanneshapke/yaak-proxy/releases):
 
-This creates a DMG installer at `src/frontend/release/*.dmg` that includes:
-- The Go proxy binary with embedded model
-- Electron desktop UI
-- ONNX Runtime library
+- **macOS:** `Yaak-Privacy-Proxy-{version}.dmg` (~400MB)
+- **Linux:** `yaak-privacy-proxy-{version}-linux-amd64.tar.gz` (~150MB)
 
-### Linux (CLI Only)
+**Automated Builds:** CI/CD builds both platforms in parallel on every release tag.
 
-For Linux servers, build the standalone Go binary without the Electron frontend:
+See [docs/04-release-management.md](docs/04-release-management.md) for release process.
 
-```bash
-# Build static binary
-CGO_ENABLED=1 \
-go build \
-  -ldflags="-s -w -extldflags '-L./build/tokenizers'" \
-  -o yaak-proxy \
-  ./src/backend
+---
 
-# Run with required library path
-export ONNXRUNTIME_SHARED_LIBRARY_PATH=/path/to/libonnxruntime.so
-./yaak-proxy
-```
+## 🔒 Security
 
-Required files for deployment:
-- `yaak-proxy` - The compiled binary
-- `libonnxruntime.so` - ONNX Runtime library
-- `model/quantized/` - Model files (tokenizer.json, model_quantized.onnx, etc.)
+**Reporting Vulnerabilities:**
 
-## ⚙️ Configuration
+**Do not open public issues for security vulnerabilities.**
 
-### Environment Variables
+Email: opensource@dataiku.com (or contact maintainers privately)
 
-```bash
-# Required
-OPENAI_API_KEY=your-api-key-here
+**Security Features:**
+- All processing happens locally
+- No external API calls for PII detection
+- Optional encrypted storage for mappings
+- MITM certificate for local use only
 
-# Proxy Settings
-PROXY_PORT=:8080
-OPENAI_BASE_URL=https://api.openai.com/v1
+See [docs/05-advanced-topics.md#security-best-practices](docs/05-advanced-topics.md#security-best-practices) for security guidelines.
 
-# PII Detection
-DETECTOR_NAME=onnx_model_detector
-
-# Logging
-LOG_REQUESTS=true
-LOG_RESPONSES=false
-LOG_PII_CHANGES=true
-LOG_VERBOSE=false
-
-# Database (optional)
-DB_ENABLED=false
-DB_HOST=localhost
-DB_PORT=5432
-```
-
-### Config File
-
-Use a JSON config file for development:
-
-```bash
-./yaak-proxy -config src/backend/config/config.development.json
-```
-
-## 🔧 Usage Examples
-
-### Test PII Detection
-
-```bash
-curl -X POST http://localhost:8080/chat/completions \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $OPENAI_API_KEY" \
-  -d '{
-    "messages": [
-      {
-        "role": "user",
-        "content": "My email is john@example.com and phone is 555-123-4567"
-      }
-    ]
-  }'
-```
-
-### Health Check
-
-```bash
-curl http://localhost:8080/health
-```
-
-## 📊 Project Structure
-
-```
-├── src/
-│   ├── backend/           # Go backend application
-│   │   ├── main.go        # Application entry point
-│   │   ├── embeds.go      # Embedded files (production)
-│   │   ├── embeds_stub.go # Embedded files stub (development)
-│   │   ├── config/        # Configuration management
-│   │   │   ├── config.go
-│   │   │   ├── config.development.json
-│   │   │   └── electron_config.go
-│   │   ├── pii/           # PII detection and mapping
-│   │   │   ├── database.go
-│   │   │   ├── mapper.go
-│   │   │   ├── masking_service.go
-│   │   │   ├── generator_service.go
-│   │   │   ├── detectors/    # PII detection implementations
-│   │   │   └── generators/   # Dummy data generators
-│   │   ├── proxy/         # HTTP proxy handler
-│   │   ├── processor/     # Response processing
-│   │   └── server/        # HTTP server
-│   ├── frontend/          # React-based web interface
-│   │   ├── dist/          # Built UI assets
-│   │   ├── privacy-proxy-ui.tsx
-│   │   └── electron-main.js
-│   └── scripts/           # Setup and utility scripts
-│       ├── build_dmg.sh
-│       ├── build_single_binary.sh
-│       ├── start_dev.sh
-│       └── setup_database.sql
-├── model/                 # Python ML model training and evaluation
-│   ├── src/               # Model source code
-│   │   ├── config.py
-│   │   ├── train.py
-│   │   ├── trainer.py
-│   │   ├── preprocessing.py
-│   │   ├── quantitize.py
-│   │   └── eval_model.py
-│   ├── dataset/           # Training datasets
-│   │   ├── training_samples/
-│   │   ├── reviewed_samples/
-│   │   └── training_set.py
-│   ├── trained/           # Trained DistilBERT model files (unquantized)
-│   └── quantized/         # ONNX quantized model files
-├── build/                 # Build artifacts
-│   ├── static/            # Static assets (images, etc.)
-│   ├── tokenizers/        # Compiled tokenizers library
-│   ├── libonnxruntime.1.23.1.dylib
-│   └── dist/              # Distribution builds
-├── docs/                  # Documentation
-│   ├── BUILD.md
-│   └── DEVELOPMENT.md
-├── Makefile               # Development commands (30+ targets)
-├── pyproject.toml         # Python project configuration with Ruff
-├── docker-compose.yml     # Docker orchestration
-└── README.md              # This file
-```
-
-## 🧪 Testing
-
-```bash
-# Run Go tests
-make test-go
-
-# Run Python tests
-make test-python
-
-# Run all tests
-make test-all
-```
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-1. **CGO compilation errors**
-   ```bash
-   export CGO_ENABLED=1
-   ```
-
-2. **Tokenizers library not found**
-   ```bash
-   cd build/tokenizers && cargo build --release
-   ```
-
-3. **ONNX Runtime library not found**
-   ```bash
-   export ONNXRUNTIME_SHARED_LIBRARY_PATH=/path/to/libonnxruntime.dylib
-   ```
-
-4. **VSCode debugger not starting**
-   - Ensure Go extension is installed
-   - Check that `build/tokenizers/libtokenizers.a` exists
-
-## 📚 Documentation
-
-- [Build Guide](docs/BUILD.md) - Detailed build instructions
-- [Development Guide](docs/DEVELOPMENT.md) - Development workflow
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Run tests: `make test-all`
-5. Run code quality checks: `make check`
-6. Submit a pull request
+---
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+## 🚀 Contributors
+
+<a href="https://github.com/hanneshapke/yaak-proxy/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=hanneshapke/yaak-proxy" />
+</a>
+
+---
+
+## 🙏 Acknowledgments
+
+- **ONNX Runtime** - Microsoft's cross-platform ML inference engine
+- **HuggingFace** - DistilBERT model and tokenizers
+- **Electron** - Cross-platform desktop framework
+- **Go Community** - Excellent libraries and tools
+
+---
+
+<div align="center">
+  <p>
+    <strong>Made with ❤️ for privacy-conscious developers</strong>
+  </p>
+  <p>
+    <a href="https://github.com/hanneshapke/yaak-proxy">GitHub</a> •
+    <a href="https://github.com/hanneshapke/yaak-proxy/issues">Issues</a> •
+    <a href="https://github.com/hanneshapke/yaak-proxy/discussions">Discussions</a> •
+    <a href="docs/README.md">Documentation</a>
+  </p>
+</div>

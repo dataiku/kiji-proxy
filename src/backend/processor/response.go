@@ -14,27 +14,26 @@ import (
 type LoggingConfig interface {
 	GetLogResponses() bool
 	GetLogVerbose() bool
+	GetAddProxyNotice() bool
 }
 
 // ResponseProcessor handles processing and modification of API responses
 type ResponseProcessor struct {
 	piiDetector *pii.Detector
 	logging     LoggingConfig
-	// Store mapping of masked text to original text for restoration
-	maskedToOriginal map[string]string
 }
 
 // NewResponseProcessor creates a new response processor
 func NewResponseProcessor(piiDetector *pii.Detector, logging LoggingConfig) *ResponseProcessor {
 	return &ResponseProcessor{
-		piiDetector:      piiDetector,
-		logging:          logging,
-		maskedToOriginal: make(map[string]string),
+		piiDetector: piiDetector,
+		logging:     logging,
 	}
 }
 
 // ProcessResponse modifies the response body to append interception notice and restore original PII
-func (rp *ResponseProcessor) ProcessResponse(body []byte, contentType string, provider *providers.Provider) []byte {
+// maskedToOriginal is passed per-request to avoid race conditions with concurrent requests
+func (rp *ResponseProcessor) ProcessResponse(body []byte, contentType string, maskedToOriginal map[string]string, provider *providers.Provider) []byte {
 	// Only modify JSON responses (typical for most LLM providers)
 	if !strings.Contains(contentType, "application/json") {
 		return body
@@ -52,7 +51,7 @@ func (rp *ResponseProcessor) ProcessResponse(body []byte, contentType string, pr
 
 	// Restore masked PII text back to original text
 	interceptionNotice := "\n\n[This response was intercepted and processed by Yaak proxy service]"
-	err := (*provider).RestoreMaskedResponse(data, interceptionNotice, rp.RestorePII, rp.logging.GetLogResponses, rp.logging.GetLogVerbose)
+	err := (*provider).RestoreMaskedResponse(data, maskedToOriginal, interceptionNotice, rp.RestorePII, rp.logging.GetLogResponses, rp.logging.GetLogVerbose, rp.logging.GetAddProxyNotice)
 	if err != nil {
 		log.Printf("Failed to restore masked content: %v", err)
 	}
@@ -73,15 +72,10 @@ func (rp *ResponseProcessor) ProcessResponse(body []byte, contentType string, pr
 	return modifiedBody
 }
 
-// SetMaskedToOriginalMapping sets the mapping of masked text to original text
-func (rp *ResponseProcessor) SetMaskedToOriginalMapping(mapping map[string]string) {
-	rp.maskedToOriginal = mapping
-}
-
-// RestorePII restores masked PII text back to original text using the stored mapping
-func (rp *ResponseProcessor) RestorePII(text string) string {
+// RestorePII restores masked PII text back to original text using the provided mapping
+func (rp *ResponseProcessor) RestorePII(text string, maskedToOriginal map[string]string) string {
 	// Replace all occurrences of masked text with original text
-	for maskedText, originalText := range rp.maskedToOriginal {
+	for maskedText, originalText := range maskedToOriginal {
 		text = strings.ReplaceAll(text, maskedText, originalText)
 	}
 	return text

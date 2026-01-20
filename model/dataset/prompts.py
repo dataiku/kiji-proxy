@@ -28,9 +28,30 @@ class PromptBuilder:
             "coreferences": [
                 {
                     "cluster_id": 0,
-                    "mentions": ["Michael Chen", "I", "my"],
                     "entity_type": "person",
-                }
+                    "mentions": [
+                        {
+                            "text": "Michael Chen",
+                            "type": "name",
+                            "privacy_mask_labels": ["FIRSTNAME", "SURNAME"],
+                        },
+                        {"text": "I", "type": "pronoun"},
+                        {"text": "my", "type": "pronoun"},
+                    ],
+                },
+                {
+                    "cluster_id": 1,
+                    "entity_type": "person",
+                    "mentions": [
+                        {
+                            "text": "Sarah",
+                            "type": "name",
+                            "privacy_mask_labels": ["FIRSTNAME"],
+                        },
+                        {"text": "you", "type": "pronoun"},
+                        {"text": "your", "type": "pronoun"},
+                    ],
+                },
             ],
         },
         {
@@ -50,8 +71,18 @@ class PromptBuilder:
             "coreferences": [
                 {
                     "cluster_id": 0,
-                    "mentions": ["Maria Santos", "Her", "Ms. Santos", "her"],
                     "entity_type": "person",
+                    "mentions": [
+                        {"text": "the patient", "type": "reference"},
+                        {
+                            "text": "Maria Santos",
+                            "type": "name",
+                            "privacy_mask_labels": ["FIRSTNAME", "SURNAME"],
+                        },
+                        {"text": "Her", "type": "pronoun"},
+                        {"text": "Ms. Santos", "type": "reference"},
+                        {"text": "her", "type": "pronoun"},
+                    ],
                 }
             ],
         },
@@ -81,8 +112,11 @@ class PromptBuilder:
             "coreferences": [
                 {
                     "cluster_id": 0,
-                    "mentions": ["My", "I", "My"],
                     "entity_type": "person",
+                    "mentions": [
+                        {"text": "My", "type": "pronoun"},
+                        {"text": "I", "type": "pronoun"},
+                    ],
                 }
             ],
         },
@@ -93,7 +127,7 @@ class PromptBuilder:
         labels: dict[str, str],
         languages_countries: list[tuple[str, str]],
         sample_index: int = 0,
-    ) -> str:
+    ) -> tuple[str, str, str]:
         """
         Build a prompt for generating PII samples.
 
@@ -150,7 +184,8 @@ class PromptBuilder:
         language = selected_language_country[0]
         country = selected_language_country[1]
         labels_list = ", ".join(labels.values())
-        return f"""
+        return (
+            f"""
         Generate one text sample in the style of a {style} that contains the following PII types:
         {labels_list}
 
@@ -164,7 +199,10 @@ class PromptBuilder:
             7. Use varied reference types: pronouns (he, she, they, it), definite descriptions ("the customer", "the patient"), proper names, and possessive forms
             8. Vary the position of PII in sentences - don't always put names at the beginning
             9. Return the text sample with the included PII data and the type of PII (see example below)
-            10. Include coreference information: group all mentions that refer to the same entity into clusters (e.g., if "John Doe", "He", and "His" all refer to the same person, they should be in one cluster)
+            10. Include coreference information: group all mentions that refer to the same entity into clusters. Use a structured format for mentions:
+                - Each mention is an object with "text" (the exact string), "type" (one of: "name", "pronoun", "reference"), and optionally "privacy_mask_labels" (array of labels from privacy_mask that this mention maps to, e.g., ["FIRSTNAME", "SURNAME"] for "John Doe")
+                - For names that appear in privacy_mask, include the "privacy_mask_labels" field to indicate which labels this mention corresponds to
+                - CRITICAL: Each mention "text" must be an EXACT string that appears as a complete word in the text. Do NOT include substrings (e.g., do not include "her" if the text only contains "here" or "there"). Each mention must match exactly as it appears in the text, respecting word boundaries. If a mention appears multiple times in the text, include it once in the mentions array - the system will find all occurrences automatically.
             11. This is incorrect: {incorrect_example}. If the required labels only contain "surname", only generate a sample with a surname {correct_surname_only}. If the required labels only contain "first name", only generate a sample with a first name {correct_firstname_only}. If first name and surname are required, this is correct: {correct_both}.
             12. Be creative with your first and last names (use diverse ethnic backgrounds, cultural origins, and avoid common names like "John Smith", "Jane Doe", "Sarah Johnson", "Mike Wilson", etc.).
             13. Use diverse street names and city names (use names from different countries, cultures, and avoid common ones like "Main Street", "Oak Avenue", "New York", "Los Angeles", "London", "Paris", etc.).
@@ -184,8 +222,12 @@ class PromptBuilder:
                 "coreferences": [
                     {{
                         "cluster_id": 0,
-                        "mentions": ["John Doe", "He", "His"],
-                        "entity_type": "person"
+                        "entity_type": "person",
+                        "mentions": [
+                            {{"text": "John Doe", "type": "name", "privacy_mask_labels": ["FIRSTNAME", "SURNAME"]}},
+                            {{"text": "He", "type": "pronoun"}},
+                            {{"text": "His", "type": "pronoun"}}
+                        ]
                     }}
                 ]
             }}]
@@ -193,10 +235,15 @@ class PromptBuilder:
 
         Here is an example:
         {example_string}
-        """.strip()
+        """.strip(),
+            language,
+            country,
+        )
 
     @staticmethod
-    def build_review_prompt(sample: dict[str, Any], expected_labels: str) -> str:
+    def build_review_prompt(
+        sample: dict[str, Any], expected_labels: str, language: str, country: str
+    ) -> str:
         """Build a prompt for reviewing a sample."""
         sample_json = json.dumps(sample, indent=2)
         return f"""You are reviewing a dataset for training a PII (Personally Identifiable Information) detection model. The dataset contains text samples with privacy mask annotations and coreference information.
@@ -213,10 +260,29 @@ Each sample contains:
 - `privacy_mask`: Array of PII entities with their values and labels
 - `coreferences`: Array of coreference clusters grouping mentions that refer to the same entity
 
+**Coreference Review Guidelines:**
+When reviewing coreferences, ensure:
+- All mentions within a cluster refer to the same real-world entity
+- Clusters are correctly separated (different entities should not be in the same cluster)
+- The text is in `{language}` and is realistic to the geographic area of `{country}`
+- All relevant mentions are included (pronouns, definite descriptions, proper names, possessive forms)
+- The `entity_type` field accurately describes the type of entity (options are "person", "organization")
+- Coreference clusters are meaningful and help identify relationships between PII mentions
+- **Mention Structure**: Each mention should be an object with:
+  * `text`: The exact string as it appears in the text (case-sensitive)
+  * `type`: One of "name", "pronoun", or "reference"
+  * `privacy_mask_labels`: (Optional) Array of privacy_mask labels this mention maps to (e.g., ["FIRSTNAME", "SURNAME"] for "John Doe")
+- CRITICAL: Each mention "text" must be an EXACT string that appears as a complete word in the text. Verify that:
+  * Each mention text exists exactly as written in the text (case-sensitive)
+  * Mentions are complete words, not substrings (e.g., "her" should NOT be included if the text only contains "here", "there", or "where")
+  * If a mention appears multiple times, include it once in the mentions array - the system will automatically find all occurrences
+  * Use word boundaries to ensure accurate matching (e.g., "her" should match "her" but not "here")
+  * For names that appear in privacy_mask, include the "privacy_mask_labels" field to help map split names (e.g., "John Doe" → ["FIRSTNAME", "SURNAME"])
+
 **Sample to Review:**
 ```json
 {sample_json}
 ```
 
 **Your Task:**
-Please review and correct the dataset example! Return the correct JSON if it needs correction. Just return the JSON structure, no explanation, no extra text."""
+Please review and correct the dataset example! Check both the privacy_mask annotations and the coreference clusters. Return the correct JSON if it needs correction. Just return the JSON structure, no explanation, no extra text."""

@@ -1,0 +1,119 @@
+const path = require("path");
+const HtmlWebpackPlugin = require("html-webpack-plugin");
+const MiniCssExtractPlugin = require("mini-css-extract-plugin");
+
+const isElectron = process.env.ELECTRON === "true";
+const isProduction = process.env.NODE_ENV === "production";
+
+module.exports = {
+  context: path.resolve(__dirname, ".."),
+  entry: "./index.js",
+  mode: isProduction ? "production" : "development",
+  devtool: isProduction ? false : "source-map", // Disable source maps in production to reduce size
+  cache: isElectron ? false : undefined, // Disable webpack cache for Electron builds
+  output: {
+    path: path.resolve(__dirname, "../dist"),
+    filename: isProduction ? "bundle.[contenthash].js" : "bundle.js",
+    // Use absolute path for both Electron and web
+    publicPath: "/",
+    clean: true, // Clean output directory before emit
+  },
+  module: {
+    rules: [
+      {
+        test: /\.(tsx|ts|jsx|js)$/,
+        exclude: /node_modules/,
+        use: {
+          loader: "babel-loader",
+          options: {
+            presets: [
+              [
+                "@babel/preset-env",
+                { targets: { browsers: ["last 2 versions"] } },
+              ],
+              ["@babel/preset-react", { runtime: "automatic" }],
+              "@babel/preset-typescript",
+            ],
+          },
+        },
+      },
+      {
+        test: /\.css$/,
+        use: [
+          isElectron ? MiniCssExtractPlugin.loader : "style-loader",
+          "css-loader",
+          {
+            loader: "postcss-loader",
+            options: {
+              postcssOptions: {
+                plugins: [
+                  require("@tailwindcss/postcss"),
+                  require("autoprefixer"),
+                ],
+              },
+            },
+          },
+        ],
+      },
+      {
+        test: /\.(png|jpg|jpeg|gif|svg|ico|icns)$/i,
+        type: "asset/resource",
+        generator: {
+          filename: "assets/[name][ext]",
+        },
+      },
+      {
+        test: /\.md$/,
+        type: "asset/source",
+      },
+    ],
+  },
+  resolve: {
+    extensions: [".tsx", ".ts", ".jsx", ".js", ".md"],
+  },
+  plugins: [
+    new HtmlWebpackPlugin({
+      template: "./index.html",
+      filename: "index.html",
+      inject: "body", // Automatically inject script tags
+      scriptLoading: "blocking",
+    }),
+    ...(isElectron
+      ? [
+          new MiniCssExtractPlugin({
+            filename: "[name].[contenthash].css",
+          }),
+        ]
+      : []),
+  ],
+  devServer: {
+    static: {
+      directory: path.resolve(__dirname, "../dist"),
+    },
+    compress: true,
+    port: 3000,
+    host: "0.0.0.0", // Allow external connections (for Docker)
+    hot: true,
+    liveReload: true,
+    historyApiFallback: true,
+    watchFiles: {
+      paths: ["src/**/*", "*.html", "*.js", "*.tsx", "*.ts"],
+      options: {
+        usePolling: true, // Enable polling for Docker
+        interval: 1000,
+      },
+    },
+    proxy: {
+      "/details": {
+        target: "http://localhost:8080", // Use localhost for local development
+        secure: false,
+        changeOrigin: true,
+      },
+      "/api": {
+        target: "http://localhost:8080", // Use localhost for local development
+        secure: false,
+        changeOrigin: true,
+      },
+    },
+  },
+};

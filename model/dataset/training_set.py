@@ -6,9 +6,15 @@ from pathlib import Path
 from typing import Any
 
 from absl import flags, logging
+from absl.flags import DuplicateFlagError
 from dotenv import load_dotenv
 from tqdm import tqdm
 from transformers import AutoTokenizer
+
+# Add project root to sys.path for imports when running as a script
+project_root = Path(__file__).parent.parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 
 try:
     from .api_clients import LLMClient, OllamaClient, OpenAIClient
@@ -30,21 +36,37 @@ root_dir = Path(__file__).parent.parent.parent
 env_path = root_dir / ".env"
 load_dotenv(env_path)
 
-# Define absl flags
+# Define absl flags (only if not already defined - avoid conflicts with __init__.py imports)
 FLAGS = flags.FLAGS
-flags.DEFINE_integer("num_samples", 5, "Number of samples to generate")
-flags.DEFINE_boolean("use_ollama", False, "Whether to use Ollama instead of OpenAI")
-flags.DEFINE_string(
-    "output_dir", "model/dataset", "Output directory for generated samples"
-)
-flags.DEFINE_string(
-    "log_level", "WARNING", "Logging level (DEBUG, INFO, WARNING, ERROR)"
-)
-flags.DEFINE_integer(
-    "max_workers",
-    None,
-    "Maximum number of parallel workers (default: min(32, num_samples + 4))",
-)
+
+# Guard flag definitions to prevent duplicates when module is imported multiple times
+try:
+    flags.DEFINE_integer("num_samples", 5, "Number of samples to generate")
+    flags.DEFINE_boolean("use_ollama", False, "Whether to use Ollama instead of OpenAI")
+    flags.DEFINE_string(
+        "api_url",
+        None,
+        "API URL for the LLM client. If OpenAI, don't touch it. This is needed for vLLM backend with OpenAI-compatible API.",
+    )
+    flags.DEFINE_string(
+        "api_model",
+        "openai/gpt-oss-120b",
+        "Model name to use when api_url is specified (e.g., 'openai/gpt-oss-120b')",
+    )
+    flags.DEFINE_string(
+        "output_dir", "model/dataset", "Output directory for generated samples"
+    )
+    flags.DEFINE_string(
+        "log_level", "WARNING", "Logging level (DEBUG, INFO, WARNING, ERROR)"
+    )
+    flags.DEFINE_integer(
+        "max_workers",
+        None,
+        "Maximum number of parallel workers (default: min(32, num_samples + 4))",
+    )
+except DuplicateFlagError:
+    # Flags already defined (module imported multiple times)
+    pass
 
 
 @dataclass
@@ -55,7 +77,8 @@ class TrainingSetConfig:
     split: str = "train"
     num_samples: int = 5
     output_dir: str = "model/dataset"
-    model_name: str = "distilbert-base-cased"  # Tokenizer model name
+    api_url: str | None = None  # generator API URL
+    api_model: str = "openai/gpt-oss-120b"
 
     def get_languages_countries(
         self, language_count: int = 10, is_testing: bool = False
@@ -78,14 +101,14 @@ class TrainingSetConfig:
                 "Ireland",
                 "New Zealand",
             ],
-            "German": ["Germany", "Austria", "Switzerland"],
-            "French": ["France", "Belgium", "Canada", "Switzerland", "Luxembourg"],
-            "Spanish": ["Spain", "Mexico", "Argentina", "Colombia", "Peru", "Chile"],
-            "Dutch": [
-                "Netherlands",
-                "Belgium",
-            ],  # excl. "Suriname", "Aruba", "Curaçao", "Sint Maarten" for now
-            "Danish": ["Denmark"],  # excl. "Greenland", "Faroe Islands" for now
+            # "German": ["Germany", "Austria", "Switzerland"],
+            # "French": ["France", "Belgium", "Canada", "Switzerland", "Luxembourg"],
+            # "Spanish": ["Spain", "Mexico", "Argentina", "Colombia", "Peru", "Chile"],
+            # "Dutch": [
+            #     "Netherlands",
+            #     "Belgium",
+            # ],  # excl. "Suriname", "Aruba", "Curaçao", "Sint Maarten" for now
+            # "Danish": ["Denmark"],  # excl. "Greenland", "Faroe Islands" for now
         }
 
         if is_testing:
@@ -148,7 +171,11 @@ class TrainingSetGenerator:
             if config.use_ollama:
                 self.llm_client = OllamaClient()
             else:
-                self.llm_client = OpenAIClient()
+                if config.api_url:
+                    model = config.api_model  # FIXME (Eddie): magic number vibez. Should generalize to any HF model that vllm serve <> eats on the server.
+                    self.llm_client = OpenAIClient(api_url=config.api_url, model=model)
+                else:
+                    self.llm_client = OpenAIClient()
         else:
             self.llm_client = llm_client
 
@@ -177,7 +204,7 @@ class TrainingSetGenerator:
         # Pass seed to label selection for variation
         labels = self.config.get_pii_labels(return_count=4, seed=sample_seed)
 
-        prompt = PromptBuilder.build_generation_prompt(
+        prompt, language, country = PromptBuilder.build_generation_prompt(
             labels, languages_countries, sample_index=sample_index
         )
         json_schema = get_pii_sample_schema()
@@ -195,12 +222,15 @@ class TrainingSetGenerator:
                 logging.warning(
                     f"LLM returned {len(result)} samples, using the first one"
                 )
+            result[0].update({"language": language, "country": country})
             return result[0]
         elif isinstance(result, dict) and "samples" in result:
             samples = result["samples"]
             if isinstance(samples, list) and len(samples) > 0:
+                samples[0].update({"language": language, "country": country})
                 return samples[0]
         elif isinstance(result, dict):
+            result.update({"language": language, "country": country})
             return result
 
         raise ValueError(f"Unexpected response format: {type(result)}")
@@ -210,10 +240,16 @@ class TrainingSetGenerator:
         all_labels = self.config.get_pii_labels(all_labels=True)
         expected_labels = ", ".join(all_labels.keys())
 
-        prompt = PromptBuilder.build_review_prompt(sample, expected_labels)
+        language = sample["language"]
+        country = sample["country"]
+        prompt = PromptBuilder.build_review_prompt(
+            sample, expected_labels, language=language, country=country
+        )
         json_schema = get_review_sample_schema()
 
-        return self.llm_client.review(prompt, json_schema)
+        result = self.llm_client.review(prompt, json_schema)
+        result.update({"language": language, "country": country})
+        return result
 
     def convert_to_training_sample(
         self, result: dict[str, Any], tokenizer: AutoTokenizer | None = None
@@ -256,6 +292,12 @@ def process_single_sample(
     Returns:
         Tuple of (sample_index, file_name) for the saved training sample
     """
+    # Import here to avoid circular imports and flag conflicts
+    try:
+        from .to_labelstudio import convert_to_labelstudio
+    except ImportError:
+        from model.dataset.to_labelstudio import convert_to_labelstudio
+
     # Generate sample with index for seed variation
     result = gen.generate_pii_samples(sample_index=sample_index)
     logging.info(f"Sample {sample_index}: Generated PII sample")
@@ -268,12 +310,15 @@ def process_single_sample(
     file_name = gen.file_manager.save_sample(result, "reviewed_samples", file_name)
     logging.info(f"Sample {sample_index}: Reviewed sample")
 
-    # # Convert to training sample (tokenization now happens during training)
-    # training_sample = gen.convert_to_training_sample(result, tokenizer=None)
-    # file_name = gen.file_manager.save_sample(
-    #     training_sample, "training_samples", file_name
-    # )
-    # logging.info(f"Sample {sample_index}: Saved training sample to {file_name}")
+    # Add file_name to result for convert_to_labelstudio
+    result["file_name"] = file_name
+
+    # Convert to training sample by calling convert_to_labelstudio from to_labelstudio.py
+    training_sample = convert_to_labelstudio(result)
+    file_name = gen.file_manager.save_sample(
+        training_sample, "annotation_samples", file_name
+    )
+    logging.info(f"Sample {sample_index}: Converted to training sample")
 
     return sample_index, file_name
 
@@ -291,6 +336,8 @@ def main():
         use_ollama=FLAGS.use_ollama,
         num_samples=FLAGS.num_samples,
         output_dir=FLAGS.output_dir,
+        api_url=FLAGS.api_url,
+        api_model=FLAGS.api_model,
     )
     # Use testing mode only if generating very few samples (for quick testing)
     # Otherwise use full diversity

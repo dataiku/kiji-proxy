@@ -2,9 +2,9 @@ name: Lint
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main, develop ]
+    branches: [main, develop]
 
 jobs:
   python-lint:
@@ -12,49 +12,67 @@ jobs:
     name: Python Lint
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
 
-    - name: Install uv
-      uses: astral-sh/setup-uv@v3
-      with:
-        version: "latest"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
 
-    - name: Create virtual environment
-      run: uv venv
+      - name: Run ruff linter
+        run: |
+          uvx ruff check model/src/ model/dataset/
 
-    - name: Install lint dependencies
-      run: |
-        uv pip install ruff
-
-    - name: Run ruff linter
-      run: |
-        source .venv/bin/activate
-        ruff check model/src/ model/dataset/
-
-    - name: Run ruff formatter check
-      run: |
-        source .venv/bin/activate
-        # Exclude pii_onnx_model/ as it's tracked by Git LFS and files aren't pulled in CI
-        ruff format --check model/src/ model/dataset/ --diff
+      - name: Run ruff formatter check
+        run: |
+          # Exclude pii_onnx_model/ as it's tracked by Git LFS and files aren't pulled in CI
+          uvx ruff format --check model/src/ model/dataset/ --diff
 
   go-lint:
     runs-on: ubuntu-latest
     name: Go Lint
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: '1.25'
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.25"
 
-    - name: golangci-lint
-      uses: golangci/golangci-lint-action@v6
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+
+  frontend-lint:
+    runs-on: ubuntu-latest
+    name: Frontend Lint & Type Check
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: "npm"
+          cache-dependency-path: "src/frontend/package-lock.json"
+
+      - name: Install dependencies
+        working-directory: src/frontend
+        run: npm ci
+
+      - name: Run ESLint
+        working-directory: src/frontend
+        run: npm run lint
+
+      - name: Run TypeScript type check
+        working-directory: src/frontend
+        run: npm run type-check

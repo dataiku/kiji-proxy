@@ -1,12 +1,12 @@
 """Training logic and trainer classes."""
 
-import logging
 import shutil
 from datetime import datetime
 from pathlib import Path
 
 import numpy as np
 import torch
+from absl import logging
 from datasets import Dataset
 from sklearn.metrics import (
     f1_score,
@@ -16,12 +16,14 @@ from sklearn.metrics import (
 from torch.nn import functional
 from transformers import (
     AutoTokenizer,
+    EarlyStoppingCallback,
     Trainer,
     TrainingArguments,
 )
 
 # Import from local modules
 try:
+    from .callbacks import CleanMetricsCallback
     from .config import TrainingConfig
     from .model import (
         MaskedSparseCategoricalCrossEntropy,
@@ -30,6 +32,7 @@ try:
     )
 except ImportError:
     # Fallback for direct execution
+    from callbacks import CleanMetricsCallback
     from config import TrainingConfig
 
     from model import (
@@ -37,8 +40,6 @@ except ImportError:
         MultiTaskLoss,
         MultiTaskPIIDetectionModel,
     )
-
-logger = logging.getLogger(__name__)
 
 
 class MultiTaskTrainer(Trainer):
@@ -196,7 +197,7 @@ class PIITrainer:
                     name=f"bert-{config.model_name.split('/')[-1]}",
                 )
             except Exception as e:
-                logger.warning(f"Warning: wandb not available ({e})")
+                logging.warning(f"Warning: wandb not available ({e})")
                 self.config.use_wandb = False
 
     def load_label_mappings(self, mappings: dict, coref_info: dict):
@@ -207,8 +208,8 @@ class PIITrainer:
             int(k): v for k, v in mappings["coref"]["id2label"].items()
         }
         self.num_coref_labels = coref_info["num_coref_labels"]
-        logger.info(f"✅ Loaded {len(self.pii_label2id)} PII label mappings")
-        logger.info(f"✅ Loaded {self.num_coref_labels} co-reference label mappings")
+        logging.info(f"✅ Loaded {len(self.pii_label2id)} PII label mappings")
+        logging.info(f"✅ Loaded {self.num_coref_labels} co-reference label mappings")
 
     def initialize_model(self):
         """Initialize the multi-task model."""
@@ -245,12 +246,12 @@ class PIITrainer:
                 pii_weight=self.config.pii_loss_weight,
                 coref_weight=self.config.coref_loss_weight,
             )
-            logger.info(
+            logging.info(
                 f"✅ Initialized multi-task loss (PII: {num_pii_labels} classes, "
                 f"Co-ref: {self.num_coref_labels} classes)"
             )
 
-        logger.info(
+        logging.info(
             f"✅ Model initialized with {num_pii_labels} PII labels and {self.num_coref_labels} co-reference labels"
         )
 
@@ -546,6 +547,17 @@ class PIITrainer:
 
             return batch
 
+        # Suppress transformers logging output (we use custom callback)
+        import logging as python_logging
+
+        import transformers
+
+        transformers.logging.set_verbosity_error()
+
+        # Suppress the default trainer logging that prints dicts
+        trainer_logger = python_logging.getLogger("transformers.trainer")
+        trainer_logger.setLevel(python_logging.ERROR)
+
         # Training arguments
         training_args = TrainingArguments(
             output_dir=self.config.output_dir,
@@ -569,7 +581,27 @@ class PIITrainer:
             seed=self.config.seed,
             dataloader_pin_memory=False,
             remove_unused_columns=False,
+            logging_first_step=False,
+            disable_tqdm=False,  # Keep progress bar
+            log_level="error",  # Suppress info logs
         )
+
+        # Set up callbacks
+        callbacks = []
+
+        # Add clean metrics logging callback
+        callbacks.append(CleanMetricsCallback())
+
+        if self.config.early_stopping_enabled:
+            early_stopping_callback = EarlyStoppingCallback(
+                early_stopping_patience=self.config.early_stopping_patience,
+                early_stopping_threshold=self.config.early_stopping_threshold,
+            )
+            callbacks.append(early_stopping_callback)
+            logging.info(
+                f"✅ Early stopping enabled (patience={self.config.early_stopping_patience}, "
+                f"threshold={self.config.early_stopping_threshold})"
+            )
 
         # Initialize multi-task trainer
         trainer = MultiTaskTrainer(
@@ -580,18 +612,22 @@ class PIITrainer:
             data_collator=multi_task_collator,
             compute_metrics=self.compute_metrics,
             multi_task_loss_fn=self.multi_task_loss_fn,
+            callbacks=callbacks if callbacks else None,
         )
-        logger.info("✅ Using MultiTaskTrainer with multi-task loss")
+
+        logging.info("✅ Using MultiTaskTrainer with multi-task loss")
 
         # Train
-        logger.info("\n🏋️  Starting multi-task training...")
-        logger.info("=" * 60)
+        logging.info("\n🏋️  Starting multi-task training...")
+        logging.info("=" * 60)
         trainer.train()
 
         # Save
         trainer.save_model()
         self.tokenizer.save_pretrained(self.config.output_dir)
-        logger.info(f"\n✅ Training completed. Model saved to {self.config.output_dir}")
+        logging.info(
+            f"\n✅ Training completed. Model saved to {self.config.output_dir}"
+        )
 
         return trainer
 
@@ -611,32 +647,32 @@ class PIITrainer:
 
         results = trainer.evaluate()
 
-        logger.info("\n📊 Evaluation Results:")
-        logger.info("\n🔍 PII Detection Metrics:")
+        logging.info("\n📊 Evaluation Results:")
+        logging.info("\n🔍 PII Detection Metrics:")
         pii_metrics = {k: v for k, v in results.items() if k.startswith("eval_pii_")}
         # Group metrics by type
         for metric_type in ["f1", "precision", "recall"]:
             metric_keys = [k for k in pii_metrics.keys() if metric_type in k]
             if metric_keys:
-                logger.info(f"  {metric_type.upper()}:")
+                logging.info(f"  {metric_type.upper()}:")
                 for key in sorted(metric_keys):
                     if "per_class" not in key and not any(
                         label in key for label in ["B-", "I-", "CLUSTER_"]
                     ):  # Skip per-class in summary
-                        logger.info(f"    {key}: {pii_metrics[key]:.4f}")
+                        logging.info(f"    {key}: {pii_metrics[key]:.4f}")
 
         if any(k.startswith("eval_coref_") for k in results.keys()):
-            logger.info("\n🔍 Co-reference Detection Metrics:")
+            logging.info("\n🔍 Co-reference Detection Metrics:")
             coref_metrics = {
                 k: v for k, v in results.items() if k.startswith("eval_coref_")
             }
             for metric_type in ["f1", "precision", "recall"]:
                 metric_keys = [k for k in coref_metrics.keys() if metric_type in k]
                 if metric_keys:
-                    logger.info(f"  {metric_type.upper()}:")
+                    logging.info(f"  {metric_type.upper()}:")
                     for key in sorted(metric_keys):
                         if "per_class" not in key and "cluster_" not in key:
-                            logger.info(f"    {key}: {coref_metrics[key]:.4f}")
+                            logging.info(f"    {key}: {coref_metrics[key]:.4f}")
 
         return results
 
@@ -662,11 +698,11 @@ class PIITrainer:
         model_name_with_timestamp = f"{model_name}_{timestamp}"
         target_path = Path(drive_path) / model_name_with_timestamp
 
-        logger.info("\n💾 Copying model to Google Drive...")
-        logger.info(f"   Source: {self.config.output_dir}")
-        logger.info(f"   Target: {target_path}")
+        logging.info("\n💾 Copying model to Google Drive...")
+        logging.info(f"   Source: {self.config.output_dir}")
+        logging.info(f"   Target: {target_path}")
 
         shutil.copytree(self.config.output_dir, target_path)
-        logger.info(f"✅ Model successfully saved to Google Drive at {target_path}")
+        logging.info(f"✅ Model successfully saved to Google Drive at {target_path}")
 
         return target_path
