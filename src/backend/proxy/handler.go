@@ -107,7 +107,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check for PII in the request and get redacted body
-	redactedBody, maskedToOriginal, entities := h.checkRequestPII(string(body), &provider)
+	redactedBody, maskedToOriginal, entities := h.checkRequestPII(body, &provider)
 
 	// Log initial request if logging is available
 	if h.loggingDB != nil {
@@ -270,15 +270,16 @@ func (h *Handler) maskPIIInText(text string, logPrefix string) (string, map[stri
 
 // checkRequestPII checks for PII in the request body and creates mappings
 // It only redacts PII from message content, not from other fields like "model"
-func (h *Handler) checkRequestPII(body string, provider *providers.Provider) (string, map[string]string, []pii.Entity) {
+func (h *Handler) checkRequestPII(body []byte, provider *providers.Provider) (string, map[string]string, []pii.Entity) {
 	log.Println("[Proxy] Checking for PII in request...")
 
 	// Parse the JSON request
+	bodyStr := string(body)
 	var requestData map[string]interface{}
-	if err := json.Unmarshal([]byte(body), &requestData); err != nil {
+	if err := json.Unmarshal(body, &requestData); err != nil {
 		// If JSON parsing fails, fall back to treating entire body as text
 		log.Printf("[Proxy] Failed to parse JSON, treating as plain text: %v", err)
-		maskedBody, maskedToOriginal, entities := h.maskPIIInText(body, "[Proxy]")
+		maskedBody, maskedToOriginal, entities := h.maskPIIInText(bodyStr, "[Proxy]")
 		if len(entities) > 0 {
 			h.responseProcessor.SetMaskedToOriginalMapping(maskedToOriginal)
 		}
@@ -295,7 +296,7 @@ func (h *Handler) checkRequestPII(body string, provider *providers.Provider) (st
 		if h.config.Logging.LogPIIChanges {
 			log.Printf("PII masked: %d entities replaced", len(entities))
 			if h.config.Logging.LogVerbose {
-				log.Printf("Original request: %s", body)
+				log.Printf("Original request: %s", bodyStr)
 			}
 		}
 	}
@@ -305,7 +306,7 @@ func (h *Handler) checkRequestPII(body string, provider *providers.Provider) (st
 	if err != nil {
 		log.Printf("[Proxy] Failed to marshal masked request: %v", err)
 		// Return original body if marshaling fails
-		return body, make(map[string]string), entities
+		return bodyStr, make(map[string]string), entities
 	}
 
 	return string(maskedBodyBytes), maskedToOriginal, entities
