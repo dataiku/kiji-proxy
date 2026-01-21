@@ -192,6 +192,53 @@ class ONNXModelTester:
         exp_x = np.exp(x - np.max(x, axis=-1, keepdims=True))
         return exp_x / np.sum(exp_x, axis=-1, keepdims=True)
 
+    def _build_char_offsets(
+        self, text: str, words: list[str], word_ids: list[int | None]
+    ) -> list[tuple[int, int]]:
+        """
+        Build character offsets for each token based on word positions.
+
+        Args:
+            text: Original text
+            words: List of words from text.split()
+            word_ids: List of word indices for each token (None for special tokens)
+
+        Returns:
+            List of (start, end) character offsets for each token
+        """
+        # First, find the character position of each word in the original text
+        word_char_positions = []
+        current_pos = 0
+        for word in words:
+            # Find this word in the text starting from current position
+            pos = text.find(word, current_pos)
+            if pos == -1:
+                # Fallback: use current position
+                pos = current_pos
+            word_char_positions.append((pos, pos + len(word)))
+            current_pos = pos + len(word)
+
+        # Now map each token to character offsets
+        char_offsets = []
+        prev_word_id = None
+
+        for word_id in word_ids:
+            if word_id is None:
+                # Special token ([CLS], [SEP]) - use (0, 0) to mark as special
+                char_offsets.append((0, 0))
+            elif word_id < len(word_char_positions):
+                word_start, word_end = word_char_positions[word_id]
+                # For subword tokens of the same word, we use the same word boundaries
+                # This is a simplification - ideally we'd track subword positions
+                char_offsets.append((word_start, word_end))
+            else:
+                # Out of bounds - shouldn't happen
+                char_offsets.append((0, 0))
+
+            prev_word_id = word_id
+
+        return char_offsets
+
     def _extract_entities(
         self,
         text: str,
