@@ -21,7 +21,6 @@
   "UIPath": "src/frontend/dist",
   "Proxy": {
     "transparent_enabled": true,
-    "intercept_domains": ["api.openai.com", "openai.com"],
     "proxy_port": ":8081",
     "ca_path": "",
     "key_path": "",

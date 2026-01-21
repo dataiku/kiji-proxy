@@ -101,7 +101,7 @@ func NewServer(cfg *config.Config, electronConfigPath string, version string) (*
 	var pacServer *proxy.PACServer
 	var systemProxyManager *proxy.SystemProxyManager
 	if cfg.Proxy.TransparentEnabled && cfg.Proxy.EnablePAC {
-		pacServer = proxy.NewPACServer(cfg.Proxy.InterceptDomains, cfg.Proxy.ProxyPort)
+		pacServer = proxy.NewPACServer(cfg.GetInterceptDomains(), cfg.Proxy.ProxyPort)
 		systemProxyManager = proxy.NewSystemProxyManager("http://localhost:9090/proxy.pac")
 	}
 
@@ -140,7 +140,7 @@ func NewServerWithEmbedded(cfg *config.Config, uiFS, modelFS fs.FS, electronConf
 	var pacServer *proxy.PACServer
 	var systemProxyManager *proxy.SystemProxyManager
 	if cfg.Proxy.TransparentEnabled && cfg.Proxy.EnablePAC {
-		pacServer = proxy.NewPACServer(cfg.Proxy.InterceptDomains, cfg.Proxy.ProxyPort)
+		pacServer = proxy.NewPACServer(cfg.GetInterceptDomains(), cfg.Proxy.ProxyPort)
 		systemProxyManager = proxy.NewSystemProxyManager("http://localhost:9090/proxy.pac")
 	}
 
@@ -197,7 +197,7 @@ func (s *Server) Start() error {
 			log.Printf("    export HTTPS_PROXY=http://127.0.0.1%s", s.config.Proxy.ProxyPort)
 		} else {
 			log.Printf("✅ System proxy configured successfully")
-			log.Printf("📡 Traffic to %v will be automatically routed through proxy", s.config.Proxy.InterceptDomains)
+			log.Printf("📡 Traffic to %v will be automatically routed through proxy", s.config.GetInterceptDomains())
 			log.Printf("🔐 Make sure you've installed the CA certificate for HTTPS interception")
 		}
 	}
@@ -288,7 +288,7 @@ func (s *Server) startTransparentProxy() {
 	}
 
 	log.Printf("Starting transparent proxy on port %s", proxyPort)
-	log.Printf("Intercepting domains: %v", s.config.Proxy.InterceptDomains)
+	log.Printf("Intercepting domains: %v", s.config.GetInterceptDomains())
 	log.Printf("CA certificate path: %s", s.config.Proxy.CAPath)
 
 	// Create custom handler that routes based on request method

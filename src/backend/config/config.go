@@ -42,12 +42,12 @@ type ProviderConfig struct {
 
 // ProxyConfig holds transparent proxy configuration
 type ProxyConfig struct {
-	TransparentEnabled bool     `json:"transparent_enabled"`
-	InterceptDomains   []string `json:"intercept_domains"`
-	ProxyPort          string   `json:"proxy_port"`
-	CAPath             string   `json:"ca_path"`
-	KeyPath            string   `json:"key_path"`
-	EnablePAC          bool     `json:"enable_pac"` // Enable PAC (Proxy Auto-Config) for automatic system proxy setup
+	TransparentEnabled bool `json:"transparent_enabled"`
+	//InterceptDomains   []string `json:"intercept_domains"` // these should be computed via available proiders
+	ProxyPort string `json:"proxy_port"`
+	CAPath    string `json:"ca_path"`
+	KeyPath   string `json:"key_path"`
+	EnablePAC bool   `json:"enable_pac"` // Enable PAC (Proxy Auto-Config) for automatic system proxy setup
 }
 
 // Config holds all configuration for the PII proxy service
@@ -76,6 +76,7 @@ func DefaultConfig() *Config {
 		AdditionalHeaders: map[string]string{},
 	}
 
+	// Transparent proxy parameters
 	homeDir, _ := os.UserHomeDir()
 	caPath := filepath.Join(homeDir, ".yaak-proxy", "certs", "ca.crt")
 	keyPath := filepath.Join(homeDir, ".yaak-proxy", "certs", "ca.key")
@@ -112,13 +113,17 @@ func DefaultConfig() *Config {
 		},
 		Proxy: ProxyConfig{
 			TransparentEnabled: true,
-			InterceptDomains:   []string{"api.openai.com"},
 			ProxyPort:          ":8081",
 			CAPath:             caPath,
 			KeyPath:            keyPath,
 			EnablePAC:          true, // Enable PAC by default for automatic proxy configuration
 		},
 	}
+}
+
+// GetInterceptDomains returns the list of intercept domains (as a union of all provider domains)
+func (c Config) GetInterceptDomains() []string {
+	return []string{c.AnthropicProviderConfig.APIDomain, c.OpenAIProviderConfig.APIDomain}
 }
 
 // GetLogPIIChanges returns whether to log PII changes

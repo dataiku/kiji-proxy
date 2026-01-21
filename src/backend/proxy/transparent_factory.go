@@ -20,7 +20,7 @@ func NewTransparentProxyFromConfig(cfg *config.Config, handler *Handler) (*Trans
 	}
 
 	// Create router
-	router := NewRouter(cfg.Proxy.InterceptDomains)
+	router := NewRouter(cfg.GetInterceptDomains())
 
 	// Create transparent proxy, reusing the existing Handler
 	transparentProxy := NewTransparentProxy(

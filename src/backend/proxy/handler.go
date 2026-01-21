@@ -428,7 +428,8 @@ func (h *Handler) getForwardEndpoint(provider *providers.Provider) (string, erro
 		return forwardEndpoint, nil
 	}
 	// Fall back to provider if electron config path is not set
-	return (*provider).GetBaseURL(true), nil
+	useHttps := true // TODO: should this be part of the config?
+	return (*provider).GetBaseURL(useHttps), nil
 }
 
 // buildTargetURL builds the target URL for the proxy request

@@ -317,9 +317,6 @@ func loadProxyConfig(cfg *config.Config) {
 	// Also expand paths if they weren't set from environment
 	cfg.Proxy.CAPath = expandPath(cfg.Proxy.CAPath)
 	cfg.Proxy.KeyPath = expandPath(cfg.Proxy.KeyPath)
-
-	// Note: intercept_domains is not easily set via env vars (would need comma-separated parsing)
-	// It's better to set via JSON config file
 }
 
 // expandPath expands ~ to the user's home directory
