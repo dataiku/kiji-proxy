@@ -46,7 +46,11 @@ def load_model(model_path: str):
     with mappings_path.open() as f:
         mappings = json.load(f)
 
-    id2label = {int(k): v for k, v in mappings["id2label"].items()}
+    # Handle both old nested format {"pii": {"id2label": ...}} and new flat format {"id2label": ...}
+    if "pii" in mappings:
+        id2label = {int(k): v for k, v in mappings["pii"]["id2label"].items()}
+    else:
+        id2label = {int(k): v for k, v in mappings["id2label"].items()}
 
     print(f"Loaded {len(id2label)} labels")
     print(f"Model inputs: {[i.name for i in session.get_inputs()]}")
@@ -55,7 +59,7 @@ def load_model(model_path: str):
     return session, tokenizer, id2label
 
 
-def predict(session, tokenizer, id2label, text: str):
+def predict(session, tokenizer, id2label, text: str, debug: bool = False):
     """Run inference on text."""
     # Tokenize
     inputs = tokenizer(
@@ -86,6 +90,30 @@ def predict(session, tokenizer, id2label, text: str):
 
     # Extract entities
     tokens = tokenizer.convert_ids_to_tokens(inputs["input_ids"][0])
+
+    # Debug: show raw predictions for each token
+    if debug:
+        print("\n  Debug: Raw predictions per token:")
+        # Compute softmax for probabilities
+        exp_logits = np.exp(logits - np.max(logits, axis=-1, keepdims=True))
+        probs = exp_logits / np.sum(exp_logits, axis=-1, keepdims=True)
+
+        for i, (token, pred_id, offset) in enumerate(
+            zip(tokens, predictions, offset_mapping)
+        ):
+            label = id2label.get(pred_id, f"UNK-{pred_id}")
+            conf = probs[i, pred_id]
+
+            # Get top 3 predictions
+            top3_idx = np.argsort(probs[i])[-3:][::-1]
+            top3_str = ", ".join(
+                [f"{id2label.get(idx, 'UNK')}:{probs[i, idx]:.2f}" for idx in top3_idx]
+            )
+
+            marker = "***" if label != "O" else ""
+            print(
+                f"    [{i:2d}] '{token:<15}' -> {label:<15} ({conf:.4f})  Top3: {top3_str} {marker}"
+            )
 
     entities = []
     current_entity = None
@@ -168,6 +196,11 @@ def main():
         default="./model/quantized",
         help="Path to quantized model directory",
     )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Show detailed debug output for each token",
+    )
     args = parser.parse_args()
 
     print("=" * 60)
@@ -202,7 +235,9 @@ def main():
         print(f"\n--- Test {i} ---")
         print(f"Text: {text}")
 
-        entities, inference_time = predict(session, tokenizer, id2label, text)
+        entities, inference_time = predict(
+            session, tokenizer, id2label, text, debug=args.debug
+        )
         total_time += inference_time
         total_entities += len(entities)
 

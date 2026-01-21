@@ -245,8 +245,13 @@ def debug_model_prediction():
     with open(mappings_path) as f:
         mappings = json.load(f)
 
-    label2id = mappings["label2id"]
-    id2label = {int(k): v for k, v in mappings["id2label"].items()}
+    # Handle both old nested format {"pii": {"label2id": ...}} and new flat format {"label2id": ...}
+    if "pii" in mappings:
+        label2id = mappings["pii"]["label2id"]
+        id2label = {int(k): v for k, v in mappings["pii"]["id2label"].items()}
+    else:
+        label2id = mappings["label2id"]
+        id2label = {int(k): v for k, v in mappings["id2label"].items()}
 
     print(f"   Labels: {len(label2id)}")
 
