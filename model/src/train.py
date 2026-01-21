@@ -1,9 +1,8 @@
 """
 Main training script for Google Colab.
 
-This script trains a multi-task BERT-like model for:
-1. Detecting Personally Identifiable Information (PII) in text
-2. Detecting co-reference clusters (mentions referring to the same entity)
+This script trains a BERT-like model for detecting Personally Identifiable
+Information (PII) in text.
 
 Usage:
     # Basic usage (saves to Google Drive by default)
@@ -46,7 +45,7 @@ def main(
         training_samples_dir (str | None): Optional override for the training samples directory; when provided it is passed to TrainingConfig (e.g., "model/dataset/training_samples" or another custom path).
     """
     logging.info("=" * 60)
-    logging.info("Multi-Task PII Detection and Co-reference Detection Training")
+    logging.info("PII Detection Training")
     logging.info("=" * 60)
 
     # Setup environment
@@ -71,14 +70,12 @@ def main(
     # Prepare datasets
     logging.info("\n3️⃣  Preparing datasets...")
     dataset_processor = DatasetProcessor(config)
-    train_dataset, val_dataset, mappings, coref_info = (
-        dataset_processor.prepare_datasets()
-    )
+    train_dataset, val_dataset, mappings = dataset_processor.prepare_datasets()
 
     # Initialize trainer
     logging.info("\n4️⃣  Initializing trainer...")
     trainer = PIITrainer(config)
-    trainer.load_label_mappings(mappings, coref_info)
+    trainer.load_label_mappings(mappings)
     trainer.initialize_model()
 
     # Train model
@@ -108,38 +105,19 @@ def main(
     logging.info("=" * 60)
     logging.info("\n📊 PII Detection Metrics:")
     logging.info(
-        f"  F1 (weighted): {results.get('eval_pii_f1_weighted', results.get('eval_pii_f1', 'N/A')):.4f}"
+        f"  F1 (weighted): {results.get('eval_f1_weighted', results.get('eval_f1', 'N/A')):.4f}"
     )
-    logging.info(f"  F1 (macro): {results.get('eval_pii_f1_macro', 'N/A'):.4f}")
+    logging.info(f"  F1 (macro): {results.get('eval_f1_macro', 'N/A'):.4f}")
     logging.info(
-        f"  Precision (weighted): {results.get('eval_pii_precision_weighted', 'N/A'):.4f}"
-    )
-    logging.info(
-        f"  Precision (macro): {results.get('eval_pii_precision_macro', 'N/A'):.4f}"
+        f"  Precision (weighted): {results.get('eval_precision_weighted', 'N/A'):.4f}"
     )
     logging.info(
-        f"  Recall (weighted): {results.get('eval_pii_recall_weighted', 'N/A'):.4f}"
+        f"  Precision (macro): {results.get('eval_precision_macro', 'N/A'):.4f}"
     )
-    logging.info(f"  Recall (macro): {results.get('eval_pii_recall_macro', 'N/A'):.4f}")
-
-    if "eval_coref_f1" in results or "eval_coref_f1_weighted" in results:
-        logging.info("\n📊 Co-reference Detection Metrics:")
-        logging.info(
-            f"  F1 (weighted): {results.get('eval_coref_f1_weighted', results.get('eval_coref_f1', 'N/A')):.4f}"
-        )
-        logging.info(f"  F1 (macro): {results.get('eval_coref_f1_macro', 'N/A'):.4f}")
-        logging.info(
-            f"  Precision (weighted): {results.get('eval_coref_precision_weighted', 'N/A'):.4f}"
-        )
-        logging.info(
-            f"  Precision (macro): {results.get('eval_coref_precision_macro', 'N/A'):.4f}"
-        )
-        logging.info(
-            f"  Recall (weighted): {results.get('eval_coref_recall_weighted', 'N/A'):.4f}"
-        )
-        logging.info(
-            f"  Recall (macro): {results.get('eval_coref_recall_macro', 'N/A'):.4f}"
-        )
+    logging.info(
+        f"  Recall (weighted): {results.get('eval_recall_weighted', 'N/A'):.4f}"
+    )
+    logging.info(f"  Recall (macro): {results.get('eval_recall_macro', 'N/A'):.4f}")
 
     logging.info(f"\n💾 Model saved locally to: {config.output_dir}")
     if drive_path:

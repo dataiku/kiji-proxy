@@ -12,16 +12,6 @@ max_sequence_length = 8192
 weight_decay = 0.02  # Increased from default 0.01 for better regularization
 # Evaluation and saving now happen after every epoch (configured in trainer.py)
 
-# Focal Loss settings (critical for handling class imbalance with long sequences)
-# Most tokens are "O" (non-PII), Focal Loss helps focus on the rare PII tokens
-focal_gamma = 2.0  # Focusing parameter (0=standard CE, 2=typical for detection tasks)
-focal_alpha = 0.75  # Balance factor - upweights positive (PII) classes
-label_smoothing = 0.1  # Prevents overconfident predictions
-
-# Multi-task loss weights
-pii_loss_weight = 1.0  # Primary task
-coref_loss_weight = 0.5  # Secondary task (reduced weight)
-
 # Early stopping settings
 early_stopping_enabled = true
 early_stopping_patience = 5  # Reduced from 3 - stop sooner when not improving

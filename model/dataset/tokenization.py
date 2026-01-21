@@ -138,70 +138,6 @@ class TokenizationProcessor:
 
         return label_ids
 
-    def _align_coref_labels_to_tokens(
-        self,
-        text: str,
-        offsets: list[tuple[int, int]],
-        coreferences: list[dict[str, Any]],
-    ) -> list[int]:
-        """
-        Align coreference labels to tokens using character offsets.
-
-        Args:
-            text: Original text
-            offsets: List of (start, end) character offsets for each token
-            coreferences: List of coreference clusters with mentions
-
-        Returns:
-            List of coreference label IDs for each token
-        """
-        # Build a mapping of character positions to cluster IDs
-        # Each position can belong to at most one cluster
-        char_to_cluster = {}
-
-        for coref in coreferences:
-            cluster_id = coref["cluster_id"]
-            mentions = coref["mentions"]
-
-            for mention in mentions:
-                # Find all occurrences of this mention in the text
-                mention_clean = mention.strip()
-                start_pos = 0
-                while True:
-                    pos = text.find(mention_clean, start_pos)
-                    if pos == -1:
-                        break
-
-                    # Mark all characters in this mention as belonging to this cluster
-                    for char_idx in range(pos, pos + len(mention_clean)):
-                        if char_idx not in char_to_cluster:
-                            char_to_cluster[char_idx] = cluster_id
-
-                    start_pos = pos + 1
-
-        # Align to tokens
-        coref_labels = []
-
-        for start, end in offsets:
-            # Special tokens have offset (0, 0)
-            if start == 0 and end == 0:
-                coref_labels.append(-100)
-                continue
-
-            # Check if any character in this token belongs to a cluster
-            cluster_id = None
-            for char_idx in range(start, end):
-                if char_idx in char_to_cluster:
-                    cluster_id = char_to_cluster[char_idx]
-                    break
-
-            if cluster_id is not None:
-                coref_labels.append(cluster_id + 1)  # +1 because 0 = NO_COREF
-            else:
-                coref_labels.append(0)  # NO_COREF
-
-        return coref_labels
-
     def create_pii_sample(
         self, text: str, privacy_mask: list[dict[str, str]]
     ) -> dict[str, Any]:
@@ -235,45 +171,4 @@ class TokenizationProcessor:
             "text": text,
             "label2id": self.label2id,
             "id2label": self.id2label,
-        }
-
-    def create_coreference_sample(
-        self, text: str, coreferences: list[dict[str, Any]]
-    ) -> dict[str, Any]:
-        """
-        Create a coreference detection training sample.
-
-        Uses raw text tokenization (NOT is_split_into_words) to match inference.
-        """
-        # Tokenize the raw text - this matches inference tokenization
-        tokenized = self.tokenizer(
-            text,
-            truncation=True,
-            max_length=self.max_length,
-            return_offsets_mapping=True,
-        )
-
-        # Get offsets for label alignment
-        offsets = tokenized["offset_mapping"]
-
-        # Align coreference labels to tokens
-        coref_labels = self._align_coref_labels_to_tokens(text, offsets, coreferences)
-
-        # Truncate labels if needed
-        if len(coref_labels) > self.max_length:
-            coref_labels = coref_labels[: self.max_length]
-
-        # Create cluster_id to label mapping
-        cluster_id2label = {0: "NO_COREF", -100: "IGNORE"}
-        for coref in coreferences:
-            cluster_id = coref["cluster_id"]
-            entity_type = coref.get("entity_type", "unknown")
-            cluster_id2label[cluster_id + 1] = f"CLUSTER_{cluster_id}_{entity_type}"
-
-        return {
-            "input_ids": tokenized["input_ids"],
-            "attention_mask": tokenized["attention_mask"],
-            "coreference_labels": coref_labels,
-            "text": text,
-            "cluster_id2label": cluster_id2label,
         }

@@ -2,8 +2,8 @@
 Quantize PII Detection Model to ONNX Format
 
 This script:
-1. Loads the trained multi-task PII detection model
-2. Exports it to ONNX format (PII detection only for compatibility)
+1. Loads the trained PII detection model
+2. Exports it to ONNX format
 3. Quantizes the model for faster inference
 4. Saves the quantized model
 
@@ -69,20 +69,20 @@ flags.DEFINE_boolean(
 )
 
 try:
-    from model.src.model import MultiTaskPIIDetectionModel
+    from model.src.model import PIIDetectionModel
 except ImportError:
     # Fallback to importing from same directory
     sys.path.insert(0, str(Path(__file__).parent))
-    from model import MultiTaskPIIDetectionModel
+    from model import PIIDetectionModel
 
 # absl.logging is already configured, no need for basicConfig
 
 
-def load_multitask_model(
+def load_model(
     model_path: str,
-) -> tuple[MultiTaskPIIDetectionModel, dict, AutoTokenizer]:
+) -> tuple[PIIDetectionModel, dict, AutoTokenizer]:
     """
-    Load the multi-task model, label mappings, and tokenizer.
+    Load the PII detection model, label mappings, and tokenizer.
 
     Args:
         model_path: Path to the model directory
@@ -104,15 +104,10 @@ def load_multitask_model(
     with mappings_path.open() as f:
         mappings = json.load(f)
 
-    pii_label2id = mappings["pii"]["label2id"]
-    pii_id2label = {int(k): v for k, v in mappings["pii"]["id2label"].items()}
-    coref_id2label = (
-        {int(k): v for k, v in mappings["coref"]["id2label"].items()}
-        if "coref" in mappings
-        else {0: "NO_COREF", 1: "CLUSTER_0"}
-    )
+    label2id = mappings["label2id"]
+    id2label = {int(k): v for k, v in mappings["id2label"].items()}
 
-    logging.info(f"✅ Loaded {len(pii_label2id)} PII label mappings")
+    logging.info(f"✅ Loaded {len(label2id)} label mappings")
 
     # Load tokenizer
     tokenizer = AutoTokenizer.from_pretrained(model_path)
@@ -122,16 +117,13 @@ def load_multitask_model(
     base_model_name = "answerdotai/ModernBERT-base"
 
     # Determine number of labels
-    num_pii_labels = len(pii_label2id)
-    num_coref_labels = len(coref_id2label)
+    num_labels = len(label2id)
 
-    # Load multi-task model
-    model = MultiTaskPIIDetectionModel(
+    # Load model
+    model = PIIDetectionModel(
         model_name=base_model_name,
-        num_pii_labels=num_pii_labels,
-        num_coref_labels=num_coref_labels,
-        id2label_pii=pii_id2label,
-        id2label_coref=coref_id2label,
+        num_labels=num_labels,
+        id2label=id2label,
     )
 
     # Load model weights
@@ -219,47 +211,44 @@ def load_multitask_model(
 
     model.eval()
 
-    label_mappings = {
-        "pii": {"label2id": pii_label2id, "id2label": pii_id2label},
-        "coref": {"id2label": coref_id2label},
-    }
+    label_mappings = {"label2id": label2id, "id2label": id2label}
 
     return model, label_mappings, tokenizer
 
 
-class MultiTaskModelWrapper(torch.nn.Module):
-    """Wrapper to export multi-task model that returns tuple instead of dict."""
+class ModelWrapper(torch.nn.Module):
+    """Wrapper to export model that returns tensor instead of dict."""
 
-    def __init__(self, multitask_model: MultiTaskPIIDetectionModel):
+    def __init__(self, model: PIIDetectionModel):
         """Initialize wrapper."""
         super().__init__()
-        self.model = multitask_model
+        self.model = model
 
     def forward(self, input_ids: torch.Tensor, attention_mask: torch.Tensor):
-        """Forward pass returning tuple of (pii_logits, coref_logits)."""
+        """Forward pass returning logits tensor."""
         outputs = self.model(input_ids=input_ids, attention_mask=attention_mask)
-        return outputs["pii_logits"], outputs["coref_logits"]
+        return outputs["logits"]
 
 
 def export_to_onnx(
-    model: MultiTaskPIIDetectionModel,
+    model: PIIDetectionModel,
     tokenizer: AutoTokenizer,
     output_path: str,
     opset: int = 18,
 ):
     """
-    Export the full multi-task model to ONNX (both PII and co-reference detection).
+    Export the PII detection model to ONNX.
 
     Args:
-        model: The multi-task model
+        model: The PII detection model
         tokenizer: The tokenizer
         output_path: Path to save the ONNX model
         opset: ONNX opset version
     """
-    logging.info("🔄 Exporting multi-task model to ONNX...")
+    logging.info("🔄 Exporting model to ONNX...")
 
-    # Wrap model to return tuple instead of dict (required for ONNX export)
-    wrapped_model = MultiTaskModelWrapper(model)
+    # Wrap model to return tensor instead of dict (required for ONNX export)
+    wrapped_model = ModelWrapper(model)
     wrapped_model.eval()
 
     # Create dummy input for tracing
@@ -276,25 +265,24 @@ def export_to_onnx(
 
     onnx_path = output_path / "model.onnx"
 
-    # Export full multi-task model to ONNX
+    # Export model to ONNX
     torch.onnx.export(
         wrapped_model,
         (inputs["input_ids"], inputs["attention_mask"]),
         str(onnx_path),
         input_names=["input_ids", "attention_mask"],
-        output_names=["pii_logits", "coref_logits"],
+        output_names=["logits"],
         dynamic_axes={
             "input_ids": {0: "batch_size", 1: "sequence_length"},
             "attention_mask": {0: "batch_size", 1: "sequence_length"},
-            "pii_logits": {0: "batch_size", 1: "sequence_length"},
-            "coref_logits": {0: "batch_size", 1: "sequence_length"},
+            "logits": {0: "batch_size", 1: "sequence_length"},
         },
         opset_version=opset,
         do_constant_folding=True,
     )
 
-    logging.info(f"✅ Multi-task model exported to: {onnx_path}")
-    logging.info("   Outputs: pii_logits, coref_logits")
+    logging.info(f"✅ Model exported to: {onnx_path}")
+    logging.info("   Output: logits")
 
     # Copy tokenizer files to output directory
     logging.info("📋 Copying tokenizer files...")
@@ -365,13 +353,10 @@ def quantize_model(
     quantizer = ORTQuantizer.from_pretrained(str(model_dir), file_name="model.onnx")
 
     # Select quantization config based on mode
-    # Exclude classification heads from quantization to preserve accuracy
-    # These nodes are the final linear layers for PII and coref classification
+    # Exclude classification head from quantization to preserve accuracy
     nodes_to_exclude = [
-        "pii_classifier",
-        "coref_classifier",
-        "/pii_classifier/",
-        "/coref_classifier/",
+        "classifier",
+        "/classifier/",
     ]
 
     if quantization_mode == "avx512_vnni":
@@ -435,10 +420,6 @@ def quantize_model(
             f"   Outputs: {[output.name for output in model_onnx.graph.output]}"
         )
 
-        # # signing model
-        # model_hash = sign_trained_model(quantized_model_path)
-        # logging.info(f"   Model hash: {model_hash}")
-
         # Get model size
         model_size_mb = quantized_model_path.stat().st_size / (1024 * 1024)
         logging.info(f"   Model size: {model_size_mb:.2f} MB")
@@ -448,7 +429,7 @@ def quantize_model(
 
 def main(argv):
     """
-    Orchestrates loading a trained multi-task PII detection model, exporting it to ONNX, optionally quantizing the ONNX model, signing and saving artifacts (tokenizer, label mappings, config), and handling errors.
+    Orchestrates loading a trained PII detection model, exporting it to ONNX, optionally quantizing the ONNX model, signing and saving artifacts (tokenizer, label mappings, config), and handling errors.
 
     This function performs high-level orchestration for the CLI: it loads the trained model and tokenizer from FLAGS.model_path, exports the model to ONNX in FLAGS.output_path, signs the exported model, writes label mappings and (if present) the original config.json to the output directory, and — unless --skip_quantization is set — quantizes the ONNX model. On successful quantization the non-quantized ONNX file is removed. Any unhandled exception is logged and causes process exit with code 1.
 
@@ -463,7 +444,7 @@ def main(argv):
 
     try:
         # Load model
-        model, label_mappings, tokenizer = load_multitask_model(FLAGS.model_path)
+        model, label_mappings, tokenizer = load_model(FLAGS.model_path)
 
         # Export to ONNX
         export_to_onnx(model, tokenizer, FLAGS.output_path, FLAGS.opset)

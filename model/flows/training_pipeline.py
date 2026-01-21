@@ -4,7 +4,7 @@ Metaflow pipeline for PII detection model training.
 This pipeline orchestrates:
 1. Data export from Label Studio (optional, can be skipped)
 2. Dataset loading and preprocessing from model/dataset/training_samples/
-3. Model training with multi-task learning
+3. Model training
 4. Model evaluation
 5. Model quantization (ONNX)
 6. Model signing (cryptographic hash)
@@ -138,13 +138,6 @@ class PIITrainingPipeline(FlowSpec):
             early_stopping_enabled=training_cfg.get("early_stopping_enabled", True),
             early_stopping_patience=training_cfg.get("early_stopping_patience", 3),
             early_stopping_threshold=training_cfg.get("early_stopping_threshold", 0.01),
-            # Focal Loss parameters for handling class imbalance
-            focal_gamma=training_cfg.get("focal_gamma", 2.0),
-            focal_alpha=training_cfg.get("focal_alpha", 0.75),
-            label_smoothing=training_cfg.get("label_smoothing", 0.1),
-            # Multi-task loss weights
-            pii_loss_weight=training_cfg.get("pii_loss_weight", 1.0),
-            coref_loss_weight=training_cfg.get("coref_loss_weight", 0.5),
         )
         self.skip_export = cfg.get("pipeline", {}).get("skip_export", False)
         self.skip_quantization = cfg.get("pipeline", {}).get("skip_quantization", False)
@@ -219,18 +212,17 @@ class PIITrainingPipeline(FlowSpec):
 
         # Process the dataset
         processor = DatasetProcessor(self.config)
-        train_dataset, val_dataset, mappings, coref_info = processor.prepare_datasets(
+        train_dataset, val_dataset, mappings = processor.prepare_datasets(
             subsample_count=self.subsample_count
         )
 
         self.train_dataset = train_dataset
         self.val_dataset = val_dataset
         self.label_mappings = mappings
-        self.coref_info = coref_info
 
         print(f"Training samples: {len(train_dataset)}")
         print(f"Validation samples: {len(val_dataset)}")
-        print(f"PII labels: {len(mappings['pii']['label2id'])}")
+        print(f"Labels: {len(mappings['label2id'])}")
 
         self.next(self.train_model)
 
@@ -241,14 +233,14 @@ class PIITrainingPipeline(FlowSpec):
     @checkpoint
     @step
     def train_model(self):
-        """Train the multi-task PII detection model."""
+        """Train the PII detection model."""
         from src.trainer import PIITrainer
 
         if current.checkpoint.is_loaded:
             print("Resuming from checkpoint...")
 
         trainer = PIITrainer(self.config)
-        trainer.load_label_mappings(self.label_mappings, self.coref_info)
+        trainer.load_label_mappings(self.label_mappings)
         trainer.initialize_model()
 
         start_time = time.time()
@@ -259,12 +251,10 @@ class PIITrainingPipeline(FlowSpec):
 
         self.training_metrics = {
             "training_time_seconds": training_time,
-            "eval_pii_f1_weighted": results.get("eval_pii_f1_weighted"),
-            "eval_pii_f1_macro": results.get("eval_pii_f1_macro"),
-            "eval_pii_precision_weighted": results.get("eval_pii_precision_weighted"),
-            "eval_pii_recall_weighted": results.get("eval_pii_recall_weighted"),
-            "eval_coref_f1_weighted": results.get("eval_coref_f1_weighted"),
-            "eval_coref_f1_macro": results.get("eval_coref_f1_macro"),
+            "eval_f1_weighted": results.get("eval_f1_weighted"),
+            "eval_f1_macro": results.get("eval_f1_macro"),
+            "eval_precision_weighted": results.get("eval_precision_weighted"),
+            "eval_recall_weighted": results.get("eval_recall_weighted"),
         }
 
         self.model_path = self.config.output_dir
@@ -281,9 +271,7 @@ class PIITrainingPipeline(FlowSpec):
             self.trained_model = current.checkpoint.save(
                 str(model_dir),
                 metadata={
-                    "pii_f1_weighted": self.training_metrics.get(
-                        "eval_pii_f1_weighted"
-                    ),
+                    "f1_weighted": self.training_metrics.get("eval_f1_weighted"),
                     "training_time_seconds": training_time,
                 },
                 name="trained_model",
@@ -292,10 +280,10 @@ class PIITrainingPipeline(FlowSpec):
         else:
             self.trained_model = None
 
-        pii_f1 = self.training_metrics.get("eval_pii_f1_weighted")
+        f1 = self.training_metrics.get("eval_f1_weighted")
         print(
-            f"Training: {training_time / 60:.1f}min, PII F1: {pii_f1:.4f}"
-            if pii_f1
+            f"Training: {training_time / 60:.1f}min, F1: {f1:.4f}"
+            if f1
             else "Training complete"
         )
 
@@ -325,7 +313,7 @@ class PIITrainingPipeline(FlowSpec):
 
         inference_times = []
         for text in test_cases:
-            _, _, inference_time = loader.predict(text)
+            _, inference_time = loader.predict(text)
             inference_times.append(inference_time)
 
         self.avg_inference_time_ms = sum(inference_times) / len(inference_times)
@@ -357,11 +345,11 @@ class PIITrainingPipeline(FlowSpec):
 
         import shutil
 
-        from src.quantitize import export_to_onnx, load_multitask_model, quantize_model
+        from src.quantitize import export_to_onnx, load_model, quantize_model
 
         try:
             model_path = current.model.loaded["trained_model"]
-            model, label_mappings, tokenizer = load_multitask_model(model_path)
+            model, label_mappings, tokenizer = load_model(model_path)
 
             quantized_output = "model/quantized"
             export_to_onnx(model, tokenizer, quantized_output)

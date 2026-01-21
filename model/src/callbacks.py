@@ -25,22 +25,13 @@ class CleanMetricsCallback(TrainerCallback):
             logging.warning(f"={'=' * 60}")
 
             # PII metrics
-            pii_f1 = logs.get("eval_pii_f1_weighted") or logs.get("eval_pii_f1")
-            pii_acc = logs.get("eval_pii_accuracy")
-            if pii_f1 is not None:
+            f1 = logs.get("eval_f1_weighted") or logs.get("eval_f1")
+            acc = logs.get("eval_accuracy")
+            if f1 is not None:
                 logging.warning("🔍 PII Detection:")
-                logging.warning(f"   F1:  {pii_f1:.4f}")
-                if pii_acc is not None:
-                    logging.warning(f"   Acc: {pii_acc:.4f}")
-
-            # Coref metrics
-            coref_f1 = logs.get("eval_coref_f1_weighted") or logs.get("eval_coref_f1")
-            coref_acc = logs.get("eval_coref_accuracy")
-            if coref_f1 is not None:
-                logging.warning("🔗 Co-reference:")
-                logging.warning(f"   F1:  {coref_f1:.4f}")
-                if coref_acc is not None:
-                    logging.warning(f"   Acc: {coref_acc:.4f}")
+                logging.warning(f"   F1:  {f1:.4f}")
+                if acc is not None:
+                    logging.warning(f"   Acc: {acc:.4f}")
 
             # Loss
             loss = logs.get("eval_loss")
