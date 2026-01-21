@@ -592,11 +592,17 @@ class PIITrainer:
             report_to=None,
             save_total_limit=3,
             seed=self.config.seed,
-            dataloader_pin_memory=False,
+            dataloader_pin_memory=True,  # Faster data transfer to GPU
             remove_unused_columns=False,
             logging_first_step=False,
             disable_tqdm=False,  # Keep progress bar
             log_level="error",  # Suppress info logs
+            # Performance optimizations
+            bf16=True,  # Use bfloat16 mixed precision (faster on modern GPUs)
+            dataloader_num_workers=4,  # Parallel data loading
+            gradient_accumulation_steps=1,  # Increase if OOM with larger batch
+            optim="adamw_torch_fused",  # Fused optimizer (faster)
+            torch_compile=False,  # Set True for PyTorch 2.0+ (can be slower to start)
         )
 
         # Set up callbacks
