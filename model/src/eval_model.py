@@ -142,9 +142,8 @@ class PIIModelLoader:
             # Handle state dict that might have 'model.' prefix
             if any(k.startswith("model.") for k in state_dict.keys()):
                 state_dict = {
-                    k.replace("model.", ""): v
+                    (k[6:] if k.startswith("model.") else k): v
                     for k, v in state_dict.items()
-                    if k.startswith("model.")
                 }
 
             self.model.load_state_dict(state_dict, strict=False)
