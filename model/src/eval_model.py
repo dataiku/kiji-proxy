@@ -25,16 +25,12 @@ from absl import logging
 from safetensors import safe_open
 from transformers import AutoTokenizer
 
-# Add project root to path for imports
-project_root = Path(__file__).parent.parent
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
+# Add parent directory to path for imports
+src_dir = Path(__file__).parent
+if str(src_dir) not in sys.path:
+    sys.path.insert(0, str(src_dir))
 
-try:
-    from model.model import PIIDetectionModel
-except ImportError:
-    from .model import PIIDetectionModel
-
+from model import PIIDetectionModel
 
 # =============================================================================
 # DEVICE UTILITIES
