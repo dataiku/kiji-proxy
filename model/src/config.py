@@ -18,8 +18,8 @@ class TrainingConfig:
     model_name: str = "answerdotai/ModernBERT-base"  # 149M params, modern architecture
 
     # Training parameters
-    num_epochs: int = 5
-    batch_size: int = 16
+    num_epochs: int = 20
+    batch_size: int = 64
     learning_rate: float = 3e-5
     max_samples: int = 400000
 
@@ -32,7 +32,7 @@ class TrainingConfig:
     # Output and logging
     output_dir: str = "./model/trained"
     use_wandb: bool = False
-    use_custom_loss: bool = True
+    use_custom_loss: bool = False  # Use standard CE instead of Focal Loss
     class_weights: dict[int, float] = field(default_factory=dict)
 
     # Dataset settings
