@@ -60,7 +60,7 @@ class BatchMonitor:
                 checks += 1
 
                 # Update progress bar
-                if pbar:
+                if pbar is not None:
                     pbar.set_postfix(
                         {
                             "status": status["status"],
@@ -79,19 +79,19 @@ class BatchMonitor:
                 # Check completion status
                 if status["status"] == "completed":
                     logging.info(f"Batch {batch_id} completed successfully")
-                    if pbar:
+                    if pbar is not None:
                         pbar.close()
                     return self.client.download_results(status["output_file_id"])
 
                 elif status["status"] in ["failed", "expired", "cancelled"]:
                     error_msg = f"Batch {batch_id} {status['status']}"
-                    if pbar:
+                    if pbar is not None:
                         pbar.close()
                     raise RuntimeError(error_msg)
 
                 # Check timeout
                 if timeout and (time.time() - start_time) > timeout:
-                    if pbar:
+                    if pbar is not None:
                         pbar.close()
                     raise TimeoutError(
                         f"Batch {batch_id} timed out after {timeout}s "
@@ -102,7 +102,7 @@ class BatchMonitor:
                 time.sleep(poll_interval)
 
         except KeyboardInterrupt:
-            if pbar:
+            if pbar is not None:
                 pbar.close()
             logging.warning(f"Monitoring interrupted for batch {batch_id}")
             raise
