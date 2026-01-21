@@ -212,21 +212,35 @@ class ONNXModelTester:
             print(f"\n🔍 Token Predictions (showing non-O and first 10):")
 
         for i, (pred_id, conf) in enumerate(zip(predictions, confidences)):
+            # Get token offset
+            start, end = offsets[i]
+
+            # Skip special tokens ([CLS], [SEP]) - they have offset (0, 0)
+            is_special_token = start == 0 and end == 0
+
             # Get label
             label = self.pii_id2label.get(pred_id, "O")
 
+            # Special tokens are always treated as "O"
+            if is_special_token:
+                label = "O"
             # Apply confidence threshold
-            if conf < confidence_threshold:
+            elif conf < confidence_threshold:
                 label = "O"
 
             # Debug output
             if verbose and (label != "O" or i < 10):
-                start, end = offsets[i]
-                token_text = (
-                    text[start:end] if start < len(text) and end <= len(text) else ""
-                )
+                if is_special_token:
+                    token_text = "[CLS]" if i == 0 else "[SEP]"
+                else:
+                    token_text = (
+                        text[start:end]
+                        if start < len(text) and end <= len(text)
+                        else ""
+                    )
+                special_marker = " (special)" if is_special_token else ""
                 print(
-                    f"   Token[{i:3d}] {token_text:20s} → {label:20s} (conf: {conf:.3f})"
+                    f"   Token[{i:3d}] {token_text:20s} → {label:20s} (conf: {conf:.3f}){special_marker}"
                 )
 
             # Parse BIO tags
