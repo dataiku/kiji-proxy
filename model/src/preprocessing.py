@@ -132,10 +132,10 @@ class LabelStudioConverter:
         """
         entities: dict[str, Entity] = {}
 
-        for item in result:
+        for idx, item in enumerate(result):
             if "value" in item:
-                # Entity annotation
-                entity_id = item["id"]
+                # Entity annotation - use item id if present, otherwise generate one
+                entity_id = item.get("id", f"ent-auto-{idx}")
                 value = item.get("value", {})
                 labels = value.get("labels", [])
 
