@@ -169,7 +169,6 @@ func (p *AnthropicProvider) SetAuthHeaders(req *http.Request) {
 	if apiKey := req.Header.Get("X-Api-Key"); apiKey != "" {
 		return
 	}
-	log.Printf("[Proxy] anthropic api key %s header set.", p.apiKey)
 	req.Header.Set("X-Api-Key", p.apiKey)
 }
 
