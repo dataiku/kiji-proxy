@@ -131,8 +131,6 @@ class PIITrainingPipeline(FlowSpec):
             batch_size=training_cfg.get("batch_size", 16),
             learning_rate=training_cfg.get("learning_rate", 3e-5),
             weight_decay=training_cfg.get("weight_decay", 0.01),
-            eval_steps=training_cfg.get("eval_steps", 500),
-            save_steps=training_cfg.get("save_steps", 1000),
             training_samples_dir=cfg.get("paths", {}).get(
                 "training_samples_dir", "model/dataset/training_samples"
             ),

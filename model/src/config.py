@@ -26,8 +26,6 @@ class TrainingConfig:
     # Training optimization
     warmup_steps: int = 200
     weight_decay: float = 0.01
-    save_steps: int = 1000
-    eval_steps: int = 500
     logging_steps: int = 500
     seed: int = 42
 
