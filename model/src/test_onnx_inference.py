@@ -244,7 +244,7 @@ class ONNXModelTester:
         text: str,
         predictions: np.ndarray,
         confidences: np.ndarray,
-        offsets: np.ndarray,
+        offsets: list[tuple[int, int]],
         confidence_threshold: float = 0.5,
         verbose: bool = False,
     ) -> list:
@@ -255,7 +255,7 @@ class ONNXModelTester:
             text: Original text
             predictions: Token class predictions
             confidences: Token confidence scores
-            offsets: Token offset mappings
+            offsets: Token offset mappings (list of (start, end) tuples)
             confidence_threshold: Minimum confidence to keep
             verbose: Print token-level details
 
@@ -264,7 +264,8 @@ class ONNXModelTester:
         """
         entities = []
         current_entity = None
-        current_tokens = []
+        current_start = None
+        current_end = None
 
         if verbose:
             print(f"\n🔍 Token Predictions (showing non-O and first 10):")
@@ -315,7 +316,7 @@ class ONNXModelTester:
                 # Finish previous entity
                 if current_entity is not None:
                     self._finalize_entity(
-                        current_entity, current_tokens, text, offsets, entities
+                        current_entity, current_start, current_end, text, entities
                     )
 
                 # Start new entity
@@ -323,12 +324,13 @@ class ONNXModelTester:
                     "label": base_label,
                     "confidence": conf,
                 }
-                current_tokens = [i]
+                current_start = start
+                current_end = end
 
             elif label != "O" and is_inside and current_entity is not None:
                 if current_entity["label"] == base_label:
-                    # Continue current entity
-                    current_tokens.append(i)
+                    # Continue current entity - extend the end position
+                    current_end = max(current_end, end)
                     # Update confidence (average)
                     current_entity["confidence"] = (
                         current_entity["confidence"] + conf
@@ -336,27 +338,29 @@ class ONNXModelTester:
                 else:
                     # Different label - finish current and start new
                     self._finalize_entity(
-                        current_entity, current_tokens, text, offsets, entities
+                        current_entity, current_start, current_end, text, entities
                     )
                     current_entity = {
                         "label": base_label,
                         "confidence": conf,
                     }
-                    current_tokens = [i]
+                    current_start = start
+                    current_end = end
 
             else:
                 # O label - finish current entity
                 if current_entity is not None:
                     self._finalize_entity(
-                        current_entity, current_tokens, text, offsets, entities
+                        current_entity, current_start, current_end, text, entities
                     )
                     current_entity = None
-                    current_tokens = []
+                    current_start = None
+                    current_end = None
 
         # Finish last entity
         if current_entity is not None:
             self._finalize_entity(
-                current_entity, current_tokens, text, offsets, entities
+                current_entity, current_start, current_end, text, entities
             )
 
         return entities
@@ -364,21 +368,14 @@ class ONNXModelTester:
     def _finalize_entity(
         self,
         entity: dict,
-        token_indices: list,
+        start_pos: int,
+        end_pos: int,
         text: str,
-        offsets: np.ndarray,
         entities: list,
     ):
-        """Extract entity text from token offsets and add to entities list."""
-        if not token_indices:
+        """Extract entity text from character positions and add to entities list."""
+        if start_pos is None or end_pos is None:
             return
-
-        # Get start and end positions
-        start_offset = offsets[token_indices[0]]
-        end_offset = offsets[token_indices[-1]]
-
-        start_pos = int(start_offset[0])
-        end_pos = int(end_offset[1])
 
         # Extract text
         entity["text"] = text[start_pos:end_pos]
