@@ -10,19 +10,19 @@ import (
 )
 
 const (
-	ProviderTypeOpenAI    ProviderType = "openai"
-	ProviderSubpathOpenAI string       = "/v1/chat/completions"
-	ProviderBaseURLOpenAI string       = "https://api.openai.com"
+	ProviderTypeOpenAI      ProviderType = "openai"
+	ProviderSubpathOpenAI   string       = "/v1/chat/completions"
+	ProviderAPIDomainOpenAI string       = "api.openai.com"
 )
 
 type OpenAIProvider struct {
-	baseURL           string
+	apiDomain         string
 	apiKey            string
 	additionalHeaders map[string]string
 }
 
-func NewOpenAIProvider(baseURL string, apiKey string, additionalHeaders map[string]string) *OpenAIProvider {
-	return &OpenAIProvider{baseURL: baseURL, apiKey: apiKey, additionalHeaders: additionalHeaders}
+func NewOpenAIProvider(apiDomain string, apiKey string, additionalHeaders map[string]string) *OpenAIProvider {
+	return &OpenAIProvider{apiDomain: apiDomain, apiKey: apiKey, additionalHeaders: additionalHeaders}
 }
 
 func (p *OpenAIProvider) GetName() string {
@@ -33,8 +33,13 @@ func (p *OpenAIProvider) GetType() ProviderType {
 	return ProviderTypeOpenAI
 }
 
-func (p *OpenAIProvider) GetBaseURL() string {
-	return p.baseURL
+func (p *OpenAIProvider) GetBaseURL(useHttps bool) string {
+	if useHttps {
+		return "https://" + p.apiDomain
+	} else {
+		return "http://" + p.apiDomain
+	}
+
 }
 
 func (p *OpenAIProvider) ExtractRequestText(data map[string]interface{}) (string, error) {
@@ -175,7 +180,7 @@ func (p *OpenAIProvider) SetAddlHeaders(req *http.Request) {
 }
 
 func (p *OpenAIProvider) ValidateConfig() error {
-	if p.baseURL == "" {
+	if p.apiDomain == "" {
 		return fmt.Errorf("base URL is required")
 	}
 	return nil

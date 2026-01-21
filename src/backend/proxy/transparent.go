@@ -85,6 +85,8 @@ func (tp *TransparentProxy) handleHTTPRequest(w http.ResponseWriter, r *http.Req
 	}
 
 	// Check if we should intercept
+	// TODO: this should also return provider (if should intercept is allowed)
+	// Probably map URLs to providers
 	if !tp.router.ShouldIntercept(targetHost) {
 		// Passthrough - forward directly
 		tp.passthroughHTTP(w, r)

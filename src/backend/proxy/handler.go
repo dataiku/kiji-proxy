@@ -21,7 +21,7 @@ import (
 	"github.com/hannes/yaak-private/src/backend/providers"
 )
 
-// Handler handles HTTP requests and proxies them to OpenAI API
+// Handler handles HTTP requests and proxies them to LLM provider
 type Handler struct {
 	client             *http.Client
 	config             *config.Config
@@ -428,7 +428,7 @@ func (h *Handler) getForwardEndpoint(provider *providers.Provider) (string, erro
 		return forwardEndpoint, nil
 	}
 	// Fall back to provider if electron config path is not set
-	return (*provider).GetBaseURL(), nil
+	return (*provider).GetBaseURL(true), nil
 }
 
 // buildTargetURL builds the target URL for the proxy request
@@ -484,12 +484,12 @@ func NewHandler(cfg *config.Config, electronConfigPath string) (*Handler, error)
 
 	// Create providers
 	openAIProvider := providers.NewOpenAIProvider(
-		cfg.OpenAIProviderConfig.BaseURL,
+		cfg.OpenAIProviderConfig.APIDomain,
 		cfg.OpenAIProviderConfig.APIKey,
 		cfg.OpenAIProviderConfig.AdditionalHeaders,
 	)
 	anthropicProvider := providers.NewAnthropicProvider(
-		cfg.AnthropicProviderConfig.BaseURL,
+		cfg.AnthropicProviderConfig.APIDomain,
 		cfg.AnthropicProviderConfig.APIKey,
 		cfg.AnthropicProviderConfig.AdditionalHeaders,
 	)

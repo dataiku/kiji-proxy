@@ -3,8 +3,8 @@ package config
 import (
 	"os"
 	"path/filepath"
-  
-  "github.com/hannes/yaak-private/src/backend/providers"
+
+	"github.com/hannes/yaak-private/src/backend/providers"
 )
 
 // LoggingConfig holds logging configuration options
@@ -35,7 +35,7 @@ type DatabaseConfig struct {
 
 // Provider config
 type ProviderConfig struct {
-	BaseURL           string
+	APIDomain         string
 	APIKey            string
 	AdditionalHeaders map[string]string
 }
@@ -62,20 +62,20 @@ type Config struct {
 	ONNXModelPath           string
 	TokenizerPath           string
 	UIPath                  string
-  Proxy                   ProxyConfig `json:"Proxy"`
+	Proxy                   ProxyConfig `json:"Proxy"`
 }
 
 // DefaultConfig returns the default configuration
 func DefaultConfig() *Config {
 	defaultOpenAIProviderConfig := ProviderConfig{
-		BaseURL:           providers.ProviderBaseURLOpenAI,
+		APIDomain:         providers.ProviderAPIDomainOpenAI,
 		AdditionalHeaders: map[string]string{},
 	}
 	defaultAnthropicProviderConfig := ProviderConfig{
-		BaseURL:           providers.ProviderBaseURLAnthropic,
+		APIDomain:         providers.ProviderAPIDomainAnthropic,
 		AdditionalHeaders: map[string]string{},
 	}
-  
+
 	homeDir, _ := os.UserHomeDir()
 	caPath := filepath.Join(homeDir, ".yaak-proxy", "certs", "ca.crt")
 	keyPath := filepath.Join(homeDir, ".yaak-proxy", "certs", "ca.key")

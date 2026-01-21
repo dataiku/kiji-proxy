@@ -10,19 +10,19 @@ import (
 )
 
 const (
-	ProviderTypeAnthropic    ProviderType = "anthropic"
-	ProviderSubpathAnthropic string       = "/v1/messages"
-	ProviderBaseURLAnthropic string       = "https://api.anthropic.com"
+	ProviderTypeAnthropic      ProviderType = "anthropic"
+	ProviderSubpathAnthropic   string       = "/v1/messages"
+	ProviderAPIDomainAnthropic string       = "api.anthropic.com"
 )
 
 type AnthropicProvider struct {
-	baseURL           string
+	apiDomain         string
 	apiKey            string
 	additionalHeaders map[string]string
 }
 
-func NewAnthropicProvider(baseURL string, apiKey string, additionalHeaders map[string]string) *AnthropicProvider {
-	return &AnthropicProvider{baseURL: baseURL, apiKey: apiKey, additionalHeaders: additionalHeaders}
+func NewAnthropicProvider(apiDomain string, apiKey string, additionalHeaders map[string]string) *AnthropicProvider {
+	return &AnthropicProvider{apiDomain: apiDomain, apiKey: apiKey, additionalHeaders: additionalHeaders}
 }
 
 func (p *AnthropicProvider) GetName() string {
@@ -33,8 +33,12 @@ func (p *AnthropicProvider) GetType() ProviderType {
 	return ProviderTypeAnthropic
 }
 
-func (p *AnthropicProvider) GetBaseURL() string {
-	return p.baseURL
+func (p *AnthropicProvider) GetBaseURL(useHttps bool) string {
+	if useHttps {
+		return "https://" + p.apiDomain
+	} else {
+		return "http://" + p.apiDomain
+	}
 }
 
 func (p *AnthropicProvider) ExtractRequestText(data map[string]interface{}) (string, error) {
@@ -176,7 +180,7 @@ func (p *AnthropicProvider) SetAddlHeaders(req *http.Request) {
 }
 
 func (p *AnthropicProvider) ValidateConfig() error {
-	if p.baseURL == "" {
+	if p.apiDomain == "" {
 		return fmt.Errorf("base URL is required")
 	}
 	return nil

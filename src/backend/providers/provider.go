@@ -16,7 +16,7 @@ type getAddProxyNotice func() bool
 type Provider interface {
 	GetType() ProviderType
 	GetName() string
-	GetBaseURL() string
+	GetBaseURL(useHttps bool) string
 
 	// ExtractRequestText extracts text from provider request format
 	ExtractRequestText(data map[string]interface{}) (string, error)

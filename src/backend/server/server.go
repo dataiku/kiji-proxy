@@ -160,8 +160,8 @@ func NewServerWithEmbedded(cfg *config.Config, uiFS, modelFS fs.FS, electronConf
 // Start starts the HTTP server
 func (s *Server) Start() error {
 	log.Printf("Starting Yaak proxy service on port %s", s.config.ProxyPort)
-	log.Printf("Forward OpenAI requests to: %s", s.config.OpenAIProviderConfig.BaseURL)
-	log.Printf("Forward Anthropic requests to: %s", s.config.AnthropicProviderConfig.BaseURL)
+	log.Printf("Forward OpenAI requests to: %s", s.config.OpenAIProviderConfig.APIDomain)
+	log.Printf("Forward Anthropic requests to: %s", s.config.AnthropicProviderConfig.APIDomain)
 
 	// Get actual detector configuration from handler
 	if s.handler != nil {

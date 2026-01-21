@@ -245,7 +245,7 @@ func loadApplicationConfig(cfg *config.Config) {
 
 	// Override OpenAI provider config with environment variables
 	if openAIURL := os.Getenv("OPENAI_BASE_URL"); openAIURL != "" {
-		cfg.OpenAIProviderConfig.BaseURL = openAIURL
+		cfg.OpenAIProviderConfig.APIDomain = openAIURL
 	}
 	if openAIApiKey := os.Getenv("OPENAI_API_KEY"); openAIApiKey != "" {
 		cfg.OpenAIProviderConfig.APIKey = openAIApiKey
@@ -256,7 +256,7 @@ func loadApplicationConfig(cfg *config.Config) {
 
 	// Override Anthropic provider config with environment variables
 	if anthropicURL := os.Getenv("ANTHROPIC_BASE_URL"); anthropicURL != "" {
-		cfg.AnthropicProviderConfig.BaseURL = anthropicURL
+		cfg.AnthropicProviderConfig.APIDomain = anthropicURL
 	}
 	if anthropicApiKey := os.Getenv("ANTHROPIC_API_KEY"); anthropicApiKey != "" {
 		cfg.AnthropicProviderConfig.APIKey = anthropicApiKey
