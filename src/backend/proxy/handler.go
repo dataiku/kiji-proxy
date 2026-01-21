@@ -485,14 +485,14 @@ func NewHandler(cfg *config.Config, electronConfigPath string) (*Handler, error)
 
 	// Create providers
 	openAIProvider := providers.NewOpenAIProvider(
-		cfg.OpenAIProviderConfig.APIDomain,
-		cfg.OpenAIProviderConfig.APIKey,
-		cfg.OpenAIProviderConfig.AdditionalHeaders,
+		cfg.Providers.OpenAIProviderConfig.APIDomain,
+		cfg.Providers.OpenAIProviderConfig.APIKey,
+		cfg.Providers.OpenAIProviderConfig.AdditionalHeaders,
 	)
 	anthropicProvider := providers.NewAnthropicProvider(
-		cfg.AnthropicProviderConfig.APIDomain,
-		cfg.AnthropicProviderConfig.APIKey,
-		cfg.AnthropicProviderConfig.AdditionalHeaders,
+		cfg.Providers.AnthropicProviderConfig.APIDomain,
+		cfg.Providers.AnthropicProviderConfig.APIKey,
+		cfg.Providers.AnthropicProviderConfig.AdditionalHeaders,
 	)
 
 	// Create services

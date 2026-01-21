@@ -245,10 +245,10 @@ func loadApplicationConfig(cfg *config.Config) {
 
 	// Override OpenAI provider config with environment variables
 	if openAIURL := os.Getenv("OPENAI_BASE_URL"); openAIURL != "" {
-		cfg.OpenAIProviderConfig.APIDomain = openAIURL
+		cfg.Providers.OpenAIProviderConfig.APIDomain = openAIURL
 	}
 	if openAIApiKey := os.Getenv("OPENAI_API_KEY"); openAIApiKey != "" {
-		cfg.OpenAIProviderConfig.APIKey = openAIApiKey
+		cfg.Providers.OpenAIProviderConfig.APIKey = openAIApiKey
 		log.Printf("Loaded OPENAI_API_KEY from environment (length: %d)", len(openAIApiKey))
 	} else {
 		log.Printf("Warning: OPENAI_API_KEY is empty or not set")
@@ -256,10 +256,10 @@ func loadApplicationConfig(cfg *config.Config) {
 
 	// Override Anthropic provider config with environment variables
 	if anthropicURL := os.Getenv("ANTHROPIC_BASE_URL"); anthropicURL != "" {
-		cfg.AnthropicProviderConfig.APIDomain = anthropicURL
+		cfg.Providers.AnthropicProviderConfig.APIDomain = anthropicURL
 	}
 	if anthropicApiKey := os.Getenv("ANTHROPIC_API_KEY"); anthropicApiKey != "" {
-		cfg.AnthropicProviderConfig.APIKey = anthropicApiKey
+		cfg.Providers.AnthropicProviderConfig.APIKey = anthropicApiKey
 		log.Printf("Loaded ANTHROPIC_API_KEY from environment (length: %d)", len(anthropicApiKey))
 	} else {
 		log.Printf("Warning: ANTHROPIC_API_KEY is empty or not set")

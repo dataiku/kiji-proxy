@@ -33,11 +33,16 @@ type DatabaseConfig struct {
 	CleanupHours int    // Hours after which to cleanup old mappings
 }
 
-// Provider config
+// Provider config structs
 type ProviderConfig struct {
 	APIDomain         string
 	APIKey            string
 	AdditionalHeaders map[string]string
+}
+
+type ProvidersConfig struct {
+	OpenAIProviderConfig    ProviderConfig
+	AnthropicProviderConfig ProviderConfig
 }
 
 // ProxyConfig holds transparent proxy configuration
@@ -52,21 +57,23 @@ type ProxyConfig struct {
 
 // Config holds all configuration for the PII proxy service
 type Config struct {
-	OpenAIProviderConfig    *ProviderConfig
-	AnthropicProviderConfig *ProviderConfig
-	ProxyPort               string
-	DetectorName            string
-	ModelBaseURL            string
-	Database                DatabaseConfig
-	Logging                 LoggingConfig
-	ONNXModelPath           string
-	TokenizerPath           string
-	UIPath                  string
-	Proxy                   ProxyConfig `json:"Proxy"`
+	//OpenAIProviderConfig    *ProviderConfig
+	//AnthropicProviderConfig *ProviderConfig
+	Providers     ProvidersConfig
+	ProxyPort     string
+	DetectorName  string
+	ModelBaseURL  string
+	Database      DatabaseConfig
+	Logging       LoggingConfig
+	ONNXModelPath string
+	TokenizerPath string
+	UIPath        string
+	Proxy         ProxyConfig `json:"Proxy"`
 }
 
 // DefaultConfig returns the default configuration
 func DefaultConfig() *Config {
+	// Provider parameters
 	defaultOpenAIProviderConfig := ProviderConfig{
 		APIDomain:         providers.ProviderAPIDomainOpenAI,
 		AdditionalHeaders: map[string]string{},
@@ -82,14 +89,18 @@ func DefaultConfig() *Config {
 	keyPath := filepath.Join(homeDir, ".yaak-proxy", "certs", "ca.key")
 
 	return &Config{
-		OpenAIProviderConfig:    &defaultOpenAIProviderConfig,
-		AnthropicProviderConfig: &defaultAnthropicProviderConfig,
-		ProxyPort:               ":8080",
-		DetectorName:            "onnx_model_detector",
-		ModelBaseURL:            "http://localhost:8000",
-		ONNXModelPath:           "model/quantized/model_quantized.onnx",
-		TokenizerPath:           "model/quantized/tokenizer.json",
-		UIPath:                  "./src/frontend/dist",
+		//OpenAIProviderConfig:    &defaultOpenAIProviderConfig,
+		//AnthropicProviderConfig: &defaultAnthropicProviderConfig,
+		Providers: ProvidersConfig{
+			OpenAIProviderConfig:    defaultOpenAIProviderConfig,
+			AnthropicProviderConfig: defaultAnthropicProviderConfig,
+		},
+		ProxyPort:     ":8080",
+		DetectorName:  "onnx_model_detector",
+		ModelBaseURL:  "http://localhost:8000",
+		ONNXModelPath: "model/quantized/model_quantized.onnx",
+		TokenizerPath: "model/quantized/tokenizer.json",
+		UIPath:        "./src/frontend/dist",
 		Database: DatabaseConfig{
 			Enabled:      false,
 			Host:         "localhost",
@@ -122,8 +133,8 @@ func DefaultConfig() *Config {
 }
 
 // GetInterceptDomains returns the list of intercept domains (as a union of all provider domains)
-func (c Config) GetInterceptDomains() []string {
-	return []string{c.AnthropicProviderConfig.APIDomain, c.OpenAIProviderConfig.APIDomain}
+func (pc ProvidersConfig) GetInterceptDomains() []string {
+	return []string{pc.AnthropicProviderConfig.APIDomain, pc.OpenAIProviderConfig.APIDomain}
 }
 
 // GetLogPIIChanges returns whether to log PII changes

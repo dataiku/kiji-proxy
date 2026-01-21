@@ -101,7 +101,7 @@ func NewServer(cfg *config.Config, electronConfigPath string, version string) (*
 	var pacServer *proxy.PACServer
 	var systemProxyManager *proxy.SystemProxyManager
 	if cfg.Proxy.TransparentEnabled && cfg.Proxy.EnablePAC {
-		pacServer = proxy.NewPACServer(cfg.GetInterceptDomains(), cfg.Proxy.ProxyPort)
+		pacServer = proxy.NewPACServer(cfg.Providers.GetInterceptDomains(), cfg.Proxy.ProxyPort)
 		systemProxyManager = proxy.NewSystemProxyManager("http://localhost:9090/proxy.pac")
 	}
 
@@ -140,7 +140,7 @@ func NewServerWithEmbedded(cfg *config.Config, uiFS, modelFS fs.FS, electronConf
 	var pacServer *proxy.PACServer
 	var systemProxyManager *proxy.SystemProxyManager
 	if cfg.Proxy.TransparentEnabled && cfg.Proxy.EnablePAC {
-		pacServer = proxy.NewPACServer(cfg.GetInterceptDomains(), cfg.Proxy.ProxyPort)
+		pacServer = proxy.NewPACServer(cfg.Providers.GetInterceptDomains(), cfg.Proxy.ProxyPort)
 		systemProxyManager = proxy.NewSystemProxyManager("http://localhost:9090/proxy.pac")
 	}
 
@@ -160,8 +160,8 @@ func NewServerWithEmbedded(cfg *config.Config, uiFS, modelFS fs.FS, electronConf
 // Start starts the HTTP server
 func (s *Server) Start() error {
 	log.Printf("Starting Yaak proxy service on port %s", s.config.ProxyPort)
-	log.Printf("Forward OpenAI requests to: %s", s.config.OpenAIProviderConfig.APIDomain)
-	log.Printf("Forward Anthropic requests to: %s", s.config.AnthropicProviderConfig.APIDomain)
+	log.Printf("Forward OpenAI requests to: %s", s.config.Providers.OpenAIProviderConfig.APIDomain)
+	log.Printf("Forward Anthropic requests to: %s", s.config.Providers.AnthropicProviderConfig.APIDomain)
 
 	// Get actual detector configuration from handler
 	if s.handler != nil {
@@ -197,7 +197,7 @@ func (s *Server) Start() error {
 			log.Printf("    export HTTPS_PROXY=http://127.0.0.1%s", s.config.Proxy.ProxyPort)
 		} else {
 			log.Printf("✅ System proxy configured successfully")
-			log.Printf("📡 Traffic to %v will be automatically routed through proxy", s.config.GetInterceptDomains())
+			log.Printf("📡 Traffic to %v will be automatically routed through proxy", s.config.Providers.GetInterceptDomains())
 			log.Printf("🔐 Make sure you've installed the CA certificate for HTTPS interception")
 		}
 	}
@@ -288,7 +288,7 @@ func (s *Server) startTransparentProxy() {
 	}
 
 	log.Printf("Starting transparent proxy on port %s", proxyPort)
-	log.Printf("Intercepting domains: %v", s.config.GetInterceptDomains())
+	log.Printf("Intercepting domains: %v", s.config.Providers.GetInterceptDomains())
 	log.Printf("CA certificate path: %s", s.config.Proxy.CAPath)
 
 	// Create custom handler that routes based on request method

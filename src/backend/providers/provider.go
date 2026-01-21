@@ -6,6 +6,8 @@ import (
 	pii "github.com/hannes/yaak-private/src/backend/pii/detectors"
 )
 
+type ProviderType string
+
 type maskPIIInTextType func(string, string) (string, map[string]string, []pii.Entity)
 type restorePIIType func(string, map[string]string) string
 type getLogResponsesType func() bool
@@ -33,5 +35,3 @@ type Provider interface {
 	// ValidateConfig checks if provider configuration is valid
 	ValidateConfig() error
 }
-
-type ProviderType string
