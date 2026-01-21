@@ -24,7 +24,7 @@ coref_loss_weight = 0.5  # Secondary task (reduced weight)
 
 # Early stopping settings
 early_stopping_enabled = true
-early_stopping_patience = 2  # Reduced from 3 - stop sooner when not improving
+early_stopping_patience = 5  # Reduced from 3 - stop sooner when not improving
 early_stopping_threshold = 0.005  # More sensitive to detect plateaus earlier
 
 [paths]

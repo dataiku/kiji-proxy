@@ -36,7 +36,7 @@ class TrainingConfig:
     class_weights: dict[int, float] = field(default_factory=dict)
 
     # Dataset settings
-    eval_size_ratio: float = 0.1  # Validation set size as ratio of training
+    eval_size_ratio: float = 0.02  # Validation set size as ratio of training
     training_samples_dir: str = "model/dataset/training_samples"  # Use training samples by default, exported from Label Studio
     max_sequence_length: int = 4096
 
@@ -52,11 +52,11 @@ class TrainingConfig:
     label_smoothing: float = 0.1  # Prevent overconfidence
 
     # Early stopping
-    early_stopping_enabled: bool = True  # Enable early stopping
+    early_stopping_enabled: bool = False  # Disabled - train for all epochs
     early_stopping_patience: int = (
-        3  # Number of eval steps with no improvement before stopping
+        5  # Number of eval steps with no improvement before stopping
     )
-    early_stopping_threshold: float = 0.01  # Minimum improvement (1%) to qualify
+    early_stopping_threshold: float = 0.001  # Minimum improvement (0.1%) to qualify
 
     def __post_init__(self):
         """Create output directory after initialization."""
