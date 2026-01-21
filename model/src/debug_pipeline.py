@@ -13,13 +13,14 @@ from transformers import AutoTokenizer
 
 # Add paths
 src_dir = Path(__file__).parent
-project_root = src_dir.parent.parent
+dataset_dir = src_dir.parent / "dataset"
 sys.path.insert(0, str(src_dir))
-sys.path.insert(0, str(project_root))
+sys.path.insert(0, str(dataset_dir))
+
+from label_utils import LabelUtils
+from tokenization import TokenizationProcessor
 
 from model import PIIDetectionModel
-from model.dataset.label_utils import LabelUtils
-from model.dataset.tokenization import TokenizationProcessor
 
 
 def debug_training_sample():
