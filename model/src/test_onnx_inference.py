@@ -113,13 +113,9 @@ class ONNXModelTester:
         if self.session is None:
             raise RuntimeError("Model not loaded. Call load_model() first.")
 
-        # Split text into words - this matches training tokenization
-        words = text.split()
-
-        # Tokenize using is_split_into_words=True to match training
+        # Tokenize raw text - this matches training tokenization
         encoding = self.tokenizer(
-            words,
-            is_split_into_words=True,
+            text,
             return_tensors="np",
             return_offsets_mapping=True,
             max_length=4096,
@@ -128,17 +124,10 @@ class ONNXModelTester:
 
         input_ids = encoding["input_ids"].astype(np.int64)
         attention_mask = encoding["attention_mask"].astype(np.int64)
-
-        # Get word_ids for mapping tokens back to words
-        word_ids = encoding.word_ids(batch_index=0)
-
-        # Build character offsets from words
-        # We need to map tokens back to character positions in original text
-        char_offsets = self._build_char_offsets(text, words, word_ids)
+        offsets = encoding["offset_mapping"][0]
 
         if verbose:
             print(f"\n📝 Tokenization:")
-            print(f"   Words: {len(words)}")
             print(f"   Tokens: {len(input_ids[0])}")
             print(f"   Input IDs shape: {input_ids.shape}")
             print(f"   Attention mask shape: {attention_mask.shape}")
@@ -175,7 +164,7 @@ class ONNXModelTester:
 
         # Extract entities
         entities = self._extract_entities(
-            text, pii_predictions, pii_confidences, char_offsets, verbose=verbose
+            text, pii_predictions, pii_confidences, offsets, verbose=verbose
         )
 
         return {
@@ -192,59 +181,12 @@ class ONNXModelTester:
         exp_x = np.exp(x - np.max(x, axis=-1, keepdims=True))
         return exp_x / np.sum(exp_x, axis=-1, keepdims=True)
 
-    def _build_char_offsets(
-        self, text: str, words: list[str], word_ids: list[int | None]
-    ) -> list[tuple[int, int]]:
-        """
-        Build character offsets for each token based on word positions.
-
-        Args:
-            text: Original text
-            words: List of words from text.split()
-            word_ids: List of word indices for each token (None for special tokens)
-
-        Returns:
-            List of (start, end) character offsets for each token
-        """
-        # First, find the character position of each word in the original text
-        word_char_positions = []
-        current_pos = 0
-        for word in words:
-            # Find this word in the text starting from current position
-            pos = text.find(word, current_pos)
-            if pos == -1:
-                # Fallback: use current position
-                pos = current_pos
-            word_char_positions.append((pos, pos + len(word)))
-            current_pos = pos + len(word)
-
-        # Now map each token to character offsets
-        char_offsets = []
-        prev_word_id = None
-
-        for word_id in word_ids:
-            if word_id is None:
-                # Special token ([CLS], [SEP]) - use (0, 0) to mark as special
-                char_offsets.append((0, 0))
-            elif word_id < len(word_char_positions):
-                word_start, word_end = word_char_positions[word_id]
-                # For subword tokens of the same word, we use the same word boundaries
-                # This is a simplification - ideally we'd track subword positions
-                char_offsets.append((word_start, word_end))
-            else:
-                # Out of bounds - shouldn't happen
-                char_offsets.append((0, 0))
-
-            prev_word_id = word_id
-
-        return char_offsets
-
     def _extract_entities(
         self,
         text: str,
         predictions: np.ndarray,
         confidences: np.ndarray,
-        offsets: list[tuple[int, int]],
+        offsets: np.ndarray,
         confidence_threshold: float = 0.5,
         verbose: bool = False,
     ) -> list:
@@ -255,7 +197,7 @@ class ONNXModelTester:
             text: Original text
             predictions: Token class predictions
             confidences: Token confidence scores
-            offsets: Token offset mappings (list of (start, end) tuples)
+            offsets: Token offset mappings
             confidence_threshold: Minimum confidence to keep
             verbose: Print token-level details
 
@@ -264,8 +206,7 @@ class ONNXModelTester:
         """
         entities = []
         current_entity = None
-        current_start = None
-        current_end = None
+        current_tokens = []
 
         if verbose:
             print(f"\n🔍 Token Predictions (showing non-O and first 10):")
@@ -316,7 +257,7 @@ class ONNXModelTester:
                 # Finish previous entity
                 if current_entity is not None:
                     self._finalize_entity(
-                        current_entity, current_start, current_end, text, entities
+                        current_entity, current_tokens, text, offsets, entities
                     )
 
                 # Start new entity
@@ -324,13 +265,12 @@ class ONNXModelTester:
                     "label": base_label,
                     "confidence": conf,
                 }
-                current_start = start
-                current_end = end
+                current_tokens = [i]
 
             elif label != "O" and is_inside and current_entity is not None:
                 if current_entity["label"] == base_label:
-                    # Continue current entity - extend the end position
-                    current_end = max(current_end, end)
+                    # Continue current entity
+                    current_tokens.append(i)
                     # Update confidence (average)
                     current_entity["confidence"] = (
                         current_entity["confidence"] + conf
@@ -338,29 +278,27 @@ class ONNXModelTester:
                 else:
                     # Different label - finish current and start new
                     self._finalize_entity(
-                        current_entity, current_start, current_end, text, entities
+                        current_entity, current_tokens, text, offsets, entities
                     )
                     current_entity = {
                         "label": base_label,
                         "confidence": conf,
                     }
-                    current_start = start
-                    current_end = end
+                    current_tokens = [i]
 
             else:
                 # O label - finish current entity
                 if current_entity is not None:
                     self._finalize_entity(
-                        current_entity, current_start, current_end, text, entities
+                        current_entity, current_tokens, text, offsets, entities
                     )
                     current_entity = None
-                    current_start = None
-                    current_end = None
+                    current_tokens = []
 
         # Finish last entity
         if current_entity is not None:
             self._finalize_entity(
-                current_entity, current_start, current_end, text, entities
+                current_entity, current_tokens, text, offsets, entities
             )
 
         return entities
@@ -368,14 +306,21 @@ class ONNXModelTester:
     def _finalize_entity(
         self,
         entity: dict,
-        start_pos: int,
-        end_pos: int,
+        token_indices: list,
         text: str,
+        offsets: np.ndarray,
         entities: list,
     ):
-        """Extract entity text from character positions and add to entities list."""
-        if start_pos is None or end_pos is None:
+        """Extract entity text from token offsets and add to entities list."""
+        if not token_indices:
             return
+
+        # Get start and end positions
+        start_offset = offsets[token_indices[0]]
+        end_offset = offsets[token_indices[-1]]
+
+        start_pos = int(start_offset[0])
+        end_pos = int(end_offset[1])
 
         # Extract text
         entity["text"] = text[start_pos:end_pos]
