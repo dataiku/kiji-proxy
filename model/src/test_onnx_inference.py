@@ -113,9 +113,13 @@ class ONNXModelTester:
         if self.session is None:
             raise RuntimeError("Model not loaded. Call load_model() first.")
 
-        # Tokenize
+        # Split text into words - this matches training tokenization
+        words = text.split()
+
+        # Tokenize using is_split_into_words=True to match training
         encoding = self.tokenizer(
-            text,
+            words,
+            is_split_into_words=True,
             return_tensors="np",
             return_offsets_mapping=True,
             max_length=4096,
@@ -124,10 +128,17 @@ class ONNXModelTester:
 
         input_ids = encoding["input_ids"].astype(np.int64)
         attention_mask = encoding["attention_mask"].astype(np.int64)
-        offsets = encoding["offset_mapping"][0]
+
+        # Get word_ids for mapping tokens back to words
+        word_ids = encoding.word_ids(batch_index=0)
+
+        # Build character offsets from words
+        # We need to map tokens back to character positions in original text
+        char_offsets = self._build_char_offsets(text, words, word_ids)
 
         if verbose:
             print(f"\n📝 Tokenization:")
+            print(f"   Words: {len(words)}")
             print(f"   Tokens: {len(input_ids[0])}")
             print(f"   Input IDs shape: {input_ids.shape}")
             print(f"   Attention mask shape: {attention_mask.shape}")
@@ -164,7 +175,7 @@ class ONNXModelTester:
 
         # Extract entities
         entities = self._extract_entities(
-            text, pii_predictions, pii_confidences, offsets, verbose=verbose
+            text, pii_predictions, pii_confidences, char_offsets, verbose=verbose
         )
 
         return {
