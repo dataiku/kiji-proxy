@@ -1,17 +1,21 @@
-"""Tokenization utilities for training samples."""
+"""Tokenization utilities for training samples.
 
-import re
+This module handles tokenization and label alignment for PII detection training.
+It uses character-offset-based alignment to ensure consistency between training
+and inference tokenization.
+"""
+
 from typing import Any
 
-from transformers import AutoTokenizer
+from transformers import PreTrainedTokenizerBase
 
 
 class TokenizationProcessor:
-    """Processes text tokenization and label alignment."""
+    """Processes text tokenization and label alignment using character offsets."""
 
     def __init__(
         self,
-        tokenizer: AutoTokenizer,
+        tokenizer: PreTrainedTokenizerBase,
         label2id: dict[str, int],
         id2label: dict[int, str],
         max_length: int = 4096,
@@ -21,22 +25,26 @@ class TokenizationProcessor:
         self.id2label = id2label
         self.max_length = max_length
 
-    def _find_privacy_mask_positions(
+    def _find_all_occurrences(
         self, text: str, privacy_mask: list[dict[str, str]]
     ) -> list[dict[str, Any]]:
-        """Find start and end positions for each privacy mask item."""
-        privacy_mask_with_positions = []
+        """
+        Find all character-level positions for each privacy mask item.
+
+        Returns list of {value, label, start, end} sorted by start position.
+        """
+        occurrences = []
         for item in privacy_mask:
             value = item["value"]
             label = item["label"]
 
             # Find all occurrences of the value in the text
-            start = 0
+            start_pos = 0
             while True:
-                pos = text.find(value, start)
+                pos = text.find(value, start_pos)
                 if pos == -1:
                     break
-                privacy_mask_with_positions.append(
+                occurrences.append(
                     {
                         "value": value,
                         "label": label,
@@ -44,259 +52,181 @@ class TokenizationProcessor:
                         "end": pos + len(value),
                     }
                 )
-                start = pos + 1
+                start_pos = pos + 1
 
-        # Sort by start position (reverse order for replacement)
-        return sorted(
-            privacy_mask_with_positions, key=lambda x: x["start"], reverse=True
-        )
+        # Sort by start position
+        return sorted(occurrences, key=lambda x: x["start"])
 
-    def _create_word_labels(
-        self, text: str, privacy_mask_with_positions: list[dict[str, Any]]
-    ) -> list[str]:
-        """Create word-level labels from privacy mask positions."""
-        # Replace sensitive text with label placeholders
-        text_with_labels = text
-        for item in privacy_mask_with_positions:
-            label = item["label"]
-            start = item["start"]
-            end = item["end"]
-            value = item["value"]
+    def _get_label_for_position(
+        self,
+        char_start: int,
+        char_end: int,
+        entities: list[dict[str, Any]],
+        prev_label: str | None,
+        prev_entity_idx: int | None,
+    ) -> tuple[str, int | None]:
+        """
+        Determine the label for a token based on its character position.
 
-            # Count words in the sensitive value
-            word_count = len(value.split())
+        Returns (label, entity_index) where:
+        - label is "O", "B-LABEL", or "I-LABEL"
+        - entity_index is the index of the entity this token belongs to (or None)
+        """
+        # Find which entity (if any) this token overlaps with
+        for idx, entity in enumerate(entities):
+            entity_start = entity["start"]
+            entity_end = entity["end"]
+            entity_label = entity["label"]
 
-            # Replace with appropriate number of label placeholders
-            replacement = " ".join([label] * word_count)
-            text_with_labels = (
-                text_with_labels[:start] + replacement + text_with_labels[end:]
-            )
-
-        # Split into words and assign labels
-        words = text_with_labels.split()
-        word_labels = []
-        for word in words:
-            match = re.search(r"(\w+)", word)
-            if match:
-                label = match.group(1)
-                # Check if it's a valid PII label (all uppercase, not "O")
-                if label.isupper() and label != "O":
-                    word_labels.append(label)
+            # Check if token overlaps with entity
+            # Token overlaps if: token_start < entity_end AND token_end > entity_start
+            if char_start < entity_end and char_end > entity_start:
+                # Determine if this is the beginning or inside of the entity
+                # It's B- if:
+                # 1. Previous token was not part of this same entity, OR
+                # 2. Previous token was a different entity type
+                if prev_entity_idx != idx:
+                    return f"B-{entity_label}", idx
                 else:
-                    word_labels.append("O")
-            else:
-                word_labels.append("O")
+                    return f"I-{entity_label}", idx
 
-        return word_labels
+        return "O", None
 
-    def _is_punctuation_only(self, token_text: str) -> bool:
-        """Check if a token contains only punctuation characters."""
-        stripped = token_text.strip()
-        if not stripped:
-            return False
-        punctuation_chars = set(",.;:!?)]}['\"-–—()[]{}")
-        return all(c in punctuation_chars for c in stripped)
-
-    def _is_punctuation_in_entity(
+    def _align_labels_to_tokens(
         self,
-        punct_text: str,
-        word_idx: int,
-        words_original: list[str] | None,
-        privacy_mask_with_positions: list[dict[str, Any]] | None,
-    ) -> bool:
-        """Check if punctuation is part of an entity value (e.g., comma in 'Google, Inc.')."""
-        if (
-            not words_original
-            or not privacy_mask_with_positions
-            or word_idx >= len(words_original)
-        ):
-            return False
-
-        original_word = words_original[word_idx]
-        word_without_punct = original_word.rstrip(",.;:!?)]}")
-
-        for item in privacy_mask_with_positions:
-            entity_value = item.get("value", "")
-            # Punctuation is part of entity if both:
-            # 1. Punctuation char is in the entity value
-            # 2. The word (without trailing punct) is part of the entity
-            if punct_text in entity_value and word_without_punct in entity_value:
-                return True
-        return False
-
-    def _get_label_id(self, word_label: str, is_beginning: bool) -> int:
-        """Get the label ID for a word label with B-/I- prefix."""
-        if word_label == "O":
-            return 0
-        prefix = "B-" if is_beginning else "I-"
-        return self.label2id.get(f"{prefix}{word_label}", 0)
-
-    def _align_labels_with_tokens(
-        self,
-        word_labels: list[str],
-        word_ids: list[int | None],
-        token_texts: list[str] | None = None,
-        words_original: list[str] | None = None,
-        privacy_mask_with_positions: list[dict[str, Any]] | None = None,
+        text: str,
+        offsets: list[tuple[int, int]],
+        privacy_mask: list[dict[str, str]],
     ) -> list[int]:
         """
-        Align word-level labels with token IDs using proper BIO tagging.
+        Align PII labels to tokens using character offsets.
 
-        BIO tagging rules:
-        - B-LABEL: First token of an entity (Beginning)
-        - I-LABEL: Subsequent tokens of the same entity (Inside)
-        - O: Non-entity tokens (Outside)
+        Args:
+            text: Original text
+            offsets: List of (start, end) character offsets for each token
+            privacy_mask: List of {value, label} items
 
-        An entity STARTS (B-) when:
-        1. Previous token was O and current is entity
-        2. Previous token was different entity type
-        3. This is the first token of the sequence
+        Returns:
+            List of label IDs for each token
         """
-        label_ids = []
-        prev_word_idx = None
-        prev_effective_label = (
-            "O"  # Track the actual label used (after punctuation handling)
-        )
-        entity_started = False  # Track if we're inside an entity
+        # Find all entity occurrences with positions
+        entities = self._find_all_occurrences(text, privacy_mask)
 
-        for idx, word_idx in enumerate(word_ids):
-            # Handle special tokens and out-of-bounds
-            if word_idx is None or word_idx >= len(word_labels):
+        label_ids = []
+        prev_entity_idx = None
+        prev_label = "O"
+
+        for start, end in offsets:
+            # Special tokens have offset (0, 0) - mark as ignore
+            if start == 0 and end == 0:
                 label_ids.append(-100)
-                # Reset entity tracking on special tokens
-                prev_effective_label = "O"
-                entity_started = False
+                prev_entity_idx = None
+                prev_label = "O"
                 continue
 
-            word_label = word_labels[word_idx]
-            token_text = (
-                token_texts[idx] if token_texts and idx < len(token_texts) else ""
+            # Get label for this token position
+            label, entity_idx = self._get_label_for_position(
+                start, end, entities, prev_label, prev_entity_idx
             )
-            is_punct = self._is_punctuation_only(token_text)
 
-            # Determine effective label for this token
-            effective_label = word_label
-            if is_punct:
-                # Punctuation: only label as entity if it's actually part of entity value
-                if word_label != "O" and not self._is_punctuation_in_entity(
-                    token_text.strip(),
-                    word_idx,
-                    words_original,
-                    privacy_mask_with_positions,
-                ):
-                    # Punctuation after entity (e.g., comma after "Smith") -> "O"
-                    effective_label = "O"
+            # Convert label to ID
+            label_id = self.label2id.get(label, 0)
+            label_ids.append(label_id)
 
-            # Determine if this is beginning (B-) or inside (I-) of entity
-            # An entity BEGINS when:
-            # 1. Current label is not O AND
-            # 2. Either: previous was O, OR previous was different entity type, OR this is a new word
-            if effective_label == "O":
-                is_beginning = False  # O tokens don't have B-/I- prefix
-                entity_started = False
-            elif prev_effective_label == "O":
-                # Transitioning from O to entity -> Beginning
-                is_beginning = True
-                entity_started = True
-            elif prev_effective_label != effective_label:
-                # Different entity type -> new Beginning
-                is_beginning = True
-                entity_started = True
-            elif prev_word_idx != word_idx:
-                # Same entity type but new word -> still Inside (same entity continues)
-                # This handles multi-word entities like "John Smith" -> B-NAME I-NAME
-                is_beginning = False
-            else:
-                # Same word, same entity type -> Inside (subword token)
-                is_beginning = False
-
-            label_ids.append(self._get_label_id(effective_label, is_beginning))
-
-            prev_word_idx = word_idx
-            prev_effective_label = effective_label
-
-        # Truncate to max_length if needed
-        if len(label_ids) > self.max_length:
-            label_ids = label_ids[: self.max_length - 1] + [-100]
+            prev_entity_idx = entity_idx
+            prev_label = label
 
         return label_ids
+
+    def _align_coref_labels_to_tokens(
+        self,
+        text: str,
+        offsets: list[tuple[int, int]],
+        coreferences: list[dict[str, Any]],
+    ) -> list[int]:
+        """
+        Align coreference labels to tokens using character offsets.
+
+        Args:
+            text: Original text
+            offsets: List of (start, end) character offsets for each token
+            coreferences: List of coreference clusters with mentions
+
+        Returns:
+            List of coreference label IDs for each token
+        """
+        # Build a mapping of character positions to cluster IDs
+        # Each position can belong to at most one cluster
+        char_to_cluster = {}
+
+        for coref in coreferences:
+            cluster_id = coref["cluster_id"]
+            mentions = coref["mentions"]
+
+            for mention in mentions:
+                # Find all occurrences of this mention in the text
+                mention_clean = mention.strip()
+                start_pos = 0
+                while True:
+                    pos = text.find(mention_clean, start_pos)
+                    if pos == -1:
+                        break
+
+                    # Mark all characters in this mention as belonging to this cluster
+                    for char_idx in range(pos, pos + len(mention_clean)):
+                        if char_idx not in char_to_cluster:
+                            char_to_cluster[char_idx] = cluster_id
+
+                    start_pos = pos + 1
+
+        # Align to tokens
+        coref_labels = []
+
+        for start, end in offsets:
+            # Special tokens have offset (0, 0)
+            if start == 0 and end == 0:
+                coref_labels.append(-100)
+                continue
+
+            # Check if any character in this token belongs to a cluster
+            cluster_id = None
+            for char_idx in range(start, end):
+                if char_idx in char_to_cluster:
+                    cluster_id = char_to_cluster[char_idx]
+                    break
+
+            if cluster_id is not None:
+                coref_labels.append(cluster_id + 1)  # +1 because 0 = NO_COREF
+            else:
+                coref_labels.append(0)  # NO_COREF
+
+        return coref_labels
 
     def create_pii_sample(
         self, text: str, privacy_mask: list[dict[str, str]]
     ) -> dict[str, Any]:
-        """Create a PII training sample with tokenized input and labels."""
-        # Find positions for privacy mask items
-        privacy_mask_with_positions = self._find_privacy_mask_positions(
-            text, privacy_mask
-        )
+        """
+        Create a PII training sample with tokenized input and labels.
 
-        # Create word-level labels
-        word_labels = self._create_word_labels(text, privacy_mask_with_positions)
-
-        # Tokenize the original text
-        words_original = text.split()
+        Uses raw text tokenization (NOT is_split_into_words) to match inference.
+        """
+        # Tokenize the raw text - this matches inference tokenization
         tokenized = self.tokenizer(
-            words_original,
+            text,
             truncation=True,
-            is_split_into_words=True,
             max_length=self.max_length,
             return_offsets_mapping=True,
         )
 
-        # Get word IDs for alignment
-        try:
-            word_ids = tokenized.word_ids(batch_index=0)
-        except (TypeError, AttributeError):
-            word_ids = tokenized.word_ids()
+        # Get offsets for label alignment
+        offsets = tokenized["offset_mapping"]
 
-        # Get token texts to check for punctuation-only tokens
-        # Use raw token strings for better punctuation detection
-        token_texts = None
-        try:
-            # Handle both 1D and 2D input_ids (depends on tokenizer behavior)
-            input_ids = tokenized["input_ids"]
-            if isinstance(input_ids, list) and len(input_ids) > 0:
-                # Check if it's 2D (list of lists) or 1D (list of ints)
-                if isinstance(input_ids[0], list):
-                    token_ids = input_ids[0]
-                else:
-                    token_ids = input_ids
-            else:
-                token_ids = list(input_ids)
+        # Align labels to tokens using character offsets
+        label_ids = self._align_labels_to_tokens(text, offsets, privacy_mask)
 
-            # Convert token IDs to token strings
-            token_texts = []
-            for tid in token_ids:
-                try:
-                    # Convert ID to raw token string (before decoding)
-                    # This preserves punctuation marks better
-                    token_str = self.tokenizer.convert_ids_to_tokens([tid])[0]
-                    # For punctuation detection, use the raw token string
-                    # Remove special prefixes like ## for subword tokens, but keep punctuation
-                    if token_str.startswith("##"):
-                        token_text = token_str[2:]
-                    else:
-                        token_text = token_str
-                    # Also try decoded version as fallback for better accuracy
-                    decoded_text = self.tokenizer.convert_tokens_to_string([token_str])
-                    # Use decoded text if it's more reliable (non-empty and matches token)
-                    if decoded_text and len(decoded_text.strip()) > 0:
-                        token_texts.append(decoded_text)
-                    else:
-                        token_texts.append(token_text)
-                except (IndexError, TypeError, AttributeError):
-                    token_texts.append("")
-        except (TypeError, KeyError, IndexError, AttributeError):
-            token_texts = None
-
-        # Align labels with tokens
-        label_ids = self._align_labels_with_tokens(
-            word_labels,
-            word_ids,
-            token_texts,
-            words_original,
-            privacy_mask_with_positions,
-        )
+        # Truncate labels if needed
+        if len(label_ids) > self.max_length:
+            label_ids = label_ids[: self.max_length]
 
         return {
             "input_ids": tokenized["input_ids"],
@@ -310,154 +240,40 @@ class TokenizationProcessor:
     def create_coreference_sample(
         self, text: str, coreferences: list[dict[str, Any]]
     ) -> dict[str, Any]:
-        """Create a coreference detection training sample."""
-        # Tokenize the text
-        words_original = text.split()
+        """
+        Create a coreference detection training sample.
+
+        Uses raw text tokenization (NOT is_split_into_words) to match inference.
+        """
+        # Tokenize the raw text - this matches inference tokenization
         tokenized = self.tokenizer(
-            words_original,
+            text,
             truncation=True,
-            is_split_into_words=True,
             max_length=self.max_length,
             return_offsets_mapping=True,
         )
 
-        # Get word IDs for token alignment
-        try:
-            word_ids = tokenized.word_ids(batch_index=0)
-        except (TypeError, AttributeError):
-            word_ids = tokenized.word_ids()
+        # Get offsets for label alignment
+        offsets = tokenized["offset_mapping"]
 
-        # Get token texts to check for punctuation-only tokens
-        # Use raw token strings for better punctuation detection
-        token_texts = None
-        try:
-            # Handle both 1D and 2D input_ids (depends on tokenizer behavior)
-            input_ids = tokenized["input_ids"]
-            if isinstance(input_ids, list) and len(input_ids) > 0:
-                # Check if it's 2D (list of lists) or 1D (list of ints)
-                if isinstance(input_ids[0], list):
-                    token_ids = input_ids[0]
-                else:
-                    token_ids = input_ids
-            else:
-                token_ids = list(input_ids)
+        # Align coreference labels to tokens
+        coref_labels = self._align_coref_labels_to_tokens(text, offsets, coreferences)
 
-            token_texts = []
-            for tid in token_ids:
-                try:
-                    # Convert ID to raw token string (before decoding)
-                    token_str = self.tokenizer.convert_ids_to_tokens([tid])[0]
-                    # For punctuation detection, use the raw token string
-                    if token_str.startswith("##"):
-                        token_text = token_str[2:]
-                    else:
-                        token_text = token_str
-                    # Also try decoded version as fallback for better accuracy
-                    decoded_text = self.tokenizer.convert_tokens_to_string([token_str])
-                    # Use decoded text if it's more reliable (non-empty and matches token)
-                    if decoded_text and len(decoded_text.strip()) > 0:
-                        token_texts.append(decoded_text)
-                    else:
-                        token_texts.append(token_text)
-                except (IndexError, TypeError, AttributeError):
-                    token_texts.append("")
-        except (TypeError, KeyError, IndexError, AttributeError):
-            token_texts = None
-
-        # Create a mapping from word index to cluster ID
-        word_to_cluster = [-1] * len(words_original)
-
-        # Process each coreference cluster
-        for coref in coreferences:
-            cluster_id = coref["cluster_id"]
-            mentions = coref["mentions"]
-
-            # For each mention in the cluster, find its position in the text
-            for mention in mentions:
-                # Strip punctuation from mention for matching
-                mention_clean = mention.strip().rstrip(",.;:!?)]}")
-                start = 0
-                while True:
-                    pos = text.find(mention_clean, start)
-                    if pos == -1:
-                        break
-
-                    text_before_mention = text[:pos]
-                    words_before = text_before_mention.split()
-                    start_word_idx = len(words_before)
-
-                    mention_words = mention_clean.split()
-                    end_word_idx = start_word_idx + len(mention_words)
-
-                    # Verify the match by checking if words align correctly
-                    if start_word_idx < len(words_original):
-                        mention_text_at_pos = " ".join(
-                            words_original[start_word_idx:end_word_idx]
-                        )
-                        if (
-                            mention_clean.lower() in mention_text_at_pos.lower()
-                            or mention_text_at_pos.lower() in mention_clean.lower()
-                        ):
-                            # Assign cluster ID to all words in this mention (skip punctuation-only words)
-                            for word_idx in range(
-                                start_word_idx, min(end_word_idx, len(words_original))
-                            ):
-                                # Check if this word is punctuation-only
-                                word_text = words_original[word_idx]
-                                is_punctuation_only = word_text.strip() and all(
-                                    c in ",.;:!?)]} " for c in word_text.strip()
-                                )
-                                if (
-                                    not is_punctuation_only
-                                    and word_to_cluster[word_idx] == -1
-                                ):
-                                    word_to_cluster[word_idx] = cluster_id
-
-                    start = pos + 1
-
-        # Align cluster IDs with tokens
-        cluster_labels = []
-        for idx, word_idx in enumerate(word_ids):
-            if word_idx is None:
-                cluster_labels.append(-100)
-            elif word_idx >= len(word_to_cluster):
-                cluster_labels.append(-100)
-            else:
-                # Check if this token is punctuation-only
-                is_punctuation_only = False
-                if token_texts is not None and idx < len(token_texts):
-                    token_text = token_texts[idx]
-                    stripped = token_text.strip()
-                    is_punctuation_only = stripped and all(
-                        c in ",.;:!?)]} " for c in stripped
-                    )
-
-                # If punctuation-only, always label as NO_COREF (0)
-                if is_punctuation_only:
-                    cluster_labels.append(0)
-                else:
-                    cluster_id = word_to_cluster[word_idx]
-                    if cluster_id == -1:
-                        cluster_labels.append(0)  # No coreference
-                    else:
-                        cluster_labels.append(cluster_id + 1)  # Add 1 to avoid 0
-
-        # Truncate to max_length if needed
-        if len(cluster_labels) > self.max_length:
-            cluster_labels = cluster_labels[: self.max_length - 1] + [-100]
+        # Truncate labels if needed
+        if len(coref_labels) > self.max_length:
+            coref_labels = coref_labels[: self.max_length]
 
         # Create cluster_id to label mapping
-        cluster_id2label = {0: "NO_COREF"}
+        cluster_id2label = {0: "NO_COREF", -100: "IGNORE"}
         for coref in coreferences:
             cluster_id = coref["cluster_id"]
             entity_type = coref.get("entity_type", "unknown")
             cluster_id2label[cluster_id + 1] = f"CLUSTER_{cluster_id}_{entity_type}"
-        cluster_id2label[-100] = "IGNORE"
 
         return {
             "input_ids": tokenized["input_ids"],
             "attention_mask": tokenized["attention_mask"],
-            "coreference_labels": cluster_labels,
+            "coreference_labels": coref_labels,
             "text": text,
             "cluster_id2label": cluster_id2label,
         }
