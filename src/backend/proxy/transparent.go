@@ -68,26 +68,20 @@ func NewTransparentProxy(
 // ServeHTTP implements http.Handler interface
 func (tp *TransparentProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Determine provider for current request
-	var provider providers.Provider
-
-	switch host := r.URL.Host; host {
-	case providers.ProviderAPIDomainOpenAI:
-		provider = tp.handler.providers.OpenAIProvider
-	case providers.ProviderAPIDomainAnthropic:
-		provider = tp.handler.providers.AnthropicProvider
-	default:
-		log.Printf("[TransparentProxy] Unknown provider detected, cannot proxy request.")
-		http.Error(w, "Unknown provider detected, cannot proxy request", http.StatusBadRequest)
+	provider, err := tp.handler.providers.GetProviderFromHost(r.URL.Host)
+	if err != nil {
+		log.Printf("[TransparentProxy] Error retrieving provider from host: %s", err.Error())
+		http.Error(w, "Error retrieving provider from host", http.StatusBadRequest)
 		return
 	}
 
-	log.Printf("[TransparentProxy] Received request: Method=%s, Host=%s, URL=%s, Path=%s, Provider=%s", r.Method, r.Host, r.URL.String(), r.URL.Path, provider.GetName())
+	log.Printf("[TransparentProxy] Received request: Method=%s, Host=%s, URL=%s, Path=%s, Provider=%s", r.Method, r.Host, r.URL.String(), r.URL.Path, (*provider).GetName())
 	if r.Method == http.MethodConnect {
-		tp.handleCONNECT(w, r, &provider)
+		tp.handleCONNECT(w, r, provider)
 		return
 	}
 
-	tp.handleHTTPRequest(w, r, &provider)
+	tp.handleHTTPRequest(w, r, provider)
 }
 
 // handleHTTPRequest handles standard HTTP requests

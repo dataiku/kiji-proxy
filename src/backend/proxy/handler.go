@@ -23,10 +23,8 @@ import (
 
 // Handler handles HTTP requests and proxies them to LLM provider
 type Handler struct {
-	client *http.Client
-	config *config.Config
-	//openAIProvider     *providers.OpenAIProvider
-	//anthropicProvider  *providers.AnthropicProvider
+	client             *http.Client
+	config             *config.Config
 	providers          *providers.Providers
 	detector           *pii.Detector
 	responseProcessor  *processor.ResponseProcessor
@@ -67,19 +65,13 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[Proxy] Received %s request to %s", r.Method, r.URL.Path)
 
 	// Determine provider for current request
-	var provider providers.Provider
-
-	switch path := r.URL.Path; path {
-	case providers.ProviderSubpathOpenAI:
-		provider = h.providers.OpenAIProvider
-	case providers.ProviderSubpathAnthropic:
-		provider = h.providers.AnthropicProvider
-	default:
-		log.Printf("[Proxy] Unknown provider detected, cannot proxy request.")
-		http.Error(w, "Unknown provider detected, cannot proxy request", http.StatusBadRequest)
+	provider, err := h.providers.GetProviderFromPath(r.URL.Path)
+	if err != nil {
+		log.Printf("[Proxy] Error retrieving provider from path: %s", err.Error())
+		http.Error(w, "Error retrieving provider from path", http.StatusBadRequest)
 		return
 	}
-	log.Printf("[Proxy] %s provider detected", provider.GetName())
+	log.Printf("[Proxy] %s provider detected", (*provider).GetName())
 
 	// Check if detailed PII information is requested via query parameter
 	includeDetails := r.URL.Query().Get("details") == "true"
@@ -108,13 +100,13 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			includeDetails = false
 		} else {
 			// Extract text from messages for logging
-			originalText, _ = provider.ExtractRequestText(requestData)
+			originalText, _ = (*provider).ExtractRequestText(requestData)
 		}
 	}
 
 	// Process request through shared PII pipeline
 	processStart := time.Now()
-	processed, err := h.ProcessRequestBody(r.Context(), body, &provider)
+	processed, err := h.ProcessRequestBody(r.Context(), body, provider)
 	if err != nil {
 		log.Printf("[Proxy] ❌ Failed to process request: %v", err)
 		http.Error(w, "Failed to process request", http.StatusInternalServerError)
@@ -124,7 +116,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Create and send proxy request with redacted body
 	proxyStart := time.Now()
-	resp, err := h.createAndSendProxyRequest(r, processed.RedactedBody, &provider)
+	resp, err := h.createAndSendProxyRequest(r, processed.RedactedBody, provider)
 	if err != nil {
 		log.Printf("[Proxy] ❌ Failed to create proxy request: %v", err)
 		http.Error(w, fmt.Sprintf("Failed to proxy request: %v", err), http.StatusInternalServerError)
@@ -145,7 +137,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Process response through shared PII pipeline
 	responseProcessStart := time.Now()
-	modifiedBody := h.ProcessResponseBody(r.Context(), respBody, resp.Header.Get("Content-Type"), processed.MaskedToOriginal, processed.TransactionID, &provider)
+	modifiedBody := h.ProcessResponseBody(r.Context(), respBody, resp.Header.Get("Content-Type"), processed.MaskedToOriginal, processed.TransactionID, provider)
 	log.Printf("[Timing] Response PII restoration: %v", time.Since(responseProcessStart))
 
 	// If details are requested, enhance response with PII metadata
@@ -187,7 +179,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 
 			// Extract response text
-			responseText, _ := provider.ExtractResponseText(responseData)
+			responseText, _ := (*provider).ExtractResponseText(responseData)
 			maskedResponseText := responseText
 			for masked, original := range processed.MaskedToOriginal {
 				maskedResponseText = strings.ReplaceAll(maskedResponseText, original, masked)
@@ -553,10 +545,8 @@ func NewHandler(cfg *config.Config, electronConfigPath string) (*Handler, error)
 	}
 
 	return &Handler{
-		client: client,
-		config: cfg,
-		//openAIProvider:     openAIProvider,
-		//anthropicProvider:  anthropicProvider,
+		client:             client,
+		config:             cfg,
 		providers:          &providers,
 		detector:           &detector,
 		responseProcessor:  responseProcessor,

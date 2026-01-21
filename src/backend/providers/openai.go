@@ -39,7 +39,6 @@ func (p *OpenAIProvider) GetBaseURL(useHttps bool) string {
 	} else {
 		return "http://" + p.apiDomain
 	}
-
 }
 
 func (p *OpenAIProvider) ExtractRequestText(data map[string]interface{}) (string, error) {
