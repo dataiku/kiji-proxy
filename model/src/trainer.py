@@ -641,9 +641,44 @@ class PIITrainer:
         logging.info("=" * 60)
         trainer.train()
 
-        # Save
+        # Save model - use save_model() which saves all model weights
         trainer.save_model()
         self.tokenizer.save_pretrained(self.config.output_dir)
+
+        # Verify saved weights include encoder
+        import os
+        from pathlib import Path
+
+        output_path = Path(self.config.output_dir)
+        saved_files = list(output_path.glob("*.safetensors")) + list(
+            output_path.glob("*.bin")
+        )
+        if saved_files:
+            logging.info(f"   Saved model files: {[f.name for f in saved_files]}")
+
+            # Verify encoder weights are included
+            if saved_files[0].suffix == ".safetensors":
+                from safetensors import safe_open
+
+                with safe_open(saved_files[0], framework="pt", device="cpu") as f:
+                    keys = list(f.keys())
+            else:
+                state_dict = torch.load(
+                    saved_files[0], map_location="cpu", weights_only=False
+                )
+                keys = list(state_dict.keys())
+
+            encoder_keys = [k for k in keys if "encoder" in k]
+            classifier_keys = [k for k in keys if "classifier" in k]
+            logging.info(
+                f"   Saved weights: {len(keys)} total, {len(encoder_keys)} encoder, {len(classifier_keys)} classifier"
+            )
+
+            if len(encoder_keys) == 0:
+                logging.warning(
+                    "   ⚠️  No encoder weights saved! This will cause inference issues."
+                )
+
         logging.info(
             f"\n✅ Training completed. Model saved to {self.config.output_dir}"
         )

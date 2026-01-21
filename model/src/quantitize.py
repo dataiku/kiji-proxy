@@ -161,15 +161,59 @@ def load_multitask_model(
                 model_weights_path, map_location="cpu", weights_only=False
             )
 
-        # Handle state dict that might have 'model.' prefix
+        # Log state dict keys for debugging
+        logging.info(f"   State dict contains {len(state_dict)} keys")
+        sample_keys = list(state_dict.keys())[:5]
+        logging.info(f"   Sample keys: {sample_keys}")
+
+        # Handle state dict that might have 'model.' prefix (from Trainer wrapping)
         if any(k.startswith("model.") for k in state_dict.keys()):
+            logging.info("   Removing 'model.' prefix from state dict keys")
             state_dict = {
                 k.replace("model.", ""): v
                 for k, v in state_dict.items()
                 if k.startswith("model.")
             }
-        model.load_state_dict(state_dict, strict=False)
-        logging.info("✅ Model weights loaded")
+
+        # Get model's expected keys
+        model_keys = set(model.state_dict().keys())
+        loaded_keys = set(state_dict.keys())
+
+        # Check for mismatches
+        missing_keys = model_keys - loaded_keys
+        unexpected_keys = loaded_keys - model_keys
+
+        if missing_keys:
+            logging.warning(
+                f"   ⚠️  Missing keys ({len(missing_keys)}): {list(missing_keys)[:5]}..."
+            )
+        if unexpected_keys:
+            logging.warning(
+                f"   ⚠️  Unexpected keys ({len(unexpected_keys)}): {list(unexpected_keys)[:5]}..."
+            )
+
+        # Check encoder weights specifically
+        encoder_keys_loaded = [k for k in loaded_keys if k.startswith("encoder.")]
+        encoder_keys_expected = [k for k in model_keys if k.startswith("encoder.")]
+        logging.info(
+            f"   Encoder weights: {len(encoder_keys_loaded)} loaded, {len(encoder_keys_expected)} expected"
+        )
+
+        if len(encoder_keys_loaded) == 0 and len(encoder_keys_expected) > 0:
+            logging.error(
+                "   ❌ NO ENCODER WEIGHTS FOUND! Model will use random/pretrained encoder weights."
+            )
+            logging.error("   This will cause training/inference mismatch!")
+
+        # Load weights - use strict=True to catch issues
+        try:
+            model.load_state_dict(state_dict, strict=True)
+            logging.info("✅ Model weights loaded (strict mode)")
+        except RuntimeError as e:
+            logging.warning(f"   Strict loading failed: {e}")
+            logging.warning("   Falling back to non-strict loading...")
+            model.load_state_dict(state_dict, strict=False)
+            logging.info("✅ Model weights loaded (non-strict mode)")
     else:
         raise FileNotFoundError(f"Model weights not found in {model_path}")
 
