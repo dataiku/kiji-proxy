@@ -187,7 +187,7 @@ class ONNXModelTester:
         predictions: np.ndarray,
         confidences: np.ndarray,
         offsets: np.ndarray,
-        confidence_threshold: float = 0.3,
+        confidence_threshold: float = 0.1,
         verbose: bool = False,
     ) -> list:
         """
