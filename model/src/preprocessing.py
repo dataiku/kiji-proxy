@@ -135,9 +135,16 @@ class DatasetProcessor:
                 if "value" in item:
                     entity_id = item["id"]
                     value = item.get("value", {})
+                    # Get labels safely - may be empty list for coreference mentions
+                    labels = value.get("labels", [])
+                    label = labels[0] if labels else None
+                    # Skip entries without a label (e.g., PRONOUN, REFERENCE mentions)
+                    # These are handled via coreference relations, not direct PII labels
+                    if label is None or label in ("PRONOUN", "REFERENCE"):
+                        continue
                     entities[entity_id] = {
                         "text": value.get("text", ""),
-                        "label": value.get("labels", [None])[0],
+                        "label": label,
                         "start": value.get("start"),
                         "end": value.get("end"),
                     }
