@@ -111,7 +111,7 @@ func (p *OpenAIProvider) CreateMaskedRequest(maskedRequest map[string]interface{
 	return maskedToOriginal, &entities, nil
 }
 
-func (p *OpenAIProvider) RestoreMaskedResponse(maskedResponse map[string]interface{}, interceptionNotice string, restorePII restorePIIType, getLogResponses getLogResponsesType, getLogVerbose getLogVerboseType) error {
+func (p *OpenAIProvider) RestoreMaskedResponse(maskedResponse map[string]interface{}, maskedToOriginal map[string]string, interceptionNotice string, restorePII restorePIIType, getLogResponses getLogResponsesType, getLogVerbose getLogVerboseType, getAddProxyNotice getAddProxyNotice) error {
 	// Iterate over all 'choices' contained in 'maskedRequest' (as OpenAI can return more than one).
 	choices, ok := maskedResponse["choices"].([]interface{})
 	if !ok || len(choices) == 0 {
@@ -135,7 +135,7 @@ func (p *OpenAIProvider) RestoreMaskedResponse(maskedResponse map[string]interfa
 		}
 
 		// Reverse the PII in the 'content' of the current 'choice'
-		restoredContent := restorePII(content)
+		restoredContent := restorePII(content, maskedToOriginal)
 		if restoredContent != content && getLogResponses() {
 			log.Printf("PII restored in response content")
 			if getLogVerbose() {
@@ -143,7 +143,11 @@ func (p *OpenAIProvider) RestoreMaskedResponse(maskedResponse map[string]interfa
 				log.Printf("Restored response content: %s", restoredContent)
 			}
 		}
-		restoredContent += interceptionNotice
+
+		// Optionally add proxy notice
+		if getAddProxyNotice() {
+			restoredContent += "\n\n[This response was intercepted and processed by Yaak proxy service]"
+		}
 
 		// Replace masked content by reversedContent in 'maskedResponse'
 		message["content"] = restoredContent

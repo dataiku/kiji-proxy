@@ -303,7 +303,7 @@ func (h *Handler) ProcessRequestBody(ctx context.Context, body []byte, provider 
 // This is the shared entry point for all response sources (handler, transparent proxy)
 func (h *Handler) ProcessResponseBody(ctx context.Context, body []byte, contentType string, maskedToOriginal map[string]string, transactionID string, provider *providers.Provider) []byte {
 	// Process the response to restore PII first
-	modifiedBody := h.responseProcessor.ProcessResponse(body, contentType, maskedToOriginal, &provider)
+	modifiedBody := h.responseProcessor.ProcessResponse(body, contentType, maskedToOriginal, provider)
 
 	// Log both masked and restored responses with shared context
 	if h.loggingDB != nil {

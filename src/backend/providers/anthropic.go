@@ -112,7 +112,7 @@ func (p *AnthropicProvider) CreateMaskedRequest(maskedRequest map[string]interfa
 	return maskedToOriginal, &entities, nil
 }
 
-func (p *AnthropicProvider) RestoreMaskedResponse(maskedResponse map[string]interface{}, interceptionNotice string, restorePII restorePIIType, getLogResponses getLogResponsesType, getLogVerbose getLogVerboseType) error {
+func (p *AnthropicProvider) RestoreMaskedResponse(maskedResponse map[string]interface{}, maskedToOriginal map[string]string, interceptionNotice string, restorePII restorePIIType, getLogResponses getLogResponsesType, getLogVerbose getLogVerboseType, getAddProxyNotice getAddProxyNotice) error {
 	// Iterate over all entries in the 'content' field of the Anthropic response that have type='text'.
 	content, ok := maskedResponse["content"].([]interface{})
 	if !ok || len(content) == 0 {
@@ -137,7 +137,7 @@ func (p *AnthropicProvider) RestoreMaskedResponse(maskedResponse map[string]inte
 			}
 
 			// Reverse the PII in the 'text' of the current 'content' item
-			restoredContent := restorePII(content)
+			restoredContent := restorePII(content, maskedToOriginal)
 			if restoredContent != content && getLogResponses() {
 				log.Printf("PII restored in response content")
 				if getLogVerbose() {
@@ -145,7 +145,11 @@ func (p *AnthropicProvider) RestoreMaskedResponse(maskedResponse map[string]inte
 					log.Printf("Restored response content: %s", restoredContent)
 				}
 			}
-			restoredContent += interceptionNotice
+
+			// Optionally add proxy notice
+			if getAddProxyNotice() {
+				restoredContent += "\n\n[This response was intercepted and processed by Yaak proxy service]"
+			}
 
 			// Replace masked content by reversedContent in 'maskedResponse'
 			item["text"] = restoredContent
