@@ -23,10 +23,11 @@ import (
 
 // Handler handles HTTP requests and proxies them to LLM provider
 type Handler struct {
-	client             *http.Client
-	config             *config.Config
-	openAIProvider     *providers.OpenAIProvider
-	anthropicProvider  *providers.AnthropicProvider
+	client *http.Client
+	config *config.Config
+	//openAIProvider     *providers.OpenAIProvider
+	//anthropicProvider  *providers.AnthropicProvider
+	providers          *providers.Providers
 	detector           *pii.Detector
 	responseProcessor  *processor.ResponseProcessor
 	maskingService     *piiServices.MaskingService
@@ -70,9 +71,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	switch path := r.URL.Path; path {
 	case providers.ProviderSubpathOpenAI:
-		provider = h.openAIProvider
+		provider = h.providers.OpenAIProvider
 	case providers.ProviderSubpathAnthropic:
-		provider = h.anthropicProvider
+		provider = h.providers.AnthropicProvider
 	default:
 		log.Printf("[Proxy] Unknown provider detected, cannot proxy request.")
 		http.Error(w, "Unknown provider detected, cannot proxy request", http.StatusBadRequest)
@@ -495,6 +496,11 @@ func NewHandler(cfg *config.Config, electronConfigPath string) (*Handler, error)
 		cfg.Providers.AnthropicProviderConfig.AdditionalHeaders,
 	)
 
+	providers := providers.Providers{
+		OpenAIProvider:    openAIProvider,
+		AnthropicProvider: anthropicProvider,
+	}
+
 	// Create services
 	generatorService := piiServices.NewGeneratorService()
 	maskingService := piiServices.NewMaskingService(detector, generatorService)
@@ -547,10 +553,11 @@ func NewHandler(cfg *config.Config, electronConfigPath string) (*Handler, error)
 	}
 
 	return &Handler{
-		client:             client,
-		config:             cfg,
-		openAIProvider:     openAIProvider,
-		anthropicProvider:  anthropicProvider,
+		client: client,
+		config: cfg,
+		//openAIProvider:     openAIProvider,
+		//anthropicProvider:  anthropicProvider,
+		providers:          &providers,
 		detector:           &detector,
 		responseProcessor:  responseProcessor,
 		maskingService:     maskingService,

@@ -35,3 +35,8 @@ type Provider interface {
 	// ValidateConfig checks if provider configuration is valid
 	ValidateConfig() error
 }
+
+type Providers struct {
+	OpenAIProvider    *OpenAIProvider
+	AnthropicProvider *AnthropicProvider
+}

@@ -47,18 +47,15 @@ type ProvidersConfig struct {
 
 // ProxyConfig holds transparent proxy configuration
 type ProxyConfig struct {
-	TransparentEnabled bool `json:"transparent_enabled"`
-	//InterceptDomains   []string `json:"intercept_domains"` // these should be computed via available proiders
-	ProxyPort string `json:"proxy_port"`
-	CAPath    string `json:"ca_path"`
-	KeyPath   string `json:"key_path"`
-	EnablePAC bool   `json:"enable_pac"` // Enable PAC (Proxy Auto-Config) for automatic system proxy setup
+	TransparentEnabled bool   `json:"transparent_enabled"`
+	ProxyPort          string `json:"proxy_port"`
+	CAPath             string `json:"ca_path"`
+	KeyPath            string `json:"key_path"`
+	EnablePAC          bool   `json:"enable_pac"` // Enable PAC (Proxy Auto-Config) for automatic system proxy setup
 }
 
 // Config holds all configuration for the PII proxy service
 type Config struct {
-	//OpenAIProviderConfig    *ProviderConfig
-	//AnthropicProviderConfig *ProviderConfig
 	Providers     ProvidersConfig
 	ProxyPort     string
 	DetectorName  string
@@ -89,8 +86,6 @@ func DefaultConfig() *Config {
 	keyPath := filepath.Join(homeDir, ".yaak-proxy", "certs", "ca.key")
 
 	return &Config{
-		//OpenAIProviderConfig:    &defaultOpenAIProviderConfig,
-		//AnthropicProviderConfig: &defaultAnthropicProviderConfig,
 		Providers: ProvidersConfig{
 			OpenAIProviderConfig:    defaultOpenAIProviderConfig,
 			AnthropicProviderConfig: defaultAnthropicProviderConfig,

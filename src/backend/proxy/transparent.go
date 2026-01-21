@@ -72,9 +72,9 @@ func (tp *TransparentProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	switch host := r.URL.Host; host {
 	case providers.ProviderAPIDomainOpenAI:
-		provider = tp.handler.openAIProvider
+		provider = tp.handler.providers.OpenAIProvider
 	case providers.ProviderAPIDomainAnthropic:
-		provider = tp.handler.anthropicProvider
+		provider = tp.handler.providers.AnthropicProvider
 	default:
 		log.Printf("[TransparentProxy] Unknown provider detected, cannot proxy request.")
 		http.Error(w, "Unknown provider detected, cannot proxy request", http.StatusBadRequest)
