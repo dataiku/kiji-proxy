@@ -22,7 +22,7 @@ sys.path.insert(0, str(project_root))
 # Also add model/src to path for local imports
 sys.path.insert(0, str(Path(__file__).parent))
 
-from model import MultiTaskPIIDetectionModel
+from model import PIIDetectionModel
 
 
 def load_pytorch_model(model_path: str):
@@ -33,17 +33,14 @@ def load_pytorch_model(model_path: str):
     with open(model_path / "label_mappings.json") as f:
         mappings = json.load(f)
 
-    pii_label2id = mappings["pii"]["label2id"]
-    pii_id2label = {int(k): v for k, v in mappings["pii"]["id2label"].items()}
-    coref_id2label = {int(k): v for k, v in mappings["coref"]["id2label"].items()}
+    label2id = mappings["label2id"]
+    id2label = {int(k): v for k, v in mappings["id2label"].items()}
 
     # Create model
-    model = MultiTaskPIIDetectionModel(
+    model = PIIDetectionModel(
         model_name="answerdotai/ModernBERT-base",
-        num_pii_labels=len(pii_label2id),
-        num_coref_labels=len(coref_id2label),
-        id2label_pii=pii_id2label,
-        id2label_coref=coref_id2label,
+        num_labels=len(label2id),
+        id2label=id2label,
     )
 
     # Load weights
@@ -103,7 +100,7 @@ def load_pytorch_model(model_path: str):
         print("   Loaded with strict=False")
 
     model.eval()
-    return model, pii_id2label, coref_id2label
+    return model, id2label
 
 
 def load_onnx_model(model_path: str):
@@ -119,7 +116,7 @@ def load_onnx_model(model_path: str):
     return session
 
 
-def compare_inference(pytorch_model, onnx_session, tokenizer, pii_id2label, text: str):
+def compare_inference(pytorch_model, onnx_session, tokenizer, id2label, text: str):
     """Compare inference between PyTorch and ONNX."""
     print(f"\n{'=' * 80}")
     print(f"Testing: {text!r}")
@@ -137,9 +134,9 @@ def compare_inference(pytorch_model, onnx_session, tokenizer, pii_id2label, text
             input_ids=inputs["input_ids"], attention_mask=inputs["attention_mask"]
         )
 
-    pytorch_pii_logits = pytorch_outputs["pii_logits"].numpy()
-    pytorch_pii_probs = torch.softmax(pytorch_outputs["pii_logits"], dim=-1).numpy()
-    pytorch_pii_preds = np.argmax(pytorch_pii_logits, axis=-1)
+    pytorch_logits = pytorch_outputs["logits"].numpy()
+    pytorch_probs = torch.softmax(pytorch_outputs["logits"], dim=-1).numpy()
+    pytorch_preds = np.argmax(pytorch_logits, axis=-1)
 
     # ONNX inference
     onnx_inputs = {
@@ -147,11 +144,11 @@ def compare_inference(pytorch_model, onnx_session, tokenizer, pii_id2label, text
         "attention_mask": inputs["attention_mask"].numpy(),
     }
     onnx_outputs = onnx_session.run(None, onnx_inputs)
-    onnx_pii_logits = onnx_outputs[0]
-    onnx_pii_probs = np.exp(onnx_pii_logits) / np.sum(
-        np.exp(onnx_pii_logits), axis=-1, keepdims=True
+    onnx_logits = onnx_outputs[0]
+    onnx_probs = np.exp(onnx_logits) / np.sum(
+        np.exp(onnx_logits), axis=-1, keepdims=True
     )
-    onnx_pii_preds = np.argmax(onnx_pii_logits, axis=-1)
+    onnx_preds = np.argmax(onnx_logits, axis=-1)
 
     # Compare outputs
     print(f"\n{'─' * 40}")
@@ -159,8 +156,8 @@ def compare_inference(pytorch_model, onnx_session, tokenizer, pii_id2label, text
     print(f"{'─' * 40}")
 
     for i, tok in enumerate(tokens):
-        pt_logits = pytorch_pii_logits[0, i, :5]
-        ox_logits = onnx_pii_logits[0, i, :5]
+        pt_logits = pytorch_logits[0, i, :5]
+        ox_logits = onnx_logits[0, i, :5]
         diff = np.abs(pt_logits - ox_logits).max()
 
         print(f"\nToken[{i}] {tok:20s}")
@@ -174,12 +171,12 @@ def compare_inference(pytorch_model, onnx_session, tokenizer, pii_id2label, text
     print(f"{'─' * 40}")
 
     for i, tok in enumerate(tokens):
-        pt_pred = pytorch_pii_preds[0, i]
-        ox_pred = onnx_pii_preds[0, i]
-        pt_label = pii_id2label.get(pt_pred, f"UNKNOWN({pt_pred})")
-        ox_label = pii_id2label.get(ox_pred, f"UNKNOWN({ox_pred})")
-        pt_conf = pytorch_pii_probs[0, i, pt_pred]
-        ox_conf = onnx_pii_probs[0, i, ox_pred]
+        pt_pred = pytorch_preds[0, i]
+        ox_pred = onnx_preds[0, i]
+        pt_label = id2label.get(pt_pred, f"UNKNOWN({pt_pred})")
+        ox_label = id2label.get(ox_pred, f"UNKNOWN({ox_pred})")
+        pt_conf = pytorch_probs[0, i, pt_pred]
+        ox_conf = onnx_probs[0, i, ox_pred]
 
         match = "✅" if pt_pred == ox_pred else "❌"
         print(
@@ -187,14 +184,14 @@ def compare_inference(pytorch_model, onnx_session, tokenizer, pii_id2label, text
         )
 
     # Overall stats
-    logit_diff = np.abs(pytorch_pii_logits - onnx_pii_logits)
+    logit_diff = np.abs(pytorch_logits - onnx_logits)
     print(f"\n{'─' * 40}")
     print("OVERALL STATISTICS:")
     print(f"{'─' * 40}")
     print(f"Max logit difference: {logit_diff.max():.6f}")
     print(f"Mean logit difference: {logit_diff.mean():.6f}")
     print(
-        f"Prediction match rate: {(pytorch_pii_preds == onnx_pii_preds).mean() * 100:.1f}%"
+        f"Prediction match rate: {(pytorch_preds == onnx_preds).mean() * 100:.1f}%"
     )
 
 
@@ -214,7 +211,7 @@ def main():
     print(f"\n{'─' * 40}")
     print("Loading PyTorch Model:")
     print(f"{'─' * 40}")
-    pytorch_model, pii_id2label, coref_id2label = load_pytorch_model(trained_path)
+    pytorch_model, id2label = load_pytorch_model(trained_path)
 
     # Load ONNX model
     print(f"\n{'─' * 40}")
@@ -231,7 +228,7 @@ def main():
     ]
 
     for text in test_texts:
-        compare_inference(pytorch_model, onnx_session, tokenizer, pii_id2label, text)
+        compare_inference(pytorch_model, onnx_session, tokenizer, id2label, text)
 
     print(f"\n{'=' * 80}")
     print("Comparison Complete")
