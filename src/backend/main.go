@@ -264,6 +264,17 @@ func loadApplicationConfig(cfg *config.Config) {
 	} else {
 		log.Printf("Warning: ANTHROPIC_API_KEY is empty or not set")
 	}
+
+	// Override Gemini provider config with environment variables
+	if geminiURL := os.Getenv("GEMINI_BASE_URL"); geminiURL != "" {
+		cfg.Providers.GeminiProviderConfig.APIDomain = geminiURL
+	}
+	if geminiApiKey := os.Getenv("GEMINI_API_KEY"); geminiApiKey != "" {
+		cfg.Providers.GeminiProviderConfig.APIKey = geminiApiKey
+		log.Printf("Loaded GEMINI_API_KEY from environment (length: %d)", len(geminiApiKey))
+	} else {
+		log.Printf("Warning: GEMINI_API_KEY is empty or not set")
+	}
 }
 
 // loadPIIDetectorConfig loads PII detector configuration from environment variables

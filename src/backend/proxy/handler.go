@@ -487,10 +487,16 @@ func NewHandler(cfg *config.Config, electronConfigPath string) (*Handler, error)
 		cfg.Providers.AnthropicProviderConfig.APIKey,
 		cfg.Providers.AnthropicProviderConfig.AdditionalHeaders,
 	)
+	geminiProvider := providers.NewGeminiProvider(
+		cfg.Providers.GeminiProviderConfig.APIDomain,
+		cfg.Providers.GeminiProviderConfig.APIKey,
+		cfg.Providers.GeminiProviderConfig.AdditionalHeaders,
+	)
 
 	providers := providers.Providers{
 		OpenAIProvider:    openAIProvider,
 		AnthropicProvider: anthropicProvider,
+		GeminiProvider:    geminiProvider,
 	}
 
 	// Create services

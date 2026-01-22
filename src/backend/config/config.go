@@ -43,6 +43,7 @@ type ProviderConfig struct {
 type ProvidersConfig struct {
 	OpenAIProviderConfig    ProviderConfig
 	AnthropicProviderConfig ProviderConfig
+	GeminiProviderConfig    ProviderConfig
 }
 
 // ProxyConfig holds transparent proxy configuration
@@ -79,6 +80,10 @@ func DefaultConfig() *Config {
 		APIDomain:         providers.ProviderAPIDomainAnthropic,
 		AdditionalHeaders: map[string]string{},
 	}
+	defaultGeminiProviderConfig := ProviderConfig{
+		APIDomain:         providers.ProviderAPIDomainGemini,
+		AdditionalHeaders: map[string]string{},
+	}
 
 	// Transparent proxy parameters
 	homeDir, _ := os.UserHomeDir()
@@ -89,6 +94,7 @@ func DefaultConfig() *Config {
 		Providers: ProvidersConfig{
 			OpenAIProviderConfig:    defaultOpenAIProviderConfig,
 			AnthropicProviderConfig: defaultAnthropicProviderConfig,
+			GeminiProviderConfig:    defaultGeminiProviderConfig,
 		},
 		ProxyPort:     ":8080",
 		DetectorName:  "onnx_model_detector",
@@ -129,7 +135,7 @@ func DefaultConfig() *Config {
 
 // GetInterceptDomains returns the list of intercept domains (as a union of all provider domains)
 func (pc ProvidersConfig) GetInterceptDomains() []string {
-	return []string{pc.AnthropicProviderConfig.APIDomain, pc.OpenAIProviderConfig.APIDomain}
+	return []string{pc.AnthropicProviderConfig.APIDomain, pc.OpenAIProviderConfig.APIDomain, pc.GeminiProviderConfig.APIDomain}
 }
 
 // GetLogPIIChanges returns whether to log PII changes

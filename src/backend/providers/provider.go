@@ -3,6 +3,7 @@ package providers
 import (
 	"fmt"
 	"net/http"
+	"strings"
 
 	pii "github.com/hannes/yaak-private/src/backend/pii/detectors"
 )
@@ -40,16 +41,19 @@ type Provider interface {
 type Providers struct {
 	OpenAIProvider    *OpenAIProvider
 	AnthropicProvider *AnthropicProvider
+	GeminiProvider    *GeminiProvider
 }
 
 func (p *Providers) GetProviderFromPath(path string) (*Provider, error) {
 	var provider Provider
 
-	switch path {
-	case ProviderSubpathOpenAI:
+	switch {
+	case path == ProviderSubpathOpenAI:
 		provider = p.OpenAIProvider
-	case ProviderSubpathAnthropic:
+	case path == ProviderSubpathAnthropic:
 		provider = p.AnthropicProvider
+	case strings.HasPrefix(path, ProviderSubpathGemini):
+		provider = p.GeminiProvider
 	default:
 		return &provider, fmt.Errorf("unknown provider detected at path '%s'", path)
 	}
@@ -65,6 +69,8 @@ func (p *Providers) GetProviderFromHost(host string) (*Provider, error) {
 		provider = p.OpenAIProvider
 	case p.AnthropicProvider.apiDomain:
 		provider = p.AnthropicProvider
+	case p.GeminiProvider.apiDomain:
+		provider = p.GeminiProvider
 	default:
 		return &provider, fmt.Errorf("unknown provider detected at host '%s'", host)
 	}
