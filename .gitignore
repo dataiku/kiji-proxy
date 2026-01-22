@@ -92,3 +92,6 @@ Archive.zip
 
 # Pipeline folders
 .metaflow/
+
+# AI assistant files
+CLAUDE.md
