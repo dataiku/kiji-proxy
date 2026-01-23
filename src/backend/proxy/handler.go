@@ -238,6 +238,11 @@ func (h *Handler) maskPIIInText(text string, logPrefix string) (string, map[stri
 	return result.MaskedText, result.MaskedToOriginal, result.Entities
 }
 
+// MaskPIIInText is the public version of maskPIIInText for use by other packages
+func (h *Handler) MaskPIIInText(text string) (string, map[string]string, []pii.Entity) {
+	return h.maskPIIInText(text, "[PIICheck]")
+}
+
 // ProcessedRequest contains the result of processing a request through the PII pipeline
 type ProcessedRequest struct {
 	RedactedBody     []byte

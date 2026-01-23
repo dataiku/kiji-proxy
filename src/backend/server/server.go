@@ -214,6 +214,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/stats", s.statsHandler)
 	mux.HandleFunc("/api/model/security", s.handleModelSecurity)
 	mux.HandleFunc("/api/proxy/ca-cert", s.handleCACert)
+	mux.HandleFunc("/api/pii/check", s.handlePIICheck)
 	mux.Handle("/v1/chat/completions", s.handler)
 
 	// Serve UI files with cache-busting headers
@@ -488,6 +489,85 @@ func (s *Server) handleModelSecurity(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 		return
+	}
+}
+
+// PIICheckRequest represents the request body for PII checking
+type PIICheckRequest struct {
+	Message string `json:"message"`
+}
+
+// PIICheckResponse represents the response for PII checking
+type PIICheckResponse struct {
+	MaskedMessage string            `json:"masked_message"`
+	Entities      map[string]string `json:"entities"`
+	PIIFound      bool              `json:"pii_found"`
+}
+
+// handlePIICheck checks a message for PII and returns masked version with entities
+func (s *Server) handlePIICheck(w http.ResponseWriter, r *http.Request) {
+	// Apply rate limiting
+	ip := r.RemoteAddr
+	limiter := s.rateLimiter.GetLimiter(ip)
+	if !limiter.Allow() {
+		http.Error(w, "Rate limit exceeded. Please try again later.", http.StatusTooManyRequests)
+		return
+	}
+
+	// Handle CORS preflight OPTIONS request
+	if r.Method == http.MethodOptions {
+		s.corsHandler(w, r)
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	// Add CORS headers to all responses
+	s.corsHandler(w, r)
+
+	// Only allow POST requests
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Parse request body
+	var req PIICheckRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.Message == "" {
+		http.Error(w, "Message field is required", http.StatusBadRequest)
+		return
+	}
+
+	// Use the handler's masking service to check for PII
+	maskedText, maskedToOriginal, entities := s.handler.MaskPIIInText(req.Message)
+
+	// Build entities map (label -> original text)
+	entitiesMap := make(map[string]string)
+	for _, entity := range entities {
+		entitiesMap[entity.Label] = entity.Text
+	}
+
+	// If there are multiple entities of the same type, we need to handle that
+	// Let's use masked -> original mapping instead for more detail
+	entityDetails := make(map[string]string)
+	for masked, original := range maskedToOriginal {
+		entityDetails[masked] = original
+	}
+
+	response := PIICheckResponse{
+		MaskedMessage: maskedText,
+		Entities:      entityDetails,
+		PIIFound:      len(entities) > 0,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		log.Printf("Failed to encode PII check response: %v", err)
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 	}
 }
 
