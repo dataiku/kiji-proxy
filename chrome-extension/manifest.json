@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Yaak PII Guard",
+  "version": "1.0.0",
+  "description": "Checks for PII before submitting text to ChatGPT",
+  "permissions": ["activeTab"],
+  "host_permissions": [
+    "https://chatgpt.com/*",
+    "http://localhost:8081/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://chatgpt.com/*"],
+      "js": ["content.js"],
+      "css": ["styles.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
