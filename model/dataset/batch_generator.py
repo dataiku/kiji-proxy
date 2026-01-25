@@ -88,7 +88,7 @@ class BatchRequestGenerator:
 
     def get_pii_labels(
         self, all_labels: bool = False, return_count: int = 10, seed: int | None = None
-    ) -> dict[str, str]:
+    ) -> dict[str, dict]:
         """
         Get PII labels with their human-readable descriptions.
 
@@ -137,6 +137,8 @@ class BatchRequestGenerator:
             labels, languages_countries, sample_index=sample_index
         )
 
+        # generate random temperature between 0.01 and 1
+        temperature = random.uniform(0.01, 1)
         # Create batch request in Doubleword format
         batch_request = {
             "custom_id": f"ner-request-{sample_index}",
@@ -145,6 +147,7 @@ class BatchRequestGenerator:
             "body": {
                 "model": self.api_model,
                 "messages": [{"role": "user", "content": prompt}],
+                "temperature": temperature,
                 "metadata": {
                     "language": language,
                     "country": country,

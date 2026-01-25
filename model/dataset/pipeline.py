@@ -63,7 +63,7 @@ _define_flag(
 _define_flag(
     flags.DEFINE_string,
     "output_dir",
-    "model/dataset",
+    "model/dataset/doubleword",
     "Output directory for generated samples",
 )
 _define_flag(

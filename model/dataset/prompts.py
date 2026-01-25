@@ -53,6 +53,8 @@ class PromptBuilder:
                     ],
                 },
             ],
+            "language": "English",
+            "country": "United States",
         },
         {
             "text": "The patient, Maria Santos, was admitted on 2024-03-15. Her date of birth is 1985-07-22. The medical record shows her SSN as 456-78-9012. Dr. Thompson noted that Ms. Santos should follow up at her current address: 789 Maple Boulevard, Austin, TX 78701.",
@@ -85,6 +87,8 @@ class PromptBuilder:
                     ],
                 }
             ],
+            "language": "English",
+            "country": "United States",
         },
         {
             "text": "Customer ID: CUST-789456. Account holder: Kenji Yamamoto. Contact: kenji.y@email.jp. The account was opened on 12/05/2020. Tax identification number: JP-987654321. IBAN: GB82WEST12345698765432.",
@@ -97,6 +101,8 @@ class PromptBuilder:
                 {"value": "GB82WEST12345698765432", "label": "IBAN"},
             ],
             "coreferences": [],
+            "language": "English",
+            "country": "Japan",
         },
         {
             "text": "Just moved to a new place! My address is now 42 Rue de la Paix, Lyon, 69001, France. Phone changed too: +33-6-12-34-56-78. Email stays the same: sophie.martin@france.fr",
@@ -119,12 +125,14 @@ class PromptBuilder:
                     ],
                 }
             ],
+            "language": "English",
+            "country": "France",
         },
     ]
 
     @staticmethod
     def build_ner_generation_prompt(
-        labels: dict[str, str],
+        labels: dict[str, dict],
         languages_countries: list[tuple[str, str]],
         sample_index: int = 0,
     ) -> tuple[str, str, str]:
@@ -147,6 +155,8 @@ class PromptBuilder:
         ner_example = {
             "text": random_sample["text"],
             "privacy_mask": random_sample["privacy_mask"],
+            "language": random_sample["language"],
+            "country": random_sample["country"],
         }
         example_string = f"```json\n{json.dumps(ner_example, indent=2)}\n```"
 
@@ -182,15 +192,17 @@ class PromptBuilder:
         ]
         complexity = complexity_hints[sample_index % len(complexity_hints)]
 
-        # Create instruction text with proper escaping for JSON examples
-        incorrect_example = '{"value": "Ravi Patel", "label": "FIRSTNAME"}'
-        correct_surname_only = '{"value": "Patel", "label": "SURNAME"}'
-        correct_firstname_only = '{"value": "Ravi", "label": "FIRSTNAME"}'
-        correct_both = '{"value": "Ravi", "label": "FIRSTNAME"} {"value": "Patel", "label": "SURNAME"}'
-
         language = selected_language_country[0]
         country = selected_language_country[1]
         labels_list = ", ".join(labels.keys())
+        label_instructions = []
+        for label_key, label_values in labels.items():
+            if not label_values["hints"]:
+                continue
+            label_instructions += f"{label_key}:"
+            label_instructions += label_values["hints"]
+            label_instructions += "\n"
+        label_instructions = "\n".join(label_instructions)
 
         return (
             f"""
@@ -198,20 +210,21 @@ class PromptBuilder:
         {labels_list}
 
         Instructions:
-            1. Generate the sample in `{language}` and make the text as well as the PII data as realistic to the geographic area of `{country}`.
+            1. Generate the sample in `{language}` and make the text as well as the PII data as realistic to the geographic area of `{country}`
             2. Use only the PII types listed above
             3. Write in the style of a {style} - make it realistic and contextually appropriate
             4. {complexity}
             5. Contain 2-5 sentences with multiple entities (vary the number of sentences)
             6. Vary the position of PII in sentences - don't always put names at the beginning
             7. Return the text sample with the included PII data and the type of PII (see example below)
-            8. This is incorrect: {incorrect_example}. If the required labels only contain "surname", only generate a sample with a surname {correct_surname_only}. If the required labels only contain "first name", only generate a sample with a first name {correct_firstname_only}. If first name and surname are required, this is correct: {correct_both}.
-            9. Be creative with your first and last names (use diverse ethnic backgrounds, cultural origins, and avoid common names like "John Smith", "Jane Doe", "Sarah Johnson", "Mike Wilson", etc.).
-            10. Use diverse street names and city names (use names from different countries, cultures, and avoid common ones like "Main Street", "Oak Avenue", "New York", "Los Angeles", "London", "Paris", etc.).
-            11. Vary the format of dates, phone numbers, and addresses to reflect different countries and regions
-            12. Make the text feel natural and contextually appropriate - don't just list PII items
-            13. Review your work before returning the samples. DO NOT create new label names. You can only use the labels listed above.
-            14. Return the text sample in the following JSON format:
+            8. Make the text feel natural and contextually appropriate - don't just list PII items
+            9. Review your work before returning the samples. DO NOT create new label names. You can only use the labels listed above
+
+        Label-specific Instructions:
+            {label_instructions}
+
+        Schema Instructions:
+            Return the text sample in the following JSON format:
             ```json
             [{{
                 "text": "The text sample",
@@ -220,7 +233,9 @@ class PromptBuilder:
                         "value": "The value",
                         "label": "The label"
                     }}
-                ]
+                ],
+                "language": "{language}",
+                "country": "{country}"
             }}]
             ```
 
@@ -265,23 +280,22 @@ class PromptBuilder:
         **Coreference Guidelines:**
         1. Identify all mentions that refer to the same real-world entity in third person (person, and organization)
         2. Group these mentions into coreference clusters
-        3. Each cluster should have:
+        3. Each cluster must have:
            - `cluster_id`: A unique integer identifier
            - `entity_type`: Type of entity ("person" or "organization")
            - `mentions`: Array of mention objects, each containing:
              * `text`: The exact string as it appears in the text (case-sensitive)
              * `type`: One of "name", "pronoun", or "reference"
              * `privacy_mask_labels`: (Optional) Array of privacy_mask labels this mention maps to (e.g., ["FIRSTNAME", "SURNAME"] for "John Doe")
-
-        **Important Rules:**
-        - Include pronouns (he, she, they, it, his, her, their) or the language equivalents
-        - Include definite descriptions ("the customer", "the patient", "the employee")
-        - Include proper names and variations (e.g., "Maria Santos", "Ms. Santos")
-        - CRITICAL: Each mention "text" must be an EXACT string that appears as a complete word in the text
-        - Do NOT include substrings (e.g., do not include "her" if the text only contains "here" or "there")
-        - Verify word boundaries - "her" should match "her" but not "where", "here", or "there"
-        - If a mention appears multiple times in the text, include it once in the mentions array
-        - For names that appear in privacy_mask, include the "privacy_mask_labels" field to indicate which labels correspond to this mention
+        4. Include pronouns (he, she, they, it, his, her, their) or the language equivalents
+        5. Include definite descriptions ("the customer", "the patient", "the employee")
+        6. Include proper names and variations (e.g., "Maria Santos", "Ms. Santos")
+        7. CRITICAL mention validation rules:
+           - Each mention "text" must be an EXACT string that appears as a complete word in the text
+           - Do NOT include substrings (e.g., do not include "her" if the text only contains "here" or "there")
+           - Verify word boundaries - "her" should match "her" but not "where", "here", or "there"
+           - If a mention appears multiple times in the text, include it once in the mentions array
+           - For names that appear in privacy_mask, include the "privacy_mask_labels" field to indicate which labels correspond to this mention
 
         **Current Sample (needs coreference annotations):**
         {current_sample_string}
@@ -307,14 +321,16 @@ class PromptBuilder:
                         {{"text": "his", "type": "pronoun"}}
                     ]
                 }}
-            ]
+            ],
+            "language": "{language}",
+            "country": "{country}"
         }}
         ```
         """.strip()
 
     @staticmethod
     def build_generation_prompt(
-        labels: dict[str, str],
+        labels: dict[str, dict],
         languages_countries: list[tuple[str, str]],
         sample_index: int = 0,
     ) -> tuple[str, str, str]:
@@ -365,41 +381,41 @@ class PromptBuilder:
         ]
         complexity = complexity_hints[sample_index % len(complexity_hints)]
 
-        # Create instruction text with proper escaping for JSON examples
-        incorrect_example = '{"value": "Ravi Patel", "label": "FIRSTNAME"}'
-        correct_surname_only = '{"value": "Patel", "label": "SURNAME"}'
-        correct_firstname_only = '{"value": "Ravi", "label": "FIRSTNAME"}'
-        correct_both = '{"value": "Ravi", "label": "FIRSTNAME"} {"value": "Patel", "label": "SURNAME"}'
-
         language = selected_language_country[0]
         country = selected_language_country[1]
-        labels_list = ", ".join(labels.values())
+
+        labels_list = ", ".join(labels.keys())
+        label_instructions = []
+        for label_key, label_values in labels.items():
+            if not label_values["hints"]:
+                continue
+            label_instructions += f"{label_key}:"
+            label_instructions += label_values["hints"]
+            label_instructions += "\n"
+        label_instructions = "\n".join(label_instructions)
         return (
             f"""
         Generate one text sample in the style of a {style} that contains the following PII types:
         {labels_list}
 
-        Instructions:
+        General Instructions:
             1. Generate the sample in `{language}` and make the text as well as the PII data as realistic to the geographic area of `{country}`.
-            2. Use only the PII types listed above
-            3. Write in the style of a {style} - make it realistic and contextually appropriate
-            4. {complexity}
-            5. Contain 2-5 sentences with multiple entities (vary the number of sentences)
+            2. Write in the style of a {style} - make it realistic and contextually appropriate
+            3. {complexity}
+            4. Contain 2-5 sentences with multiple entities (vary the number of sentences)
+            5. Use varied reference types: pronouns (he, she, they, it), definite descriptions ("the customer", "the patient"), proper names, and possessive forms
             6. Include at least one coreference chain with 3+ mentions (e.g., "Mark Johnson likes soccer. He is member of a soccer club. His email is mark.johnson@example.com.")
-            7. Use varied reference types: pronouns (he, she, they, it), definite descriptions ("the customer", "the patient"), proper names, and possessive forms
-            8. Vary the position of PII in sentences - don't always put names at the beginning
-            9. Return the text sample with the included PII data and the type of PII (see example below)
-            10. Include coreference information: group all mentions that refer to the same entity into clusters. Use a structured format for mentions:
-                - Each mention is an object with "text" (the exact string), "type" (one of: "name", "pronoun", "reference"), and optionally "privacy_mask_labels" (array of labels from privacy_mask that this mention maps to, e.g., ["FIRSTNAME", "SURNAME"] for "John Doe")
-                - For names that appear in privacy_mask, include the "privacy_mask_labels" field to indicate which labels this mention corresponds to
-                - CRITICAL: Each mention "text" must be an EXACT string that appears as a complete word in the text. Do NOT include substrings (e.g., do not include "her" if the text only contains "here" or "there"). Each mention must match exactly as it appears in the text, respecting word boundaries. If a mention appears multiple times in the text, include it once in the mentions array - the system will find all occurrences automatically.
-            11. This is incorrect: {incorrect_example}. If the required labels only contain "surname", only generate a sample with a surname {correct_surname_only}. If the required labels only contain "first name", only generate a sample with a first name {correct_firstname_only}. If first name and surname are required, this is correct: {correct_both}.
-            12. Be creative with your first and last names (use diverse ethnic backgrounds, cultural origins, and avoid common names like "John Smith", "Jane Doe", "Sarah Johnson", "Mike Wilson", etc.).
-            13. Use diverse street names and city names (use names from different countries, cultures, and avoid common ones like "Main Street", "Oak Avenue", "New York", "Los Angeles", "London", "Paris", etc.).
-            14. Vary the format of dates, phone numbers, and addresses to reflect different countries and regions
-            15. Make the text feel natural and contextually appropriate - don't just list PII items
-            16. Review your work before returning the samples. DO NOT create new label names. You can only use the labels listed above.
-            17. Return the text sample in the following JSON format:
+            7. Vary the position of PII in sentences - don't always put names at the beginning
+            8. Make the text feel natural and contextually appropriate - don't just list PII items
+            9. Review your work before returning the samples. DO NOT create new label names. You can only use the labels listed above.
+            10. Use only the PII types listed above
+
+        Label-specific Instructions:
+            {label_instructions}
+
+        Schema Instructions:
+
+            Return the text sample in the following JSON format:
             ```json
             [{{
                 "text": "The text sample",
@@ -409,17 +425,9 @@ class PromptBuilder:
                         "label": "The label"
                     }}
                 ],
-                "coreferences": [
-                    {{
-                        "cluster_id": 0,
-                        "entity_type": "person",
-                        "mentions": [
-                            {{"text": "John Doe", "type": "name", "privacy_mask_labels": ["FIRSTNAME", "SURNAME"]}},
-                            {{"text": "He", "type": "pronoun"}},
-                            {{"text": "His", "type": "pronoun"}}
-                        ]
-                    }}
-                ]
+                "coreferences": [],
+                "language": "{language}",
+                "country": "{country}"
             }}]
             ```
 
@@ -451,23 +459,22 @@ Each sample contains:
 - `coreferences`: Array of coreference clusters grouping mentions that refer to the same entity
 
 **Coreference Review Guidelines:**
-When reviewing coreferences, ensure:
-- All mentions within a cluster refer to the same real-world entity
-- Clusters are correctly separated (different entities should not be in the same cluster)
-- The text is in `{language}` and is realistic to the geographic area of `{country}`
-- All relevant mentions are included (pronouns, definite descriptions, proper names, possessive forms)
-- The `entity_type` field accurately describes the type of entity (options are "person", "organization")
-- Coreference clusters are meaningful and help identify relationships between PII mentions
-- **Mention Structure**: Each mention should be an object with:
-  * `text`: The exact string as it appears in the text (case-sensitive)
-  * `type`: One of "name", "pronoun", or "reference"
-  * `privacy_mask_labels`: (Optional) Array of privacy_mask labels this mention maps to (e.g., ["FIRSTNAME", "SURNAME"] for "John Doe")
-- CRITICAL: Each mention "text" must be an EXACT string that appears as a complete word in the text. Verify that:
-  * Each mention text exists exactly as written in the text (case-sensitive)
-  * Mentions are complete words, not substrings (e.g., "her" should NOT be included if the text only contains "here", "there", or "where")
-  * If a mention appears multiple times, include it once in the mentions array - the system will automatically find all occurrences
-  * Use word boundaries to ensure accurate matching (e.g., "her" should match "her" but not "here")
-  * For names that appear in privacy_mask, include the "privacy_mask_labels" field to help map split names (e.g., "John Doe" → ["FIRSTNAME", "SURNAME"])
+    1. All mentions within a cluster must refer to the same real-world entity
+    2. Clusters must be correctly separated (different entities should not be in the same cluster)
+    3. The text must be in `{language}` and realistic to the geographic area of `{country}`
+    4. All relevant mentions must be included (pronouns, definite descriptions, proper names, possessive forms)
+    5. The `entity_type` field must accurately describe the type of entity (options are "person", "organization")
+    6. Coreference clusters must be meaningful and help identify relationships between PII mentions
+    7. Mention structure requirements:
+       - `text`: The exact string as it appears in the text (case-sensitive)
+       - `type`: One of "name", "pronoun", or "reference"
+       - `privacy_mask_labels`: (Optional) Array of privacy_mask labels this mention maps to (e.g., ["FIRSTNAME", "SURNAME"] for "John Doe")
+    8. CRITICAL mention validation rules:
+       - Each mention text must be an EXACT string that appears as a complete word in the text (case-sensitive)
+       - Mentions must be complete words, not substrings (e.g., "her" should NOT be included if the text only contains "here", "there", or "where")
+       - If a mention appears multiple times, include it once in the mentions array - the system will automatically find all occurrences
+       - Use word boundaries to ensure accurate matching (e.g., "her" should match "her" but not "here")
+       - For names that appear in privacy_mask, include the "privacy_mask_labels" field to help map split names (e.g., "John Doe" → ["FIRSTNAME", "SURNAME"])
 
 **Sample to Review:**
 ```json

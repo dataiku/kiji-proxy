@@ -11,7 +11,7 @@ from typing import Any
 class FileManager:
     """Manages file operations for training samples."""
 
-    def __init__(self, base_output_dir: str = "model/dataset"):
+    def __init__(self, base_output_dir: str = "model/dataset/doubleword"):
         self.base_output_dir = base_output_dir
 
     def save_sample(
