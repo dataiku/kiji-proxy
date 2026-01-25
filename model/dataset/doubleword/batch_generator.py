@@ -11,16 +11,16 @@ from absl import logging
 from tqdm import tqdm
 
 # Add project root to sys.path for imports when running as a script
-project_root = Path(__file__).parent.parent.parent
+project_root = Path(__file__).parent.parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 try:
-    from .label_utils import LabelUtils
-    from .prompts import PromptBuilder
+    from ..label_utils import LabelUtils
+    from ..prompts import PromptBuilder
 except ImportError:
-    from label_utils import LabelUtils
-    from prompts import PromptBuilder
+    from model.dataset.label_utils import LabelUtils
+    from model.dataset.prompts import PromptBuilder
 
 
 class BatchRequestGenerator:

@@ -8,27 +8,28 @@ from absl.flags import DuplicateFlagError
 from dotenv import load_dotenv
 
 # Add project root to sys.path for imports when running as a script
-project_root = Path(__file__).parent.parent.parent
+project_root = Path(__file__).parent.parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 try:
+    from ..file_operations import FileManager
     from .batch_generator import BatchRequestGenerator
     from .batch_monitor import BatchMonitor
     from .doubleword_client import DoublewordClient
-    from .file_operations import FileManager
     from .pipeline_state import PipelineState
     from .result_processor import ResultProcessor
 except ImportError:
     from batch_generator import BatchRequestGenerator
     from batch_monitor import BatchMonitor
     from doubleword_client import DoublewordClient
-    from file_operations import FileManager
     from pipeline_state import PipelineState
     from result_processor import ResultProcessor
 
+    from model.dataset.file_operations import FileManager
+
 # Load .env file from root directory
-root_dir = Path(__file__).parent.parent.parent
+root_dir = Path(__file__).parent.parent.parent.parent
 env_path = root_dir / ".env"
 load_dotenv(env_path)
 
@@ -63,8 +64,8 @@ _define_flag(
 _define_flag(
     flags.DEFINE_string,
     "output_dir",
-    "model/dataset/doubleword",
-    "Output directory for generated samples",
+    "model/dataset/doubleword/temp",
+    "Output directory for temporary batch files and pipeline state",
 )
 _define_flag(
     flags.DEFINE_string,
@@ -438,7 +439,9 @@ class DatasetPipeline:
                 "final_processing",
                 {
                     "num_samples": len(saved_files),
-                    "output_dir": str(self.output_dir / "annotation_samples"),
+                    "output_dir": str(
+                        self.output_dir / "data_samples/annotation_samples"
+                    ),
                     "source": source,
                 },
             )

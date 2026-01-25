@@ -10,16 +10,16 @@ from absl import logging
 from tqdm import tqdm
 
 # Add project root to sys.path for imports when running as a script
-project_root = Path(__file__).parent.parent.parent
+project_root = Path(__file__).parent.parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 try:
-    from .file_operations import FileManager
-    from .to_labelstudio import convert_to_labelstudio
+    from ..file_operations import FileManager
+    from ..to_labelstudio import convert_to_labelstudio
 except ImportError:
-    from file_operations import FileManager
-    from to_labelstudio import convert_to_labelstudio
+    from model.dataset.file_operations import FileManager
+    from model.dataset.to_labelstudio import convert_to_labelstudio
 
 
 class ResultProcessor:
@@ -227,7 +227,7 @@ class ResultProcessor:
 
                     # Save the sample
                     saved_file_name = self.file_manager.save_sample(
-                        training_sample, "annotation_samples", file_name
+                        training_sample, "data_samples/annotation_samples", file_name
                     )
 
                     custom_id = line_data.get(

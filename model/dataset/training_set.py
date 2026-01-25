@@ -316,7 +316,7 @@ def process_single_sample(
     # Convert to training sample by calling convert_to_labelstudio from to_labelstudio.py
     training_sample = convert_to_labelstudio(result)
     file_name = gen.file_manager.save_sample(
-        training_sample, "annotation_samples", file_name
+        training_sample, "data_samples/annotation_samples", file_name
     )
     logging.info(f"Sample {sample_index}: Converted to training sample")
 
