@@ -386,7 +386,7 @@ def compare_outputs(
 
     if verbose and results["pii_comparable"] and not results["pii_predictions_match"]:
         diff_indices = np.where(pytorch_pii_preds != onnx_pii_preds)
-        for batch_idx, seq_idx in zip(diff_indices[0], diff_indices[1]):
+        for batch_idx, seq_idx in zip(diff_indices[0], diff_indices[1], strict=True):
             pt_label = pytorch_pii_id2label.get(
                 int(pytorch_pii_preds[batch_idx, seq_idx]), "UNK"
             )
@@ -403,7 +403,7 @@ def compare_outputs(
         and not results["coref_predictions_match"]
     ):
         diff_indices = np.where(pytorch_coref_preds != onnx_coref_preds)
-        for batch_idx, seq_idx in zip(diff_indices[0], diff_indices[1]):
+        for batch_idx, seq_idx in zip(diff_indices[0], diff_indices[1], strict=True):
             pt_label = pytorch_coref_id2label.get(
                 int(pytorch_coref_preds[batch_idx, seq_idx]), "UNK"
             )
@@ -442,9 +442,7 @@ def extract_entities(
     current_start = None
     current_end = None
 
-    for idx, (token, pred, offset) in enumerate(
-        zip(tokens, predictions, offset_mapping)
-    ):
+    for token, pred, offset in zip(tokens, predictions, offset_mapping, strict=True):
         if token in [tokenizer.cls_token, tokenizer.sep_token, tokenizer.pad_token]:
             continue
 
@@ -610,7 +608,7 @@ def main(argv):
     coref_match_count = sum(1 for r in all_results if r["coref_predictions_match"])
     total_cases = len(all_results)
 
-    logging.info(f"\nPrediction Matching:")
+    logging.info("\nPrediction Matching:")
     logging.info(
         f"  PII predictions match: {pii_match_count}/{total_cases} ({100 * pii_match_count / total_cases:.1f}%)"
     )
@@ -622,7 +620,7 @@ def main(argv):
     pii_comparable = all(r["pii_comparable"] for r in all_results)
     coref_comparable = all(r["coref_comparable"] for r in all_results)
 
-    logging.info(f"\nLogit Differences:")
+    logging.info("\nLogit Differences:")
     if pii_comparable:
         pii_diffs = [r["pii_max_diff"] for r in all_results]
         avg_pii_diff = np.mean(pii_diffs)
@@ -645,7 +643,7 @@ def main(argv):
         max_coref_diff = float("inf")
         logging.info("  Coref - N/A (different label counts between models)")
 
-    logging.info(f"\nInference Performance:")
+    logging.info("\nInference Performance:")
     logging.info(
         f"  PyTorch - avg: {np.mean(pytorch_times):.2f}ms, min: {np.min(pytorch_times):.2f}ms, max: {np.max(pytorch_times):.2f}ms"
     )
