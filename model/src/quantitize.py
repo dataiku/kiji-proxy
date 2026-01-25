@@ -325,11 +325,11 @@ def quantize_model(
     # Create quantizer from model directory with explicit file name
     model_dir = Path(onnx_path).parent if Path(onnx_path).is_file() else Path(onnx_path)
 
-    # Remove any existing quantized model to avoid "too many ONNX files" error
-    existing_quantized = model_dir / "model_quantized.onnx"
-    if existing_quantized.exists():
-        existing_quantized.unlink()
-        logging.info(f"   Removed existing: {existing_quantized.name}")
+    # Remove old quantized model if it exists to avoid "too many ONNX files" error
+    old_quantized = model_dir / "model_quantized.onnx"
+    if old_quantized.exists():
+        logging.info(f"   Removing old quantized model: {old_quantized}")
+        old_quantized.unlink()
 
     quantizer = ORTQuantizer.from_pretrained(str(model_dir), file_name="model.onnx")
 

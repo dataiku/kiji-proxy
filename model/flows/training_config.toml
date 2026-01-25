@@ -16,14 +16,14 @@ early_stopping_threshold = 0.01  # Minimum improvement (1%) to qualify as improv
 
 [paths]
 # Directory containing JSON training samples (relative to working directory or absolute)
-training_samples_dir = "model/dataset/training_samples"
+training_samples_dir = "model/dataset/data_samples/training_samples"
 output_dir = "model/trained"
 
 [labelstudio]
 # Label Studio base url
 base_url = "http://localhost:8080"
 # ID of the label studio project
-project_id = 5
+project_id = 6
 
 
 [data]
