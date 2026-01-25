@@ -46,6 +46,13 @@ class TrainingConfig:
     pii_loss_weight: float = 1.0  # Weight for PII detection loss
     coref_loss_weight: float = 1.0  # Weight for co-reference detection loss
 
+    # Early stopping
+    early_stopping_enabled: bool = True  # Enable early stopping
+    early_stopping_patience: int = (
+        3  # Number of eval steps with no improvement before stopping
+    )
+    early_stopping_threshold: float = 0.01  # Minimum improvement (1%) to qualify
+
     def __post_init__(self):
         """Create output directory after initialization."""
         Path(self.output_dir).mkdir(parents=True, exist_ok=True)
