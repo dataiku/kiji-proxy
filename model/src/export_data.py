@@ -78,7 +78,9 @@ class ExportDataProcessor:
         api_key = api_key or self.api_key
         project_id = project_id or self.project_id
         output_dir = output_dir or getattr(
-            self.config, "training_samples_dir", "model/dataset/training_samples"
+            self.config,
+            "training_samples_dir",
+            "model/dataset/data_samples/training_samples",
         )
 
         # Validate required parameters

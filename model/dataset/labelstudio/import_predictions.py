@@ -3,7 +3,7 @@ Import annotation samples to Label Studio with predictions.
 
 This script:
 1. Checks if Label Studio is running
-2. Imports all JSON files from model/dataset/annotation_samples/
+2. Imports all JSON files from model/dataset/data_samples/annotation_samples/
 3. Creates tasks with predictions in Label Studio
 """
 
@@ -179,7 +179,9 @@ def main():
     project_id = os.environ.get("LABEL_STUDIO_PROJECT_ID")
 
     # Get annotation directory
-    annotation_dir = Path(__file__).parent.parent / "annotation_samples"
+    annotation_dir = (
+        Path(__file__).parent.parent / "data_samples" / "annotation_samples"
+    )
 
     # Import predictions
     import_predictions(

@@ -5,7 +5,7 @@ This script:
 1. Checks if Label Studio is running
 2. Exports all tasks from Label Studio in their original format
 3. Preserves data, annotations, and predictions as-is
-4. Saves to model/dataset/training_samples/
+4. Saves to model/dataset/data_samples/training_samples/
 """
 
 import json
@@ -249,7 +249,7 @@ def main():
     project_id = os.environ.get("LABEL_STUDIO_PROJECT_ID")
 
     # Get output directory
-    output_dir = Path(__file__).parent.parent / "training_samples"
+    output_dir = Path(__file__).parent.parent / "data_samples" / "training_samples"
 
     # Export annotations
     export_annotations(

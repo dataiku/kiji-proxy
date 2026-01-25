@@ -29,7 +29,7 @@ try:
 
     flags.DEFINE_string(
         "output_dir",
-        "model/dataset/annotation_samples",
+        "model/dataset/data_samples/annotation_samples",
         "Directory to output Label Studio JSON files",
     )
 except DuplicateFlagError:

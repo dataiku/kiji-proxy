@@ -40,6 +40,7 @@
 
     <!-- Security Information -->
     <Label value="PASSWORD" background="#f44336"/>       <!-- Bright red -->
+    <Label value="SECURITYTOKEN" background="#9c27b0"/>       <!-- Purple -->
 
     <!-- Other -->
     <Label value="OTHER" background="#D3D3D3" />

@@ -3,7 +3,7 @@ Metaflow pipeline for PII detection model training.
 
 This pipeline orchestrates:
 1. Data export from Label Studio (optional, can be skipped)
-2. Dataset loading and preprocessing from model/dataset/training_samples/
+2. Dataset loading and preprocessing from model/dataset/data_samples/training_samples/
 3. Model training with multi-task learning
 4. Model evaluation
 5. Model quantization (ONNX)
@@ -131,7 +131,7 @@ class PIITrainingPipeline(FlowSpec):
             batch_size=training_cfg.get("batch_size", 16),
             learning_rate=training_cfg.get("learning_rate", 3e-5),
             training_samples_dir=cfg.get("paths", {}).get(
-                "training_samples_dir", "model/dataset/training_samples"
+                "training_samples_dir", "model/dataset/data_samples/training_samples"
             ),
             output_dir=cfg.get("paths", {}).get("output_dir", "model/trained"),
             early_stopping_enabled=training_cfg.get("early_stopping_enabled", True),
