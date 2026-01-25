@@ -3,7 +3,7 @@
 **TL;DR:** One command to generate synthetic PII training datasets!
 
 ```bash
-python -m model.dataset.pipeline --command=start --num_samples=100
+python -m model.dataset.doubleword.pipeline --command=start --num_samples=100
 ```
 
 > **Note:** The default model is `Qwen/Qwen3-VL-235B-A22B-Instruct-FP8`. Use `--api_model="your-model"` to specify a different model.
@@ -14,19 +14,19 @@ python -m model.dataset.pipeline --command=start --num_samples=100
 
 ```bash
 # Start new pipeline (fully automated, auto_poll is True by default)
-python -m model.dataset.pipeline --command=start --num_samples=100
+python -m model.dataset.doubleword.pipeline --command=start --num_samples=100
 
 # Check status
-python -m model.dataset.pipeline --command=status
+python -m model.dataset.doubleword.pipeline --command=status
 
 # Resume interrupted pipeline
-python -m model.dataset.pipeline --command=resume
+python -m model.dataset.doubleword.pipeline --command=resume
 
 # Reset pipeline (start over)
-python -m model.dataset.pipeline --command=reset
+python -m model.dataset.doubleword.pipeline --command=reset
 
 # Cancel and delete state
-python -m model.dataset.pipeline --command=cancel
+python -m model.dataset.doubleword.pipeline --command=cancel
 ```
 
 ## 🔧 Common Options
@@ -74,34 +74,43 @@ export DOUBLEWORD_API_KEY="your-api-key-here"
 echo "DOUBLEWORD_API_KEY=your-key" >> .env
 
 # 2. Run pipeline (auto_poll defaults to True)
-python -m model.dataset.pipeline --command=start --num_samples=100
+python -m model.dataset.doubleword.pipeline --command=start --num_samples=100
 ```
 
 ## 📊 Output
 
 ```
 model/dataset/
-├── batch_requests_ner.jsonl           # Generated NER requests
-├── batch_requests_coref.jsonl         # Generated coref requests
-├── ner_results.jsonl                  # Downloaded NER results
-├── coref_results.jsonl                # Downloaded coref results
-├── annotation_samples/                # 📁 Final training samples (Label Studio format)
-│   ├── final-coref-ner-request-0.json
-│   ├── final-coref-ner-request-1.json
-│   └── ...
-└── .pipeline_state_*.json             # Pipeline state (for resumability)
+├── doubleword/
+│   ├── pipeline.py                    # Main pipeline orchestrator
+│   ├── batch_generator.py             # Batch request generation
+│   ├── batch_monitor.py               # Batch job monitoring
+│   ├── doubleword_client.py           # API client
+│   ├── pipeline_state.py              # State management
+│   ├── result_processor.py            # Result processing
+│   └── temp/                          # Temporary files
+│       ├── batch_requests_ner.jsonl   # Generated NER requests
+│       ├── batch_requests_coref.jsonl # Generated coref requests
+│       ├── ner_results.jsonl          # Downloaded NER results
+│       ├── coref_results.jsonl        # Downloaded coref results
+│       └── .pipeline_state_*.json     # Pipeline state (for resumability)
+└── data_samples/
+    └── annotation_samples/            # Final training samples (Label Studio format)
+        ├── final-coref-ner-request-0.json
+        ├── final-coref-ner-request-1.json
+        └── ...
 ```
 
 ## 🎯 Example Workflows
 
 ### Quick Test
 ```bash
-python -m model.dataset.pipeline --command=start --num_samples=10
+python -m model.dataset.doubleword.pipeline --command=start --num_samples=10
 ```
 
 ### Production Batch
 ```bash
-python -m model.dataset.pipeline \
+python -m model.dataset.doubleword.pipeline \
   --command=start \
   --num_samples=1000 \
   --max_workers=50 \
@@ -110,7 +119,7 @@ python -m model.dataset.pipeline \
 
 ### High-Quality Production Batch (with Review)
 ```bash
-python -m model.dataset.pipeline \
+python -m model.dataset.doubleword.pipeline \
   --command=start \
   --num_samples=1000 \
   --enable_review \
@@ -120,27 +129,27 @@ python -m model.dataset.pipeline \
 ### Resume After Interrupt
 ```bash
 # Start pipeline
-python -m model.dataset.pipeline --command=start --num_samples=500
+python -m model.dataset.doubleword.pipeline --command=start --num_samples=500
 
 # Press Ctrl+C if needed
 
 # Later, resume from where you left off
-python -m model.dataset.pipeline --command=resume
+python -m model.dataset.doubleword.pipeline --command=resume
 ```
 
 ### Background Job (No Auto-Poll)
 ```bash
 # Submit batches without waiting
-python -m model.dataset.pipeline \
+python -m model.dataset.doubleword.pipeline \
   --command=start \
   --num_samples=5000 \
   --noauto_poll
 
 # Check status later
-python -m model.dataset.pipeline --command=status
+python -m model.dataset.doubleword.pipeline --command=status
 
 # When ready, resume to download results
-python -m model.dataset.pipeline --command=resume
+python -m model.dataset.doubleword.pipeline --command=resume
 ```
 
 ## 🐛 Troubleshooting
@@ -154,23 +163,22 @@ export DOUBLEWORD_API_KEY="your-key"
 ```bash
 # Run from project root
 cd /path/to/yaak-proxy
-python -m model.dataset.pipeline --command=start
+python -m model.dataset.doubleword.pipeline --command=start
 ```
 
 ### Check state file
 ```bash
-cat model/dataset/.pipeline_state_*.json | jq '.'
+cat model/dataset/doubleword/temp/.pipeline_state_*.json | jq '.'
 ```
 
 ### Debug mode
 ```bash
-python -m model.dataset.pipeline --command=start --log_level=DEBUG
+python -m model.dataset.doubleword.pipeline --command=start --log_level=DEBUG
 ```
 
 ## 📖 Full Documentation
 
 - **[PIPELINE_README.md](./PIPELINE_README.md)** - Complete documentation (commands, architecture, troubleshooting)
-- **[MIGRATION.md](./MIGRATION.md)** - Migration guide from old scripts
 - **[README.md](./README.md)** - Dataset generation overview
 
 ## 🎓 5-Minute Tutorial
@@ -182,20 +190,20 @@ export DOUBLEWORD_API_KEY="your-key"
 
 **Step 2:** Run small test
 ```bash
-python -m model.dataset.pipeline --command=start --num_samples=5
+python -m model.dataset.doubleword.pipeline --command=start --num_samples=5
 ```
 
 **Step 3:** Check output
 ```bash
-ls -la model/dataset/annotation_samples/
+ls -la model/dataset/data_samples/annotation_samples/
 ```
 
 **Step 4:** Scale up!
 ```bash
-python -m model.dataset.pipeline --command=start --num_samples=500
+python -m model.dataset.doubleword.pipeline --command=start --num_samples=500
 ```
 
-That's it! ☕
+That's it!
 
 ## ⏱️ Time Estimates
 
@@ -223,16 +231,16 @@ That's it! ☕
 
 1. Check [PIPELINE_README.md](./PIPELINE_README.md) for detailed docs
 2. Run with `--log_level=DEBUG` to see what's happening
-3. Check state: `python -m model.dataset.pipeline --command=status`
-4. Look at state file: `cat model/dataset/.pipeline_state_*.json`
+3. Check state: `python -m model.dataset.doubleword.pipeline --command=status`
+4. Look at state file: `cat model/dataset/doubleword/temp/.pipeline_state_*.json`
 
 ## ✅ Success Checklist
 
 - [ ] API key set (`echo $DOUBLEWORD_API_KEY`)
 - [ ] Running from project root (`pwd` shows yaak-proxy)
 - [ ] Tested with small batch (`--num_samples=5`)
-- [ ] Verified output (`ls model/dataset/annotation_samples/`)
-- [ ] Ready for production! 🚀
+- [ ] Verified output (`ls model/dataset/data_samples/annotation_samples/`)
+- [ ] Ready for production!
 
 ---
 
@@ -249,7 +257,7 @@ When you add `--enable_review`, the pipeline includes two additional stages:
 This adds quality control directly into the pipeline flow:
 
 ```
-NER → Coref → Review (optional) → Final Output
+NER -> Coref -> Review (optional) -> Final Output
 ```
 
 ### When to Use It?
@@ -265,10 +273,10 @@ Simply add the `--enable_review` flag:
 
 ```bash
 # Standard pipeline (no review)
-python -m model.dataset.pipeline --command=start --num_samples=100
+python -m model.dataset.doubleword.pipeline --command=start --num_samples=100
 
 # With review for higher quality
-python -m model.dataset.pipeline \
+python -m model.dataset.doubleword.pipeline \
   --command=start \
   --num_samples=100 \
   --enable_review

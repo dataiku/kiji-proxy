@@ -410,6 +410,14 @@ class PromptBuilder:
             9. Review your work before returning the samples. DO NOT create new label names. You can only use the labels listed above.
             10. Use only the PII types listed above
 
+        CRITICAL - Name Annotation Rules:
+            1. EVERY person's name in the text MUST be included in privacy_mask - no exceptions
+            2. Names MUST be split into separate entries: "John Smith" becomes TWO entries: {{"value": "John", "label": "FIRSTNAME"}} AND {{"value": "Smith", "label": "SURNAME"}}
+            3. NEVER use a full name as a single privacy_mask value - always split first and last names
+            4. If only a first name appears (e.g., "Sarah"), include it as FIRSTNAME
+            5. If only a surname appears (e.g., "Mr. Rodriguez"), include it as SURNAME
+            6. Include ALL names - even if a person is only mentioned once or in passing
+
         Label-specific Instructions:
             {label_instructions}
 
@@ -457,6 +465,15 @@ Each sample contains:
 - `text`: The original text containing PII
 - `privacy_mask`: Array of PII entities with their values and labels
 - `coreferences`: Array of coreference clusters grouping mentions that refer to the same entity
+
+**CRITICAL - Name Annotation Rules (privacy_mask):**
+    1. EVERY person's name in the text MUST be included in privacy_mask - no exceptions
+    2. Names MUST be split into separate entries: "John Smith" becomes TWO entries: {{"value": "John", "label": "FIRSTNAME"}} AND {{"value": "Smith", "label": "SURNAME"}}
+    3. NEVER use a full name as a single privacy_mask value - always split first and last names
+    4. If only a first name appears (e.g., "Sarah"), include it as FIRSTNAME
+    5. If only a surname appears (e.g., "Mr. Rodriguez"), include it as SURNAME
+    6. Include ALL names - even if a person is only mentioned once or in passing
+    7. If you find a full name like "Emily Clarke" labeled as SURNAME, split it into {{"value": "Emily", "label": "FIRSTNAME"}} and {{"value": "Clarke", "label": "SURNAME"}}
 
 **Coreference Review Guidelines:**
     1. All mentions within a cluster must refer to the same real-world entity

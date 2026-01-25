@@ -158,13 +158,74 @@ class LabelUtils:
     # Address-related labels that should be grouped together
     ADDRESS_LABELS: ClassVar[list[str]] = [
         "BUILDINGNUM",
-        # "ADDRESS",
         "CITY",
         "STATE",
         "ZIP",
         "COUNTRY",
         "STREET",
     ]
+
+    # Languages and their associated countries for dataset generation
+    LANGUAGES_COUNTRIES: ClassVar[dict[str, list[str]]] = {
+        "English": [
+            "United States",
+            "United Kingdom",
+            "Canada",
+            "Australia",
+            "Ireland",
+            "New Zealand",
+        ],
+        "German": ["Germany", "Austria", "Switzerland"],
+        "French": ["France", "Belgium", "Canada", "Switzerland", "Luxembourg"],
+        "Spanish": ["Spain", "Mexico", "Argentina", "Colombia", "Peru", "Chile"],
+        "Dutch": ["Netherlands", "Belgium"],
+        "Danish": ["Denmark"],
+    }
+
+    @classmethod
+    def get_languages_countries(
+        cls, language_count: int = 10, is_testing: bool = False
+    ) -> list[tuple[str, str]]:
+        """
+        Get a list of (language, country) tuples for dataset generation.
+
+        Args:
+            language_count: Number of language/country pairs to return
+            is_testing: If True, returns only English/United States for consistency
+
+        Returns:
+            List of (language, country) tuples
+        """
+        if is_testing:
+            return [("English", "United States")]
+
+        result = []
+        for _ in range(language_count):
+            lang = random.choice(list(cls.LANGUAGES_COUNTRIES.keys()))
+            country = random.choice(cls.LANGUAGES_COUNTRIES[lang])
+            result.append((lang, country))
+        return result
+
+    @classmethod
+    def get_pii_labels(
+        cls, all_labels: bool = False, return_count: int = 10, seed: int | None = None
+    ) -> dict[str, dict]:
+        """
+        Get PII labels with their descriptions.
+
+        Args:
+            all_labels: Whether to return all labels
+            return_count: Number of labels to return if not all_labels
+            seed: Random seed for label selection (for variation)
+
+        Returns:
+            Dictionary of label codes to their descriptions
+        """
+        labels = cls.LABEL_DESCRIPTIONS.copy()
+
+        if not all_labels:
+            labels = cls.select_label_subset(labels, return_count, seed=seed)
+        return labels
 
     @classmethod
     def create_standard_label2id(cls) -> tuple[dict[str, int], dict[int, str]]:

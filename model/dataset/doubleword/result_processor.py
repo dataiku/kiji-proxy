@@ -16,10 +16,10 @@ if str(project_root) not in sys.path:
 
 try:
     from ..file_operations import FileManager
-    from ..to_labelstudio import convert_to_labelstudio
+    from ..labelstudio import convert_to_labelstudio
 except ImportError:
     from model.dataset.file_operations import FileManager
-    from model.dataset.to_labelstudio import convert_to_labelstudio
+    from model.dataset.labelstudio import convert_to_labelstudio
 
 
 class ResultProcessor:

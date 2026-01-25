@@ -17,10 +17,10 @@ if str(project_root) not in sys.path:
 
 try:
     from ..label_utils import LabelUtils
-    from ..prompts import PromptBuilder
+    from ..openai.prompts import PromptBuilder
 except ImportError:
     from model.dataset.label_utils import LabelUtils
-    from model.dataset.prompts import PromptBuilder
+    from model.dataset.openai.prompts import PromptBuilder
 
 
 class BatchRequestGenerator:
@@ -47,65 +47,6 @@ class BatchRequestGenerator:
         self.output_dir = Path(output_dir)
         self.max_workers = max_workers or min(32, num_samples + 4)
 
-    def get_languages_countries(
-        self, language_count: int = 10, is_testing: bool = False
-    ) -> list[tuple[str, str]]:
-        """
-        Get a list of languages and their countries.
-
-        Args:
-            language_count: Number of languages to include
-            is_testing: Whether running in testing mode
-
-        Returns:
-            List of (language, country) tuples
-        """
-        LANGUAGES_COUNTRIES = {
-            "English": [
-                "United States",
-                "United Kingdom",
-                "Canada",
-                "Australia",
-                "Ireland",
-                "New Zealand",
-            ],
-            "German": ["Germany", "Austria", "Switzerland"],
-            "French": ["France", "Belgium", "Canada", "Switzerland", "Luxembourg"],
-            "Spanish": ["Spain", "Mexico", "Argentina", "Colombia", "Peru", "Chile"],
-            "Dutch": ["Netherlands", "Belgium"],
-            "Danish": ["Denmark"],
-        }
-
-        if is_testing:
-            return [("English", "United States")]
-        else:
-            rs = []
-            for _ in range(language_count):
-                key = random.choice(list(LANGUAGES_COUNTRIES.keys()))
-                value = random.choice(LANGUAGES_COUNTRIES[key])
-                rs.append((key, value))
-            return rs
-
-    def get_pii_labels(
-        self, all_labels: bool = False, return_count: int = 10, seed: int | None = None
-    ) -> dict[str, dict]:
-        """
-        Get PII labels with their human-readable descriptions.
-
-        Args:
-            all_labels: Whether to return all labels
-            return_count: Number of labels to return if not all_labels
-            seed: Random seed for label selection (for variation)
-
-        Returns:
-            Dictionary of label names to descriptions
-        """
-        labels = LabelUtils.LABEL_DESCRIPTIONS.copy()
-
-        if not all_labels:
-            labels = LabelUtils.select_label_subset(labels, return_count, seed=seed)
-        return labels
-
     def _generate_single_ner_request(
         self,
         sample_index: int,
@@ -127,10 +68,10 @@ class BatchRequestGenerator:
         sample_seed = sample_index if not is_testing else 42
 
         # Get languages and labels
-        languages_countries = self.get_languages_countries(
+        languages_countries = LabelUtils.get_languages_countries(
             is_testing=is_testing, language_count=language_count
         )
-        labels = self.get_pii_labels(return_count=4, seed=sample_seed)
+        labels = LabelUtils.get_pii_labels(return_count=4, seed=sample_seed)
 
         # Build the NER prompt
         prompt, language, country = PromptBuilder.build_ner_generation_prompt(
@@ -337,7 +278,7 @@ class BatchRequestGenerator:
         country = sample_data.get("country", "United States")
 
         # Get all PII labels for the review prompt
-        all_labels = LabelUtils.LABEL_DESCRIPTIONS.copy()
+        all_labels = LabelUtils.get_pii_labels(all_labels=True)
         expected_labels = ", ".join(all_labels.keys())
 
         # Build the review prompt

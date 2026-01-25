@@ -37,8 +37,8 @@ class FileManager:
             file_name = f"{timestamp}_{text_hash}.json"
 
         output_path = os.path.join(output_dir, file_name)
-        with open(output_path, "w") as f:
-            json.dump(result, f, indent=2)
+        with open(output_path, "w", encoding="utf-8") as f:
+            json.dump(result, f, indent=2, ensure_ascii=False)
 
         return file_name
 
