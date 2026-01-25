@@ -15,7 +15,7 @@ class TrainingConfig:
     """Configuration for PII detection model training."""
 
     # Model settings
-    model_name: str = "distilbert-base-cased"  # 66M params, fast
+    model_name: str = "answerdotai/ModernBERT-base"  # 149M params
 
     # Training parameters
     num_epochs: int = 5

@@ -126,7 +126,7 @@ class PIITrainingPipeline(FlowSpec):
         cfg = self.config_file
         training_cfg = cfg.get("training", {})
         self.config = TrainingConfig(
-            model_name=cfg.get("model", {}).get("name", "distilbert-base-cased"),
+            model_name=cfg.get("model", {}).get("name", "answerdotai/ModernBERT-base"),
             num_epochs=training_cfg.get("num_epochs", 5),
             batch_size=training_cfg.get("batch_size", 16),
             learning_rate=training_cfg.get("learning_rate", 3e-5),
