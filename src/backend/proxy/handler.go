@@ -64,27 +64,26 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Println("--- in ServeHTTP ---")
 	log.Printf("[Proxy] Received %s request to %s", r.Method, r.URL.Path)
 
-	// Determine provider for current request
-	provider, err := h.providers.GetProviderFromPath(r.URL.Path)
-	if err != nil {
-		log.Printf("[Proxy] Error retrieving provider from path: %s", err.Error())
-		http.Error(w, "Error retrieving provider from path", http.StatusBadRequest)
-		return
-	}
-	log.Printf("[Proxy] %s provider detected", (*provider).GetName())
-
-	// Check if detailed PII information is requested via query parameter
-	includeDetails := r.URL.Query().Get("details") == "true"
-	if includeDetails {
-		log.Printf("[Proxy] Detailed PII metadata requested")
-	}
-
 	// Read and validate request body
 	body, err := h.readRequestBody(r)
 	if err != nil {
 		log.Printf("[Proxy] ❌ Failed to read request body: %v", err)
 		http.Error(w, "Failed to read request body", http.StatusBadRequest)
 		return
+	}
+
+	// Determine provider for current request
+	provider, err := h.providers.GetProvider(r.Host, r.URL.Path, body, "[Proxy]")
+	if err != nil {
+		log.Printf("[Proxy] Error retrieving provider: %s", err.Error())
+		http.Error(w, "Error retrieving provider from path", http.StatusBadRequest)
+		return
+	}
+
+	// Check if detailed PII information is requested via query parameter
+	includeDetails := r.URL.Query().Get("details") == "true"
+	if includeDetails {
+		log.Printf("[Proxy] Detailed PII metadata requested")
 	}
 
 	log.Printf("[Proxy] Request body size: %d bytes", len(body))
@@ -498,7 +497,15 @@ func NewHandler(cfg *config.Config, electronConfigPath string) (*Handler, error)
 		cfg.Providers.MistralProviderConfig.AdditionalHeaders,
 	)
 
+	defaultProviders, err := providers.NewDefaultProviders(
+		cfg.Providers.DefaultProvidersConfig.OpenAISubpath,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to set default providers: %w", err)
+	}
+
 	providers := providers.Providers{
+		DefaultProviders:  defaultProviders,
 		OpenAIProvider:    openAIProvider,
 		AnthropicProvider: anthropicProvider,
 		GeminiProvider:    geminiProvider,

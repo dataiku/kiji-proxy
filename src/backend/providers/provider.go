@@ -1,7 +1,9 @@
 package providers
 
 import (
+	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 
@@ -9,12 +11,37 @@ import (
 )
 
 type ProviderType string
+type ProviderRequest struct {
+	Provider string `json:"provider"`
+}
 
 type maskPIIInTextType func(string, string) (string, map[string]string, []pii.Entity)
 type restorePIIType func(string, map[string]string) string
 type getLogResponsesType func() bool
 type getLogVerboseType func() bool
 type getAddProxyNotice func() bool
+
+type DefaultProviders struct {
+	OpenAISubpath ProviderType // only "openai" or "mistral"
+}
+
+func NewDefaultProviders(defaultOpenAIProviderStr string) (*DefaultProviders, error) {
+	defaultOpenAIProvider := ProviderType(defaultOpenAIProviderStr)
+
+	if defaultOpenAIProvider == ProviderTypeOpenAI || defaultOpenAIProvider == ProviderTypeMistral {
+		return &DefaultProviders{OpenAISubpath: defaultOpenAIProvider}, nil
+	} else {
+		return nil, fmt.Errorf("Default OpenAI subpath provider type must be 'openai' or 'mistral'.")
+	}
+}
+
+type Providers struct {
+	DefaultProviders  *DefaultProviders
+	OpenAIProvider    *OpenAIProvider
+	AnthropicProvider *AnthropicProvider
+	GeminiProvider    *GeminiProvider
+	MistralProvider   *MistralProvider
+}
 
 // Provider defines the interface all LLM providers must implement
 type Provider interface {
@@ -38,33 +65,19 @@ type Provider interface {
 	ValidateConfig() error
 }
 
-type Providers struct {
-	OpenAIProvider    *OpenAIProvider
-	AnthropicProvider *AnthropicProvider
-	GeminiProvider    *GeminiProvider
-	MistralProvider   *MistralProvider
-}
+func (p *Providers) GetProvider(host string, path string, body []byte, logPrefix string) (*Provider, error) {
+	/*
+		 Determines LLM provider based on the following rules:
+			1. host (only makes sense for transparent proxy)
+			2. optional "provider" field in payload
+			3. request subpath
 
-func (p *Providers) GetProviderFromPath(path string) (*Provider, error) {
+		Note that some LLM providers share a subpath (e.g. OpenAI and Mistral). For such
+		cases, the provider that is selected is based on p.DefaultSubpathProvider.
+	*/
 	var provider Provider
 
-	switch {
-	case path == ProviderSubpathOpenAI:
-		provider = p.OpenAIProvider
-	case path == ProviderSubpathAnthropic:
-		provider = p.AnthropicProvider
-	case strings.HasPrefix(path, ProviderSubpathGemini):
-		provider = p.GeminiProvider
-	default:
-		return &provider, fmt.Errorf("unknown provider detected at path '%s'", path)
-	}
-
-	return &provider, nil
-}
-
-func (p *Providers) GetProviderFromHost(host string) (*Provider, error) {
-	var provider Provider
-
+	// Determine provider based on host
 	switch host {
 	case p.OpenAIProvider.apiDomain:
 		provider = p.OpenAIProvider
@@ -75,8 +88,73 @@ func (p *Providers) GetProviderFromHost(host string) (*Provider, error) {
 	case p.MistralProvider.apiDomain:
 		provider = p.MistralProvider
 	default:
-		return &provider, fmt.Errorf("unknown provider detected at host '%s'", host)
+		log.Printf("%s [Provider] provider could not be determined from host '%s'.", logPrefix, host)
 	}
 
-	return &provider, nil
+	if provider != nil {
+		log.Printf("%s [Provider] '%s' provider detected from host '%s'.", logPrefix, provider.GetName(), host)
+		return &provider, nil
+	}
+
+	// Determine provider from (optional) "provider" field in body
+	var req ProviderRequest
+
+	err := json.Unmarshal(body, &req)
+	if err == nil {
+		switch ProviderType(req.Provider) {
+		case ProviderTypeOpenAI:
+			provider = p.OpenAIProvider
+		case ProviderTypeAnthropic:
+			provider = p.AnthropicProvider
+		case ProviderTypeGemini:
+			provider = p.GeminiProvider
+		case ProviderTypeMistral:
+			provider = p.MistralProvider
+		default:
+			log.Printf("%s [Provider] provider could not be determined from 'provider' field in request body.", logPrefix)
+		}
+	} else {
+		log.Printf("%s [Provider] provider could not be determined from 'provider' field, request body is invalid JSON: %s.", logPrefix, err)
+	}
+
+	if provider != nil {
+		log.Printf("%s [Provider] '%s' provider detected from 'provider' field in request body: %s.", logPrefix, provider.GetName(), req.Provider)
+		return &provider, nil
+	}
+
+	// Determine provider from request subpath
+	switch {
+	case path == ProviderSubpathOpenAI:
+		// Mistral and OpenAI use the same subpath
+		switch p.DefaultProviders.OpenAISubpath {
+		case ProviderTypeOpenAI:
+			provider = p.OpenAIProvider
+		case ProviderTypeMistral:
+			provider = p.MistralProvider
+		}
+	case path == ProviderSubpathAnthropic:
+		provider = p.AnthropicProvider
+	case strings.HasPrefix(path, ProviderSubpathGemini):
+		provider = p.GeminiProvider
+	default:
+		return &provider, fmt.Errorf("%s [Provider] unknown provider detected from subpath: %s.", logPrefix, path)
+	}
+
+	if provider != nil {
+		log.Printf("%s [Provider] '%s' provider detected from subpath: %s.", logPrefix, provider.GetName(), path)
+		return &provider, nil
+	}
+
+	return nil, fmt.Errorf("[Provider] unknown provider")
+}
+
+func (p *Providers) GetProviderFromHost(host string, logPrefix string) (*Provider, error) {
+	/*
+		Convenience function for use in the Transparent Proxy, where only 'host' is required
+		to determine the provider.
+	*/
+	var path string
+	var body []byte
+
+	return p.GetProvider(host, path, body, logPrefix)
 }

@@ -34,6 +34,10 @@ type DatabaseConfig struct {
 }
 
 // Provider config structs
+type DefaultProvidersConfig struct {
+	OpenAISubpath string
+}
+
 type ProviderConfig struct {
 	APIDomain         string
 	APIKey            string
@@ -41,6 +45,7 @@ type ProviderConfig struct {
 }
 
 type ProvidersConfig struct {
+	DefaultProvidersConfig  DefaultProvidersConfig
 	OpenAIProviderConfig    ProviderConfig
 	AnthropicProviderConfig ProviderConfig
 	GeminiProviderConfig    ProviderConfig
@@ -73,6 +78,10 @@ type Config struct {
 // DefaultConfig returns the default configuration
 func DefaultConfig() *Config {
 	// Provider parameters
+	defaultProvidersConfig := DefaultProvidersConfig{
+		OpenAISubpath: string(providers.ProviderTypeOpenAI),
+	}
+
 	defaultOpenAIProviderConfig := ProviderConfig{
 		APIDomain:         providers.ProviderAPIDomainOpenAI,
 		AdditionalHeaders: map[string]string{},
@@ -97,6 +106,7 @@ func DefaultConfig() *Config {
 
 	return &Config{
 		Providers: ProvidersConfig{
+			DefaultProvidersConfig:  defaultProvidersConfig,
 			OpenAIProviderConfig:    defaultOpenAIProviderConfig,
 			AnthropicProviderConfig: defaultAnthropicProviderConfig,
 			GeminiProviderConfig:    defaultGeminiProviderConfig,
@@ -141,7 +151,12 @@ func DefaultConfig() *Config {
 
 // GetInterceptDomains returns the list of intercept domains (as a union of all provider domains)
 func (pc ProvidersConfig) GetInterceptDomains() []string {
-	return []string{pc.AnthropicProviderConfig.APIDomain, pc.OpenAIProviderConfig.APIDomain, pc.GeminiProviderConfig.APIDomain, pc.MistralProviderConfig.APIDomain}
+	return []string{
+		pc.AnthropicProviderConfig.APIDomain,
+		pc.OpenAIProviderConfig.APIDomain,
+		pc.GeminiProviderConfig.APIDomain,
+		pc.MistralProviderConfig.APIDomain,
+	}
 }
 
 // GetLogPIIChanges returns whether to log PII changes

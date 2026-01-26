@@ -68,7 +68,7 @@ func NewTransparentProxy(
 // ServeHTTP implements http.Handler interface
 func (tp *TransparentProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Determine provider for current request
-	provider, err := tp.handler.providers.GetProviderFromHost(r.URL.Host)
+	provider, err := tp.handler.providers.GetProviderFromHost(r.Host, "[TransparentProxy]")
 	if err != nil {
 		log.Printf("[TransparentProxy] Error retrieving provider from host: %s", err.Error())
 		http.Error(w, "Error retrieving provider from host", http.StatusBadRequest)

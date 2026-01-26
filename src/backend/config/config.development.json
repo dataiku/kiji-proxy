@@ -1,15 +1,20 @@
 {
-  "OpenAIProviderConfig": {
-    "APIDomain": "api.openai.com"
-  },
-  "AnthropicProviderConfig": {
-    "APIDomain": "api.anthropic.com"
-  },
-  "GeminiProviderConfig": {
-    "APIDomain": "generativelanguage.googleapis.com"
-  },
-  "MistralProviderConfig": {
-    "APIDomain": "api.mistral.ai"
+  "Providers": {
+    "DefaulProvidersConfig": {
+      "OpenAISubpath": "openai"
+    },
+    "OpenAIProviderConfig": {
+      "APIDomain": "api.openai.com"
+    },
+    "AnthropicProviderConfig": {
+      "APIDomain": "api.anthropic.com"
+    },
+    "GeminiProviderConfig": {
+      "APIDomain": "generativelanguage.googleapis.com"
+    },
+    "MistralProviderConfig": {
+      "APIDomain": "api.mistral.ai"
+    }
   },
   "ProxyPort": ":8080",
   "DetectorName": "regex_detector",

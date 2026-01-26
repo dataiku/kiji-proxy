@@ -162,6 +162,8 @@ func (s *Server) Start() error {
 	log.Printf("Starting Yaak proxy service on port %s", s.config.ProxyPort)
 	log.Printf("Forward OpenAI requests to: %s", s.config.Providers.OpenAIProviderConfig.APIDomain)
 	log.Printf("Forward Anthropic requests to: %s", s.config.Providers.AnthropicProviderConfig.APIDomain)
+	log.Printf("Forward Gemini requests to: %s", s.config.Providers.GeminiProviderConfig.APIDomain)
+	log.Printf("Forward Mistral requests to: %s", s.config.Providers.MistralProviderConfig.APIDomain)
 
 	// Get actual detector configuration from handler
 	if s.handler != nil {
@@ -207,7 +209,7 @@ func (s *Server) Start() error {
 		go s.startTransparentProxy()
 	}
 
-	// Add health check endpoint
+	// Add admin endpoints (e.g. health check, logs, certs, etc.)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", s.healthCheck)
 	mux.HandleFunc("/version", s.versionHandler)
@@ -215,9 +217,12 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/mappings", s.mappingsHandler)
 	mux.HandleFunc("/stats", s.statsHandler)
 	mux.HandleFunc("/api/model/security", s.handleModelSecurity)
-	mux.Handle(providers.ProviderSubpathOpenAI, s.handler)
-	mux.Handle(providers.ProviderSubpathAnthropic, s.handler)
 	mux.HandleFunc("/api/proxy/ca-cert", s.handleCACert)
+
+	// Add provider endpoints
+	mux.Handle(providers.ProviderSubpathOpenAI, s.handler) // same as Mistral
+	mux.Handle(providers.ProviderSubpathAnthropic, s.handler)
+	mux.Handle(providers.ProviderSubpathGemini, s.handler)
 
 	// Serve UI files with cache-busting headers
 	if s.uiFS != nil {
