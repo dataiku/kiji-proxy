@@ -1,6 +1,5 @@
 """Configuration and environment setup for training."""
 
-import os
 import subprocess
 import sys
 from dataclasses import dataclass, field
