@@ -2,36 +2,86 @@
 
 This directory contains tools for generating synthetic PII training data using LLMs with structured outputs.
 
-## 📁 Directory Structure
+## Directory Structure
 
 ```
 model/dataset/
-├── training_set.py       # Main data generation script
-├── upload_to_hf.py       # Upload samples to HuggingFace Hub
-├── api_clients.py        # LLM client implementations (OpenAI, Ollama, vLLM)
-├── prompts.py            # Prompt templates for generation/review
-├── schemas.py            # JSON schemas for structured outputs
-├── label_utils.py        # PII label definitions and utilities
-├── file_operations.py    # File I/O utilities
-├── tokenization.py       # Tokenization for training samples
-├── samples/              # Raw generated samples
-└── reviewed_samples/     # LLM-reviewed and corrected samples
+├── doubleword/                  # Batch processing via Doubleword API
+│   ├── pipeline.py              # Automated dataset generation pipeline
+│   ├── pipeline_state.py        # State management for resumability
+│   ├── batch_generator.py       # Batch request generation
+│   ├── batch_monitor.py         # Automatic polling & monitoring
+│   ├── doubleword_client.py     # Doubleword API client
+│   └── result_processor.py      # Result processing
+│
+├── openai/                      # Direct generation via OpenAI API
+│   ├── training_set.py          # Training set generator
+│   ├── api_clients.py           # OpenAI API client
+│   ├── prompts.py               # Prompt templates for generation/review
+│   └── schemas.py               # JSON schemas for structured outputs
+│
+├── labelstudio/                 # Label Studio integration
+│   ├── labelstudio_format.py    # Convert samples to Label Studio format
+│   ├── export_annotations.py    # Export annotations from Label Studio
+│   └── import_predictions.py    # Import predictions to Label Studio
+│
+├── data_samples/                # Generated data samples
+│   ├── samples/                 # Raw generated samples
+│   ├── reviewed_samples/        # LLM-reviewed and corrected samples
+│   └── annotation_samples/      # Label Studio-ready samples
+│
+├── label_utils.py               # PII label definitions and utilities
+├── file_operations.py           # File I/O utilities
+├── tokenization.py              # Tokenization for training samples
+├── upload_to_hf.py              # Upload samples to HuggingFace Hub
+└── upload_to_s3.py              # Upload samples to S3
 ```
 
-## 🚀 Quick Start
+## Quick Start
 
-### Generate Training Samples
+### Option 1: Batch Processing (Doubleword) - Recommended for Large Datasets
+
+The Doubleword pipeline automates the entire workflow with automatic polling and resumability:
 
 ```bash
-# Generate 100 samples using OpenAI API
-uv run python model/dataset/training_set.py --num_samples=100
+# Set API key
+export DOUBLEWORD_API_KEY="your-api-key"
 
-# Generate using a remote vLLM server (OpenAI-compatible API)
-export URL=http://your-vllm-server:8000/v1/chat/completions
-uv run python model/dataset/training_set.py --num_samples=1000 --api_url=$URL
+# Generate 100 samples - fully automated
+uv run python -m model.dataset.doubleword.pipeline \
+  --command=start \
+  --num_samples=100
+
+# Generate with optional review stage for higher quality
+uv run python -m model.dataset.doubleword.pipeline \
+  --command=start \
+  --num_samples=100 \
+  --enable_review
+
+# Check status anytime
+uv run python -m model.dataset.doubleword.pipeline --command=status
+
+# Resume if interrupted
+uv run python -m model.dataset.doubleword.pipeline --command=resume
+```
+
+**See [DOUBLEWORD_QUICKSTART.md](./doubleword/DOUBLEWORD_QUICKSTART.md) for complete documentation.**
+
+### Option 2: Direct Generation (OpenAI) - For Quick Testing
+
+```bash
+# Set API key
+export OPENAI_API_KEY="your-api-key"
+
+# Generate 10 samples using OpenAI API
+uv run python -m model.dataset.openai.training_set --num_samples=10
+
+# Generate using a custom OpenAI-compatible API
+export URL=http://your-server:8000/v1/chat/completions
+uv run python -m model.dataset.openai.training_set --num_samples=100 --api_url=$URL
 
 # High-throughput generation with parallel workers
-uv run python model/dataset/training_set.py --num_samples=10000 --api_url=$URL --max_workers=250
+uv run python -m model.dataset.openai.training_set --num_samples=1000 --max_workers=12
 ```
 
 ### Upload to HuggingFace
@@ -40,26 +90,49 @@ uv run python model/dataset/training_set.py --num_samples=10000 --api_url=$URL -
 export HF_TOKEN=hf_xxxxx
 
 # Upload as private dataset
-python model/dataset/upload_to_hf.py --repo-id "username/pii-training-data"
+uv run python model/dataset/upload_to_hf.py --repo-id "username/pii-training-data"
 
 # Upload as public dataset
-python model/dataset/upload_to_hf.py --repo-id "username/pii-training-data" --public
+uv run python model/dataset/upload_to_hf.py --repo-id "username/pii-training-data" --public
 ```
 
-## ⚙️ Configuration Options
+## Which Method to Use?
 
-### training_set.py
+| Method | Best For | Pros | Cons |
+|--------|----------|------|------|
+| **Doubleword** | Large datasets (100+) | Automated, resumable, cost-effective batch pricing | Requires waiting for batch completion |
+| **OpenAI** | Quick testing, small datasets | Immediate results, real-time feedback | Higher cost per sample |
+
+**Recommendation:** Use **Doubleword** for production datasets (>100 samples), use **OpenAI** for testing and iteration.
+
+## Configuration Options
+
+### Doubleword Pipeline
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--command` | `start` | Command: start, status, resume, reset, cancel |
+| `--num_samples` | 100 | Number of samples to generate |
+| `--api_model` | `Qwen/Qwen3-VL-235B-A22B-Instruct-FP8` | Model name for generation |
+| `--[no]auto_poll` | `true` | Automatically wait for batch completion |
+| `--[no]enable_review` | `false` | Enable optional review stage |
+| `--poll_interval` | 60 | Seconds between status checks |
+| `--output_dir` | `model/dataset/doubleword` | Output directory for samples |
+| `--max_workers` | auto | Parallel workers (default: min(32, num_samples + 4)) |
+| `--log_level` | INFO | Logging verbosity |
+
+### OpenAI Training Set
 
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--num_samples` | 5 | Number of samples to generate |
-| `--api_url` | None | Custom API URL for vLLM or other OpenAI-compatible servers |
-| `--use_ollama` | False | Use local Ollama instead of OpenAI |
-| `--output_dir` | `model/dataset` | Output directory for samples |
+| `--api_url` | None | Custom API URL for OpenAI-compatible servers |
+| `--api_model` | `gpt-4.1-mini` | Model name (default optimized for cost) |
+| `--training_output_dir` | `model/dataset` | Output directory for samples |
 | `--max_workers` | auto | Parallel workers (default: min(12, num_samples + 4)) |
-| `--log_level` | WARNING | Logging verbosity (DEBUG, INFO, WARNING, ERROR) |
+| `--log_level` | WARNING | Logging verbosity |
 
-### upload_to_hf.py
+### Upload to HuggingFace
 
 | Flag | Default | Description |
 |------|---------|-------------|
@@ -67,52 +140,15 @@ python model/dataset/upload_to_hf.py --repo-id "username/pii-training-data" --pu
 | `--samples-dir` | `model/dataset/training_samples` | Directory containing JSON samples |
 | `--public` | False | Make dataset public (default: private) |
 
-## 🔧 Using vLLM Backend
-
-For large-scale generation, use a vLLM server with GPT-OSS or similar models:
-
-### 1. Start vLLM Server
-
-```bash
-vllm serve openai/gpt-oss-120b \
-    --tensor-parallel-size 8 \
-    --gpu-memory-utilization 0.90 \
-    --max-model-len 4096 \
-    --port 8000
-```
-
-### 2. Generate Data
-
-```bash
-export URL=http://server-ip:8000/v1/chat/completions
-
-# Start with small batch to verify
-uv run python model/dataset/training_set.py --num_samples=10 --api_url=$URL
-
-# Scale up with parallel workers
-uv run python model/dataset/training_set.py --num_samples=100000 --api_url=$URL --max_workers=500
-```
-
-### 3. Monitor Server
-
-Watch vLLM server logs for throughput metrics:
-```
-Engine 000: Avg prompt throughput: 4418.9 tokens/s, Avg generation throughput: 4981.0 tokens/s,
-Running: 248 reqs, Waiting: 0 reqs, GPU KV cache usage: 3.1%
-```
-
-**Tuning tips:**
-- Keep KV cache usage under 80%
-- Match `--max_workers` to server's `--max-num-seqs` (default: 1024)
-- If waiting queue grows, reduce workers
-
-## 📊 Sample Format
+## Sample Format
 
 Generated samples follow this JSON structure:
 
 ```json
 {
   "text": "Contact Dr. Maria Santos at maria.santos@hospital.org or call +1-555-123-4567.",
+  "language": "English",
+  "country": "United States",
   "privacy_mask": [
     {"value": "Maria", "label": "FIRSTNAME"},
     {"value": "Santos", "label": "SURNAME"},
@@ -122,14 +158,17 @@ Generated samples follow this JSON structure:
   "coreferences": [
     {
       "cluster_id": 0,
-      "mentions": ["Dr. Maria Santos", "maria.santos"],
+      "mentions": [
+        {"text": "Dr. Maria Santos", "type": "name", "privacy_mask_labels": ["FIRSTNAME", "SURNAME"]},
+        {"text": "maria.santos", "type": "reference"}
+      ],
       "entity_type": "person"
     }
   ]
 }
 ```
 
-## 🏷️ Supported PII Labels
+## Supported PII Labels
 
 | Label | Description |
 |-------|-------------|
@@ -158,30 +197,65 @@ Generated samples follow this JSON structure:
 | `LICENSEPLATENUM` | Vehicle license plates |
 | `AGE` | Age values |
 
-## 🔄 Generation Pipeline
+## Generation Pipelines
+
+### Doubleword Batch Pipeline
+
+```
+┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐
+│  Generate NER    │───►│  Automatic Poll  │───►│  Generate Coref  │
+│  Batch Requests  │    │  & Download      │    │  Batch Requests  │
+└──────────────────┘    └──────────────────┘    └──────────────────┘
+         │                                                │
+         ▼                                                ▼
+    Submit to API                                    Submit to API
+         │                                                │
+         ▼                                                ▼
+┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐
+│  Automatic Poll  │───►│  Review (opt)    │───►│  Process Results │
+│  & Download      │    │  Quality Check   │    │  & Convert       │
+└──────────────────┘    └──────────────────┘    └──────────────────┘
+                                                          │
+                                                          ▼
+                                                 ┌──────────────────┐
+                                                 │  Label Studio    │
+                                                 │  Samples         │
+                                                 └──────────────────┘
+```
+
+**Features:**
+- Fully automated with `--auto_poll`
+- Resumable at any stage
+- State persistence across runs
+- Parallel request generation
+- Optional review stage with `--enable_review`
+
+### OpenAI Direct Pipeline
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │   Generate      │───►│   Review        │───►│   Save          │
-│   (LLM call)    │    │   (LLM call)    │    │   (JSON file)   │
+│   (API call)    │    │   (API call)    │    │   (JSON file)   │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
-        │                      │
-        ▼                      ▼
-   Structured JSON        Corrected JSON
-   with PII labels        with validated labels
+        │                      │                       │
+        ▼                      ▼                       ▼
+   data_samples/         data_samples/          data_samples/
+     samples/          reviewed_samples/     annotation_samples/
 ```
 
-1. **Generate**: LLM creates text with embedded PII and annotations
-2. **Review**: Second LLM call validates and corrects labels
-3. **Save**: Final sample saved to `reviewed_samples/`
+**Steps:**
+1. **Generate**: OpenAI creates text with embedded PII and annotations
+2. **Review**: Second API call validates and corrects labels
+3. **Convert**: Transform to Label Studio format
+4. **Save**: Final samples saved to `data_samples/annotation_samples/`
 
-## 🛠️ Troubleshooting
+## Troubleshooting
 
 ### SSL Errors
 ```
 [SSL: WRONG_VERSION_NUMBER] wrong version number
 ```
-Use `http://` not `https://` for vLLM servers.
+Use `http://` not `https://` for local servers.
 
 ### 404 Not Found
 ```
@@ -191,18 +265,18 @@ Include the full API path: `http://server:8000/v1/chat/completions`
 
 ### Empty Responses
 If samples fail with JSON parse errors, ensure:
-- vLLM server supports structured outputs (`guided_json`)
+- Server supports structured outputs (`guided_json`)
 - Model supports chat completions format
 
 ### Rate Limiting
 If throughput drops or errors increase:
 ```bash
 # Reduce parallel workers
---max_workers=100
+--max_workers=8
 ```
 
-## 📚 Related Documentation
+## Related Documentation
 
-- [Metaflow Training Pipeline](../flows/README.md) - Kubernetes-based model training
-- [Trained Model](../trained/README.md) - Model files and serving
+- **[DOUBLEWORD_QUICKSTART.md](./doubleword/DOUBLEWORD_QUICKSTART.md)** - Complete guide to the Doubleword pipeline
+- [Label Studio README](./labelstudio/README.md) - Label Studio integration guide
 - [Main README](../../README.md) - Project overview

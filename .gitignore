@@ -84,10 +84,11 @@ model/trained/
 model/keys/**
 
 # Dataset folders
-model/dataset/samples/
-model/dataset/reviewed_samples/
-model/dataset/annotation_samples/
-model/dataset/training_samples/
+model/dataset/data_samples/samples/
+model/dataset/data_samples/reviewed_samples/
+model/dataset/data_samples/annotation_samples/
+model/dataset/data_samples/training_samples/
+model/dataset/doubleword/temp/
 Archive.zip
 
 # Pipeline folders
