@@ -83,9 +83,12 @@ flags.DEFINE_integer(
 try:
     from model.src.model import MultiTaskPIIConfig, MultiTaskPIIDetectionModel
 except ImportError:
-    # Fallback to importing from same directory
-    sys.path.insert(0, str(Path(__file__).parent))
-    from model import MultiTaskPIIConfig, MultiTaskPIIDetectionModel
+    try:
+        from src.model import MultiTaskPIIConfig, MultiTaskPIIDetectionModel
+    except ImportError:
+        # Fallback to importing from same directory
+        sys.path.insert(0, str(Path(__file__).parent))
+        from model import MultiTaskPIIConfig, MultiTaskPIIDetectionModel
 
 # absl.logging is already configured, no need for basicConfig
 

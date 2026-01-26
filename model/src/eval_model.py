@@ -34,9 +34,12 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 try:
-    from model.model import MultiTaskPIIConfig, MultiTaskPIIDetectionModel
+    from model.src.model import MultiTaskPIIConfig, MultiTaskPIIDetectionModel
 except ImportError:
-    from .model import MultiTaskPIIConfig, MultiTaskPIIDetectionModel
+    try:
+        from src.model import MultiTaskPIIConfig, MultiTaskPIIDetectionModel
+    except ImportError:
+        from model import MultiTaskPIIConfig, MultiTaskPIIDetectionModel
 
 
 # =============================================================================

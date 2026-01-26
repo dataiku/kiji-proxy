@@ -36,7 +36,10 @@ if str(project_root) not in sys.path:
 try:
     from model.src.model import MultiTaskPIIConfig, MultiTaskPIIDetectionModel
 except ImportError:
-    from .model import MultiTaskPIIConfig, MultiTaskPIIDetectionModel
+    try:
+        from src.model import MultiTaskPIIConfig, MultiTaskPIIDetectionModel
+    except ImportError:
+        from model import MultiTaskPIIConfig, MultiTaskPIIDetectionModel
 
 # Define command-line flags
 FLAGS = flags.FLAGS
