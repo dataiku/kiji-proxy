@@ -43,8 +43,6 @@ func (h *Handler) GetDetector() (pii.Detector, error) {
 	// Create detector config from handler config
 	detectorConfig := make(map[string]interface{})
 	switch detectorName {
-	case pii.DetectorNameModel:
-		detectorConfig["base_url"] = h.config.ModelBaseURL
 	case pii.DetectorNameONNXModel:
 		detectorConfig["model_path"] = h.config.ONNXModelPath
 		detectorConfig["tokenizer_path"] = h.config.TokenizerPath
