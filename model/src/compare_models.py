@@ -116,10 +116,13 @@ def load_pytorch_model(
     if config_path.exists():
         with config_path.open() as f:
             model_config = json.load(f)
-        base_model_name = model_config.get(
-            "_name_or_path", "answerdotai/ModernBERT-base"
-        )
-        if base_model_name == "modernbert":
+        # Get base model name from config - prioritize base_model_name field
+        base_model_name = model_config.get("base_model_name")
+        if not base_model_name:
+            # Fall back to _name_or_path for older configs
+            base_model_name = model_config.get("_name_or_path")
+        if not base_model_name or base_model_name == "multitask_pii":
+            # Default if not found or is model_type
             base_model_name = "answerdotai/ModernBERT-base"
     else:
         base_model_name = "answerdotai/ModernBERT-base"
