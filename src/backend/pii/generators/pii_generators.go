@@ -188,6 +188,128 @@ func TaxNumGenerator(rng *rand.Rand, original string) string {
 	return fmt.Sprintf("%02d-%07d", first, second)
 }
 
+// UrlGenerator generates dummy URLs
+func UrlGenerator(rng *rand.Rand, original string) string {
+	domains := []string{"example", "demo", "test", "sample", "placeholder"}
+	tlds := []string{"com", "org", "net", "io", "dev"}
+	paths := []string{"", "/page", "/info", "/about", "/contact", "/data"}
+
+	domain := domains[rng.Intn(len(domains))]
+	tld := tlds[rng.Intn(len(tlds))]
+	path := paths[rng.Intn(len(paths))]
+
+	return fmt.Sprintf("https://www.%s.%s%s", domain, tld, path)
+}
+
+// CompanyNameGenerator generates dummy company names
+func CompanyNameGenerator(rng *rand.Rand, original string) string {
+	prefixes := []string{"Acme", "Global", "United", "Pacific", "Atlantic", "Northern", "Summit", "Horizon", "Apex", "Vanguard"}
+	suffixes := []string{"Inc", "LLC", "Corp", "Industries", "Solutions", "Group", "Holdings", "Partners", "Enterprises", "Co"}
+
+	prefix := prefixes[rng.Intn(len(prefixes))]
+	suffix := suffixes[rng.Intn(len(suffixes))]
+
+	return fmt.Sprintf("%s %s", prefix, suffix)
+}
+
+// StateGenerator generates dummy state names
+func StateGenerator(rng *rand.Rand, original string) string {
+	states := []string{"California", "Texas", "Florida", "New York", "Illinois", "Pennsylvania", "Ohio", "Georgia", "Michigan", "Arizona"}
+	return states[rng.Intn(len(states))]
+}
+
+// CountryGenerator generates dummy country names
+func CountryGenerator(rng *rand.Rand, original string) string {
+	countries := []string{"United States", "Canada", "United Kingdom", "Germany", "France", "Australia", "Japan", "Brazil", "India", "Mexico"}
+	return countries[rng.Intn(len(countries))]
+}
+
+// PassportIdGenerator generates dummy passport IDs
+func PassportIdGenerator(rng *rand.Rand, original string) string {
+	// Generate format: AB1234567 (letter-letter-7digits)
+	letter1 := string(rune('A' + rng.Intn(26)))
+	letter2 := string(rune('A' + rng.Intn(26)))
+	number := 1000000 + rng.Intn(8999999)
+
+	return fmt.Sprintf("%s%s%07d", letter1, letter2, number)
+}
+
+// NationalIdGenerator generates dummy national ID numbers
+func NationalIdGenerator(rng *rand.Rand, original string) string {
+	// Generate format: XXX-XXXX-XXXX
+	part1 := 100 + rng.Intn(900)
+	part2 := 1000 + rng.Intn(9000)
+	part3 := 1000 + rng.Intn(9000)
+
+	return fmt.Sprintf("%03d-%04d-%04d", part1, part2, part3)
+}
+
+// LicensePlateNumGenerator generates dummy license plate numbers
+func LicensePlateNumGenerator(rng *rand.Rand, original string) string {
+	// Generate format: ABC-1234
+	letters := ""
+	for i := 0; i < 3; i++ {
+		letters += string(rune('A' + rng.Intn(26)))
+	}
+	number := 1000 + rng.Intn(9000)
+
+	return fmt.Sprintf("%s-%04d", letters, number)
+}
+
+// PasswordGenerator generates dummy passwords
+func PasswordGenerator(rng *rand.Rand, original string) string {
+	// Generate a random password with mixed characters
+	chars := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%"
+	length := 12 + rng.Intn(5) // 12-16 characters
+
+	password := make([]byte, length)
+	for i := range password {
+		password[i] = chars[rng.Intn(len(chars))]
+	}
+
+	return string(password)
+}
+
+// IbanGenerator generates dummy IBAN numbers
+func IbanGenerator(rng *rand.Rand, original string) string {
+	// Generate format: CC00 0000 0000 0000 0000 00 (simplified IBAN-like)
+	countryCodes := []string{"DE", "FR", "GB", "ES", "IT", "NL", "BE", "AT", "CH", "PL"}
+	countryCode := countryCodes[rng.Intn(len(countryCodes))]
+	checkDigits := 10 + rng.Intn(90)
+
+	// Generate 16 random digits in groups of 4
+	groups := make([]int, 4)
+	for i := range groups {
+		groups[i] = 1000 + rng.Intn(9000)
+	}
+
+	return fmt.Sprintf("%s%02d %04d %04d %04d %04d", countryCode, checkDigits, groups[0], groups[1], groups[2], groups[3])
+}
+
+// AgeGenerator generates dummy ages
+func AgeGenerator(rng *rand.Rand, original string) string {
+	// Generate age between 18 and 85
+	age := 18 + rng.Intn(68)
+	return fmt.Sprintf("%d", age)
+}
+
+// SecurityTokenGenerator generates dummy API security tokens
+func SecurityTokenGenerator(rng *rand.Rand, original string) string {
+	// Generate a token similar to API keys (alphanumeric, 32-40 chars)
+	chars := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	prefixes := []string{"sk_live_", "pk_test_", "api_", "token_", "key_"}
+
+	prefix := prefixes[rng.Intn(len(prefixes))]
+	length := 32 + rng.Intn(9) // 32-40 characters
+
+	token := make([]byte, length)
+	for i := range token {
+		token[i] = chars[rng.Intn(len(chars))]
+	}
+
+	return prefix + string(token)
+}
+
 // GenericGenerator is a fallback generator for unknown types
 func GenericGenerator(rng *rand.Rand, original string) string {
 	return "[REDACTED]"
