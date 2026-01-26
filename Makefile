@@ -152,7 +152,7 @@ test-python: ## Run Python tests
 
 test-go: ## Run Go tests
 	@echo "$(BLUE)Running Go tests...$(NC)"
-	go test ./... -v
+	CGO_LDFLAGS="-L./build/tokenizers" go test ./... -v
 	@echo "$(GREEN)✅ Go tests complete$(NC)"
 
 test-all: test test-go ## Run all tests (Python, Go)
