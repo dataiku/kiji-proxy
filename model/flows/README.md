@@ -38,7 +38,7 @@ Or use the helper script:
 
 Edit `training_config.toml` to change:
 
-- `model.name` - Base model (default: distilbert-base-cased)
+- `model.name` - Base model (default: answerdotai/ModernBERT-base)
 - `training.num_epochs` - Number of epochs
 - `training.batch_size` - Batch size
 - `training.learning_rate` - Learning rate

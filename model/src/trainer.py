@@ -181,24 +181,14 @@ class PIITrainer:
         """
         self.config = config
         self.tokenizer = AutoTokenizer.from_pretrained(config.model_name)
+        # Ensure consistent max length (ModernBERT defaults to 8192, we want 512)
+        self.tokenizer.model_max_length = config.max_sequence_length
         self.model = None
         self.pii_label2id = None
         self.pii_id2label = None
         self.coref_id2label = None
         self.num_coref_labels = None
         self.multi_task_loss_fn = None
-
-        if config.use_wandb:
-            try:
-                import wandb
-
-                wandb.init(
-                    project="pii-detection-multitask",
-                    name=f"bert-{config.model_name.split('/')[-1]}",
-                )
-            except Exception as e:
-                logging.warning(f"Warning: wandb not available ({e})")
-                self.config.use_wandb = False
 
     def load_label_mappings(self, mappings: dict, coref_info: dict):
         """Load label mappings from dataset processor."""
@@ -547,16 +537,10 @@ class PIITrainer:
 
             return batch
 
-        # Suppress transformers logging output (we use custom callback)
-        import logging as python_logging
-
+        # Enable transformers logging for progress visibility
         import transformers
 
-        transformers.logging.set_verbosity_error()
-
-        # Suppress the default trainer logging that prints dicts
-        trainer_logger = python_logging.getLogger("transformers.trainer")
-        trainer_logger.setLevel(python_logging.ERROR)
+        transformers.logging.set_verbosity_info()
 
         # Training arguments
         training_args = TrainingArguments(
@@ -576,14 +560,14 @@ class PIITrainer:
             load_best_model_at_end=True,
             metric_for_best_model="eval_pii_f1",  # Use PII F1 as primary metric
             greater_is_better=True,
-            report_to=None,
+            report_to="none",
             save_total_limit=3,
             seed=self.config.seed,
             dataloader_pin_memory=False,
             remove_unused_columns=False,
-            logging_first_step=False,
+            logging_first_step=True,
             disable_tqdm=False,  # Keep progress bar
-            log_level="error",  # Suppress info logs
+            log_level="info",  # Enable info logs for progress visibility
         )
 
         # Set up callbacks
@@ -620,6 +604,15 @@ class PIITrainer:
         # Train
         logging.info("\n🏋️  Starting multi-task training...")
         logging.info("=" * 60)
+        print(
+            f"Training {len(train_dataset)} samples, {len(val_dataset)} validation samples",
+            flush=True,
+        )
+        print(
+            f"Batch size: {self.config.batch_size}, Epochs: {self.config.num_epochs}",
+            flush=True,
+        )
+        print(f"Model: {self.config.model_name}", flush=True)
         trainer.train()
 
         # Save

@@ -51,7 +51,6 @@ def main(
 
     # Setup environment
     logging.info("\n1️⃣  Setting up environment...")
-    EnvironmentSetup.disable_wandb()
 
     # Mount Google Drive if requested
     drive_mounted = False

@@ -33,7 +33,7 @@ class TrainingConfig:
 
     # Output and logging
     output_dir: str = "./model/trained"
-    use_wandb: bool = False
+
     use_custom_loss: bool = True
     class_weights: dict[int, float] = field(default_factory=dict)
 
@@ -92,15 +92,6 @@ class EnvironmentSetup:
         except Exception:
             logging.exception("❌ Failed to mount Google Drive")
             return False
-
-    @staticmethod
-    def disable_wandb():
-        """Disable Weights & Biases to avoid API key prompts."""
-        os.environ["WANDB_DISABLED"] = "true"
-        os.environ["WANDB_MODE"] = "disabled"
-        os.environ["WANDB_PROJECT"] = ""
-        os.environ["WANDB_ENTITY"] = ""
-        logging.info("✅ Weights & Biases (wandb) disabled")
 
     @staticmethod
     def install_package(package_list: list[str], index_url: str | None = None):

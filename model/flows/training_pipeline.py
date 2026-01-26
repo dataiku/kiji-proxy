@@ -120,7 +120,6 @@ class PIITrainingPipeline(FlowSpec):
         print("PII Detection Model Training Pipeline")
         print("-" * 40)
 
-        EnvironmentSetup.disable_wandb()
         EnvironmentSetup.check_gpu()
 
         cfg = self.config_file
@@ -228,7 +227,7 @@ class PIITrainingPipeline(FlowSpec):
 
     # @pypi(packages=TRAINING_PACKAGES, python="3.13")
     # @kubernetes(memory=16000, cpu=8)
-    @environment(vars={"TOKENIZERS_PARALLELISM": "false", "WANDB_DISABLED": "true"})
+    @environment(vars={"TOKENIZERS_PARALLELISM": "false"})
     @retry(times=2)
     @checkpoint
     @step

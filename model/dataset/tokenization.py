@@ -14,10 +14,15 @@ class TokenizationProcessor:
         tokenizer: AutoTokenizer,
         label2id: dict[str, int],
         id2label: dict[int, str],
+        max_length: int = 512,
     ):
         self.tokenizer = tokenizer
         self.label2id = label2id
         self.id2label = id2label
+        # Use provided max_length or tokenizer's model_max_length, capped at 512
+        self.max_length = min(
+            max_length, getattr(tokenizer, "model_max_length", 512), 512
+        )
 
     def _find_privacy_mask_positions(
         self, text: str, privacy_mask: list[dict[str, str]]
@@ -176,8 +181,8 @@ class TokenizationProcessor:
             prev_word_label = word_label
 
         # Truncate to max_length if needed
-        if len(label_ids) > 512:
-            label_ids = label_ids[:511] + [-100]
+        if len(label_ids) > self.max_length:
+            label_ids = label_ids[: self.max_length - 1] + [-100]
 
         return label_ids
 
@@ -199,7 +204,7 @@ class TokenizationProcessor:
             words_original,
             truncation=True,
             is_split_into_words=True,
-            max_length=512,
+            max_length=self.max_length,
             return_offsets_mapping=True,
         )
 
@@ -277,7 +282,7 @@ class TokenizationProcessor:
             words_original,
             truncation=True,
             is_split_into_words=True,
-            max_length=512,
+            max_length=self.max_length,
             return_offsets_mapping=True,
         )
 
@@ -403,8 +408,8 @@ class TokenizationProcessor:
                         cluster_labels.append(cluster_id + 1)  # Add 1 to avoid 0
 
         # Truncate to max_length if needed
-        if len(cluster_labels) > 512:
-            cluster_labels = cluster_labels[:511] + [-100]
+        if len(cluster_labels) > self.max_length:
+            cluster_labels = cluster_labels[: self.max_length - 1] + [-100]
 
         # Create cluster_id to label mapping
         cluster_id2label = {0: "NO_COREF"}

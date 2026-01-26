@@ -82,13 +82,18 @@ class DatasetProcessor:
         """
         self.config = config
         self.tokenizer = AutoTokenizer.from_pretrained(config.model_name)
+        # Ensure consistent max length (ModernBERT defaults to 8192, we want 512)
+        self.tokenizer.model_max_length = config.max_sequence_length
 
         # Create label mappings for tokenization
         self.label2id, self.id2label = LabelUtils.create_standard_label2id()
 
         # Create tokenization processor
         self.tokenization_processor = TokenizationProcessor(
-            self.tokenizer, self.label2id, self.id2label
+            self.tokenizer,
+            self.label2id,
+            self.id2label,
+            max_length=config.max_sequence_length,
         )
 
     def convert_labelstudio_to_training_format(
@@ -135,9 +140,13 @@ class DatasetProcessor:
                 if "value" in item:
                     entity_id = item["id"]
                     value = item.get("value", {})
+                    labels = value.get("labels", [])
+                    # Skip entities with empty labels
+                    if not labels:
+                        continue
                     entities[entity_id] = {
                         "text": value.get("text", ""),
-                        "label": value.get("labels", [None])[0],
+                        "label": labels[0],
                         "start": value.get("start"),
                         "end": value.get("end"),
                     }
