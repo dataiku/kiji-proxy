@@ -208,7 +208,7 @@ class PIITrainer:
 
         num_pii_labels = len(self.pii_label2id)
 
-        self.model = MultiTaskPIIDetectionModel(
+        self.model = MultiTaskPIIDetectionModel.from_pretrained_legacy(
             model_name=self.config.model_name,
             num_pii_labels=num_pii_labels,
             num_coref_labels=self.num_coref_labels,
@@ -542,12 +542,27 @@ class PIITrainer:
 
         transformers.logging.set_verbosity_info()
 
+        # Enable TF32 for faster matmuls on Ampere+ GPUs (A100, H100)
+        torch.backends.cuda.matmul.allow_tf32 = True
+        torch.backends.cudnn.allow_tf32 = True
+
+        # Determine optimal dataloader settings based on environment
+        # Use multiple workers on Linux with CUDA, single worker elsewhere
+        import platform
+
+        use_cuda = torch.cuda.is_available()
+        is_linux = platform.system() == "Linux"
+        num_workers = 4 if (use_cuda and is_linux) else 0
+        pin_memory = use_cuda  # Pin memory when using CUDA
+
         # Training arguments
         training_args = TrainingArguments(
             output_dir=self.config.output_dir,
             num_train_epochs=self.config.num_epochs,
             per_device_train_batch_size=self.config.batch_size,
-            per_device_eval_batch_size=self.config.batch_size,
+            per_device_eval_batch_size=self.config.batch_size
+            * 2,  # Larger eval batch (no gradients)
+            gradient_accumulation_steps=self.config.gradient_accumulation_steps,
             warmup_steps=self.config.warmup_steps,
             weight_decay=self.config.weight_decay,
             learning_rate=self.config.learning_rate,
@@ -561,13 +576,23 @@ class PIITrainer:
             metric_for_best_model="eval_pii_f1",  # Use PII F1 as primary metric
             greater_is_better=True,
             report_to="none",
+            bf16=True,  # Use bfloat16 for faster training on modern GPUs
+            tf32=True,  # Use TF32 for faster matmuls on Ampere+ GPUs
             save_total_limit=3,
             seed=self.config.seed,
-            dataloader_pin_memory=False,
+            dataloader_pin_memory=pin_memory,  # Faster CPU->GPU transfer
+            dataloader_num_workers=num_workers,  # Parallel data loading
+            dataloader_prefetch_factor=2
+            if num_workers > 0
+            else None,  # Prefetch batches
             remove_unused_columns=False,
             logging_first_step=True,
             disable_tqdm=False,  # Keep progress bar
             log_level="info",  # Enable info logs for progress visibility
+            # Gradient checkpointing trades compute for memory - enable if OOM
+            # gradient_checkpointing=True,
+            # Compile model for faster execution (PyTorch 2.0+)
+            torch_compile=use_cuda,  # Only compile on CUDA
         )
 
         # Set up callbacks

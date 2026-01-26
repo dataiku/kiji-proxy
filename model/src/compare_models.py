@@ -34,9 +34,9 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 try:
-    from model.src.model import MultiTaskPIIDetectionModel
+    from model.src.model import MultiTaskPIIConfig, MultiTaskPIIDetectionModel
 except ImportError:
-    from .model import MultiTaskPIIDetectionModel
+    from .model import MultiTaskPIIConfig, MultiTaskPIIDetectionModel
 
 # Define command-line flags
 FLAGS = flags.FLAGS
@@ -121,17 +121,18 @@ def load_pytorch_model(
     else:
         base_model_name = "answerdotai/ModernBERT-base"
 
-    # Create model
+    # Create model config and model
     num_pii_labels = len(pii_label2id)
     num_coref_labels = len(coref_id2label)
 
-    model = MultiTaskPIIDetectionModel(
-        model_name=base_model_name,
+    config = MultiTaskPIIConfig(
+        base_model_name=base_model_name,
         num_pii_labels=num_pii_labels,
         num_coref_labels=num_coref_labels,
         id2label_pii=pii_id2label,
         id2label_coref=coref_id2label,
     )
+    model = MultiTaskPIIDetectionModel(config)
 
     # Load weights
     model_weights_path = model_path / "model.safetensors"

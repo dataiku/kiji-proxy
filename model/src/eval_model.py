@@ -34,9 +34,9 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 try:
-    from model.model import MultiTaskPIIDetectionModel
+    from model.model import MultiTaskPIIConfig, MultiTaskPIIDetectionModel
 except ImportError:
-    from .model import MultiTaskPIIDetectionModel
+    from .model import MultiTaskPIIConfig, MultiTaskPIIDetectionModel
 
 
 # =============================================================================
@@ -188,14 +188,15 @@ class PIIModelLoader:
         logging.info(f"   PII labels: {num_pii_labels}")
         logging.info(f"   Co-reference labels: {num_coref_labels}")
 
-        # Load multi-task model
-        self.model = MultiTaskPIIDetectionModel(
-            model_name=base_model_name,
+        # Create config and load multi-task model
+        config = MultiTaskPIIConfig(
+            base_model_name=base_model_name,
             num_pii_labels=num_pii_labels,
             num_coref_labels=num_coref_labels,
             id2label_pii=self.pii_id2label,
             id2label_coref=self.coref_id2label or {0: "NO_COREF", 1: "CLUSTER_0"},
         )
+        self.model = MultiTaskPIIDetectionModel(config)
 
         # Load model weights into the model
         if state_dict is not None:

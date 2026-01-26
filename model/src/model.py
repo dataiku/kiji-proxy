@@ -3,7 +3,7 @@
 import torch
 from torch import nn
 from torch.nn import functional
-from transformers import AutoModel
+from transformers import AutoModel, PretrainedConfig, PreTrainedModel
 
 
 class MaskedSparseCategoricalCrossEntropy(nn.Module):
@@ -145,14 +145,87 @@ class MultiTaskLoss(nn.Module):
         return total_loss
 
 
-class MultiTaskPIIDetectionModel(nn.Module):
-    """
-    Multi-task model for PII detection and co-reference detection.
-    Uses a shared BERT encoder with two separate classification heads.
-    """
+class MultiTaskPIIConfig(PretrainedConfig):
+    """Configuration class for MultiTaskPIIDetectionModel."""
+
+    model_type = "multitask_pii"
 
     def __init__(
         self,
+        base_model_name: str = "answerdotai/ModernBERT-base",
+        num_pii_labels: int = 49,
+        num_coref_labels: int = 5,
+        id2label_pii: dict[int, str] | None = None,
+        id2label_coref: dict[int, str] | None = None,
+        hidden_size: int = 768,
+        **kwargs,
+    ):
+        """
+        Initialize config.
+
+        Args:
+            base_model_name: Name of the base encoder model
+            num_pii_labels: Number of PII detection labels
+            num_coref_labels: Number of co-reference detection labels
+            id2label_pii: Mapping from PII label IDs to label names
+            id2label_coref: Mapping from co-reference label IDs to label names
+            hidden_size: Hidden size of the encoder
+            **kwargs: Additional arguments for PretrainedConfig
+        """
+        super().__init__(**kwargs)
+        self.base_model_name = base_model_name
+        self.num_pii_labels = num_pii_labels
+        self.num_coref_labels = num_coref_labels
+        self.id2label_pii = id2label_pii or {}
+        self.id2label_coref = id2label_coref or {}
+        self.hidden_size = hidden_size
+
+
+class MultiTaskPIIDetectionModel(PreTrainedModel):
+    """
+    Multi-task model for PII detection and co-reference detection.
+    Uses a shared BERT encoder with two separate classification heads.
+
+    Inherits from PreTrainedModel for proper HuggingFace integration,
+    including save_pretrained/from_pretrained and ONNX export support.
+    """
+
+    config_class = MultiTaskPIIConfig
+
+    def __init__(self, config: MultiTaskPIIConfig):
+        """
+        Initialize multi-task model from config.
+
+        Args:
+            config: Model configuration
+        """
+        super().__init__(config)
+
+        # Shared encoder
+        self.encoder = AutoModel.from_pretrained(config.base_model_name)
+        hidden_size = self.encoder.config.hidden_size
+
+        # Update config with actual hidden size from encoder
+        config.hidden_size = hidden_size
+
+        # PII detection head
+        self.pii_classifier = nn.Linear(hidden_size, config.num_pii_labels)
+
+        # Co-reference detection head
+        self.coref_classifier = nn.Linear(hidden_size, config.num_coref_labels)
+
+        # Store label mappings for convenience
+        self.num_pii_labels = config.num_pii_labels
+        self.num_coref_labels = config.num_coref_labels
+        self.id2label_pii = config.id2label_pii
+        self.id2label_coref = config.id2label_coref
+
+        # Initialize weights for classification heads
+        self.post_init()
+
+    @classmethod
+    def from_pretrained_legacy(
+        cls,
         model_name: str,
         num_pii_labels: int,
         num_coref_labels: int,
@@ -160,7 +233,7 @@ class MultiTaskPIIDetectionModel(nn.Module):
         id2label_coref: dict[int, str],
     ):
         """
-        Initialize multi-task model.
+        Create model with legacy API (for backward compatibility with trainer).
 
         Args:
             model_name: Name of the base BERT model
@@ -168,24 +241,18 @@ class MultiTaskPIIDetectionModel(nn.Module):
             num_coref_labels: Number of co-reference detection labels
             id2label_pii: Mapping from PII label IDs to label names
             id2label_coref: Mapping from co-reference label IDs to label names
+
+        Returns:
+            Initialized model
         """
-        super().__init__()
-
-        # Shared encoder
-        self.encoder = AutoModel.from_pretrained(model_name)
-        hidden_size = self.encoder.config.hidden_size
-
-        # PII detection head
-        self.pii_classifier = nn.Linear(hidden_size, num_pii_labels)
-
-        # Co-reference detection head
-        self.coref_classifier = nn.Linear(hidden_size, num_coref_labels)
-
-        # Store label mappings
-        self.num_pii_labels = num_pii_labels
-        self.num_coref_labels = num_coref_labels
-        self.id2label_pii = id2label_pii
-        self.id2label_coref = id2label_coref
+        config = MultiTaskPIIConfig(
+            base_model_name=model_name,
+            num_pii_labels=num_pii_labels,
+            num_coref_labels=num_coref_labels,
+            id2label_pii=id2label_pii,
+            id2label_coref=id2label_coref,
+        )
+        return cls(config)
 
     def forward(
         self,

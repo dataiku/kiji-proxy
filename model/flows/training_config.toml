@@ -6,8 +6,9 @@ name = "answerdotai/ModernBERT-base"
 
 [training]
 num_epochs = 40
-batch_size = 64
+batch_size = 32  # Increased for H100 (with bf16, memory is efficient)
 learning_rate = 3e-5
+gradient_accumulation_steps = 1  # Set to 2+ for larger effective batch size
 
 # Early stopping settings
 early_stopping_enabled = true

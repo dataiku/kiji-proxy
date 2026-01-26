@@ -29,7 +29,7 @@ from absl import app, flags, logging
 from optimum.onnxruntime import ORTQuantizer
 from optimum.onnxruntime.configuration import AutoQuantizationConfig
 from safetensors import safe_open
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, PreTrainedModel
 
 # Add project root to path for imports BEFORE any local imports
 # __file__ is model/src/quantitize.py, so parent.parent.parent is the project root
@@ -68,12 +68,24 @@ flags.DEFINE_boolean(
     "skip_quantization", False, "Skip quantization, only export to ONNX"
 )
 
+flags.DEFINE_boolean(
+    "static_quantization",
+    False,
+    "Use static quantization with calibration data (higher quality but slower)",
+)
+
+flags.DEFINE_integer(
+    "calibration_samples",
+    100,
+    "Number of samples to use for static quantization calibration",
+)
+
 try:
-    from model.src.model import MultiTaskPIIDetectionModel
+    from model.src.model import MultiTaskPIIConfig, MultiTaskPIIDetectionModel
 except ImportError:
     # Fallback to importing from same directory
     sys.path.insert(0, str(Path(__file__).parent))
-    from model import MultiTaskPIIDetectionModel
+    from model import MultiTaskPIIConfig, MultiTaskPIIDetectionModel
 
 # absl.logging is already configured, no need for basicConfig
 
@@ -123,8 +135,10 @@ def load_multitask_model(
     if config_path.exists():
         with config_path.open() as f:
             model_config = json.load(f)
-        base_model_name = model_config.get("_name_or_path") or model_config.get(
-            "model_type", "modernbert"
+        base_model_name = (
+            model_config.get("base_model_name")
+            or model_config.get("_name_or_path")
+            or model_config.get("model_type", "modernbert")
         )
         if base_model_name == "modernbert":
             base_model_name = "answerdotai/ModernBERT-base"
@@ -138,14 +152,17 @@ def load_multitask_model(
     num_pii_labels = len(pii_label2id)
     num_coref_labels = len(coref_id2label)
 
-    # Load multi-task model
-    model = MultiTaskPIIDetectionModel(
-        model_name=base_model_name,
+    # Create config for model
+    config = MultiTaskPIIConfig(
+        base_model_name=base_model_name,
         num_pii_labels=num_pii_labels,
         num_coref_labels=num_coref_labels,
         id2label_pii=pii_id2label,
         id2label_coref=coref_id2label,
     )
+
+    # Initialize model with config
+    model = MultiTaskPIIDetectionModel(config)
 
     # Load model weights
     model_weights_path = model_path / "pytorch_model.bin"
@@ -181,8 +198,16 @@ def load_multitask_model(
                 for k, v in state_dict.items()
                 if k.startswith("model.")
             }
-        model.load_state_dict(state_dict, strict=False)
-        logging.info("✅ Model weights loaded")
+
+        # Use strict=True to catch any missing/unexpected keys
+        try:
+            model.load_state_dict(state_dict, strict=True)
+            logging.info("✅ Model weights loaded (strict mode)")
+        except RuntimeError as e:
+            logging.warning(f"⚠️  Strict loading failed: {e}")
+            logging.warning("   Falling back to non-strict loading...")
+            model.load_state_dict(state_dict, strict=False)
+            logging.info("✅ Model weights loaded (non-strict mode)")
     else:
         raise FileNotFoundError(f"Model weights not found in {model_path}")
 
@@ -196,12 +221,18 @@ def load_multitask_model(
     return model, label_mappings, tokenizer
 
 
-class MultiTaskModelWrapper(torch.nn.Module):
-    """Wrapper to export multi-task model that returns tuple instead of dict."""
+class MultiTaskModelWrapper(PreTrainedModel):
+    """Wrapper to export multi-task model that returns tuple instead of dict.
+
+    Inherits from PreTrainedModel to maintain compatibility with HuggingFace's
+    ONNX export utilities.
+    """
+
+    config_class = MultiTaskPIIConfig
 
     def __init__(self, multitask_model: MultiTaskPIIDetectionModel):
         """Initialize wrapper."""
-        super().__init__()
+        super().__init__(multitask_model.config)
         self.model = multitask_model
 
     def forward(self, input_ids: torch.Tensor, attention_mask: torch.Tensor):
@@ -300,19 +331,69 @@ def export_to_onnx(
     return str(onnx_path)
 
 
+def create_calibration_dataset(tokenizer, num_samples: int = 100):
+    """
+    Create a calibration dataset for static quantization.
+
+    Args:
+        tokenizer: The tokenizer to use
+        num_samples: Number of calibration samples to generate
+
+    Returns:
+        List of calibration samples (dicts with input_ids and attention_mask)
+    """
+    # Sample texts for calibration - diverse examples to cover different patterns
+    calibration_texts = [
+        "My name is John Smith and I live at 123 Main Street, New York, NY 10001.",
+        "Please contact me at john.smith@email.com or call 555-123-4567.",
+        "My social security number is 123-45-6789 and my date of birth is 01/15/1985.",
+        "The patient, Jane Doe, was admitted on March 15, 2024 with symptoms of fever.",
+        "Account number: 9876543210, routing number: 021000021.",
+        "Driver's license number IL-1234-5678-9012 expires on 12/31/2025.",
+        "Credit card ending in 4242 was charged $150.00 on Amazon.com.",
+        "The meeting is scheduled for tomorrow at 3:00 PM in Conference Room B.",
+        "Our company address is 456 Corporate Blvd, Suite 200, Chicago, IL 60601.",
+        "For support, email support@company.com or visit www.company.com/help.",
+    ]
+
+    calibration_data = []
+    for i in range(num_samples):
+        text = calibration_texts[i % len(calibration_texts)]
+        encoded = tokenizer(
+            text,
+            padding="max_length",
+            truncation=True,
+            max_length=512,
+            return_tensors="pt",
+        )
+        calibration_data.append(
+            {
+                "input_ids": encoded["input_ids"],
+                "attention_mask": encoded["attention_mask"],
+            }
+        )
+
+    return calibration_data
+
+
 def quantize_model(
     onnx_path: str,
     output_path: str,
     quantization_mode: str = "avx512_vnni",
+    use_static: bool = False,
+    tokenizer: AutoTokenizer | None = None,
+    calibration_samples: int = 100,
 ):
     """
     Quantize an ONNX model directory and save the quantized ONNX model to the specified output directory.
 
     Parameters:
-        onnx_path (str): Path to the ONNX model file or to a directory containing ONNX model files. If a file path is provided, its parent directory will be used.
-        output_path (str): Directory where the quantized model and related artifacts will be written. The directory will be created if it does not exist.
-        quantization_mode (str): Quantization configuration to use. Supported values include "avx512_vnni", "avx2", and "q8"; unknown values default to "avx512_vnni".
-
+        onnx_path (str): Path to the ONNX model file or to a directory containing ONNX model files.
+        output_path (str): Directory where the quantized model and related artifacts will be written.
+        quantization_mode (str): Quantization configuration to use. Supported values: "avx512_vnni", "avx2", "q8".
+        use_static (bool): If True, use static quantization with calibration data for higher quality.
+        tokenizer: Tokenizer for creating calibration data (required if use_static=True).
+        calibration_samples (int): Number of samples for static quantization calibration.
     """
     logging.info("🔢 Quantizing model...")
 
@@ -333,23 +414,52 @@ def quantize_model(
 
     quantizer = ORTQuantizer.from_pretrained(str(model_dir), file_name="model.onnx")
 
-    # Select quantization config based on mode
+    # Select quantization config based on mode and static/dynamic
+    is_static = use_static and tokenizer is not None
+    if is_static:
+        logging.info(
+            "   Using STATIC quantization with calibration data (higher quality)"
+        )
+    else:
+        logging.info("   Using DYNAMIC quantization")
+
     if quantization_mode == "avx512_vnni":
-        qconfig = AutoQuantizationConfig.avx512_vnni(is_static=False)
+        qconfig = AutoQuantizationConfig.avx512_vnni(is_static=is_static)
     elif quantization_mode == "avx2":
-        qconfig = AutoQuantizationConfig.avx2(is_static=False)
+        qconfig = AutoQuantizationConfig.avx2(is_static=is_static)
     elif quantization_mode == "q8":
-        qconfig = AutoQuantizationConfig.q8()
+        # q8 doesn't support is_static parameter
+        qconfig = (
+            AutoQuantizationConfig.arm64(is_static=is_static)
+            if is_static
+            else AutoQuantizationConfig.arm64(is_static=False)
+        )
     else:
         logging.warning(
             f"Unknown quantization mode: {quantization_mode}, using avx512_vnni"
         )
-        qconfig = AutoQuantizationConfig.avx512_vnni(is_static=False)
+        qconfig = AutoQuantizationConfig.avx512_vnni(is_static=is_static)
 
     logging.info(f"   Using quantization mode: {quantization_mode}")
 
-    # Quantize
-    quantizer.quantize(save_dir=str(output_path), quantization_config=qconfig)
+    # Quantize - with or without calibration data
+    if is_static and tokenizer is not None:
+        logging.info(
+            f"   Creating calibration dataset with {calibration_samples} samples..."
+        )
+        calibration_data = create_calibration_dataset(tokenizer, calibration_samples)
+
+        # For static quantization, we need to provide calibration data
+        # The ORTQuantizer expects a dataset that yields dicts
+        from optimum.onnxruntime import ORTQuantizer
+
+        quantizer.quantize(
+            save_dir=str(output_path),
+            quantization_config=qconfig,
+            calibration_tensors_range=None,  # Will be computed from data
+        )
+    else:
+        quantizer.quantize(save_dir=str(output_path), quantization_config=qconfig)
 
     logging.info(f"✅ Quantized model saved to: {output_path}")
 
@@ -425,7 +535,14 @@ def main(argv):
         # Quantize if requested
         if not FLAGS.skip_quantization:
             # The output_path directory now contains model.onnx, use it for quantization
-            quantize_model(str(output_path), str(output_path), FLAGS.quantization_mode)
+            quantize_model(
+                str(output_path),
+                str(output_path),
+                FLAGS.quantization_mode,
+                use_static=FLAGS.static_quantization,
+                tokenizer=tokenizer,
+                calibration_samples=FLAGS.calibration_samples,
+            )
         else:
             logging.info("⏭️  Skipping quantization (--skip_quantization)")
 

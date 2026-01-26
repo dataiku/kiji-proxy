@@ -30,6 +30,9 @@ class TrainingConfig:
     eval_steps: int = 500
     logging_steps: int = 500
     seed: int = 42
+    gradient_accumulation_steps: int = (
+        1  # Accumulate gradients for larger effective batch
+    )
 
     # Output and logging
     output_dir: str = "./model/trained"
