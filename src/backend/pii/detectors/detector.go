@@ -6,7 +6,6 @@ import (
 )
 
 const (
-	DetectorNameModel     = "model_detector"
 	DetectorNameRegex     = "regex_detector"
 	DetectorNameONNXModel = "onnx_model_detector"
 )
@@ -35,14 +34,6 @@ func NewDetector(name string, config map[string]interface{}) (Detector, error) {
 
 func init() {
 	// Register built-in detector factories
-	RegisterDetectorFactory(DetectorNameModel, func(config map[string]interface{}) (Detector, error) {
-		baseURL, ok := config["base_url"].(string)
-		if !ok {
-			return nil, fmt.Errorf("base_url is required for model detector")
-		}
-		return NewModelDetector(baseURL), nil
-	})
-
 	RegisterDetectorFactory(DetectorNameRegex, func(config map[string]interface{}) (Detector, error) {
 		return NewRegexDetector(PIIPatterns), nil
 	})
