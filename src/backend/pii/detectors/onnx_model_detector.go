@@ -6,11 +6,27 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/daulet/tokenizers"
 	onnxruntime "github.com/yalue/onnxruntime_go"
 )
+
+// Chunking constants for processing long texts
+const (
+	maxSeqLen    = 512 // Maximum tokens per chunk (DistilBERT limit)
+	chunkOverlap = 64  // Tokens of overlap between chunks for context continuity
+)
+
+// tokenChunk represents a chunk of tokens for processing
+type tokenChunk struct {
+	tokenIDs        []uint32
+	offsets         []tokenizers.Offset
+	startTokenIndex int  // Index of first token in original sequence
+	isFirst         bool // Is this the first chunk?
+	isLast          bool // Is this the last chunk?
+}
 
 // ONNXModelDetectorSimple implements DetectorClass using an internal ONNX model
 type ONNXModelDetectorSimple struct {
@@ -167,24 +183,43 @@ func (d *ONNXModelDetectorSimple) Detect(ctx context.Context, input DetectorInpu
 	encoding := d.tokenizer.EncodeWithOptions(input.Text, true, tokenizers.WithReturnOffsets())
 	tokenIDs := encoding.IDs
 
-	// Convert to int64 for ONNX
-	inputIDs := make([]int64, len(tokenIDs))
-	attentionMask := make([]int64, len(tokenIDs))
-	for i := range tokenIDs {
-		inputIDs[i] = int64(tokenIDs[i])
-		attentionMask[i] = 1 // All tokens are attended to
+	// Split tokens into chunks for processing long texts
+	chunks := chunkTokens(tokenIDs, encoding.Offsets)
+
+	// Process each chunk and collect entities
+	var chunkEntities [][]Entity
+	for _, chunk := range chunks {
+		// Check context cancellation
+		select {
+		case <-ctx.Done():
+			return DetectorOutput{}, ctx.Err()
+		default:
+		}
+
+		// Convert to int64 for ONNX
+		inputIDs := make([]int64, len(chunk.tokenIDs))
+		attentionMask := make([]int64, len(chunk.tokenIDs))
+		for i := range chunk.tokenIDs {
+			inputIDs[i] = int64(chunk.tokenIDs[i])
+			attentionMask[i] = 1 // All tokens are attended to
+		}
+
+		// Update input tensors with new data
+		d.updateInputTensors(inputIDs, attentionMask)
+
+		// Run inference
+		if err := d.session.Run(); err != nil {
+			return DetectorOutput{}, fmt.Errorf("failed to run inference on chunk: %w", err)
+		}
+
+		// Process results for this chunk
+		// Offsets in chunk already contain absolute character positions from original text
+		entities := d.processOutputInline(input.Text, chunk.tokenIDs, chunk.offsets)
+		chunkEntities = append(chunkEntities, entities)
 	}
 
-	// Update input tensors with new data
-	d.updateInputTensors(inputIDs, attentionMask)
-
-	// Run inference
-	if err := d.session.Run(); err != nil {
-		return DetectorOutput{}, fmt.Errorf("failed to run inference: %w", err)
-	}
-
-	// Process results inline to avoid the compilation issue
-	entities := d.processOutputInline(input.Text, tokenIDs, encoding.Offsets)
+	// Merge entities from all chunks, handling overlaps
+	entities := mergeChunkEntities(chunkEntities)
 
 	return DetectorOutput{
 		Text:     input.Text,
@@ -441,4 +476,118 @@ func (d *ONNXModelDetectorSimple) Close() error {
 		return fmt.Errorf("cleanup errors: %v", errs)
 	}
 	return nil
+}
+
+// chunkTokens splits tokens into overlapping chunks for processing long texts
+func chunkTokens(tokenIDs []uint32, offsets []tokenizers.Offset) []tokenChunk {
+	numTokens := len(tokenIDs)
+
+	// If text fits in one chunk, return as-is
+	if numTokens <= maxSeqLen {
+		return []tokenChunk{{
+			tokenIDs:        tokenIDs,
+			offsets:         offsets,
+			startTokenIndex: 0,
+			isFirst:         true,
+			isLast:          true,
+		}}
+	}
+
+	var chunks []tokenChunk
+	stride := maxSeqLen - chunkOverlap // 448 tokens per stride
+
+	for start := 0; start < numTokens; start += stride {
+		end := start + maxSeqLen
+		if end > numTokens {
+			end = numTokens
+		}
+
+		chunk := tokenChunk{
+			tokenIDs:        tokenIDs[start:end],
+			offsets:         offsets[start:end],
+			startTokenIndex: start,
+			isFirst:         start == 0,
+			isLast:          end >= numTokens,
+		}
+		chunks = append(chunks, chunk)
+
+		// Stop if we've reached the end
+		if end >= numTokens {
+			break
+		}
+	}
+
+	return chunks
+}
+
+// mergeChunkEntities combines entities from multiple chunks, handling overlaps
+func mergeChunkEntities(chunkEntities [][]Entity) []Entity {
+	if len(chunkEntities) == 0 {
+		return []Entity{}
+	}
+	if len(chunkEntities) == 1 {
+		return chunkEntities[0]
+	}
+
+	// Collect all entities
+	var allEntities []Entity
+	for _, entities := range chunkEntities {
+		allEntities = append(allEntities, entities...)
+	}
+
+	if len(allEntities) == 0 {
+		return []Entity{}
+	}
+
+	// Sort by start position
+	sort.Slice(allEntities, func(i, j int) bool {
+		if allEntities[i].StartPos != allEntities[j].StartPos {
+			return allEntities[i].StartPos < allEntities[j].StartPos
+		}
+		// If same start, prefer longer entity
+		return allEntities[i].EndPos > allEntities[j].EndPos
+	})
+
+	// Deduplicate overlapping entities (prefer higher confidence)
+	var merged []Entity
+	for _, entity := range allEntities {
+		// Check if this entity overlaps with the last merged entity
+		if len(merged) > 0 {
+			last := &merged[len(merged)-1]
+
+			// Check for overlap: entities overlap if one starts before the other ends
+			if entity.StartPos < last.EndPos {
+				// Overlapping entities - keep the one with higher confidence
+				// or merge if they represent the same text span
+				if entity.StartPos == last.StartPos && entity.EndPos == last.EndPos {
+					// Exact same span - keep higher confidence
+					if entity.Confidence > last.Confidence {
+						*last = entity
+					}
+					continue
+				}
+
+				// Partial overlap - if same label, extend to cover both
+				if entity.Label == last.Label {
+					if entity.EndPos > last.EndPos {
+						last.EndPos = entity.EndPos
+						last.Text = last.Text[:entity.StartPos-last.StartPos] + entity.Text
+						last.Confidence = (last.Confidence + entity.Confidence) / 2
+					}
+					continue
+				}
+
+				// Different labels with overlap - keep higher confidence one
+				if entity.Confidence > last.Confidence {
+					*last = entity
+				}
+				continue
+			}
+		}
+
+		// No overlap, add as new entity
+		merged = append(merged, entity)
+	}
+
+	return merged
 }
