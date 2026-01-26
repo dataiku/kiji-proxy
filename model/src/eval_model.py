@@ -571,6 +571,10 @@ def main():
 
     args = parser.parse_args()
 
+    # Initialize absl logging to print to stderr
+    logging.set_verbosity(logging.INFO)
+    logging.use_absl_handler()
+
     logging.info("=" * 80)
     logging.info("PII Detection Model Evaluation")
     logging.info("=" * 80)

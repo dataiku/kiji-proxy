@@ -640,8 +640,9 @@ class PIITrainer:
         print(f"Model: {self.config.model_name}", flush=True)
         trainer.train()
 
-        # Save
+        # Save model, config, and tokenizer
         trainer.save_model()
+        self.model.config.save_pretrained(self.config.output_dir)
         self.tokenizer.save_pretrained(self.config.output_dir)
         logging.info(
             f"\n✅ Training completed. Model saved to {self.config.output_dir}"
