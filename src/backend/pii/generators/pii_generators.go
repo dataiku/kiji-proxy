@@ -262,23 +262,6 @@ func DriverLicenseNumGenerator(rng *rand.Rand, original string) string {
 	return fmt.Sprintf("%s%09d", letter, number)
 }
 
-// AccountNumGenerator generates dummy account numbers
-func AccountNumGenerator(rng *rand.Rand, original string) string {
-	// Generate 10-12 digit account number
-	length := 10 + rng.Intn(3)
-	min := 1
-	max := 1
-	for i := 0; i < length; i++ {
-		min *= 10
-		max *= 10
-	}
-	min /= 10
-	max -= 1
-
-	number := min + rng.Intn(max-min)
-	return fmt.Sprintf("%d", number)
-}
-
 // TaxNumGenerator generates dummy tax identification numbers
 func TaxNumGenerator(rng *rand.Rand, original string) string {
 	// Generate format: XX-XXXXXXX (EIN-like format)
