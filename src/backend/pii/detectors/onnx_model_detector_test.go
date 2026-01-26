@@ -6,6 +6,33 @@ import (
 	"github.com/daulet/tokenizers"
 )
 
+// makeTestTokenData creates test token IDs and offsets for chunking tests.
+// This helper avoids gosec G115 warnings about integer conversions in test code.
+func makeTestTokenData(count int) ([]uint32, []tokenizers.Offset) {
+	tokenIDs := make([]uint32, count)
+	offsets := make([]tokenizers.Offset, count)
+	for i := range count {
+		// #nosec G115 - Safe in test code with small bounded values
+		tokenIDs[i] = uint32(i)
+		// #nosec G115 - Safe in test code with small bounded values
+		offsets[i] = tokenizers.Offset{uint(i * 5), uint(i*5 + 4)}
+	}
+	return tokenIDs, offsets
+}
+
+// makeTestTokenDataWithStride creates test token data with custom offset multiplier.
+func makeTestTokenDataWithStride(count, stride int) ([]uint32, []tokenizers.Offset) {
+	tokenIDs := make([]uint32, count)
+	offsets := make([]tokenizers.Offset, count)
+	for i := range count {
+		// #nosec G115 - Safe in test code with small bounded values
+		tokenIDs[i] = uint32(i)
+		// #nosec G115 - Safe in test code with small bounded values
+		offsets[i] = tokenizers.Offset{uint(i * stride), uint(i*stride + stride/2)}
+	}
+	return tokenIDs, offsets
+}
+
 // ============================================
 // Tests for GetName() - Simple Accessor
 // ============================================
@@ -27,12 +54,7 @@ func TestONNXModelDetector_GetName(t *testing.T) {
 
 func TestChunkTokens_ShortText(t *testing.T) {
 	// Text shorter than maxSeqLen (512) should return single chunk
-	tokenIDs := make([]uint32, 100)
-	offsets := make([]tokenizers.Offset, 100)
-	for i := 0; i < 100; i++ {
-		tokenIDs[i] = uint32(i)
-		offsets[i] = tokenizers.Offset{uint(i * 5), uint(i*5 + 4)}
-	}
+	tokenIDs, offsets := makeTestTokenData(100)
 
 	chunks := chunkTokens(tokenIDs, offsets)
 
@@ -52,12 +74,7 @@ func TestChunkTokens_ShortText(t *testing.T) {
 
 func TestChunkTokens_ExactlyMaxSeqLen(t *testing.T) {
 	// Text exactly at maxSeqLen (512) should return single chunk
-	tokenIDs := make([]uint32, 512)
-	offsets := make([]tokenizers.Offset, 512)
-	for i := 0; i < 512; i++ {
-		tokenIDs[i] = uint32(i)
-		offsets[i] = tokenizers.Offset{uint(i * 5), uint(i*5 + 4)}
-	}
+	tokenIDs, offsets := makeTestTokenData(512)
 
 	chunks := chunkTokens(tokenIDs, offsets)
 
@@ -72,12 +89,7 @@ func TestChunkTokens_ExactlyMaxSeqLen(t *testing.T) {
 func TestChunkTokens_LongText(t *testing.T) {
 	// Text longer than maxSeqLen should create overlapping chunks
 	// stride = 512 - 64 = 448
-	tokenIDs := make([]uint32, 1000)
-	offsets := make([]tokenizers.Offset, 1000)
-	for i := 0; i < 1000; i++ {
-		tokenIDs[i] = uint32(i)
-		offsets[i] = tokenizers.Offset{uint(i * 5), uint(i*5 + 4)}
-	}
+	tokenIDs, offsets := makeTestTokenData(1000)
 
 	chunks := chunkTokens(tokenIDs, offsets)
 
@@ -122,12 +134,7 @@ func TestChunkTokens_LongText(t *testing.T) {
 
 func TestChunkTokens_OverlapCorrectness(t *testing.T) {
 	// Verify that chunks overlap by exactly chunkOverlap (64) tokens
-	tokenIDs := make([]uint32, 600)
-	offsets := make([]tokenizers.Offset, 600)
-	for i := 0; i < 600; i++ {
-		tokenIDs[i] = uint32(i)
-		offsets[i] = tokenizers.Offset{uint(i * 5), uint(i*5 + 4)}
-	}
+	tokenIDs, offsets := makeTestTokenData(600)
 
 	chunks := chunkTokens(tokenIDs, offsets)
 
@@ -165,13 +172,8 @@ func TestChunkTokens_EmptyInput(t *testing.T) {
 
 func TestChunkTokens_OffsetPreservation(t *testing.T) {
 	// Verify that offsets are correctly sliced with chunks
-	tokenIDs := make([]uint32, 600)
-	offsets := make([]tokenizers.Offset, 600)
-	for i := 0; i < 600; i++ {
-		tokenIDs[i] = uint32(i)
-		// Use distinctive offset values to verify correct slicing
-		offsets[i] = tokenizers.Offset{uint(i * 10), uint(i*10 + 5)}
-	}
+	// Use distinctive offset values (stride=10) to verify correct slicing
+	tokenIDs, offsets := makeTestTokenDataWithStride(600, 10)
 
 	chunks := chunkTokens(tokenIDs, offsets)
 
