@@ -275,6 +275,17 @@ func loadApplicationConfig(cfg *config.Config) {
 	} else {
 		log.Printf("Warning: GEMINI_API_KEY is empty or not set")
 	}
+
+	// Override Mistral provider config with environment variables
+	if mistralURL := os.Getenv("MISTRAL_BASE_URL"); mistralURL != "" {
+		cfg.Providers.MistralProviderConfig.APIDomain = mistralURL
+	}
+	if mistralApiKey := os.Getenv("MISTRAL_API_KEY"); mistralApiKey != "" {
+		cfg.Providers.MistralProviderConfig.APIKey = mistralApiKey
+		log.Printf("Loaded MISTRAL_API_KEY from environment (length: %d)", len(mistralApiKey))
+	} else {
+		log.Printf("Warning: MISTRAL_API_KEY is empty or not set")
+	}
 }
 
 // loadPIIDetectorConfig loads PII detector configuration from environment variables

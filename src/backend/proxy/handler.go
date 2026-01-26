@@ -492,11 +492,17 @@ func NewHandler(cfg *config.Config, electronConfigPath string) (*Handler, error)
 		cfg.Providers.GeminiProviderConfig.APIKey,
 		cfg.Providers.GeminiProviderConfig.AdditionalHeaders,
 	)
+	mistralProvider := providers.NewMistralProvider(
+		cfg.Providers.MistralProviderConfig.APIDomain,
+		cfg.Providers.MistralProviderConfig.APIKey,
+		cfg.Providers.MistralProviderConfig.AdditionalHeaders,
+	)
 
 	providers := providers.Providers{
 		OpenAIProvider:    openAIProvider,
 		AnthropicProvider: anthropicProvider,
 		GeminiProvider:    geminiProvider,
+		MistralProvider:   mistralProvider,
 	}
 
 	// Create services

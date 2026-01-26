@@ -42,6 +42,7 @@ type Providers struct {
 	OpenAIProvider    *OpenAIProvider
 	AnthropicProvider *AnthropicProvider
 	GeminiProvider    *GeminiProvider
+	MistralProvider   *MistralProvider
 }
 
 func (p *Providers) GetProviderFromPath(path string) (*Provider, error) {
@@ -71,6 +72,8 @@ func (p *Providers) GetProviderFromHost(host string) (*Provider, error) {
 		provider = p.AnthropicProvider
 	case p.GeminiProvider.apiDomain:
 		provider = p.GeminiProvider
+	case p.MistralProvider.apiDomain:
+		provider = p.MistralProvider
 	default:
 		return &provider, fmt.Errorf("unknown provider detected at host '%s'", host)
 	}
