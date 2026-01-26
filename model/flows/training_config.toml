@@ -5,8 +5,8 @@
 name = "distilbert-base-cased"
 
 [training]
-num_epochs = 40
-batch_size = 64
+num_epochs = 15
+batch_size = 16
 learning_rate = 3e-5
 
 # Early stopping settings
