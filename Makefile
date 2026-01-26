@@ -14,6 +14,7 @@ BLUE := \033[0;34m
 GREEN := \033[0;32m
 YELLOW := \033[1;33m
 NC := \033[0m # No Color
+CGO_LDFLAGS := -L./build/tokenizers
 
 # Version from package.json
 VERSION := $(shell cd src/frontend && node -p "require('./package.json').version" 2>/dev/null || echo "0.0.0")
@@ -152,7 +153,7 @@ test-python: ## Run Python tests
 
 test-go: ## Run Go tests
 	@echo "$(BLUE)Running Go tests...$(NC)"
-	CGO_LDFLAGS="-L./build/tokenizers" go test ./... -v
+	CGO_LDFLAGS="$(CGO_LDFLAGS)	" go test ./... -v
 	@echo "$(GREEN)✅ Go tests complete$(NC)"
 
 test-all: test test-go ## Run all tests (Python, Go)
