@@ -44,7 +44,6 @@ type defaultProviders struct {
 }
 
 func NewDefaultProviders(defaultOpenAIProvider ProviderType) (*defaultProviders, error) {
-
 	if defaultOpenAIProvider == ProviderTypeOpenAI || defaultOpenAIProvider == ProviderTypeMistral {
 		return &defaultProviders{OpenAISubpath: defaultOpenAIProvider}, nil
 	} else {

@@ -115,6 +115,7 @@ func (p *OpenAIProvider) CreateMaskedRequest(maskedRequest map[string]interface{
 	return maskedToOriginal, &entities, nil
 }
 
+//nolint:dupl
 func (p *OpenAIProvider) RestoreMaskedResponse(maskedResponse map[string]interface{}, maskedToOriginal map[string]string, interceptionNotice string, restorePII restorePIIType, getLogResponses getLogResponsesType, getLogVerbose getLogVerboseType, getAddProxyNotice getAddProxyNotice) error {
 	// Iterate over all 'choices' contained in 'maskedRequest' (as OpenAI can return more than one).
 	choices, ok := maskedResponse["choices"].([]interface{})

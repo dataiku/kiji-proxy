@@ -118,6 +118,7 @@ func (p *MistralProvider) CreateMaskedRequest(maskedRequest map[string]interface
 	return maskedToOriginal, &entities, nil
 }
 
+//nolint:dupl
 func (p *MistralProvider) RestoreMaskedResponse(maskedResponse map[string]interface{}, maskedToOriginal map[string]string, interceptionNotice string, restorePII restorePIIType, getLogResponses getLogResponsesType, getLogVerbose getLogVerboseType, getAddProxyNotice getAddProxyNotice) error {
 	// Mistral uses same "choices" format as OpenAI
 	choices, ok := maskedResponse["choices"].([]interface{})
