@@ -389,7 +389,7 @@ func TestAgeGenerator(t *testing.T) {
 		t.Errorf("AgeGenerator returned non-numeric value: %s", result)
 	}
 
-	if age < 18 || age >= 86 {
+	if age < 18 || age > 85 {
 		t.Errorf("AgeGenerator returned age outside expected range (18-85): %d", age)
 	}
 }
