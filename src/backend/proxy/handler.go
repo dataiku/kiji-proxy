@@ -73,7 +73,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Determine provider for current request
-	provider, err := h.providers.GetProvider(r.Host, r.URL.Path, body, "[Proxy]")
+	provider, err := h.providers.GetProviderFromPath(r.Host, r.URL.Path, &body, "[Proxy]")
 	if err != nil {
 		log.Printf("[Proxy] Error retrieving provider: %s", err.Error())
 		http.Error(w, "Error retrieving provider from path", http.StatusBadRequest)

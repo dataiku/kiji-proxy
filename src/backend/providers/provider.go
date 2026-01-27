@@ -62,63 +62,58 @@ type Providers struct {
 }
 
 type ProviderRequest struct {
-	Provider string `json:"provider"`
+	Provider ProviderType `json:"provider"`
 }
 
-func (p *Providers) GetProvider(host string, path string, body []byte, logPrefix string) (*Provider, error) {
+func (p *Providers) GetProviderFromPath(host string, path string, body *[]byte, logPrefix string) (*Provider, error) {
 	/*
-		 Determines LLM provider based on the following rules:
-			1. host (only makes sense for transparent proxy)
-			2. optional "provider" field in payload
-			3. request subpath
+		Determines LLM provider based on the following rules:
+			1. optional "provider" field in payload
+			2. request subpath
 
-		Note that some LLM providers share a subpath (e.g. OpenAI and Mistral). For such
-		cases, the provider that is selected is based on p.DefaultProviders.
+		Notes:
+		- the "provider" field is specific to the Yaak proxy, and must be stripped from
+			the body (as most LLM providers will fail when unexpected fields are present).
+		- some LLM providers share a subpath (e.g. OpenAI and Mistral); for such cases,
+			the provider that is selected is based on p.DefaultProviders.
 	*/
 	var provider Provider
 
-	// Determine provider based on host
-	switch host {
-	case p.OpenAIProvider.apiDomain:
-		provider = p.OpenAIProvider
-	case p.AnthropicProvider.apiDomain:
-		provider = p.AnthropicProvider
-	case p.GeminiProvider.apiDomain:
-		provider = p.GeminiProvider
-	case p.MistralProvider.apiDomain:
-		provider = p.MistralProvider
-	default:
-		log.Printf("%s [Provider] provider could not be determined from host '%s'.", logPrefix, host)
-	}
-
-	if provider != nil {
-		log.Printf("%s [Provider] '%s' provider detected from host '%s'.", logPrefix, provider.GetName(), host)
-		return &provider, nil
-	}
-
 	// Determine provider from (optional) "provider" field in body
-	var req ProviderRequest
+	var bodyJson map[string]interface{}
+	var provider_field string
 
-	err := json.Unmarshal(body, &req)
-	if err == nil {
-		switch ProviderType(req.Provider) {
-		case ProviderTypeOpenAI:
-			provider = p.OpenAIProvider
-		case ProviderTypeAnthropic:
-			provider = p.AnthropicProvider
-		case ProviderTypeGemini:
-			provider = p.GeminiProvider
-		case ProviderTypeMistral:
-			provider = p.MistralProvider
-		default:
-			log.Printf("%s [Provider] provider could not be determined from 'provider' field in request body.", logPrefix)
-		}
-	} else {
+	err := json.Unmarshal(*body, &bodyJson)
+	if err != nil {
 		log.Printf("%s [Provider] provider could not be determined from 'provider' field, request body is invalid JSON: %s.", logPrefix, err)
+	} else {
+		var ok bool
+		if provider_field, ok = bodyJson["provider"].(string); ok {
+			switch ProviderType(provider_field) {
+			case ProviderTypeOpenAI:
+				provider = p.OpenAIProvider
+			case ProviderTypeAnthropic:
+				provider = p.AnthropicProvider
+			case ProviderTypeGemini:
+				provider = p.GeminiProvider
+			case ProviderTypeMistral:
+				provider = p.MistralProvider
+			default:
+				log.Printf("%s [Provider] provider could not be determined from 'provider' field in request body, unknown provider: '%s'.", logPrefix, provider_field)
+			}
+
+			delete(bodyJson, "provider")
+			*body, err = json.Marshal(bodyJson)
+			if err != nil {
+				log.Printf("%s [Provider] provider could not be determined from 'provider' field, request body cannot be re-marshalled: %s.", logPrefix, err)
+			}
+		} else {
+			log.Printf("%s [Provider] provider could not be determined from 'provider' field in request body (field is missing).", logPrefix)
+		}
 	}
 
 	if provider != nil {
-		log.Printf("%s [Provider] '%s' provider detected from 'provider' field in request body: %s.", logPrefix, provider.GetName(), req.Provider)
+		log.Printf("%s [Provider] '%s' provider detected from 'provider' field in request body: '%s'.", logPrefix, provider.GetName(), provider_field)
 		return &provider, nil
 	}
 
@@ -149,12 +144,22 @@ func (p *Providers) GetProvider(host string, path string, body []byte, logPrefix
 }
 
 func (p *Providers) GetProviderFromHost(host string, logPrefix string) (*Provider, error) {
-	/*
-		Convenience function for use in the Transparent Proxy, where only 'host' is required
-		to determine the provider.
-	*/
-	var path string
-	var body []byte
+	var provider Provider
 
-	return p.GetProvider(host, path, body, logPrefix)
+	switch host {
+	case p.OpenAIProvider.apiDomain:
+		provider = p.OpenAIProvider
+	case p.AnthropicProvider.apiDomain:
+		provider = p.AnthropicProvider
+	case p.GeminiProvider.apiDomain:
+		provider = p.GeminiProvider
+	case p.MistralProvider.apiDomain:
+		provider = p.MistralProvider
+	default:
+		log.Printf("%s [Provider] provider could not be determined from host '%s'.", logPrefix, host)
+		return &provider, fmt.Errorf("provider could not be determined from host: '%s'.", host)
+	}
+
+	log.Printf("%s [Provider] '%s' provider detected from host '%s'.", logPrefix, provider.GetName(), host)
+	return &provider, nil
 }
