@@ -345,11 +345,12 @@ func TestPasswordGenerator(t *testing.T) {
 	hasDigit := false
 
 	for _, char := range result {
-		if char >= 'a' && char <= 'z' {
+		switch {
+		case char >= 'a' && char <= 'z':
 			hasLower = true
-		} else if char >= 'A' && char <= 'Z' {
+		case char >= 'A' && char <= 'Z':
 			hasUpper = true
-		} else if char >= '0' && char <= '9' {
+		case char >= '0' && char <= '9':
 			hasDigit = true
 		}
 	}
