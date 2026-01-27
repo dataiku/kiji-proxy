@@ -151,7 +151,7 @@ func (p *OpenAIProvider) RestoreMaskedResponse(maskedResponse map[string]interfa
 
 		// Optionally add proxy notice
 		if getAddProxyNotice() {
-			restoredContent += "\n\n[This response was intercepted and processed by Yaak proxy service]"
+			restoredContent += interceptionNotice
 		}
 
 		// Replace masked content by reversedContent in 'maskedResponse'
