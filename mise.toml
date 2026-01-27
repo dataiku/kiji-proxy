@@ -1,0 +1,3 @@
+[tools]
+go = "latest"
+python = "3.12"
