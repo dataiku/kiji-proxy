@@ -153,7 +153,7 @@ test-python: ## Run Python tests
 
 test-go: ## Run Go tests
 	@echo "$(BLUE)Running Go tests...$(NC)"
-	CGO_LDFLAGS="$(CGO_LDFLAGS)	" go test ./... -v
+	CGO_LDFLAGS="$(CGO_LDFLAGS)" go test ./... -v
 	@echo "$(GREEN)✅ Go tests complete$(NC)"
 
 test-all: test test-go ## Run all tests (Python, Go)
@@ -210,8 +210,9 @@ build-go: ## Build Go binary for development
 	@echo "$(BLUE)Building Go binary for development...$(NC)"
 	@mkdir -p build
 	@CGO_ENABLED=1 \
+	CGO_LDFLAGS="$(CGO_LDFLAGS)" \
 	go build \
-	  -ldflags="-X main.version=$(VERSION) -extldflags '-L./build/tokenizers'" \
+	  -ldflags="-X main.version=$(VERSION) -extldflags '$(CGO_LDFLAGS)'" \
 	  -o build/yaak-proxy \
 	  ./src/backend
 	@echo "$(GREEN)✅ Go binary built at build/yaak-proxy (version $(VERSION))$(NC)"
