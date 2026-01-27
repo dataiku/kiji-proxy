@@ -219,7 +219,7 @@ func (d *ONNXModelDetectorSimple) Detect(ctx context.Context, input DetectorInpu
 	}
 
 	// Merge entities from all chunks, handling overlaps
-	entities := mergeChunkEntities(chunkEntities)
+	entities := mergeChunkEntities(chunkEntities, input.Text)
 
 	return DetectorOutput{
 		Text:     input.Text,
@@ -524,8 +524,10 @@ func chunkTokens(tokenIDs []uint32, offsets []tokenizers.Offset) []tokenChunk {
 	return chunks
 }
 
-// mergeChunkEntities combines entities from multiple chunks, handling overlaps
-func mergeChunkEntities(chunkEntities [][]Entity) []Entity {
+// mergeChunkEntities combines entities from multiple chunks, handling overlaps.
+// The originalText parameter is used to correctly reconstruct text when merging
+// overlapping entities, avoiding potential string corruption from naive concatenation.
+func mergeChunkEntities(chunkEntities [][]Entity, originalText string) []Entity {
 	if len(chunkEntities) == 0 {
 		return []Entity{}
 	}
@@ -575,7 +577,10 @@ func mergeChunkEntities(chunkEntities [][]Entity) []Entity {
 				if entity.Label == last.Label {
 					if entity.EndPos > last.EndPos {
 						last.EndPos = entity.EndPos
-						last.Text = last.Text[:entity.StartPos-last.StartPos] + entity.Text
+						// Re-slice from original text to ensure correct merged text
+						if last.StartPos < len(originalText) && last.EndPos <= len(originalText) {
+							last.Text = originalText[last.StartPos:last.EndPos]
+						}
 						last.Confidence = (last.Confidence + entity.Confidence) / 2
 					}
 					continue

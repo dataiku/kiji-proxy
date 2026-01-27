@@ -195,12 +195,13 @@ func TestChunkTokens_OffsetPreservation(t *testing.T) {
 // ============================================
 
 func TestMergeChunkEntities_SingleChunk(t *testing.T) {
+	originalText := "John Doe"
 	entities := [][]Entity{{
 		{Text: "John", Label: "FIRSTNAME", StartPos: 0, EndPos: 4, Confidence: 0.95},
 		{Text: "Doe", Label: "SURNAME", StartPos: 5, EndPos: 8, Confidence: 0.90},
 	}}
 
-	merged := mergeChunkEntities(entities)
+	merged := mergeChunkEntities(entities, originalText)
 
 	if len(merged) != 2 {
 		t.Errorf("Expected 2 entities, got %d", len(merged))
@@ -209,7 +210,7 @@ func TestMergeChunkEntities_SingleChunk(t *testing.T) {
 
 func TestMergeChunkEntities_EmptyInput(t *testing.T) {
 	entities := [][]Entity{}
-	merged := mergeChunkEntities(entities)
+	merged := mergeChunkEntities(entities, "")
 
 	if len(merged) != 0 {
 		t.Errorf("Expected 0 entities for empty input, got %d", len(merged))
@@ -218,7 +219,7 @@ func TestMergeChunkEntities_EmptyInput(t *testing.T) {
 
 func TestMergeChunkEntities_EmptyChunks(t *testing.T) {
 	entities := [][]Entity{{}, {}, {}}
-	merged := mergeChunkEntities(entities)
+	merged := mergeChunkEntities(entities, "")
 
 	if len(merged) != 0 {
 		t.Errorf("Expected 0 entities for empty chunks, got %d", len(merged))
@@ -227,12 +228,14 @@ func TestMergeChunkEntities_EmptyChunks(t *testing.T) {
 
 func TestMergeChunkEntities_ExactDuplicates(t *testing.T) {
 	// Same entity detected in overlapping region of two chunks
+	// Create a string long enough to contain position 400-404
+	originalText := string(make([]byte, 405))
 	entities := [][]Entity{
 		{{Text: "John", Label: "FIRSTNAME", StartPos: 400, EndPos: 404, Confidence: 0.90}},
 		{{Text: "John", Label: "FIRSTNAME", StartPos: 400, EndPos: 404, Confidence: 0.95}},
 	}
 
-	merged := mergeChunkEntities(entities)
+	merged := mergeChunkEntities(entities, originalText)
 
 	if len(merged) != 1 {
 		t.Errorf("Expected 1 merged entity, got %d", len(merged))
@@ -245,12 +248,13 @@ func TestMergeChunkEntities_ExactDuplicates(t *testing.T) {
 
 func TestMergeChunkEntities_OverlapDifferentLabels(t *testing.T) {
 	// Overlapping entities with different labels - keep higher confidence
+	originalText := "text here 123-45-6789 more text"
 	entities := [][]Entity{
 		{{Text: "123-45-6789", Label: "SSN", StartPos: 10, EndPos: 21, Confidence: 0.95}},
 		{{Text: "123-45-6789", Label: "PHONENUMBER", StartPos: 10, EndPos: 21, Confidence: 0.60}},
 	}
 
-	merged := mergeChunkEntities(entities)
+	merged := mergeChunkEntities(entities, originalText)
 
 	if len(merged) != 1 {
 		t.Errorf("Expected 1 entity, got %d", len(merged))
@@ -261,12 +265,14 @@ func TestMergeChunkEntities_OverlapDifferentLabels(t *testing.T) {
 }
 
 func TestMergeChunkEntities_NonOverlapping(t *testing.T) {
+	// Create a string long enough to contain position 100-103
+	originalText := string(make([]byte, 104))
 	entities := [][]Entity{
 		{{Text: "John", Label: "FIRSTNAME", StartPos: 0, EndPos: 4, Confidence: 0.90}},
 		{{Text: "Doe", Label: "SURNAME", StartPos: 100, EndPos: 103, Confidence: 0.85}},
 	}
 
-	merged := mergeChunkEntities(entities)
+	merged := mergeChunkEntities(entities, originalText)
 
 	if len(merged) != 2 {
 		t.Errorf("Expected 2 separate entities, got %d", len(merged))
@@ -275,12 +281,14 @@ func TestMergeChunkEntities_NonOverlapping(t *testing.T) {
 
 func TestMergeChunkEntities_SortedByPosition(t *testing.T) {
 	// Entities from different chunks should be sorted by position
+	// Create a string long enough to contain position 100-103
+	originalText := string(make([]byte, 104))
 	entities := [][]Entity{
 		{{Text: "Doe", Label: "SURNAME", StartPos: 100, EndPos: 103, Confidence: 0.85}},
 		{{Text: "John", Label: "FIRSTNAME", StartPos: 0, EndPos: 4, Confidence: 0.90}},
 	}
 
-	merged := mergeChunkEntities(entities)
+	merged := mergeChunkEntities(entities, originalText)
 
 	if len(merged) != 2 {
 		t.Errorf("Expected 2 entities, got %d", len(merged))
@@ -295,6 +303,8 @@ func TestMergeChunkEntities_SortedByPosition(t *testing.T) {
 
 func TestMergeChunkEntities_MultipleChunksWithOverlap(t *testing.T) {
 	// Simulate entities from 3 chunks with some overlap in middle
+	// Create a string long enough to contain position 1400-1405
+	originalText := string(make([]byte, 1406))
 	entities := [][]Entity{
 		{
 			{Text: "John", Label: "FIRSTNAME", StartPos: 0, EndPos: 4, Confidence: 0.90},
@@ -310,7 +320,7 @@ func TestMergeChunkEntities_MultipleChunksWithOverlap(t *testing.T) {
 		},
 	}
 
-	merged := mergeChunkEntities(entities)
+	merged := mergeChunkEntities(entities, originalText)
 
 	if len(merged) != 4 {
 		t.Errorf("Expected 4 unique entities, got %d", len(merged))
@@ -337,16 +347,48 @@ func TestMergeChunkEntities_MultipleChunksWithOverlap(t *testing.T) {
 
 func TestMergeChunkEntities_AdjacentNonOverlapping(t *testing.T) {
 	// Entities that are adjacent but don't overlap
+	originalText := "JohnDoe"
 	entities := [][]Entity{
 		{{Text: "John", Label: "FIRSTNAME", StartPos: 0, EndPos: 4, Confidence: 0.90}},
 		{{Text: "Doe", Label: "SURNAME", StartPos: 4, EndPos: 7, Confidence: 0.85}},
 	}
 
-	merged := mergeChunkEntities(entities)
+	merged := mergeChunkEntities(entities, originalText)
 
 	// Adjacent entities (EndPos == StartPos) should not be merged
 	if len(merged) != 2 {
 		t.Errorf("Expected 2 adjacent entities, got %d", len(merged))
+	}
+}
+
+func TestMergeChunkEntities_PartialOverlapSameLabel(t *testing.T) {
+	// Test partial overlap with same label - should merge and extend
+	// This tests the fix for the bug where text was incorrectly concatenated
+	originalText := "Hello world test"
+	entities := [][]Entity{
+		{{Text: "Hello wor", Label: "GREETING", StartPos: 0, EndPos: 9, Confidence: 0.90}},
+		{{Text: "world test", Label: "GREETING", StartPos: 6, EndPos: 16, Confidence: 0.85}},
+	}
+
+	merged := mergeChunkEntities(entities, originalText)
+
+	if len(merged) != 1 {
+		t.Errorf("Expected 1 merged entity, got %d", len(merged))
+	}
+	if merged[0].StartPos != 0 {
+		t.Errorf("Expected StartPos 0, got %d", merged[0].StartPos)
+	}
+	if merged[0].EndPos != 16 {
+		t.Errorf("Expected EndPos 16, got %d", merged[0].EndPos)
+	}
+	// The key fix: text should be re-sliced from original, not concatenated
+	if merged[0].Text != "Hello world test" {
+		t.Errorf("Expected text 'Hello world test', got '%s'", merged[0].Text)
+	}
+	// Confidence should be averaged
+	expectedConfidence := (0.90 + 0.85) / 2
+	if merged[0].Confidence != expectedConfidence {
+		t.Errorf("Expected confidence %f, got %f", expectedConfidence, merged[0].Confidence)
 	}
 }
 
