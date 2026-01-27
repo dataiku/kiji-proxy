@@ -35,21 +35,21 @@ type DatabaseConfig struct {
 
 // Provider config structs
 type DefaultProvidersConfig struct {
-	OpenAISubpath string
+	OpenAISubpath providers.ProviderType `json:"openai_subpath"`
 }
 
 type ProviderConfig struct {
-	APIDomain         string
-	APIKey            string
-	AdditionalHeaders map[string]string
+	APIDomain         string            `json:"api_domain"`
+	APIKey            string            `json:"api_key"`
+	AdditionalHeaders map[string]string `json:"additional_headers"`
 }
 
 type ProvidersConfig struct {
-	DefaultProvidersConfig  DefaultProvidersConfig
-	OpenAIProviderConfig    ProviderConfig
-	AnthropicProviderConfig ProviderConfig
-	GeminiProviderConfig    ProviderConfig
-	MistralProviderConfig   ProviderConfig
+	DefaultProvidersConfig  DefaultProvidersConfig `json:"default_providers_config"`
+	OpenAIProviderConfig    ProviderConfig         `json:"openai_provider_config"`
+	AnthropicProviderConfig ProviderConfig         `json:"anthropic_provider_config"`
+	GeminiProviderConfig    ProviderConfig         `json:"gemini_provider_config"`
+	MistralProviderConfig   ProviderConfig         `json:"mistral_provider_config"`
 }
 
 // ProxyConfig holds transparent proxy configuration
@@ -63,7 +63,7 @@ type ProxyConfig struct {
 
 // Config holds all configuration for the PII proxy service
 type Config struct {
-	Providers     ProvidersConfig
+	Providers     ProvidersConfig `json:"providers"`
 	ProxyPort     string
 	DetectorName  string
 	ModelBaseURL  string
@@ -79,7 +79,7 @@ type Config struct {
 func DefaultConfig() *Config {
 	// Provider parameters
 	defaultProvidersConfig := DefaultProvidersConfig{
-		OpenAISubpath: string(providers.ProviderTypeOpenAI),
+		OpenAISubpath: providers.ProviderTypeOpenAI,
 	}
 
 	defaultOpenAIProviderConfig := ProviderConfig{

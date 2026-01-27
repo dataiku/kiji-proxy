@@ -1,19 +1,19 @@
 {
-  "Providers": {
-    "DefaulProvidersConfig": {
-      "OpenAISubpath": "openai"
+  "providers": {
+    "default_providers_config": {
+      "openai_subpath": "openai"
     },
-    "OpenAIProviderConfig": {
-      "APIDomain": "api.openai.com"
+    "openai_provider_config": {
+      "api_domain": "api.openai.com"
     },
-    "AnthropicProviderConfig": {
-      "APIDomain": "api.anthropic.com"
+    "anthropic_provider_config": {
+      "api_domain": "api.anthropic.com"
     },
-    "GeminiProviderConfig": {
-      "APIDomain": "generativelanguage.googleapis.com"
+    "gemini_provider_config": {
+      "api_domain": "generativelanguage.googleapis.com"
     },
-    "MistralProviderConfig": {
-      "APIDomain": "api.mistral.ai"
+    "mistral_provider_config": {
+      "api_domain": "api.mistral.ai"
     }
   },
   "ProxyPort": ":8080",

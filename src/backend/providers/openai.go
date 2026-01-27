@@ -177,10 +177,3 @@ func (p *OpenAIProvider) SetAddlHeaders(req *http.Request) {
 		req.Header.Set(key, value)
 	}
 }
-
-func (p *OpenAIProvider) ValidateConfig() error {
-	if p.apiDomain == "" {
-		return fmt.Errorf("base URL is required")
-	}
-	return nil
-}

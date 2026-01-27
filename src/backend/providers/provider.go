@@ -10,10 +10,8 @@ import (
 	pii "github.com/hannes/yaak-private/src/backend/pii/detectors"
 )
 
+// `Provider` interface defines the class structure for LLM providers
 type ProviderType string
-type ProviderRequest struct {
-	Provider string `json:"provider"`
-}
 
 type maskPIIInTextType func(string, string) (string, map[string]string, []pii.Entity)
 type restorePIIType func(string, map[string]string) string
@@ -21,48 +19,50 @@ type getLogResponsesType func() bool
 type getLogVerboseType func() bool
 type getAddProxyNotice func() bool
 
-type DefaultProviders struct {
+type Provider interface {
+	GetType() ProviderType
+	GetName() string
+	GetBaseURL(useHttps bool) string
+
+	// Extracts text from request and response objects
+	ExtractRequestText(data map[string]interface{}) (string, error)
+	ExtractResponseText(data map[string]interface{}) (string, error)
+
+	// Mask PII in request and response objects
+	CreateMaskedRequest(maskedRequest map[string]interface{}, maskPIIInText maskPIIInTextType) (map[string]string, *[]pii.Entity, error)
+	RestoreMaskedResponse(maskedResponse map[string]interface{}, maskedToOriginal map[string]string, interceptionNotice string, restorePII restorePIIType, getLogResponses getLogResponsesType, getLogVerbose getLogVerboseType, getAddProxyNotice getAddProxyNotice) error
+
+	// Set authentication and additional headers
+	SetAuthHeaders(req *http.Request)
+	SetAddlHeaders(req *http.Request)
+}
+
+// `defaultProviders` struct sets the default provider to use when there is a subpath clash,
+// e.g. OpenAI and Mistral use the same '/v1/chat/completions' subpath.
+type defaultProviders struct {
 	OpenAISubpath ProviderType // only "openai" or "mistral"
 }
 
-func NewDefaultProviders(defaultOpenAIProviderStr string) (*DefaultProviders, error) {
-	defaultOpenAIProvider := ProviderType(defaultOpenAIProviderStr)
+func NewDefaultProviders(defaultOpenAIProvider ProviderType) (*defaultProviders, error) {
 
 	if defaultOpenAIProvider == ProviderTypeOpenAI || defaultOpenAIProvider == ProviderTypeMistral {
-		return &DefaultProviders{OpenAISubpath: defaultOpenAIProvider}, nil
+		return &defaultProviders{OpenAISubpath: defaultOpenAIProvider}, nil
 	} else {
-		return nil, fmt.Errorf("Default OpenAI subpath provider type must be 'openai' or 'mistral'.")
+		return nil, fmt.Errorf("`defaultOpenAIProvider` must be 'openai' or 'mistral'.")
 	}
 }
 
+// `Providers` struct is a container for all provider objects + the default provider struct
 type Providers struct {
-	DefaultProviders  *DefaultProviders
+	DefaultProviders  *defaultProviders
 	OpenAIProvider    *OpenAIProvider
 	AnthropicProvider *AnthropicProvider
 	GeminiProvider    *GeminiProvider
 	MistralProvider   *MistralProvider
 }
 
-// Provider defines the interface all LLM providers must implement
-type Provider interface {
-	GetType() ProviderType
-	GetName() string
-	GetBaseURL(useHttps bool) string
-
-	// ExtractRequestText extracts text from provider request format
-	ExtractRequestText(data map[string]interface{}) (string, error)
-	ExtractResponseText(data map[string]interface{}) (string, error)
-
-	// CreateMaskedRequest masks the PII in messages
-	CreateMaskedRequest(maskedRequest map[string]interface{}, maskPIIInText maskPIIInTextType) (map[string]string, *[]pii.Entity, error)
-	RestoreMaskedResponse(maskedResponse map[string]interface{}, maskedToOriginal map[string]string, interceptionNotice string, restorePII restorePIIType, getLogResponses getLogResponsesType, getLogVerbose getLogVerboseType, getAddProxyNotice getAddProxyNotice) error
-
-	// Methods to set headers
-	SetAuthHeaders(req *http.Request)
-	SetAddlHeaders(req *http.Request)
-
-	// ValidateConfig checks if provider configuration is valid
-	ValidateConfig() error
+type ProviderRequest struct {
+	Provider string `json:"provider"`
 }
 
 func (p *Providers) GetProvider(host string, path string, body []byte, logPrefix string) (*Provider, error) {
@@ -73,7 +73,7 @@ func (p *Providers) GetProvider(host string, path string, body []byte, logPrefix
 			3. request subpath
 
 		Note that some LLM providers share a subpath (e.g. OpenAI and Mistral). For such
-		cases, the provider that is selected is based on p.DefaultSubpathProvider.
+		cases, the provider that is selected is based on p.DefaultProviders.
 	*/
 	var provider Provider
 
@@ -145,7 +145,7 @@ func (p *Providers) GetProvider(host string, path string, body []byte, logPrefix
 		return &provider, nil
 	}
 
-	return nil, fmt.Errorf("[Provider] unknown provider")
+	return nil, fmt.Errorf("[Provider] unknown provider.")
 }
 
 func (p *Providers) GetProviderFromHost(host string, logPrefix string) (*Provider, error) {

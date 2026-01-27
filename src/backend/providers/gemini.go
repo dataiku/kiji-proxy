@@ -224,10 +224,3 @@ func (p *GeminiProvider) SetAddlHeaders(req *http.Request) {
 		req.Header.Set(key, value)
 	}
 }
-
-func (p *GeminiProvider) ValidateConfig() error {
-	if p.apiDomain == "" {
-		return fmt.Errorf("base URL is required")
-	}
-	return nil
-}
