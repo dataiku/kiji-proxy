@@ -984,7 +984,11 @@ export default function PrivacyProxyUI() {
             value={inputData}
             onChange={(e) => setInputData(e.target.value)}
             placeholder="Enter your message with sensitive information...&#10;&#10;Example: Hi, my name is John Smith and my email is john.smith@email.com. My phone is 555-123-4567.&#10;&#10;This will be processed through the real PII detection and masking pipeline."
-            className="w-full h-32 p-4 border-2 border-slate-200 rounded-lg focus:border-blue-500 focus:outline-none resize-none font-mono text-sm placeholder:text-gray-400"
+            className={`w-full h-32 p-4 border-2 rounded-lg focus:outline-none resize-none font-mono text-sm placeholder:text-gray-400 ${serverStatus === "offline"
+                ? "border-red-200 bg-red-50 cursor-not-allowed opacity-60"
+                : "border-slate-200 focus:border-blue-500"
+              }`}
+            disabled={serverStatus === "offline"}
           />
           <div className="flex gap-3 mt-4 items-center">
             <button
