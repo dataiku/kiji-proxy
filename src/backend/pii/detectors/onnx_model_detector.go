@@ -496,6 +496,10 @@ func chunkTokens(tokenIDs []uint32, offsets []tokenizers.Offset) []tokenChunk {
 	var chunks []tokenChunk
 	stride := maxSeqLen - chunkOverlap // 448 tokens per stride
 
+	if stride <= 0 {
+		panic("chunkOverlap must be less than maxSeqLen")
+	}
+
 	for start := 0; start < numTokens; start += stride {
 		end := start + maxSeqLen
 		if end > numTokens {
