@@ -222,7 +222,7 @@ func (s *Server) Start() error {
 	// Add provider endpoints
 	mux.Handle(providers.ProviderSubpathOpenAI, s.handler) // same as Mistral
 	mux.Handle(providers.ProviderSubpathAnthropic, s.handler)
-	mux.Handle(providers.ProviderSubpathGemini, s.handler)
+	mux.Handle(providers.ProviderSubpathGemini+"/{path...}", s.handler)
 
 	// Serve UI files with cache-busting headers
 	if s.uiFS != nil {
