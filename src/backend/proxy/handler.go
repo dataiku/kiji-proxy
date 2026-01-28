@@ -72,6 +72,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Printf("[Proxy] Request body size: %d bytes", len(body))
+	log.Printf("[Timing] Request body read: %v", time.Since(startTime))
+
 	// Determine provider for current request
 	provider, err := h.providers.GetProviderFromPath(r.Host, r.URL.Path, &body, "[Proxy]")
 	if err != nil {
@@ -84,10 +87,13 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	includeDetails := r.URL.Query().Get("details") == "true"
 	if includeDetails {
 		log.Printf("[Proxy] Detailed PII metadata requested")
-	}
 
-	log.Printf("[Proxy] Request body size: %d bytes", len(body))
-	log.Printf("[Timing] Request body read: %v", time.Since(startTime))
+		// Strip 'details' query string, as Gemini (and potentially other providers)
+		// don't accept unexpected query strings.
+		query := r.URL.Query()
+		query.Del("details")
+		r.URL.RawQuery = query.Encode()
+	}
 
 	// Parse request data for PII details (if needed)
 	var requestData map[string]interface{}
@@ -410,8 +416,6 @@ func (h *Handler) createAndSendProxyRequest(r *http.Request, body []byte, provid
 // Returns error if config file doesn't exist or forwardEndpoint is invalid
 func (h *Handler) getForwardEndpoint(provider *providers.Provider) (string, error) {
 	// If electron config path is set, read from it
-	// TODO: will the electron code change if the UI accepts forwarding to multiple
-	// providers?
 	if h.electronConfigPath != "" {
 		forwardEndpoint, err := config.ReadForwardEndpoint(h.electronConfigPath)
 		if err != nil {
