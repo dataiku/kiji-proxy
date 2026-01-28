@@ -470,6 +470,49 @@ export default function PrivacyProxyUI() {
     }
   };
 
+  // Extract assistant message from provider-specific response format
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const extractAssistantMessage = (provider: ProviderType, data: any): string => {
+    try {
+      switch (provider) {
+        case "openai":
+        case "mistral":
+          // OpenAI/Mistral format: { choices: [{ message: { content: "..." } }] }
+          return data.choices?.[0]?.message?.content || "";
+
+        case "anthropic":
+          // Anthropic format: { content: [{ type: "text", text: "..." }] }
+          // Content is an array of content blocks, we concatenate all text blocks
+          if (Array.isArray(data.content)) {
+            return data.content
+              .filter((block: { type: string }) => block.type === "text")
+              .map((block: { text: string }) => block.text)
+              .join("");
+          }
+          return "";
+
+        case "gemini": {
+          // Gemini format: { candidates: [{ content: { parts: [{ text: "..." }] } }] }
+          const parts = data.candidates?.[0]?.content?.parts;
+          if (Array.isArray(parts)) {
+            return parts
+              .filter((part: { text?: string }) => part.text !== undefined)
+              .map((part: { text: string }) => part.text)
+              .join("");
+          }
+          return "";
+        }
+
+        default:
+          // Fallback to OpenAI format
+          return data.choices?.[0]?.message?.content || "";
+      }
+    } catch (error) {
+      console.error(`[ERROR] Failed to extract message for ${provider}:`, error);
+      return "";
+    }
+  };
+
   // Call the real /details endpoint
   const handleSubmit = async () => {
     if (!inputData.trim()) return;
@@ -567,9 +610,9 @@ export default function PrivacyProxyUI() {
         `[DEBUG] Response size: ${JSON.stringify(data).length} bytes`
       );
 
-      // Extract standard OpenAI response
-      console.log("[DEBUG] Extracting assistant message");
-      let assistantMessage = data.choices?.[0]?.message?.content || "";
+      // Extract assistant message using provider-specific format
+      console.log(`[DEBUG] Extracting assistant message for ${activeProvider}`);
+      let assistantMessage = extractAssistantMessage(activeProvider, data);
 
       // Safety check: Truncate very large responses to prevent memory issues
       const MAX_RESPONSE_SIZE = 500000; // 500KB max per field
