@@ -150,6 +150,18 @@ class LabelUtils:
                 "Mimic API security tokens similar to AWS, Google Cloud, Microsoft, OpenAI, etc. "
             ],
         },
+        "CREDITCARDNUMBER": {
+            "name": "Credit Card Number",
+            "color": "#2ecc71",
+            "chance": 0.1,
+            "hints": [],
+        },
+        "USERNAME": {
+            "name": "Username",
+            "color": "#325e8b",
+            "chance": 0.1,
+            "hints": [],
+        },
     }
 
     # Derived from LABEL_DESCRIPTIONS to ensure consistency
