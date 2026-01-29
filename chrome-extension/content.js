@@ -1,14 +1,15 @@
 // Yaak PII Guard - Content Script for ChatGPT
-(function() {
-  'use strict';
+(function () {
+  "use strict";
 
-  const API_URL = 'http://localhost:8081/api/pii/check';
+  const API_URL = "http://localhost:8081/api/pii/check";
   let isChecking = false;
+  let skipNextCheck = false;
 
   // Create modal elements
   function createModal() {
-    const overlay = document.createElement('div');
-    overlay.id = 'yaak-pii-overlay';
+    const overlay = document.createElement("div");
+    overlay.id = "yaak-pii-overlay";
     overlay.innerHTML = `
       <div id="yaak-pii-modal">
         <div id="yaak-pii-header">
@@ -34,7 +35,7 @@
 
   // Get or create modal
   function getModal() {
-    let modal = document.getElementById('yaak-pii-overlay');
+    let modal = document.getElementById("yaak-pii-overlay");
     if (!modal) {
       modal = createModal();
     }
@@ -44,44 +45,44 @@
   // Show modal with PII information
   function showPIIModal(response, originalText, onAction) {
     const modal = getModal();
-    const entitiesDiv = document.getElementById('yaak-pii-entities');
-    const maskedDiv = document.getElementById('yaak-pii-masked');
+    const entitiesDiv = document.getElementById("yaak-pii-entities");
+    const maskedDiv = document.getElementById("yaak-pii-masked");
 
     // Build entities list
-    let entitiesHtml = '<ul>';
+    let entitiesHtml = "<ul>";
     for (const [masked, original] of Object.entries(response.entities)) {
       entitiesHtml += `<li><strong>${masked}</strong>: ${original}</li>`;
     }
-    entitiesHtml += '</ul>';
+    entitiesHtml += "</ul>";
     entitiesDiv.innerHTML = entitiesHtml;
 
     // Show masked version
     maskedDiv.textContent = response.masked_message;
 
     // Set up button handlers
-    document.getElementById('yaak-pii-cancel').onclick = () => {
+    document.getElementById("yaak-pii-cancel").onclick = () => {
       hideModal();
-      onAction('cancel');
+      onAction("cancel");
     };
 
-    document.getElementById('yaak-pii-use-masked').onclick = () => {
+    document.getElementById("yaak-pii-use-masked").onclick = () => {
       hideModal();
-      onAction('use-masked', response.masked_message);
+      onAction("use-masked", response.masked_message);
     };
 
-    document.getElementById('yaak-pii-send-anyway').onclick = () => {
+    document.getElementById("yaak-pii-send-anyway").onclick = () => {
       hideModal();
-      onAction('send-anyway');
+      onAction("send-anyway");
     };
 
-    modal.style.display = 'flex';
+    modal.style.display = "flex";
   }
 
   // Hide modal
   function hideModal() {
-    const modal = document.getElementById('yaak-pii-overlay');
+    const modal = document.getElementById("yaak-pii-overlay");
     if (modal) {
-      modal.style.display = 'none';
+      modal.style.display = "none";
     }
   }
 
@@ -89,45 +90,45 @@
   function getInputText() {
     // Try multiple selectors for the input area
     const selectors = [
-      '#prompt-textarea',
+      "#prompt-textarea",
       '[data-testid="prompt-textarea"]',
       'div[contenteditable="true"]',
-      'textarea'
+      "textarea",
     ];
 
     for (const selector of selectors) {
       const element = document.querySelector(selector);
       if (element) {
         // Handle contenteditable div
-        if (element.getAttribute('contenteditable') === 'true') {
-          return element.innerText || element.textContent || '';
+        if (element.getAttribute("contenteditable") === "true") {
+          return element.innerText || element.textContent || "";
         }
         // Handle textarea
-        return element.value || element.innerText || element.textContent || '';
+        return element.value || element.innerText || element.textContent || "";
       }
     }
-    return '';
+    return "";
   }
 
   // Set text in ChatGPT input
   function setInputText(text) {
     const selectors = [
-      '#prompt-textarea',
+      "#prompt-textarea",
       '[data-testid="prompt-textarea"]',
       'div[contenteditable="true"]',
-      'textarea'
+      "textarea",
     ];
 
     for (const selector of selectors) {
       const element = document.querySelector(selector);
       if (element) {
-        if (element.getAttribute('contenteditable') === 'true') {
+        if (element.getAttribute("contenteditable") === "true") {
           element.innerText = text;
           // Trigger input event for React
-          element.dispatchEvent(new Event('input', { bubbles: true }));
+          element.dispatchEvent(new Event("input", { bubbles: true }));
         } else {
           element.value = text;
-          element.dispatchEvent(new Event('input', { bubbles: true }));
+          element.dispatchEvent(new Event("input", { bubbles: true }));
         }
         return true;
       }
@@ -139,21 +140,21 @@
   async function checkPII(text) {
     try {
       const response = await fetch(API_URL, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ message: text }),
       });
 
       if (!response.ok) {
-        console.error('Yaak PII Guard: API error', response.status);
+        console.error("Yaak PII Guard: API error", response.status);
         return null;
       }
 
       return await response.json();
     } catch (error) {
-      console.error('Yaak PII Guard: Failed to check PII', error);
+      console.error("Yaak PII Guard: Failed to check PII", error);
       return null;
     }
   }
@@ -162,6 +163,11 @@
   async function handleSubmit(event) {
     if (isChecking) {
       return;
+    }
+
+    if (skipNextCheck) {
+      skipNextCheck = false;
+      return; // Allow the submit to proceed without interception
     }
 
     const text = getInputText().trim();
@@ -181,33 +187,34 @@
 
       if (result === null) {
         // API error - allow submission
-        console.log('Yaak PII Guard: API unavailable, allowing submission');
+        console.log("Yaak PII Guard: API unavailable, allowing submission");
         triggerSubmit();
         return;
       }
 
       if (result.pii_found) {
-        console.log('Yaak PII Guard: PII detected', result);
+        console.log("Yaak PII Guard: PII detected", result);
         showPIIModal(result, text, (action, maskedText) => {
           switch (action) {
-            case 'cancel':
+            case "cancel":
               // Do nothing
               break;
-            case 'use-masked':
+            case "use-masked":
               setInputText(maskedText);
-              // Don't auto-submit, let user review
+              skipNextCheck = true;
+              // Don't auto-submit, let user review the masked text first
               break;
-            case 'send-anyway':
+            case "send-anyway":
               triggerSubmit();
               break;
           }
         });
       } else {
-        console.log('Yaak PII Guard: No PII detected, proceeding');
+        console.log("Yaak PII Guard: No PII detected, proceeding");
         triggerSubmit();
       }
     } catch (error) {
-      console.error('Yaak PII Guard: Error', error);
+      console.error("Yaak PII Guard: Error", error);
       triggerSubmit();
     } finally {
       isChecking = false;
@@ -216,10 +223,12 @@
 
   // Trigger the actual submit
   function triggerSubmit() {
-    const button = document.querySelector('[data-testid="send-button"], #composer-submit-button');
+    const button = document.querySelector(
+      '[data-testid="send-button"], #composer-submit-button'
+    );
     if (button) {
       // Temporarily remove our listener
-      button.removeEventListener('click', handleSubmit, true);
+      button.removeEventListener("click", handleSubmit, true);
       button.click();
       // Re-add listener after a short delay
       setTimeout(() => {
@@ -230,10 +239,12 @@
 
   // Attach listener to submit button
   function attachSubmitListener() {
-    const button = document.querySelector('[data-testid="send-button"], #composer-submit-button');
+    const button = document.querySelector(
+      '[data-testid="send-button"], #composer-submit-button'
+    );
     if (button) {
-      button.addEventListener('click', handleSubmit, true);
-      console.log('Yaak PII Guard: Attached to submit button');
+      button.addEventListener("click", handleSubmit, true);
+      console.log("Yaak PII Guard: Attached to submit button");
       return true;
     }
     return false;
@@ -241,9 +252,13 @@
 
   // Also intercept keyboard submit (Enter key)
   function handleKeydown(event) {
-    if (event.key === 'Enter' && !event.shiftKey) {
+    if (event.key === "Enter" && !event.shiftKey) {
       const input = event.target;
-      if (input.matches('#prompt-textarea, [data-testid="prompt-textarea"], div[contenteditable="true"]')) {
+      if (
+        input.matches(
+          '#prompt-textarea, [data-testid="prompt-textarea"], div[contenteditable="true"]'
+        )
+      ) {
         handleSubmit(event);
       }
     }
@@ -251,7 +266,7 @@
 
   // Initialize
   function init() {
-    console.log('Yaak PII Guard: Initializing...');
+    console.log("Yaak PII Guard: Initializing...");
 
     // Create modal
     getModal();
@@ -268,14 +283,14 @@
     }
 
     // Listen for Enter key submissions
-    document.addEventListener('keydown', handleKeydown, true);
+    document.addEventListener("keydown", handleKeydown, true);
 
-    console.log('Yaak PII Guard: Ready');
+    console.log("Yaak PII Guard: Ready");
   }
 
   // Wait for DOM to be ready
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
   } else {
     init();
   }
