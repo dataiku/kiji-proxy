@@ -42,7 +42,7 @@ interface ProvidersConfig {
 const DEFAULT_MODELS: Record<ProviderType, string> = {
   openai: "gpt-3.5-turbo",
   anthropic: "claude-3-haiku-20240307",
-  gemini: "gemini-1.5-flash",
+  gemini: "gemini-flash-latest",
   mistral: "mistral-small-latest",
 };
 

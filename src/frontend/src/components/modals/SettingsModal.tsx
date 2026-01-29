@@ -39,7 +39,7 @@ const PROVIDER_INFO: Record<
   },
   gemini: {
     name: "Gemini",
-    defaultModel: "gemini-1.5-flash",
+    defaultModel: "gemini-flash-latest",
     placeholder: "AIza...",
   },
   mistral: {
