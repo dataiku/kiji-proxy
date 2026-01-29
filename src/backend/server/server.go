@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/hannes/yaak-private/src/backend/config"
+	"github.com/hannes/yaak-private/src/backend/providers"
 	"github.com/hannes/yaak-private/src/backend/proxy"
 	"golang.org/x/time/rate"
 )
@@ -100,7 +101,7 @@ func NewServer(cfg *config.Config, electronConfigPath string, version string) (*
 	var pacServer *proxy.PACServer
 	var systemProxyManager *proxy.SystemProxyManager
 	if cfg.Proxy.TransparentEnabled && cfg.Proxy.EnablePAC {
-		pacServer = proxy.NewPACServer(cfg.Proxy.InterceptDomains, cfg.Proxy.ProxyPort)
+		pacServer = proxy.NewPACServer(cfg.Providers.GetInterceptDomains(), cfg.Proxy.ProxyPort)
 		systemProxyManager = proxy.NewSystemProxyManager("http://localhost:9090/proxy.pac")
 	}
 
@@ -139,7 +140,7 @@ func NewServerWithEmbedded(cfg *config.Config, uiFS, modelFS fs.FS, electronConf
 	var pacServer *proxy.PACServer
 	var systemProxyManager *proxy.SystemProxyManager
 	if cfg.Proxy.TransparentEnabled && cfg.Proxy.EnablePAC {
-		pacServer = proxy.NewPACServer(cfg.Proxy.InterceptDomains, cfg.Proxy.ProxyPort)
+		pacServer = proxy.NewPACServer(cfg.Providers.GetInterceptDomains(), cfg.Proxy.ProxyPort)
 		systemProxyManager = proxy.NewSystemProxyManager("http://localhost:9090/proxy.pac")
 	}
 
@@ -158,8 +159,11 @@ func NewServerWithEmbedded(cfg *config.Config, uiFS, modelFS fs.FS, electronConf
 
 // Start starts the HTTP server
 func (s *Server) Start() error {
-	log.Printf("Starting OpenAI proxy service on port %s", s.config.ProxyPort)
-	log.Printf("Forward requests to: %s", s.config.OpenAIBaseURL)
+	log.Printf("Starting Yaak proxy service on port %s", s.config.ProxyPort)
+	log.Printf("Forward OpenAI requests to: %s", s.config.Providers.OpenAIProviderConfig.APIDomain)
+	log.Printf("Forward Anthropic requests to: %s", s.config.Providers.AnthropicProviderConfig.APIDomain)
+	log.Printf("Forward Gemini requests to: %s", s.config.Providers.GeminiProviderConfig.APIDomain)
+	log.Printf("Forward Mistral requests to: %s", s.config.Providers.MistralProviderConfig.APIDomain)
 
 	// Get actual detector configuration from handler
 	if s.handler != nil {
@@ -195,7 +199,7 @@ func (s *Server) Start() error {
 			log.Printf("    export HTTPS_PROXY=http://127.0.0.1%s", s.config.Proxy.ProxyPort)
 		} else {
 			log.Printf("✅ System proxy configured successfully")
-			log.Printf("📡 Traffic to %v will be automatically routed through proxy", s.config.Proxy.InterceptDomains)
+			log.Printf("📡 Traffic to %v will be automatically routed through proxy", s.config.Providers.GetInterceptDomains())
 			log.Printf("🔐 Make sure you've installed the CA certificate for HTTPS interception")
 		}
 	}
@@ -205,7 +209,7 @@ func (s *Server) Start() error {
 		go s.startTransparentProxy()
 	}
 
-	// Add health check endpoint
+	// Add admin endpoints (e.g. health check, logs, certs, etc.)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", s.healthCheck)
 	mux.HandleFunc("/version", s.versionHandler)
@@ -214,7 +218,11 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/stats", s.statsHandler)
 	mux.HandleFunc("/api/model/security", s.handleModelSecurity)
 	mux.HandleFunc("/api/proxy/ca-cert", s.handleCACert)
-	mux.Handle("/v1/chat/completions", s.handler)
+
+	// Add provider endpoints
+	mux.Handle(providers.ProviderSubpathOpenAI, s.handler) // same as Mistral
+	mux.Handle(providers.ProviderSubpathAnthropic, s.handler)
+	mux.Handle(providers.ProviderSubpathGemini+"/{path...}", s.handler)
 
 	// Serve UI files with cache-busting headers
 	if s.uiFS != nil {
@@ -285,7 +293,7 @@ func (s *Server) startTransparentProxy() {
 	}
 
 	log.Printf("Starting transparent proxy on port %s", proxyPort)
-	log.Printf("Intercepting domains: %v", s.config.Proxy.InterceptDomains)
+	log.Printf("Intercepting domains: %v", s.config.Providers.GetInterceptDomains())
 	log.Printf("CA certificate path: %s", s.config.Proxy.CAPath)
 
 	// Create custom handler that routes based on request method

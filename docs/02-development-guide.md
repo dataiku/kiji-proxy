@@ -11,6 +11,7 @@ This guide covers setting up your development environment, debugging workflows, 
 - [Development Workflows](#development-workflows)
 - [Testing](#testing)
 - [Code Quality](#code-quality)
+- [Adding a New LLM Provider](#adding-a-new-llm-provider)
 
 ## Development Setup
 
@@ -737,6 +738,69 @@ kill -9 <PID>
 # Or use different port
 export PROXY_PORT=":8081"
 ```
+
+## Adding a New LLM Provider
+
+This section explains how to add support for a new LLM provider to Yaak Privacy Proxy.
+
+### Files to Modify
+
+Adding a new provider requires changes to the following files:
+
+| File | Changes Required |
+|------|------------------|
+| `src/backend/providers/<provider>.go` | Create new file implementing the `Provider` interface |
+| `src/backend/providers/provider.go` | Add provider type constant, update `Providers` struct, add detection logic in `GetProviderFromPath()` and `GetProviderFromHost()` |
+| `src/backend/config/config.go` | Add provider config to `ProvidersConfig` struct, add defaults in `DefaultConfig()`, add domain to `GetInterceptDomains()` |
+| `src/backend/main.go` | Add environment variable loading in `loadApplicationConfig()` |
+| `src/backend/proxy/handler.go` | Instantiate the provider in `NewHandler()` and add to the `Providers` struct |
+| `env.example` | Add the new `<PROVIDER>_API_KEY` and `<PROVIDER>_BASE_URL` variables |
+
+### Implementing the Provider Interface
+
+Create a new file `src/backend/providers/<provider>.go` that implements the `Provider` interface defined in `provider.go`. The interface requires:
+
+- **`GetType()`** / **`GetName()`** / **`GetBaseURL()`**: Basic provider identification
+- **`ExtractRequestText()`** / **`ExtractResponseText()`**: Navigate the provider's JSON structure to extract text content for PII detection
+- **`CreateMaskedRequest()`**: Mask PII in request message content using the provided `maskPIIInText` callback
+- **`RestoreMaskedResponse()`**: Restore original PII values in response content using the provided `restorePII` callback
+- **`SetAuthHeaders()`** / **`SetAddlHeaders()`**: Set authentication and custom headers for outbound requests
+
+Use existing provider implementations (e.g., `openai.go`, `anthropic.go`) as reference for the implementation pattern.
+
+### Provider Detection
+
+The proxy uses two detection methods depending on the mode:
+
+**Forward Proxy (path-based detection):**
+- Define a `ProviderSubpath<Provider>` constant for your provider's API endpoint path
+- Add a case in `GetProviderFromPath()` to match the subpath
+- Add a case for the `"provider"` field detection (used when clients explicitly specify the provider in the request body)
+
+**Transparent Proxy (host-based detection):**
+- Define a `ProviderAPIDomain<Provider>` constant for the API domain
+- Add a case in `GetProviderFromHost()` to match the domain
+
+### Handling Subpath Clashes
+
+Some providers share the same API subpath. For example, OpenAI and Mistral both use `/v1/chat/completions`. When adding a provider with a clashing subpath:
+
+1. **Use the `defaultProviders` mechanism**: The `defaultProviders` struct in `provider.go` determines which provider is selected when subpaths clash. Currently, `OpenAISubpath` controls whether OpenAI or Mistral is chosen for `/v1/chat/completions`.
+
+2. **Extend the mechanism if needed**: If your new provider clashes with a different subpath, you may need to add a new field to `defaultProviders` and update `NewDefaultProviders()` to validate it.
+
+3. **Config file control**: Users configure the default via `default_providers_config` in the config file (e.g., `"openai_subpath": "openai"` or `"openai_subpath": "mistral"`).
+
+4. **Explicit provider field**: Clients can always bypass subpath ambiguity by including `"provider": "<provider_name>"` in their request body, which takes precedence over subpath detection.
+
+### Configuration
+
+Add the new provider to the configuration system:
+
+1. Add a `<Provider>ProviderConfig` field to the `ProvidersConfig` struct in `config.go`
+2. Set default values (API domain, empty headers) in `DefaultConfig()`
+3. Add the domain to `GetInterceptDomains()` so the transparent proxy intercepts traffic to this provider
+4. Add environment variable loading in `main.go` for `<PROVIDER>_API_KEY` and `<PROVIDER>_BASE_URL`
 
 ## Next Steps
 

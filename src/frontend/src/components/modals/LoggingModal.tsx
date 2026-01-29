@@ -363,10 +363,22 @@ export default function LoggingModal({
     }
   };
 
-  const getDirectionLabel = (direction: string): string => {
+  // Infer provider name from model string
+  const getProviderFromModel = (model?: string): string => {
+    if (!model) return "Provider";
+    const modelLower = model.toLowerCase();
+    if (modelLower.includes("gpt") || modelLower.includes("openai")) return "OpenAI";
+    if (modelLower.includes("claude") || modelLower.includes("anthropic")) return "Anthropic";
+    if (modelLower.includes("gemini") || modelLower.includes("google")) return "Gemini";
+    if (modelLower.includes("mistral")) return "Mistral";
+    return "Provider";
+  };
+
+  const getDirectionLabel = (direction: string, model?: string): string => {
+    const providerName = getProviderFromModel(model);
     if (direction === "request_original") return "Request (Original)";
-    if (direction === "request_masked") return "Request (To OpenAI)";
-    if (direction === "response_masked") return "Response (From OpenAI)";
+    if (direction === "request_masked") return `Request (To ${providerName})`;
+    if (direction === "response_masked") return `Response (From ${providerName})`;
     if (direction === "response_original") return "Response (Restored)";
     if (direction === "request" || direction === "In") return "Request";
     if (direction === "response" || direction === "Out") return "Response";
@@ -584,7 +596,7 @@ export default function LoggingModal({
                         <div className="flex items-center gap-2">
                           {getDirectionIcon(log.direction)}
                           <span className="font-medium">
-                            {getDirectionLabel(log.direction)}
+                            {getDirectionLabel(log.direction, log.model)}
                           </span>
                         </div>
                       </td>
