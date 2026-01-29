@@ -311,8 +311,18 @@ func (s *Server) startTransparentProxy() {
 			s.logsHandler(w, r)
 		case "/health":
 			s.healthCheck(w, r)
+		case "/version":
+			s.versionHandler(w, r)
+		case "/mappings":
+			s.mappingsHandler(w, r)
+		case "/stats":
+			s.statsHandler(w, r)
+		case "/api/model/security":
+			s.handleModelSecurity(w, r)
 		case "/api/proxy/ca-cert":
 			s.handleCACert(w, r)
+		case "/api/pii/check":
+			s.handlePIICheck(w, r)
 		default:
 			// All other HTTP/HTTPS requests go to transparent proxy
 			s.transparentProxy.ServeHTTP(w, r)
