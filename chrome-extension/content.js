@@ -2,9 +2,22 @@
 (function () {
   "use strict";
 
-  const API_URL = "http://localhost:8081/api/pii/check";
+  const DEFAULT_API_BASE = "http://localhost:8081";
+  let apiBase = DEFAULT_API_BASE;
   let isChecking = false;
-  let skipNextCheck = false;
+  let maskedTextPending = null;
+
+  // Load backend URL from storage
+  if (chrome.storage && chrome.storage.sync) {
+    chrome.storage.sync.get({ backendUrl: DEFAULT_API_BASE }, (result) => {
+      apiBase = result.backendUrl || DEFAULT_API_BASE;
+    });
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area === "sync" && changes.backendUrl) {
+        apiBase = changes.backendUrl.newValue || DEFAULT_API_BASE;
+      }
+    });
+  }
 
   // Create modal elements
   function createModal() {
@@ -48,13 +61,17 @@
     const entitiesDiv = document.getElementById("yaak-pii-entities");
     const maskedDiv = document.getElementById("yaak-pii-masked");
 
-    // Build entities list
-    let entitiesHtml = "<ul>";
+    // Build entities list using safe DOM APIs (no innerHTML)
+    const ul = document.createElement("ul");
     for (const [masked, original] of Object.entries(response.entities)) {
-      entitiesHtml += `<li><strong>${masked}</strong>: ${original}</li>`;
+      const li = document.createElement("li");
+      const strong = document.createElement("strong");
+      strong.textContent = masked;
+      li.appendChild(strong);
+      li.appendChild(document.createTextNode(": " + original));
+      ul.appendChild(li);
     }
-    entitiesHtml += "</ul>";
-    entitiesDiv.innerHTML = entitiesHtml;
+    entitiesDiv.replaceChildren(ul);
 
     // Show masked version
     maskedDiv.textContent = response.masked_message;
@@ -136,10 +153,29 @@
     return false;
   }
 
+  // Show a toast notification
+  function showToast(message, type = "warning") {
+    // Remove any existing toast
+    const existing = document.getElementById("yaak-pii-toast");
+    if (existing) existing.remove();
+
+    const toast = document.createElement("div");
+    toast.id = "yaak-pii-toast";
+    toast.className = `yaak-pii-toast yaak-pii-toast-${type}`;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+
+    // Auto-dismiss after 5 seconds
+    setTimeout(() => {
+      toast.classList.add("yaak-pii-toast-hide");
+      setTimeout(() => toast.remove(), 300);
+    }, 5000);
+  }
+
   // Check for PII via API
   async function checkPII(text) {
     try {
-      const response = await fetch(API_URL, {
+      const response = await fetch(`${apiBase}/api/pii/check`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -165,9 +201,13 @@
       return;
     }
 
-    if (skipNextCheck) {
-      skipNextCheck = false;
-      return; // Allow the submit to proceed without interception
+    if (maskedTextPending !== null) {
+      const currentText = getInputText().trim();
+      if (currentText === maskedTextPending) {
+        maskedTextPending = null;
+        return; // Text unchanged since masking, allow submit without re-check
+      }
+      maskedTextPending = null; // Text was edited after masking, re-check
     }
 
     const text = getInputText().trim();
@@ -186,10 +226,24 @@
       const result = await checkPII(text);
 
       if (result === null) {
-        // API error - allow submission
+        // API error - warn user and allow submission
         console.log("Yaak PII Guard: API unavailable, allowing submission");
+        showToast(
+          "Yaak proxy server is unavailable. Message sent without PII check.",
+          "warning"
+        );
         triggerSubmit();
         return;
+      }
+
+      // Notify background service worker of the check result
+      try {
+        chrome.runtime.sendMessage({
+          type: "pii-check",
+          found: result.pii_found,
+        });
+      } catch (e) {
+        // Background may not be available
       }
 
       if (result.pii_found) {
@@ -201,7 +255,7 @@
               break;
             case "use-masked":
               setInputText(maskedText);
-              skipNextCheck = true;
+              maskedTextPending = maskedText;
               // Don't auto-submit, let user review the masked text first
               break;
             case "send-anyway":

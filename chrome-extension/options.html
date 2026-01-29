@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="options.css" />
+    <title>Yaak PII Guard - Settings</title>
+  </head>
+  <body>
+    <div class="options-container">
+      <h1>Yaak PII Guard Settings</h1>
+
+      <div class="form-group">
+        <label for="backend-url">Backend URL</label>
+        <input
+          type="url"
+          id="backend-url"
+          placeholder="http://localhost:8081"
+        />
+        <p class="form-help">The URL of the Yaak proxy server.</p>
+      </div>
+
+      <div class="form-group">
+        <div class="label-row">
+          <label for="intercept-domains">Domains to intercept</label>
+          <a href="#" id="reset-domains" class="reset-link"
+            >Reset to defaults</a
+          >
+        </div>
+        <textarea
+          id="intercept-domains"
+          rows="10"
+          spellcheck="false"
+          placeholder="https://chatgpt.com/*"
+        ></textarea>
+        <p class="form-help">
+          One URL match pattern per line. Must use the format
+          <code>https://domain.com/*</code>. The PII guard will be active on
+          these sites.
+        </p>
+      </div>
+
+      <div class="form-actions">
+        <button id="save-btn">Save</button>
+        <span id="save-status" class="save-status"></span>
+      </div>
+    </div>
+    <script src="options.js"></script>
+  </body>
+</html>
