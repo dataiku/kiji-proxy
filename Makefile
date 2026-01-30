@@ -14,6 +14,8 @@ BLUE := \033[0;34m
 GREEN := \033[0;32m
 YELLOW := \033[1;33m
 NC := \033[0m # No Color
+
+# Go build flags
 CGO_LDFLAGS := -L./build/tokenizers
 
 # Version from package.json
@@ -249,6 +251,10 @@ electron-dev: ## Run Electron app in development mode (assumes backend is runnin
 	@cd src/frontend && EXTERNAL_BACKEND=true npm run electron:dev
 
 electron-dev-external: electron-dev ## Alias for electron-dev (for backwards compatibility)
+
+go-backend-dev: ## Run Go backend in development mode
+	@echo "$(BLUE)Running Go backend in development mode...$(NC)"
+	CGO_LDFLAGS="$(CGO_LDFLAGS)" go run ./src/backend -config ./src/backend/config/config.development.json
 
 update-vscode-version: ## Update version in VSCode launch.json
 	@echo "$(BLUE)Updating VSCode launch.json with version $(VERSION)...$(NC)"
