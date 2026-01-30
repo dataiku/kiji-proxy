@@ -1,5 +1,11 @@
 # yaak-privacy-proxy
 
+## 0.3.2
+
+### Patch Changes
+
+- 2cf2bc0: Introducing multiple providers
+
 ## 0.3.1
 
 ### Patch Changes
