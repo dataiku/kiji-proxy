@@ -1,7 +1,22 @@
 {
+  "providers": {
+    "default_providers_config": {
+      "openai_subpath": "openai"
+    },
+    "openai_provider_config": {
+      "api_domain": "api.openai.com"
+    },
+    "anthropic_provider_config": {
+      "api_domain": "api.anthropic.com"
+    },
+    "gemini_provider_config": {
+      "api_domain": "generativelanguage.googleapis.com"
+    },
+    "mistral_provider_config": {
+      "api_domain": "api.mistral.ai"
+    }
+  },
   "ProxyPort": ":8080",
-  "DetectorName": "onnx_model_detector",
-  "ModelBaseURL": "https://api.openai.com/v1",
   "Database": {
     "Enabled": false
   },
@@ -16,7 +31,6 @@
   "UIPath": "src/frontend/dist",
   "Proxy": {
     "transparent_enabled": true,
-    "intercept_domains": ["api.openai.com", "openai.com"],
     "proxy_port": ":8081",
     "ca_path": "",
     "key_path": "",

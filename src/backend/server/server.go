@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/hannes/yaak-private/src/backend/config"
+	"github.com/hannes/yaak-private/src/backend/providers"
 	"github.com/hannes/yaak-private/src/backend/proxy"
 	"golang.org/x/time/rate"
 )
@@ -75,10 +76,10 @@ type Server struct {
 }
 
 // NewServer creates a new server instance
-func NewServer(cfg *config.Config, electronConfigPath string, version string) (*Server, error) {
+func NewServer(cfg *config.Config, version string) (*Server, error) {
 	// Initialize PII mapping with database support
 
-	handler, err := proxy.NewHandler(cfg, electronConfigPath)
+	handler, err := proxy.NewHandler(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create proxy handler: %w", err)
 	}
@@ -100,7 +101,7 @@ func NewServer(cfg *config.Config, electronConfigPath string, version string) (*
 	var pacServer *proxy.PACServer
 	var systemProxyManager *proxy.SystemProxyManager
 	if cfg.Proxy.TransparentEnabled && cfg.Proxy.EnablePAC {
-		pacServer = proxy.NewPACServer(cfg.Proxy.InterceptDomains, cfg.Proxy.ProxyPort)
+		pacServer = proxy.NewPACServer(cfg.Providers.GetInterceptDomains(), cfg.Proxy.ProxyPort)
 		systemProxyManager = proxy.NewSystemProxyManager("http://localhost:9090/proxy.pac")
 	}
 
@@ -116,8 +117,8 @@ func NewServer(cfg *config.Config, electronConfigPath string, version string) (*
 }
 
 // NewServerWithEmbedded creates a new server instance with embedded filesystems
-func NewServerWithEmbedded(cfg *config.Config, uiFS, modelFS fs.FS, electronConfigPath string, version string) (*Server, error) {
-	handler, err := proxy.NewHandler(cfg, electronConfigPath)
+func NewServerWithEmbedded(cfg *config.Config, uiFS, modelFS fs.FS, version string) (*Server, error) {
+	handler, err := proxy.NewHandler(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create proxy handler: %w", err)
 	}
@@ -139,7 +140,7 @@ func NewServerWithEmbedded(cfg *config.Config, uiFS, modelFS fs.FS, electronConf
 	var pacServer *proxy.PACServer
 	var systemProxyManager *proxy.SystemProxyManager
 	if cfg.Proxy.TransparentEnabled && cfg.Proxy.EnablePAC {
-		pacServer = proxy.NewPACServer(cfg.Proxy.InterceptDomains, cfg.Proxy.ProxyPort)
+		pacServer = proxy.NewPACServer(cfg.Providers.GetInterceptDomains(), cfg.Proxy.ProxyPort)
 		systemProxyManager = proxy.NewSystemProxyManager("http://localhost:9090/proxy.pac")
 	}
 
@@ -158,23 +159,17 @@ func NewServerWithEmbedded(cfg *config.Config, uiFS, modelFS fs.FS, electronConf
 
 // Start starts the HTTP server
 func (s *Server) Start() error {
-	log.Printf("Starting OpenAI proxy service on port %s", s.config.ProxyPort)
-	log.Printf("Forward requests to: %s", s.config.OpenAIBaseURL)
+	log.Printf("Starting Yaak proxy service on port %s", s.config.ProxyPort)
+	log.Printf("Forward OpenAI requests to: %s", s.config.Providers.OpenAIProviderConfig.APIDomain)
+	log.Printf("Forward Anthropic requests to: %s", s.config.Providers.AnthropicProviderConfig.APIDomain)
+	log.Printf("Forward Gemini requests to: %s", s.config.Providers.GeminiProviderConfig.APIDomain)
+	log.Printf("Forward Mistral requests to: %s", s.config.Providers.MistralProviderConfig.APIDomain)
 
-	// Get actual detector configuration from handler
 	if s.handler != nil {
-		detector, err := s.handler.GetDetector()
-		if err != nil {
-			log.Fatalf("Failed to get detector: %v", err)
-		}
-		log.Printf("PII detection enabled with detector: %s", detector.GetName())
+		log.Println("PII detection enabled with ONNX model detector")
 	}
 
-	if s.config.Database.Enabled {
-		log.Println("Database storage enabled")
-	} else {
-		log.Println("Using in-memory storage")
-	}
+	log.Printf("Using SQLite database at %s", s.config.Database.Path)
 
 	// Start PAC server if enabled
 	if s.pacServer != nil {
@@ -195,7 +190,7 @@ func (s *Server) Start() error {
 			log.Printf("    export HTTPS_PROXY=http://127.0.0.1%s", s.config.Proxy.ProxyPort)
 		} else {
 			log.Printf("✅ System proxy configured successfully")
-			log.Printf("📡 Traffic to %v will be automatically routed through proxy", s.config.Proxy.InterceptDomains)
+			log.Printf("📡 Traffic to %v will be automatically routed through proxy", s.config.Providers.GetInterceptDomains())
 			log.Printf("🔐 Make sure you've installed the CA certificate for HTTPS interception")
 		}
 	}
@@ -205,7 +200,7 @@ func (s *Server) Start() error {
 		go s.startTransparentProxy()
 	}
 
-	// Add health check endpoint
+	// Add admin endpoints (e.g. health check, logs, certs, etc.)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", s.healthCheck)
 	mux.HandleFunc("/version", s.versionHandler)
@@ -214,7 +209,12 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/stats", s.statsHandler)
 	mux.HandleFunc("/api/model/security", s.handleModelSecurity)
 	mux.HandleFunc("/api/proxy/ca-cert", s.handleCACert)
-	mux.Handle("/v1/chat/completions", s.handler)
+	mux.HandleFunc("/api/pii/check", s.handlePIICheck)
+
+	// Add provider endpoints
+	mux.Handle(providers.ProviderSubpathOpenAI, s.handler) // same as Mistral
+	mux.Handle(providers.ProviderSubpathAnthropic, s.handler)
+	mux.Handle(providers.ProviderSubpathGemini+"/{path...}", s.handler)
 
 	// Serve UI files with cache-busting headers
 	if s.uiFS != nil {
@@ -285,7 +285,7 @@ func (s *Server) startTransparentProxy() {
 	}
 
 	log.Printf("Starting transparent proxy on port %s", proxyPort)
-	log.Printf("Intercepting domains: %v", s.config.Proxy.InterceptDomains)
+	log.Printf("Intercepting domains: %v", s.config.Providers.GetInterceptDomains())
 	log.Printf("CA certificate path: %s", s.config.Proxy.CAPath)
 
 	// Create custom handler that routes based on request method
@@ -302,8 +302,18 @@ func (s *Server) startTransparentProxy() {
 			s.logsHandler(w, r)
 		case "/health":
 			s.healthCheck(w, r)
+		case "/version":
+			s.versionHandler(w, r)
+		case "/mappings":
+			s.mappingsHandler(w, r)
+		case "/stats":
+			s.statsHandler(w, r)
+		case "/api/model/security":
+			s.handleModelSecurity(w, r)
 		case "/api/proxy/ca-cert":
 			s.handleCACert(w, r)
+		case "/api/pii/check":
+			s.handlePIICheck(w, r)
 		default:
 			// All other HTTP/HTTPS requests go to transparent proxy
 			s.transparentProxy.ServeHTTP(w, r)
@@ -488,6 +498,85 @@ func (s *Server) handleModelSecurity(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 		return
+	}
+}
+
+// PIICheckRequest represents the request body for PII checking
+type PIICheckRequest struct {
+	Message string `json:"message"`
+}
+
+// PIICheckResponse represents the response for PII checking
+type PIICheckResponse struct {
+	MaskedMessage string            `json:"masked_message"`
+	Entities      map[string]string `json:"entities"`
+	PIIFound      bool              `json:"pii_found"`
+}
+
+// handlePIICheck checks a message for PII and returns masked version with entities
+func (s *Server) handlePIICheck(w http.ResponseWriter, r *http.Request) {
+	// Apply rate limiting
+	ip := r.RemoteAddr
+	limiter := s.rateLimiter.GetLimiter(ip)
+	if !limiter.Allow() {
+		http.Error(w, "Rate limit exceeded. Please try again later.", http.StatusTooManyRequests)
+		return
+	}
+
+	// Handle CORS preflight OPTIONS request
+	if r.Method == http.MethodOptions {
+		s.corsHandler(w, r)
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	// Add CORS headers to all responses
+	s.corsHandler(w, r)
+
+	// Only allow POST requests
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Parse request body
+	var req PIICheckRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.Message == "" {
+		http.Error(w, "Message field is required", http.StatusBadRequest)
+		return
+	}
+
+	// Use the handler's masking service to check for PII
+	maskedText, maskedToOriginal, entities := s.handler.MaskPIIInText(req.Message)
+
+	// Build entities map (label -> original text)
+	entitiesMap := make(map[string]string)
+	for _, entity := range entities {
+		entitiesMap[entity.Label] = entity.Text
+	}
+
+	// If there are multiple entities of the same type, we need to handle that
+	// Let's use masked -> original mapping instead for more detail
+	entityDetails := make(map[string]string)
+	for masked, original := range maskedToOriginal {
+		entityDetails[masked] = original
+	}
+
+	response := PIICheckResponse{
+		MaskedMessage: maskedText,
+		Entities:      entityDetails,
+		PIIFound:      len(entities) > 0,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		log.Printf("Failed to encode PII check response: %v", err)
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 	}
 }
 

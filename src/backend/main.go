@@ -31,7 +31,6 @@ func main() {
 
 	// Check for config file path from command-line flag
 	configPath := flag.String("config", "", "Path to JSON config file")
-	electronConfigPath := flag.String("electron-config", "", "Path to Electron's config.json file")
 	flag.Parse()
 
 	// Print version if requested
@@ -68,7 +67,7 @@ func main() {
 	}
 
 	// Run main logic
-	if err := run(configPath, electronConfigPath); err != nil {
+	if err := run(configPath); err != nil {
 		log.Printf("Fatal error: %v", err)
 		sentry.CaptureException(err)
 		sentry.Flush(2 * time.Second)
@@ -76,7 +75,7 @@ func main() {
 	}
 }
 
-func run(configPath *string, electronConfigPath *string) error {
+func run(configPath *string) error {
 	// Log version at startup with banner
 	log.Println("================================================================================")
 	log.Printf("🚀 Starting Dataiku's Yaak Privacy Proxy v%s", version)
@@ -130,7 +129,7 @@ func run(configPath *string, electronConfigPath *string) error {
 
 	if *configPath != "" {
 		// Development mode - use file system
-		srv, err = server.NewServer(cfg, *electronConfigPath, version)
+		srv, err = server.NewServer(cfg, version)
 		if err != nil {
 			return fmt.Errorf("failed to create server: %w", err)
 		}
@@ -153,7 +152,7 @@ func run(configPath *string, electronConfigPath *string) error {
 			}
 		}
 
-		srv, err = server.NewServerWithEmbedded(cfg, uiFiles, modelFiles, *electronConfigPath, version)
+		srv, err = server.NewServerWithEmbedded(cfg, uiFiles, modelFiles, version)
 		if err != nil {
 			return fmt.Errorf("failed to create server with embedded files: %w", err)
 		}
@@ -189,45 +188,14 @@ func loadConfigFromFile(path string, cfg *config.Config) {
 func loadConfigFromEnv(cfg *config.Config) {
 	loadDatabaseConfig(cfg)
 	loadApplicationConfig(cfg)
-	loadPIIDetectorConfig(cfg)
 	loadLoggingConfig(cfg)
 	loadProxyConfig(cfg)
 }
 
 // loadDatabaseConfig loads database configuration from environment variables
 func loadDatabaseConfig(cfg *config.Config) {
-	if dbEnabled := os.Getenv("DB_ENABLED"); dbEnabled != "" {
-		cfg.Database.Enabled = dbEnabled == TRUE
-	}
-
-	if host := os.Getenv("DB_HOST"); host != "" {
-		cfg.Database.Host = host
-	}
-
-	if port := os.Getenv("DB_PORT"); port != "" {
-		if p, err := strconv.Atoi(port); err == nil {
-			cfg.Database.Port = p
-		}
-	}
-
-	if dbName := os.Getenv("DB_NAME"); dbName != "" {
-		cfg.Database.Database = dbName
-	}
-
-	if user := os.Getenv("DB_USER"); user != "" {
-		cfg.Database.Username = user
-	}
-
-	if password := os.Getenv("DB_PASSWORD"); password != "" {
-		cfg.Database.Password = password
-	}
-
-	if sslMode := os.Getenv("DB_SSL_MODE"); sslMode != "" {
-		cfg.Database.SSLMode = sslMode
-	}
-
-	if useCache := os.Getenv("DB_USE_CACHE"); useCache != "" {
-		cfg.Database.UseCache = useCache == TRUE
+	if dbPath := os.Getenv("DB_PATH"); dbPath != "" {
+		cfg.Database.Path = dbPath
 	}
 
 	if cleanupHours := os.Getenv("DB_CLEANUP_HOURS"); cleanupHours != "" {
@@ -243,25 +211,48 @@ func loadApplicationConfig(cfg *config.Config) {
 		cfg.ProxyPort = proxyPort
 	}
 
+	// Override OpenAI provider config with environment variables
 	if openAIURL := os.Getenv("OPENAI_BASE_URL"); openAIURL != "" {
-		cfg.OpenAIBaseURL = openAIURL
+		cfg.Providers.OpenAIProviderConfig.APIDomain = openAIURL
 	}
-	if apiKey := os.Getenv("OPENAI_API_KEY"); apiKey != "" {
-		cfg.OpenAIAPIKey = apiKey
-		log.Printf("Loaded OPENAI_API_KEY from environment (length: %d)", len(apiKey))
+	if openAIApiKey := os.Getenv("OPENAI_API_KEY"); openAIApiKey != "" {
+		cfg.Providers.OpenAIProviderConfig.APIKey = openAIApiKey
+		log.Printf("Loaded OPENAI_API_KEY from environment (length: %d)", len(openAIApiKey))
 	} else {
 		log.Printf("Warning: OPENAI_API_KEY is empty or not set")
 	}
-}
 
-// loadPIIDetectorConfig loads PII detector configuration from environment variables
-func loadPIIDetectorConfig(cfg *config.Config) {
-	if detectorName := os.Getenv("DETECTOR_NAME"); detectorName != "" {
-		cfg.DetectorName = detectorName
+	// Override Anthropic provider config with environment variables
+	if anthropicURL := os.Getenv("ANTHROPIC_BASE_URL"); anthropicURL != "" {
+		cfg.Providers.AnthropicProviderConfig.APIDomain = anthropicURL
+	}
+	if anthropicApiKey := os.Getenv("ANTHROPIC_API_KEY"); anthropicApiKey != "" {
+		cfg.Providers.AnthropicProviderConfig.APIKey = anthropicApiKey
+		log.Printf("Loaded ANTHROPIC_API_KEY from environment (length: %d)", len(anthropicApiKey))
+	} else {
+		log.Printf("Warning: ANTHROPIC_API_KEY is empty or not set")
 	}
 
-	if modelBaseURL := os.Getenv("MODEL_BASE_URL"); modelBaseURL != "" {
-		cfg.ModelBaseURL = modelBaseURL
+	// Override Gemini provider config with environment variables
+	if geminiURL := os.Getenv("GEMINI_BASE_URL"); geminiURL != "" {
+		cfg.Providers.GeminiProviderConfig.APIDomain = geminiURL
+	}
+	if geminiApiKey := os.Getenv("GEMINI_API_KEY"); geminiApiKey != "" {
+		cfg.Providers.GeminiProviderConfig.APIKey = geminiApiKey
+		log.Printf("Loaded GEMINI_API_KEY from environment (length: %d)", len(geminiApiKey))
+	} else {
+		log.Printf("Warning: GEMINI_API_KEY is empty or not set")
+	}
+
+	// Override Mistral provider config with environment variables
+	if mistralURL := os.Getenv("MISTRAL_BASE_URL"); mistralURL != "" {
+		cfg.Providers.MistralProviderConfig.APIDomain = mistralURL
+	}
+	if mistralApiKey := os.Getenv("MISTRAL_API_KEY"); mistralApiKey != "" {
+		cfg.Providers.MistralProviderConfig.APIKey = mistralApiKey
+		log.Printf("Loaded MISTRAL_API_KEY from environment (length: %d)", len(mistralApiKey))
+	} else {
+		log.Printf("Warning: MISTRAL_API_KEY is empty or not set")
 	}
 }
 
@@ -305,9 +296,6 @@ func loadProxyConfig(cfg *config.Config) {
 	// Also expand paths if they weren't set from environment
 	cfg.Proxy.CAPath = expandPath(cfg.Proxy.CAPath)
 	cfg.Proxy.KeyPath = expandPath(cfg.Proxy.KeyPath)
-
-	// Note: intercept_domains is not easily set via env vars (would need comma-separated parsing)
-	// It's better to set via JSON config file
 }
 
 // expandPath expands ~ to the user's home directory

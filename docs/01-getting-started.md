@@ -13,23 +13,54 @@ Welcome to Dataiku's Yaak Privacy Proxy! This guide will help you get started wi
 
 ## What is Yaak Privacy Proxy?
 
-Dataiku's Yaak Privacy Proxy is a transparent MITM proxy with integrated PII (Personally Identifiable Information) detection and masking capabilities. It intercepts HTTP/HTTPS traffic, automatically detects sensitive data using machine learning, and masks it before forwarding requests to AI services like OpenAI and Anthropic.
+Dataiku's Yaak Privacy Proxy is a privacy-preserving proxy with integrated PII (Personally Identifiable Information) detection and masking capabilities. It intercepts HTTP/HTTPS traffic to LLM providers, automatically detects sensitive data using machine learning or regex patterns, and masks it before forwarding requests. When responses arrive, the proxy restores the original values so your application receives the expected data.
+
+### Supported LLM Providers
+
+Yaak Privacy Proxy supports multiple LLM providers out of the box:
+- **OpenAI** (ChatCompletions API)
+- **Anthropic** (Messages API)
+- **Google Gemini** (GenerateContent API)
+- **Mistral** (ChatCompletions API)
+
+The proxy automatically detects which provider to route to based on request characteristics. See [Provider Detection](#provider-detection) for details.
+
+### Deployment Modes
+
+Yaak Privacy Proxy can be deployed in two ways:
+
+| Mode | Description | Platform |
+|------|-------------|----------|
+| **Desktop App** | Electron-based GUI for configuration and monitoring. Bundles the Go backend. | macOS |
+| **Standalone Backend** | Headless Go server configured via config file or environment variables. No UI. | Linux, macOS |
+
+### Proxy Modes
+
+The backend supports two proxy modes that can run simultaneously:
+
+| Mode | Default Port | Description |
+|------|--------------|-------------|
+| **Forward Proxy** | 8080 | Clients send requests directly to this port with the provider's API path (e.g., `/v1/chat/completions`). Provider detected from path or optional `provider` field in body. Best for CLI tools and programmatic access. |
+| **Transparent Proxy** | 8081 | MITM proxy that intercepts HTTPS traffic to provider domains. Requires CA certificate trust. Provider detected from request host. On macOS, PAC auto-configuration routes browser traffic automatically. |
 
 **Key Features:**
-- Transparent HTTPS proxy with MITM capabilities
+- Multi-provider support (OpenAI, Anthropic, Gemini, Mistral)
 - ML-powered PII detection (emails, phone numbers, SSNs, credit cards, etc.)
 - Automatic PII masking and restoration
-- Desktop app (macOS) or standalone API server (Linux)
+- Forward proxy and transparent MITM proxy modes
+- Desktop app (macOS) or standalone server (Linux/macOS)
 - Request/response logging with masked data
 
 ## Quick Installation
 
-### macOS (DMG)
+### macOS (Desktop App)
 
 1. Download the latest DMG from [Releases](https://github.com/hanneshapke/yaak-proxy/releases)
 2. Open the DMG file
 3. Drag "Yaak Privacy Proxy" to Applications
 4. Launch the app
+
+The desktop app provides a GUI for configuration and monitoring. It bundles the Go backend and manages both proxy modes automatically.
 
 **First Launch on macOS:**
 If you see a "damaged app" warning:
@@ -37,7 +68,7 @@ If you see a "damaged app" warning:
 xattr -cr "/Applications/Yaak Privacy Proxy.app"
 ```
 
-### Linux (Standalone)
+### Linux (Standalone Backend)
 
 1. Download the latest tarball from [Releases](https://github.com/hanneshapke/yaak-proxy/releases)
 2. Extract:
@@ -51,11 +82,11 @@ cd yaak-privacy-proxy-*-linux-amd64
 ./run.sh
 ```
 
-**Note:** Linux build is API-only (no UI). Access via HTTP endpoints.
+The standalone backend runs as a headless server. Configure via environment variables or a config file (see [Configuration](#configuration)).
 
 ## Platform-Specific Installation
 
-### macOS Installation
+### macOS (Desktop App)
 
 **System Requirements:**
 - macOS 10.13 or later
@@ -126,7 +157,7 @@ This automatically configures your system to route `api.openai.com` and `openai.
 
 See [transparent-proxy-setup.md](transparent-proxy-setup.md) for complete details.
 
-### Linux Installation
+### Linux (Standalone Backend)
 
 **System Requirements:**
 - Linux kernel 3.10+
@@ -207,29 +238,29 @@ sudo trust extract-compat
    ```
 
 2. **Configure via UI:**
-   - Set your OpenAI API key
-   - Configure proxy port (default: 8080)
+   - Set your API keys (OpenAI, Anthropic, Gemini, Mistral)
+   - Configure proxy ports (forward proxy default: 8080, transparent proxy default: 8081)
    - Enable/disable PII logging
 
 3. **Test the proxy:**
-   
-   **With PAC (automatic - for browsers):**
-   - Open Safari/Chrome and navigate to any website
-   - Requests to `api.openai.com` automatically go through proxy
-   - No configuration needed!
-   
-   **With curl (manual - requires env vars):**
+
+   **Transparent Proxy (browsers with PAC):**
+   - Open Safari/Chrome and make requests to any configured provider domain
+   - Requests to `api.openai.com`, `api.anthropic.com`, etc. are automatically intercepted
+   - No client configuration needed - PAC handles routing
+
+   **Forward Proxy (with curl):**
    ```bash
-   # Set proxy environment variables
-   export HTTP_PROXY=http://127.0.0.1:8081
-   export HTTPS_PROXY=http://127.0.0.1:8081
-   
-   # Test request
-   curl https://api.openai.com/v1/models \
-     -H "Authorization: Bearer $OPENAI_API_KEY"
+   # Send directly to forward proxy port (8080) with provider's path
+   curl -X POST http://127.0.0.1:8080/v1/chat/completions \
+     -H "Content-Type: application/json" \
+     -H "Authorization: Bearer $OPENAI_API_KEY" \
+     -d '{"model": "gpt-4", "messages": [{"role": "user", "content": "Hello"}]}'
    ```
 
-### Linux (API Server)
+   **Note:** CLI tools like curl don't use PAC, so they cannot use the transparent proxy without explicit configuration. Use the forward proxy (port 8080) for CLI testing.
+
+### Linux (Standalone Backend)
 
 1. **Start the server:**
    ```bash
@@ -275,39 +306,124 @@ The proxy can be configured via:
 # Proxy settings
 export PROXY_PORT=":8080"
 
-# API keys
+# Provider API keys
 export OPENAI_API_KEY="sk-..."
 export ANTHROPIC_API_KEY="sk-ant-..."
+export GEMINI_API_KEY="AIza..."
+export MISTRAL_API_KEY="..."
+
+# Provider base URLs (optional, defaults to official API domains)
+export OPENAI_BASE_URL="api.openai.com"
+export ANTHROPIC_BASE_URL="api.anthropic.com"
+export GEMINI_BASE_URL="generativelanguage.googleapis.com"
+export MISTRAL_BASE_URL="api.mistral.ai"
 
 # PII detection
-export DETECTOR_NAME="onnx_model_detector"
+export DETECTOR_NAME="onnx_model_detector"  # or "regex_detector", "model_detector"
 export LOG_PII_CHANGES="true"
+export LOG_VERBOSE="true"
+export LOG_REQUESTS="true"
+export LOG_RESPONSES="true"
 
 # Database (optional)
 export DB_ENABLED="false"
+
+# Transparent proxy settings
+export TRANSPARENT_PROXY_ENABLED="true"
+export TRANSPARENT_PROXY_PORT=":8081"
+export TRANSPARENT_PROXY_CA_PATH="~/.yaak-proxy/certs/ca.crt"
+export TRANSPARENT_PROXY_KEY_PATH="~/.yaak-proxy/certs/ca.key"
 ```
 
 **Config File Example:**
 
 ```json
 {
-  "proxy": {
-    "port": ":8080",
-    "intercept_domains": [
-      "api.openai.com",
-      "api.anthropic.com"
-    ]
+  "providers": {
+    "default_providers_config": {
+      "openai_subpath": "openai"
+    },
+    "openai_provider_config": {
+      "api_domain": "api.openai.com",
+      "api_key": "sk-...",
+      "additional_headers": {}
+    },
+    "anthropic_provider_config": {
+      "api_domain": "api.anthropic.com",
+      "api_key": "sk-ant-...",
+      "additional_headers": {}
+    },
+    "gemini_provider_config": {
+      "api_domain": "generativelanguage.googleapis.com",
+      "api_key": "AIza...",
+      "additional_headers": {}
+    },
+    "mistral_provider_config": {
+      "api_domain": "api.mistral.ai",
+      "api_key": "...",
+      "additional_headers": {}
+    }
   },
-  "detector": {
-    "name": "onnx_model_detector",
-    "model_path": "model/quantized"
+  "ProxyPort": ":8080",
+  "DetectorName": "onnx_model_detector",
+  "Logging": {
+    "LogRequests": true,
+    "LogResponses": true,
+    "LogPIIChanges": true,
+    "LogVerbose": true
   },
-  "logging": {
-    "log_pii_changes": true,
-    "log_requests": true
+  "Proxy": {
+    "transparent_enabled": true,
+    "proxy_port": ":8081",
+    "ca_path": "~/.yaak-proxy/certs/ca.crt",
+    "key_path": "~/.yaak-proxy/certs/ca.key",
+    "enable_pac": true
   }
 }
 ```
+
+**Provider Configuration Notes:**
+
+- `default_providers_config.openai_subpath`: When using the forward proxy, OpenAI and Mistral share the same API subpath (`/v1/chat/completions`). This setting determines which provider is used by default when only the subpath is available. Valid values: `"openai"` or `"mistral"`.
+- `additional_headers`: Custom headers to include with requests to each provider.
+- API keys can be set in the config file or overridden via environment variables (recommended for security).
+
+### Provider Detection
+
+Yaak Privacy Proxy supports multiple LLM providers (OpenAI, Anthropic, Gemini, Mistral) and automatically detects which provider to route requests to based on the proxy mode.
+
+**Forward Proxy Mode (default port 8080)**
+
+In forward proxy mode, the proxy determines the provider using these methods in order:
+
+1. **Optional `provider` field in request body**: You can explicitly specify the provider by including a `"provider"` field in your JSON request body. Valid values: `"openai"`, `"anthropic"`, `"gemini"`, `"mistral"`. This field is automatically stripped before forwarding.
+   ```json
+   {
+     "provider": "openai",
+     "model": "gpt-4",
+     "messages": [...]
+   }
+   ```
+
+2. **Request subpath**: If no `provider` field is present, the proxy determines the provider from the API endpoint path:
+   - `/v1/chat/completions` → OpenAI or Mistral (based on `default_providers_config.openai_subpath`)
+   - `/v1/messages` → Anthropic
+   - `/v1beta/models/*/generateContent` → Gemini
+
+**Transparent Proxy Mode (default port 8081)**
+
+In transparent proxy mode (MITM), the proxy determines the provider from the **request host**, e.g.:
+
+- `api.openai.com` → OpenAI
+- `api.anthropic.com` → Anthropic
+- `generativelanguage.googleapis.com` → Gemini
+- `api.mistral.ai` → Mistral
+
+The transparent proxy intercepts HTTPS traffic using the configured CA certificate. Requests to non-configured domains are passed through without interception.
+
+**Intercept Domains**
+
+The list of domains to intercept is automatically derived from all configured provider API domains. Only traffic to these domains is processed for PII masking; all other traffic is passed through unchanged.
 
 ## Your First Release
 

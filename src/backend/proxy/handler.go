@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -18,40 +19,19 @@ import (
 	piiServices "github.com/hannes/yaak-private/src/backend/pii"
 	pii "github.com/hannes/yaak-private/src/backend/pii/detectors"
 	"github.com/hannes/yaak-private/src/backend/processor"
+	"github.com/hannes/yaak-private/src/backend/providers"
 )
 
-// Handler handles HTTP requests and proxies them to OpenAI API
+// Handler handles HTTP requests and proxies them to LLM provider
 type Handler struct {
-	client             *http.Client
-	config             *config.Config
-	detector           *pii.Detector
-	responseProcessor  *processor.ResponseProcessor
-	maskingService     *piiServices.MaskingService
-	electronConfigPath string
-	loggingDB          piiServices.LoggingDB    // Database or in-memory storage for logging
-	mappingDB          piiServices.PIIMappingDB // Same instance as loggingDB, for mapping operations
-}
-
-// GetDetector returns the PII detector instance
-func (h *Handler) GetDetector() (pii.Detector, error) {
-	// read config for detector name
-	detectorName := h.config.DetectorName
-	if detectorName == "" {
-		return nil, fmt.Errorf("detector name is required")
-	}
-
-	// Create detector config from handler config
-	detectorConfig := make(map[string]interface{})
-	switch detectorName {
-	case pii.DetectorNameONNXModel:
-		detectorConfig["model_path"] = h.config.ONNXModelPath
-		detectorConfig["tokenizer_path"] = h.config.TokenizerPath
-	case pii.DetectorNameRegex:
-		detectorConfig["patterns"] = pii.PIIPatterns
-	default:
-		return nil, fmt.Errorf("invalid detector name: %s", detectorName)
-	}
-	return pii.NewDetector(detectorName, detectorConfig)
+	client            *http.Client
+	config            *config.Config
+	providers         *providers.Providers
+	detector          *pii.Detector
+	responseProcessor *processor.ResponseProcessor
+	maskingService    *piiServices.MaskingService
+	loggingDB         piiServices.LoggingDB    // Database or in-memory storage for logging
+	mappingDB         piiServices.PIIMappingDB // Same instance as loggingDB, for mapping operations
 }
 
 // ServeHTTP implements the http.Handler interface
@@ -59,12 +39,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	startTime := time.Now()
 	log.Println("--- in ServeHTTP ---")
 	log.Printf("[Proxy] Received %s request to %s", r.Method, r.URL.Path)
-
-	// Check if detailed PII information is requested via query parameter
-	includeDetails := r.URL.Query().Get("details") == "true"
-	if includeDetails {
-		log.Printf("[Proxy] Detailed PII metadata requested")
-	}
 
 	// Read and validate request body
 	body, err := h.readRequestBody(r)
@@ -77,23 +51,43 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[Proxy] Request body size: %d bytes", len(body))
 	log.Printf("[Timing] Request body read: %v", time.Since(startTime))
 
+	// Determine provider for current request
+	provider, err := h.providers.GetProviderFromPath(r.Host, r.URL.Path, &body, "[Proxy]")
+	if err != nil {
+		log.Printf("[Proxy] Error retrieving provider: %s", err.Error())
+		http.Error(w, "Error retrieving provider from path", http.StatusBadRequest)
+		return
+	}
+
+	// Check if detailed PII information is requested via query parameter
+	includeDetails := r.URL.Query().Get("details") == "true"
+	if includeDetails {
+		log.Printf("[Proxy] Detailed PII metadata requested")
+
+		// Strip 'details' query string, as Gemini (and potentially other providers)
+		// don't accept unexpected query strings.
+		query := r.URL.Query()
+		query.Del("details")
+		r.URL.RawQuery = query.Encode()
+	}
+
 	// Parse request data for PII details (if needed)
 	var requestData map[string]interface{}
 	var originalText string
 	if includeDetails {
 		if err := json.Unmarshal(body, &requestData); err != nil {
-			log.Printf("[Proxy] ⚠️  Failed to parse request for details: %v", err)
+			log.Printf("[Proxy] ⚠️ Failed to parse request for details: %v", err)
 			// Continue without details rather than failing
 			includeDetails = false
 		} else {
 			// Extract text from messages for logging
-			originalText, _ = h.extractTextFromMessages(requestData)
+			originalText, _ = (*provider).ExtractRequestText(requestData)
 		}
 	}
 
 	// Process request through shared PII pipeline
 	processStart := time.Now()
-	processed, err := h.ProcessRequestBody(r.Context(), body)
+	processed, err := h.ProcessRequestBody(r.Context(), body, provider)
 	if err != nil {
 		log.Printf("[Proxy] ❌ Failed to process request: %v", err)
 		http.Error(w, "Failed to process request", http.StatusInternalServerError)
@@ -103,14 +97,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Create and send proxy request with redacted body
 	proxyStart := time.Now()
-	resp, err := h.createAndSendProxyRequest(r, processed.RedactedBody)
+	resp, err := h.createAndSendProxyRequest(r, processed.RedactedBody, provider)
 	if err != nil {
 		log.Printf("[Proxy] ❌ Failed to create proxy request: %v", err)
 		http.Error(w, fmt.Sprintf("Failed to proxy request: %v", err), http.StatusInternalServerError)
 		return
 	}
 	defer func() { _ = resp.Body.Close() }()
-	log.Printf("[Timing] OpenAI API call: %v", time.Since(proxyStart))
+	log.Printf("[Timing] LLM provider API call: %v", time.Since(proxyStart))
 
 	// Read response body before processing (we need it for logging)
 	readStart := time.Now()
@@ -124,14 +118,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Process response through shared PII pipeline
 	responseProcessStart := time.Now()
-	modifiedBody := h.ProcessResponseBody(r.Context(), respBody, resp.Header.Get("Content-Type"), processed.MaskedToOriginal, processed.TransactionID)
+	modifiedBody := h.ProcessResponseBody(r.Context(), respBody, resp.Header.Get("Content-Type"), processed.MaskedToOriginal, processed.TransactionID, provider)
 	log.Printf("[Timing] Response PII restoration: %v", time.Since(responseProcessStart))
 
 	// If details are requested, enhance response with PII metadata
 	if includeDetails && resp.StatusCode == http.StatusOK {
 		detailsStart := time.Now()
 		log.Printf("[Timing] Starting PII details enhancement")
-		// Parse the OpenAI response
+		// Parse the LLM provider response
 		var responseData map[string]interface{}
 		if err := json.Unmarshal(modifiedBody, &responseData); err != nil {
 			log.Printf("[Proxy] ⚠️  Failed to parse response for details: %v", err)
@@ -166,7 +160,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 
 			// Extract response text
-			responseText, _ := h.extractTextFromResponse(responseData)
+			responseText, _ := (*provider).ExtractResponseText(responseData)
 			maskedResponseText := responseText
 			for masked, original := range processed.MaskedToOriginal {
 				maskedResponseText = strings.ReplaceAll(maskedResponseText, original, masked)
@@ -236,6 +230,11 @@ func (h *Handler) maskPIIInText(text string, logPrefix string) (string, map[stri
 	return result.MaskedText, result.MaskedToOriginal, result.Entities
 }
 
+// MaskPIIInText is the public version of maskPIIInText for use by other packages
+func (h *Handler) MaskPIIInText(text string) (string, map[string]string, []pii.Entity) {
+	return h.maskPIIInText(text, "[PIICheck]")
+}
+
 // ProcessedRequest contains the result of processing a request through the PII pipeline
 type ProcessedRequest struct {
 	RedactedBody     []byte
@@ -246,12 +245,12 @@ type ProcessedRequest struct {
 
 // ProcessRequestBody processes a request body through PII detection and masking
 // This is the shared entry point for all request sources (handler, transparent proxy)
-func (h *Handler) ProcessRequestBody(ctx context.Context, body []byte) (*ProcessedRequest, error) {
+func (h *Handler) ProcessRequestBody(ctx context.Context, body []byte, provider *providers.Provider) (*ProcessedRequest, error) {
 	// Generate transaction ID to link all 4 log entries
 	transactionID := uuid.New().String()
 
 	// Check for PII in the request and get redacted body
-	redactedBody, maskedToOriginal, entities := h.checkRequestPII(string(body))
+	redactedBody, maskedToOriginal, entities := h.checkRequestPII(string(body), provider)
 
 	// Log both original and masked requests with shared context
 	if h.loggingDB != nil {
@@ -281,9 +280,9 @@ func (h *Handler) ProcessRequestBody(ctx context.Context, body []byte) (*Process
 
 // ProcessResponseBody processes a response body through PII restoration
 // This is the shared entry point for all response sources (handler, transparent proxy)
-func (h *Handler) ProcessResponseBody(ctx context.Context, body []byte, contentType string, maskedToOriginal map[string]string, transactionID string) []byte {
+func (h *Handler) ProcessResponseBody(ctx context.Context, body []byte, contentType string, maskedToOriginal map[string]string, transactionID string, provider *providers.Provider) []byte {
 	// Process the response to restore PII first
-	modifiedBody := h.responseProcessor.ProcessResponse(body, contentType, maskedToOriginal)
+	modifiedBody := h.responseProcessor.ProcessResponse(body, contentType, maskedToOriginal, provider)
 
 	// Log both masked and restored responses with shared context
 	if h.loggingDB != nil {
@@ -330,7 +329,7 @@ func (h *Handler) addTransactionID(message string, transactionID string) string 
 
 // checkRequestPII checks for PII in the request body and creates mappings
 // It only redacts PII from message content, not from other fields like "model"
-func (h *Handler) checkRequestPII(body string) (string, map[string]string, []pii.Entity) {
+func (h *Handler) checkRequestPII(body string, provider *providers.Provider) (string, map[string]string, []pii.Entity) {
 	log.Println("[Proxy] Checking for PII in request...")
 
 	// Parse the JSON request
@@ -343,7 +342,7 @@ func (h *Handler) checkRequestPII(body string) (string, map[string]string, []pii
 	}
 
 	// Use createMaskedRequest to properly mask only message content
-	maskedRequest, maskedToOriginal, entities := h.createMaskedRequest(requestData)
+	maskedRequest, maskedToOriginal, entities := h.createMaskedRequest(requestData, provider)
 
 	if len(entities) > 0 && h.config.Logging.LogPIIChanges {
 		log.Printf("PII masked: %d entities replaced", len(entities))
@@ -363,9 +362,9 @@ func (h *Handler) checkRequestPII(body string) (string, map[string]string, []pii
 	return string(maskedBodyBytes), maskedToOriginal, entities
 }
 
-// createAndSendProxyRequest creates and sends the proxy request to OpenAI
-func (h *Handler) createAndSendProxyRequest(r *http.Request, body []byte) (*http.Response, error) {
-	targetURL, err := h.buildTargetURL(r)
+// createAndSendProxyRequest creates and sends the proxy request to provider
+func (h *Handler) createAndSendProxyRequest(r *http.Request, body []byte, provider *providers.Provider) (*http.Response, error) {
+	targetURL, err := h.buildTargetURL(r, provider)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build target URL: %w", err)
 	}
@@ -378,75 +377,42 @@ func (h *Handler) createAndSendProxyRequest(r *http.Request, body []byte) (*http
 	// Copy headers from original request
 	h.copyHeaders(r.Header, proxyReq.Header)
 
-	// Add OpenAI API key (from header or config)
-	apiKey := h.getOpenAIAPIKey(r)
-	proxyReq.Header.Set("Authorization", "Bearer "+apiKey)
+	// Set auth and additional headers
+	(*provider).SetAuthHeaders(proxyReq)
+	(*provider).SetAddlHeaders(proxyReq)
 
 	// Explicitly set Accept-Encoding to identity to avoid compressed responses
 	proxyReq.Header.Set("Accept-Encoding", "identity")
 
-	// Send request to OpenAI
+	// Send request to provider
 	resp, err := h.client.Do(proxyReq)
 	if err != nil {
-		return nil, fmt.Errorf("failed to send request to OpenAI: %w", err)
+		return nil, fmt.Errorf("failed to send request to provider: %w", err)
 	}
 
 	return resp, nil
 }
 
-// getOpenAIAPIKey gets the OpenAI API key from request header or falls back to config
-func (h *Handler) getOpenAIAPIKey(r *http.Request) string {
-	// Check for API key in custom header (for Electron app)
-	if apiKey := r.Header.Get("X-OpenAI-API-Key"); apiKey != "" {
-		return apiKey
-	}
-	// Check for standard Authorization Bearer header
-	if authHeader := r.Header.Get("Authorization"); authHeader != "" {
-		// Extract Bearer token if present
-		if len(authHeader) > 7 && authHeader[:7] == "Bearer " {
-			return authHeader[7:]
-		}
-	}
-	// Fall back to config
-	return h.config.OpenAIAPIKey
-}
-
-// getForwardEndpoint reads the forward endpoint from Electron config file
-// Returns error if config file doesn't exist or forwardEndpoint is invalid
-func (h *Handler) getForwardEndpoint() (string, error) {
-	// If electron config path is set, read from it
-	if h.electronConfigPath != "" {
-		forwardEndpoint, err := config.ReadForwardEndpoint(h.electronConfigPath)
-		if err != nil {
-			return "", fmt.Errorf("failed to read forward endpoint from electron config: %w", err)
-		}
-		return forwardEndpoint, nil
-	}
-	// Fall back to config if electron config path is not set
-	return h.config.OpenAIBaseURL, nil
-}
-
 // buildTargetURL builds the target URL for the proxy request
-func (h *Handler) buildTargetURL(r *http.Request) (string, error) {
-	// Get forward endpoint (from Electron config or fallback to config)
-	forwardEndpoint, err := h.getForwardEndpoint()
+func (h *Handler) buildTargetURL(r *http.Request, provider *providers.Provider) (string, error) {
+	useHttps := true
+	baseURL := strings.TrimSuffix((*provider).GetBaseURL(useHttps), "/")
+
+	// Parse the base URL to extract any path prefix (e.g. "/v1" from "https://api.openai.com/v1")
+	parsed, err := url.Parse(baseURL)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("invalid base URL %q: %w", baseURL, err)
 	}
 
-	// Get the request path
-	path := r.URL.Path
-
-	// Remove trailing slash from forwardEndpoint to avoid double slashes
-	forwardEndpoint = strings.TrimSuffix(forwardEndpoint, "/")
-
-	// If the base URL already includes /v1, strip /v1 from the path to avoid duplication
-	// Otherwise, keep the path as-is (it may include /v1)
-	if strings.HasSuffix(forwardEndpoint, "/v1") {
-		path = strings.TrimPrefix(path, "/v1")
+	// If the base URL has a path prefix and the request path starts with it,
+	// strip the prefix to avoid duplication (e.g. /v1 + /v1/chat/completions → /v1/chat/completions)
+	requestPath := r.URL.Path
+	basePath := strings.TrimSuffix(parsed.Path, "/")
+	if basePath != "" && strings.HasPrefix(requestPath, basePath) {
+		requestPath = requestPath[len(basePath):]
 	}
 
-	targetURL := forwardEndpoint + path
+	targetURL := baseURL + requestPath
 	if r.URL.RawQuery != "" {
 		targetURL += "?" + r.URL.RawQuery
 	}
@@ -476,17 +442,49 @@ func (h *Handler) GetHTTPClient() *http.Client {
 	return h.client
 }
 
-// GetOpenAIAPIKey returns the API key from request header or config
-func (h *Handler) GetOpenAIAPIKey(r *http.Request) string {
-	return h.getOpenAIAPIKey(r)
-}
-
-func NewHandler(cfg *config.Config, electronConfigPath string) (*Handler, error) {
-	// Create a temporary handler to get the detector
-	tempHandler := &Handler{config: cfg}
-	detector, err := tempHandler.GetDetector()
+func NewHandler(cfg *config.Config) (*Handler, error) {
+	// Create the ONNX detector directly
+	onnxDetector, err := pii.NewONNXModelDetectorSimple(cfg.ONNXModelPath, cfg.TokenizerPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get detector: %w", err)
+		return nil, fmt.Errorf("failed to create ONNX detector: %w", err)
+	}
+	var detector pii.Detector = onnxDetector
+
+	// Create providers
+	openAIProvider := providers.NewOpenAIProvider(
+		cfg.Providers.OpenAIProviderConfig.APIDomain,
+		cfg.Providers.OpenAIProviderConfig.APIKey,
+		cfg.Providers.OpenAIProviderConfig.AdditionalHeaders,
+	)
+	anthropicProvider := providers.NewAnthropicProvider(
+		cfg.Providers.AnthropicProviderConfig.APIDomain,
+		cfg.Providers.AnthropicProviderConfig.APIKey,
+		cfg.Providers.AnthropicProviderConfig.AdditionalHeaders,
+	)
+	geminiProvider := providers.NewGeminiProvider(
+		cfg.Providers.GeminiProviderConfig.APIDomain,
+		cfg.Providers.GeminiProviderConfig.APIKey,
+		cfg.Providers.GeminiProviderConfig.AdditionalHeaders,
+	)
+	mistralProvider := providers.NewMistralProvider(
+		cfg.Providers.MistralProviderConfig.APIDomain,
+		cfg.Providers.MistralProviderConfig.APIKey,
+		cfg.Providers.MistralProviderConfig.AdditionalHeaders,
+	)
+
+	defaultProviders, err := providers.NewDefaultProviders(
+		cfg.Providers.DefaultProvidersConfig.OpenAISubpath,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to set default providers: %w", err)
+	}
+
+	providers := providers.Providers{
+		DefaultProviders:  defaultProviders,
+		OpenAIProvider:    openAIProvider,
+		AnthropicProvider: anthropicProvider,
+		GeminiProvider:    geminiProvider,
+		MistralProvider:   mistralProvider,
 	}
 
 	// Create services
@@ -494,41 +492,20 @@ func NewHandler(cfg *config.Config, electronConfigPath string) (*Handler, error)
 	maskingService := piiServices.NewMaskingService(detector, generatorService)
 	responseProcessor := processor.NewResponseProcessor(&detector, cfg.Logging)
 
-	// Initialize logging (database or in-memory fallback)
-	var loggingDB piiServices.LoggingDB
-	if cfg.Database.Enabled {
-		ctx := context.Background()
-		dbConfig := piiServices.DatabaseConfig{
-			Host:         cfg.Database.Host,
-			Port:         cfg.Database.Port,
-			Database:     cfg.Database.Database,
-			Username:     cfg.Database.Username,
-			Password:     cfg.Database.Password,
-			SSLMode:      cfg.Database.SSLMode,
-			MaxOpenConns: cfg.Database.MaxOpenConns,
-			MaxIdleConns: cfg.Database.MaxIdleConns,
-			MaxLifetime:  time.Duration(cfg.Database.MaxLifetime) * time.Second,
-		}
-		db, dbErr := piiServices.NewPostgresPIIMappingDB(ctx, dbConfig)
-		if dbErr != nil {
-			log.Printf("⚠️  Failed to initialize database for logging: %v", dbErr)
-			log.Printf("Falling back to in-memory logging...")
-			// Fall back to in-memory storage
-			loggingDB = piiServices.NewInMemoryPIIMappingDB()
-		} else {
-			log.Println("✅ Database logging enabled")
-			loggingDB = db
-		}
-	} else {
-		// Use in-memory storage when database is disabled
-		log.Println("Using in-memory logging (database disabled)")
-		loggingDB = piiServices.NewInMemoryPIIMappingDB()
+	// Initialize SQLite database
+	ctx := context.Background()
+	dbConfig := piiServices.DatabaseConfig{
+		Path: cfg.Database.Path,
 	}
+	db, dbErr := piiServices.NewSQLitePIIMappingDB(ctx, dbConfig)
+	if dbErr != nil {
+		return nil, fmt.Errorf("failed to initialize SQLite database: %w", dbErr)
+	}
+	log.Printf("SQLite database initialized at %s", cfg.Database.Path)
+	var loggingDB piiServices.LoggingDB = db
 
 	// Set debug mode based on config
-	if loggingDB != nil {
-		loggingDB.SetDebugMode(cfg.Logging.DebugMode)
-	}
+	loggingDB.SetDebugMode(cfg.Logging.DebugMode)
 
 	// Create HTTP client that bypasses proxy to prevent infinite loop
 	// This is critical for transparent proxy mode where outbound requests
@@ -541,79 +518,20 @@ func NewHandler(cfg *config.Config, electronConfigPath string) (*Handler, error)
 	}
 
 	return &Handler{
-		client:             client,
-		config:             cfg,
-		detector:           &detector,
-		responseProcessor:  responseProcessor,
-		maskingService:     maskingService,
-		electronConfigPath: electronConfigPath,
-		loggingDB:          loggingDB,
-		mappingDB:          loggingDB.(piiServices.PIIMappingDB), // Same instance, different interface
+		client:            client,
+		config:            cfg,
+		providers:         &providers,
+		detector:          &detector,
+		responseProcessor: responseProcessor,
+		maskingService:    maskingService,
+		loggingDB:         loggingDB,
+		mappingDB:         loggingDB.(piiServices.PIIMappingDB), // Same instance, different interface
 	}, nil
 }
 
-// extractTextFromMessages extracts text content from OpenAI messages array
-func (h *Handler) extractTextFromMessages(requestData map[string]interface{}) (string, error) {
-	messages, ok := requestData["messages"].([]interface{})
-	if !ok {
-		return "", fmt.Errorf("messages field not found or invalid")
-	}
-
-	var textParts []string
-	for _, msg := range messages {
-		message, ok := msg.(map[string]interface{})
-		if !ok {
-			continue
-		}
-		content, ok := message["content"].(string)
-		if !ok {
-			continue
-		}
-		textParts = append(textParts, content)
-	}
-
-	if len(textParts) == 0 {
-		return "", fmt.Errorf("no text content found in messages")
-	}
-
-	return strings.Join(textParts, " "), nil
-}
-
-// extractTextFromResponse extracts text content from OpenAI response
-func (h *Handler) extractTextFromResponse(responseData map[string]interface{}) (string, error) {
-	choices, ok := responseData["choices"].([]interface{})
-	if !ok || len(choices) == 0 {
-		return "", fmt.Errorf("choices field not found or empty")
-	}
-
-	choice, ok := choices[0].(map[string]interface{})
-	if !ok {
-		return "", fmt.Errorf("invalid choice format")
-	}
-
-	message, ok := choice["message"].(map[string]interface{})
-	if !ok {
-		return "", fmt.Errorf("message field not found")
-	}
-
-	content, ok := message["content"].(string)
-	if !ok {
-		return "", fmt.Errorf("content field not found or invalid")
-	}
-
-	return content, nil
-}
-
 // createMaskedRequest creates a masked version of the request by detecting and masking PII in messages
-func (h *Handler) createMaskedRequest(originalRequest map[string]interface{}) (map[string]interface{}, map[string]string, []pii.Entity) {
-	// Extract text content from messages to validate
-	_, err := h.extractTextFromMessages(originalRequest)
-	if err != nil {
-		log.Printf("Failed to extract text from messages: %v", err)
-		return originalRequest, make(map[string]string), []pii.Entity{}
-	}
-
-	// Create a deep copy of the original request
+func (h *Handler) createMaskedRequest(originalRequest map[string]interface{}, provider *providers.Provider) (map[string]interface{}, map[string]string, []pii.Entity) {
+	// Create a deep copy of the originalRequest
 	requestBytes, err := json.Marshal(originalRequest)
 	if err != nil {
 		log.Printf("Failed to marshal original request: %v", err)
@@ -626,35 +544,12 @@ func (h *Handler) createMaskedRequest(originalRequest map[string]interface{}) (m
 		return originalRequest, make(map[string]string), []pii.Entity{}
 	}
 
-	var entities []pii.Entity
-	maskedToOriginal := make(map[string]string)
-
-	// Process each message in the masked request
-	if messages, ok := maskedRequest["messages"].([]interface{}); ok {
-		for _, msg := range messages {
-			if message, ok := msg.(map[string]interface{}); ok {
-				if content, ok := message["content"].(string); ok {
-					var maskedText string
-					var _maskedToOriginal map[string]string
-					var _entities []pii.Entity
-
-					// Mask PII in this message's content
-					maskedText, _maskedToOriginal, _entities = h.maskPIIInText(content, "[MaskedRequest]")
-
-					// Update the message content with masked text
-					message["content"] = maskedText
-
-					// Collect entities and mappings
-					entities = append(entities, _entities...)
-					for k, v := range _maskedToOriginal {
-						maskedToOriginal[k] = v
-					}
-				}
-			}
-		}
+	maskedToOriginal, entities, err := (*provider).CreateMaskedRequest(maskedRequest, h.maskPIIInText)
+	if err != nil {
+		log.Printf("Provider failed to create masked request: %v", err)
 	}
 
-	return maskedRequest, maskedToOriginal, entities
+	return maskedRequest, maskedToOriginal, *entities
 }
 
 // HandleLogs handles requests to retrieve log entries
@@ -824,7 +719,7 @@ func (h *Handler) Close() error {
 			err = closeErr
 		}
 	}
-	// Close logging DB if it implements Close (PostgresPIIMappingDB does, InMemoryPIIMappingDB is a no-op)
+	// Close logging DB if it implements Close
 	if h.loggingDB != nil {
 		if closer, ok := h.loggingDB.(interface{ Close() error }); ok {
 			if closeErr := closer.Close(); closeErr != nil {
