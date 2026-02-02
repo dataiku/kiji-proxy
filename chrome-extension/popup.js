@@ -1,4 +1,4 @@
-// Yaak PII Guard - Popup Script
+// Yaak Guard Extension - Popup Script
 "use strict";
 
 document.addEventListener("DOMContentLoaded", () => {

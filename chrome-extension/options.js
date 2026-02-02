@@ -1,4 +1,4 @@
-// Yaak PII Guard - Options Script
+// Yaak Guard Extension - Options Script
 "use strict";
 
 const DEFAULT_API_BASE = CONFIG.DEFAULT_API_BASE;

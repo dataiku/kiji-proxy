@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Yaak PII Guard",
+  "name": "Yaak Guard Extension",
   "version": "1.2.0",
   "description": "Checks for PII before submitting text to AI chat services",
   "permissions": ["activeTab", "storage", "scripting"],

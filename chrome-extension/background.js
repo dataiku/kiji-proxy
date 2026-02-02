@@ -1,4 +1,4 @@
-// Yaak PII Guard - Background Service Worker
+// Yaak Guard Extension - Background Service Worker
 "use strict";
 
 importScripts('config.js');
@@ -37,10 +37,10 @@ async function updateContentScripts(domains) {
         runAt: "document_idle",
       },
     ]);
-    console.log("Yaak PII Guard: Content scripts registered for", domains);
-    console.log("Yaak PII Guard: using backend URL", backendUrl);
+    console.log("Yaak Guard Extension: Content scripts registered for", domains);
+    console.log("Yaak Guard Extension: using backend URL", backendUrl);
   } catch (e) {
-    console.error("Yaak PII Guard: Failed to register content scripts", e);
+    console.error("Yaak Guard Extension: Failed to register content scripts", e);
   }
 }
 
@@ -134,7 +134,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse({ success: true, data });
       })
       .catch(error => {
-        console.error("Yaak PII Guard: Failed to check PII", error);
+        console.error("Yaak Guard Extension: Failed to check PII", error);
         sendResponse({ success: false, error: error.message });
       });
     return true; // keep channel open for async sendResponse

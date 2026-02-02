@@ -1,4 +1,4 @@
-// Yaak PII Guard - Shared Configuration
+// Yaak Guard Extension - Shared Configuration
 "use strict";
 
 const CONFIG = {

@@ -1,4 +1,4 @@
-// Yaak PII Guard - Content Script for ChatGPT
+// Yaak Guard Extension - Content Script for ChatGPT
 (function () {
   "use strict";
 
@@ -182,18 +182,18 @@
 
       // Check if response is undefined (background script didn't respond)
       if (!response) {
-        console.error("Yaak PII Guard: No response from background script");
+        console.error("Yaak Guard Extension: No response from background script");
         return null;
       }
 
       if (!response.success) {
-        console.error("Yaak PII Guard: API error", response.error);
+        console.error("Yaak Guard Extension: API error", response.error);
         return null;
       }
 
       return response.data;
     } catch (error) {
-      console.error("Yaak PII Guard: Failed to check PII", error);
+      console.error("Yaak Guard Extension: Failed to check PII", error);
       return null;
     }
   }
@@ -230,7 +230,7 @@
 
       if (result === null) {
         // API error - warn user and allow submission
-        console.log("Yaak PII Guard: API unavailable, allowing submission");
+        console.log("Yaak Guard Extension: API unavailable, allowing submission");
         showToast(
           "Yaak proxy server is unavailable. Message sent without PII check.",
           "warning"
@@ -250,7 +250,7 @@
       }
 
       if (result.pii_found) {
-        console.log("Yaak PII Guard: PII detected", result);
+        console.log("Yaak Guard Extension: PII detected", result);
         showPIIModal(result, text, (action, maskedText) => {
           switch (action) {
             case "cancel":
@@ -267,11 +267,11 @@
           }
         });
       } else {
-        console.log("Yaak PII Guard: No PII detected, proceeding");
+        console.log("Yaak Guard Extension: No PII detected, proceeding");
         triggerSubmit();
       }
     } catch (error) {
-      console.error("Yaak PII Guard: Error", error);
+      console.error("Yaak Guard Extension: Error", error);
       triggerSubmit();
     } finally {
       isChecking = false;
@@ -301,7 +301,7 @@
     );
     if (button) {
       button.addEventListener("click", handleSubmit, true);
-      console.log("Yaak PII Guard: Attached to submit button");
+      console.log("Yaak Guard Extension: Attached to submit button");
       return true;
     }
     return false;
@@ -323,7 +323,7 @@
 
   // Initialize
   function init() {
-    console.log("Yaak PII Guard: Initializing...");
+    console.log("Yaak Guard Extension: Initializing...");
 
     // Create modal
     getModal();
@@ -342,7 +342,7 @@
     // Listen for Enter key submissions
     document.addEventListener("keydown", handleKeydown, true);
 
-    console.log("Yaak PII Guard: Ready");
+    console.log("Yaak Guard Extension: Ready");
   }
 
   // Wait for DOM to be ready
