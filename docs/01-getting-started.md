@@ -62,11 +62,7 @@ The backend supports two proxy modes that can run simultaneously:
 
 The desktop app provides a GUI for configuration and monitoring. It bundles the Go backend and manages both proxy modes automatically.
 
-**First Launch on macOS:**
-If you see a "damaged app" warning:
-```bash
-xattr -cr "/Applications/Yaak Privacy Proxy.app"
-```
+The app is code-signed and notarized, so it should launch without any macOS Gatekeeper warnings.
 
 ### Linux (Standalone Backend)
 
@@ -111,10 +107,6 @@ The standalone backend runs as a headless server. Configure via environment vari
 
 3. **First Launch:**
    ```bash
-   # Remove quarantine attribute if needed
-   xattr -cr "/Applications/Yaak Privacy Proxy.app"
-   
-   # Launch
    open "/Applications/Yaak Privacy Proxy.app"
    ```
 
