@@ -5,10 +5,34 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 
 	pii "github.com/hannes/yaak-private/src/backend/pii/detectors"
 )
+
+// normalizeBaseURL takes an apiDomain that may be a bare domain (e.g. "api.openai.com")
+// or a full URL (e.g. "https://api.openai.com/v1") and returns a well-formed base URL.
+func normalizeBaseURL(apiDomain string, useHttps bool) string {
+	scheme := "http://"
+	if useHttps {
+		scheme = "https://"
+	}
+
+	// If apiDomain already has a scheme, parse it as-is
+	if strings.HasPrefix(apiDomain, "https://") || strings.HasPrefix(apiDomain, "http://") {
+		if parsed, err := url.Parse(apiDomain); err == nil {
+			if useHttps {
+				parsed.Scheme = "https"
+			} else {
+				parsed.Scheme = "http"
+			}
+			return strings.TrimSuffix(parsed.String(), "/")
+		}
+	}
+
+	return scheme + apiDomain
+}
 
 // `Provider` interface defines the class structure for LLM providers
 type ProviderType string

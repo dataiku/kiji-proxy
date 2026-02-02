@@ -34,11 +34,7 @@ func (p *AnthropicProvider) GetType() ProviderType {
 }
 
 func (p *AnthropicProvider) GetBaseURL(useHttps bool) string {
-	if useHttps {
-		return "https://" + p.apiDomain
-	} else {
-		return "http://" + p.apiDomain
-	}
+	return normalizeBaseURL(p.apiDomain, useHttps)
 }
 
 func (p *AnthropicProvider) ExtractRequestText(data map[string]interface{}) (string, error) {
