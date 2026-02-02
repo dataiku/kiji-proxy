@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -437,6 +438,18 @@ func (h *Handler) buildTargetURL(r *http.Request, provider *providers.Provider) 
 
 	// Get the request path
 	path := r.URL.Path
+
+	// Strip overlapping path prefix to avoid duplication.
+	// For example, if forwardEndpoint is "https://api.openai.com/v1" and
+	// path is "/v1/chat/completions", we strip "/v1" from path to avoid
+	// building "https://api.openai.com/v1/v1/chat/completions".
+	parsed, parseErr := url.Parse(forwardEndpoint)
+	if parseErr == nil {
+		endpointPath := strings.TrimSuffix(parsed.Path, "/")
+		if endpointPath != "" && strings.HasPrefix(path, endpointPath) {
+			path = strings.TrimPrefix(path, endpointPath)
+		}
+	}
 
 	// Construct and return target URL
 	targetURL := forwardEndpoint + path

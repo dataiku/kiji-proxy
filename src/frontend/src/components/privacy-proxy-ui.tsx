@@ -41,7 +41,7 @@ interface ProvidersConfig {
 
 // Default models per provider
 const DEFAULT_MODELS: Record<ProviderType, string> = {
-  openai: "gpt-3.5-turbo",
+  openai: "gpt-4o-mini",
   anthropic: "claude-3-haiku-20240307",
   gemini: "gemini-flash-latest",
   mistral: "mistral-small-latest",
@@ -379,7 +379,7 @@ export default function PrivacyProxyUI() {
 
   // Get model for provider (custom or default)
   const getModel = (provider: ProviderType, customModel: string): string => {
-    return customModel || DEFAULT_MODELS[provider] || "gpt-3.5-turbo";
+    return customModel || DEFAULT_MODELS[provider] || "gpt-4o-mini";
   };
 
   // Build provider-specific request body
@@ -456,7 +456,10 @@ export default function PrivacyProxyUI() {
   };
 
   // Get provider-specific API endpoint path
-  const getProviderEndpoint = (provider: ProviderType, model: string): string => {
+  const getProviderEndpoint = (
+    provider: ProviderType,
+    model: string
+  ): string => {
     switch (provider) {
       case "openai":
       case "mistral":
@@ -473,7 +476,10 @@ export default function PrivacyProxyUI() {
 
   // Extract assistant message from provider-specific response format
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const extractAssistantMessage = (provider: ProviderType, data: any): string => {
+  const extractAssistantMessage = (
+    provider: ProviderType,
+    data: any
+  ): string => {
     try {
       switch (provider) {
         case "openai":
@@ -509,7 +515,10 @@ export default function PrivacyProxyUI() {
           return data.choices?.[0]?.message?.content || "";
       }
     } catch (error) {
-      console.error(`[ERROR] Failed to extract message for ${provider}:`, error);
+      console.error(
+        `[ERROR] Failed to extract message for ${provider}:`,
+        error
+      );
       return "";
     }
   };
@@ -866,7 +875,9 @@ export default function PrivacyProxyUI() {
             />
             <div className="flex items-center gap-3 bg-white/90 px-6 py-3 rounded-full shadow-lg">
               <div className="w-5 h-5 border-3 border-blue-600 border-t-transparent rounded-full animate-spin" />
-              <span className="text-lg font-medium text-slate-700">Processing your data...</span>
+              <span className="text-lg font-medium text-slate-700">
+                Processing your data...
+              </span>
             </div>
           </div>
         </div>
@@ -984,10 +995,11 @@ export default function PrivacyProxyUI() {
             value={inputData}
             onChange={(e) => setInputData(e.target.value)}
             placeholder="Enter your message with sensitive information...&#10;&#10;Example: Hi, my name is John Smith and my email is john.smith@email.com. My phone is 555-123-4567.&#10;&#10;This will be processed through the real PII detection and masking pipeline."
-            className={`w-full h-32 p-4 border-2 rounded-lg focus:outline-none resize-none font-mono text-sm placeholder:text-gray-400 ${serverStatus === "offline"
+            className={`w-full h-32 p-4 border-2 rounded-lg focus:outline-none resize-none font-mono text-sm placeholder:text-gray-400 ${
+              serverStatus === "offline"
                 ? "border-red-200 bg-red-50 cursor-not-allowed opacity-60"
                 : "border-slate-200 focus:border-blue-500"
-              }`}
+            }`}
             disabled={serverStatus === "offline"}
           />
           <div className="flex gap-3 mt-4 items-center">
@@ -1034,19 +1046,27 @@ export default function PrivacyProxyUI() {
                     if (window.electronAPI) {
                       await window.electronAPI.setActiveProvider(newProvider);
                       // Load API key for new provider
-                      const key =
-                        await window.electronAPI.getProviderApiKey(newProvider);
+                      const key = await window.electronAPI.getProviderApiKey(
+                        newProvider
+                      );
                       setApiKey(key);
                     }
                   }}
                   className="px-3 py-2 border-2 border-slate-200 rounded-lg focus:border-blue-500 focus:outline-none text-sm bg-white"
                 >
                   {(
-                    ["openai", "anthropic", "gemini", "mistral"] as ProviderType[]
+                    [
+                      "openai",
+                      "anthropic",
+                      "gemini",
+                      "mistral",
+                    ] as ProviderType[]
                   ).map((provider) => (
                     <option key={provider} value={provider}>
                       {PROVIDER_NAMES[provider]}
-                      {providersConfig.providers[provider]?.hasApiKey ? " ✓" : ""}
+                      {providersConfig.providers[provider]?.hasApiKey
+                        ? " ✓"
+                        : ""}
                     </option>
                   ))}
                 </select>
@@ -1170,13 +1190,13 @@ export default function PrivacyProxyUI() {
                   <div className="text-2xl font-bold text-slate-800">
                     {detectedEntities.length > 0
                       ? (
-                        (detectedEntities.reduce(
-                          (sum, e) => sum + (e.confidence || 0),
-                          0
-                        ) /
-                          detectedEntities.length) *
-                        100
-                      ).toFixed(1)
+                          (detectedEntities.reduce(
+                            (sum, e) => sum + (e.confidence || 0),
+                            0
+                          ) /
+                            detectedEntities.length) *
+                          100
+                        ).toFixed(1)
                       : 0}
                     %
                   </div>
@@ -1214,8 +1234,9 @@ export default function PrivacyProxyUI() {
       <div className="fixed bottom-0 left-0 right-0 bg-slate-800 text-slate-200 px-4 py-2 flex items-center justify-between border-t border-slate-700">
         <div className="flex items-center gap-2">
           <div
-            className={`w-3 h-3 rounded-full ${serverStatus === "online" ? "bg-green-500" : "bg-red-500"
-              } ${serverStatus === "online" ? "animate-pulse" : ""}`}
+            className={`w-3 h-3 rounded-full ${
+              serverStatus === "online" ? "bg-green-500" : "bg-red-500"
+            } ${serverStatus === "online" ? "animate-pulse" : ""}`}
             title={
               serverStatus === "online" ? "Server online" : "Server offline"
             }

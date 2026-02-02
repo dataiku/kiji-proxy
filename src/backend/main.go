@@ -237,6 +237,14 @@ func loadDatabaseConfig(cfg *config.Config) {
 	}
 }
 
+// stripURLScheme removes the scheme (e.g. "https://") from a URL if present,
+// so it can be used as an APIDomain value without causing double-scheme issues.
+func stripURLScheme(rawURL string) string {
+	rawURL = strings.TrimPrefix(rawURL, "https://")
+	rawURL = strings.TrimPrefix(rawURL, "http://")
+	return rawURL
+}
+
 // loadApplicationConfig loads application configuration from environment variables
 func loadApplicationConfig(cfg *config.Config) {
 	if proxyPort := os.Getenv("PROXY_PORT"); proxyPort != "" {
@@ -245,7 +253,7 @@ func loadApplicationConfig(cfg *config.Config) {
 
 	// Override OpenAI provider config with environment variables
 	if openAIURL := os.Getenv("OPENAI_BASE_URL"); openAIURL != "" {
-		cfg.Providers.OpenAIProviderConfig.APIDomain = openAIURL
+		cfg.Providers.OpenAIProviderConfig.APIDomain = stripURLScheme(openAIURL)
 	}
 	if openAIApiKey := os.Getenv("OPENAI_API_KEY"); openAIApiKey != "" {
 		cfg.Providers.OpenAIProviderConfig.APIKey = openAIApiKey
@@ -256,7 +264,7 @@ func loadApplicationConfig(cfg *config.Config) {
 
 	// Override Anthropic provider config with environment variables
 	if anthropicURL := os.Getenv("ANTHROPIC_BASE_URL"); anthropicURL != "" {
-		cfg.Providers.AnthropicProviderConfig.APIDomain = anthropicURL
+		cfg.Providers.AnthropicProviderConfig.APIDomain = stripURLScheme(anthropicURL)
 	}
 	if anthropicApiKey := os.Getenv("ANTHROPIC_API_KEY"); anthropicApiKey != "" {
 		cfg.Providers.AnthropicProviderConfig.APIKey = anthropicApiKey
@@ -267,7 +275,7 @@ func loadApplicationConfig(cfg *config.Config) {
 
 	// Override Gemini provider config with environment variables
 	if geminiURL := os.Getenv("GEMINI_BASE_URL"); geminiURL != "" {
-		cfg.Providers.GeminiProviderConfig.APIDomain = geminiURL
+		cfg.Providers.GeminiProviderConfig.APIDomain = stripURLScheme(geminiURL)
 	}
 	if geminiApiKey := os.Getenv("GEMINI_API_KEY"); geminiApiKey != "" {
 		cfg.Providers.GeminiProviderConfig.APIKey = geminiApiKey
@@ -278,7 +286,7 @@ func loadApplicationConfig(cfg *config.Config) {
 
 	// Override Mistral provider config with environment variables
 	if mistralURL := os.Getenv("MISTRAL_BASE_URL"); mistralURL != "" {
-		cfg.Providers.MistralProviderConfig.APIDomain = mistralURL
+		cfg.Providers.MistralProviderConfig.APIDomain = stripURLScheme(mistralURL)
 	}
 	if mistralApiKey := os.Getenv("MISTRAL_API_KEY"); mistralApiKey != "" {
 		cfg.Providers.MistralProviderConfig.APIKey = mistralApiKey

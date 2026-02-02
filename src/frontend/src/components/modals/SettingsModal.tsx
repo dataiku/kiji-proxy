@@ -29,7 +29,7 @@ const PROVIDER_INFO: Record<
 > = {
   openai: {
     name: "OpenAI",
-    defaultModel: "gpt-3.5-turbo",
+    defaultModel: "gpt-4o-mini",
     placeholder: "sk-...",
   },
   anthropic: {
@@ -81,8 +81,9 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   });
 
   // Expanded accordion state
-  const [expandedProvider, setExpandedProvider] =
-    useState<ProviderType | null>(null);
+  const [expandedProvider, setExpandedProvider] = useState<ProviderType | null>(
+    null
+  );
 
   // Form state for each provider (API key inputs and model overrides)
   const [providerApiKeys, setProviderApiKeys] = useState<
