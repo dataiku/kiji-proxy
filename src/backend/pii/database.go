@@ -306,7 +306,7 @@ func (s *SQLitePIIMappingDB) InsertLog(ctx context.Context, message string, dire
 	}
 
 	// Try to parse as OpenAI message format
-	messages, model := parseOpenAIFromMessage(message, direction, s.debugMode)
+	messages, model := parseOpenAIFromMessage(message, direction)
 
 	blockedInt := 0
 	if blocked {
@@ -450,7 +450,7 @@ func formatDetectedPII(entries []LogEntry) string {
 }
 
 // parseOpenAIFromMessage attempts to parse OpenAI message structure from JSON
-func parseOpenAIFromMessage(message string, direction string, debugMode bool) ([]OpenAIMessage, string) {
+func parseOpenAIFromMessage(message string, direction string) ([]OpenAIMessage, string) {
 	const MaxMessageSize = 10 * 1024 * 1024
 	if len(message) > MaxMessageSize {
 		return nil, ""

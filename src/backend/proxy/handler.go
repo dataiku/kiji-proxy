@@ -500,9 +500,7 @@ func NewHandler(cfg *config.Config) (*Handler, error) {
 	var loggingDB piiServices.LoggingDB = db
 
 	// Set debug mode based on config
-	if loggingDB != nil {
-		loggingDB.SetDebugMode(cfg.Logging.DebugMode)
-	}
+	loggingDB.SetDebugMode(cfg.Logging.DebugMode)
 
 	// Create HTTP client that bypasses proxy to prevent infinite loop
 	// This is critical for transparent proxy mode where outbound requests
