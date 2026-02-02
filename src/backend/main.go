@@ -194,38 +194,8 @@ func loadConfigFromEnv(cfg *config.Config) {
 
 // loadDatabaseConfig loads database configuration from environment variables
 func loadDatabaseConfig(cfg *config.Config) {
-	if dbEnabled := os.Getenv("DB_ENABLED"); dbEnabled != "" {
-		cfg.Database.Enabled = dbEnabled == TRUE
-	}
-
-	if host := os.Getenv("DB_HOST"); host != "" {
-		cfg.Database.Host = host
-	}
-
-	if port := os.Getenv("DB_PORT"); port != "" {
-		if p, err := strconv.Atoi(port); err == nil {
-			cfg.Database.Port = p
-		}
-	}
-
-	if dbName := os.Getenv("DB_NAME"); dbName != "" {
-		cfg.Database.Database = dbName
-	}
-
-	if user := os.Getenv("DB_USER"); user != "" {
-		cfg.Database.Username = user
-	}
-
-	if password := os.Getenv("DB_PASSWORD"); password != "" {
-		cfg.Database.Password = password
-	}
-
-	if sslMode := os.Getenv("DB_SSL_MODE"); sslMode != "" {
-		cfg.Database.SSLMode = sslMode
-	}
-
-	if useCache := os.Getenv("DB_USE_CACHE"); useCache != "" {
-		cfg.Database.UseCache = useCache == TRUE
+	if dbPath := os.Getenv("DB_PATH"); dbPath != "" {
+		cfg.Database.Path = dbPath
 	}
 
 	if cleanupHours := os.Getenv("DB_CLEANUP_HOURS"); cleanupHours != "" {

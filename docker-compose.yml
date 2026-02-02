@@ -1,26 +1,4 @@
 services:
-  # PostgreSQL Database
-  postgres:
-    image: postgres:15-alpine
-    container_name: yaak-proxy-db
-    environment:
-      POSTGRES_DB: pii_proxy
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres123
-      POSTGRES_INITDB_ARGS: "--encoding=UTF-8"
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./src/scripts/setup_database.sql:/docker-entrypoint-initdb.d/01-setup.sql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d pii_proxy"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - yaak-proxy-network
-
   # Yaak Proxy Application
   yaak-proxy:
     build:
@@ -29,12 +7,7 @@ services:
     container_name: yaak-proxy-app
     environment:
       # Database configuration
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: pii_proxy
-      DB_USER: postgres
-      DB_PASSWORD: postgres123
-      DB_SSL_MODE: disable
+      DB_PATH: "/data/yaak.db"
 
       # Application configuration
       PROXY_PORT: ":8080"
@@ -43,7 +16,7 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
 
       # PII Detector configuration
-      DETECTOR_NAME: "onnx_model_detector"  # or "regex_detector"
+      DETECTOR_NAME: "onnx_model_detector" # or "regex_detector"
 
       # Logging configuration
       LOG_PII_CHANGES: "true"
@@ -51,23 +24,17 @@ services:
       LOG_REQUESTS: "true"
       LOG_RESPONSES: "true"
 
-      # Enable database storage
-      DB_ENABLED: "true"
-      DB_USE_CACHE: "true"
       DB_CLEANUP_HOURS: "24"
     ports:
       - "8080:8080"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      # model-server:
-      #   condition: service_healthy
+    volumes:
+      - yaak_data:/data
     networks:
       - yaak-proxy-network
     restart: unless-stopped
 
 volumes:
-  postgres_data:
+  yaak_data:
     driver: local
 
 networks:

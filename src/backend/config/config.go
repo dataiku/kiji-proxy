@@ -19,17 +19,7 @@ type LoggingConfig struct {
 
 // DatabaseConfig holds database configuration
 type DatabaseConfig struct {
-	Enabled      bool   // Whether to use database storage
-	Host         string // Database host
-	Port         int    // Database port
-	Database     string // Database name
-	Username     string // Database username
-	Password     string // Database password
-	SSLMode      string // SSL mode (disable, require, etc.)
-	MaxOpenConns int    // Maximum open connections
-	MaxIdleConns int    // Maximum idle connections
-	MaxLifetime  int    // Connection max lifetime in seconds
-	UseCache     bool   // Whether to use in-memory cache
+	Path         string // Path to SQLite database file
 	CleanupHours int    // Hours after which to cleanup old mappings
 }
 
@@ -115,17 +105,7 @@ func DefaultConfig() *Config {
 		TokenizerPath: "model/quantized/tokenizer.json",
 		UIPath:        "./src/frontend/dist",
 		Database: DatabaseConfig{
-			Enabled:      false,
-			Host:         "localhost",
-			Port:         5432,
-			Database:     "yaak",
-			Username:     "postgres",
-			Password:     "",
-			SSLMode:      "disable",
-			MaxOpenConns: 25,
-			MaxIdleConns: 25,
-			MaxLifetime:  300,
-			UseCache:     true,
+			Path:         "yaak.db",
 			CleanupHours: 24,
 		},
 		Logging: LoggingConfig{
