@@ -136,7 +136,11 @@ jobs:
       - name: Build DMG
         run: make build-dmg
         env:
-          SKIP_DMG_SIGNING: false
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
       - name: Rename DMG with Version
         run: |
@@ -186,12 +190,6 @@ jobs:
             1. Download `Yaak-Privacy-Proxy-${{ steps.version.outputs.version }}.dmg`
             2. Open the DMG and drag to Applications
             3. Launch "Yaak Privacy Proxy"
-
-            **If you see "damaged app" warning:**
-            ```bash
-            xattr -cr "/Applications/Yaak Privacy Proxy.app"
-            ```
-            Then launch again. This is required because the app is not code-signed with an Apple Developer certificate.
 
             **HTTPS Support - Install CA Certificate:**
 
