@@ -559,7 +559,9 @@ func TestHandler_HandleLogs(t *testing.T) {
 
 		var data map[string]interface{}
 		body, _ := io.ReadAll(w.Result().Body)
-		json.Unmarshal(body, &data)
+		if err := json.Unmarshal(body, &data); err != nil {
+			t.Fatalf("json.Unmarshal failed: %v", err)
+		}
 
 		logs := data["logs"].([]interface{})
 		if len(logs) != 2 {
@@ -574,7 +576,9 @@ func TestHandler_HandleLogs(t *testing.T) {
 
 		var data map[string]interface{}
 		body, _ := io.ReadAll(w.Result().Body)
-		json.Unmarshal(body, &data)
+		if err := json.Unmarshal(body, &data); err != nil {
+			t.Fatalf("json.Unmarshal failed: %v", err)
+		}
 
 		logs := data["logs"].([]interface{})
 		if len(logs) != 2 {
@@ -589,7 +593,9 @@ func TestHandler_HandleLogs(t *testing.T) {
 
 		var data map[string]interface{}
 		body, _ := io.ReadAll(w.Result().Body)
-		json.Unmarshal(body, &data)
+		if err := json.Unmarshal(body, &data); err != nil {
+			t.Fatalf("json.Unmarshal failed: %v", err)
+		}
 
 		limit := int(data["limit"].(float64))
 		if limit != 500 {
@@ -630,7 +636,9 @@ func TestHandler_HandleClearLogs(t *testing.T) {
 
 	var data map[string]interface{}
 	body, _ := io.ReadAll(w.Result().Body)
-	json.Unmarshal(body, &data)
+	if err := json.Unmarshal(body, &data); err != nil {
+		t.Fatalf("json.Unmarshal failed: %v", err)
+	}
 	if data["success"] != true {
 		t.Error("expected success: true in response")
 	}
@@ -774,7 +782,7 @@ func TestHandler_ServeHTTP_Integration(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		resp := `{"choices":[{"message":{"role":"assistant","content":"Hello from the model"}}]}`
-		w.Write([]byte(resp))
+		_, _ = w.Write([]byte(resp))
 	}))
 	defer upstream.Close()
 
@@ -870,7 +878,7 @@ func TestHandler_ServeHTTP_DetailsQueryParam(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		resp := `{"choices":[{"message":{"role":"assistant","content":"Response"}}]}`
-		w.Write([]byte(resp))
+		_, _ = w.Write([]byte(resp))
 	}))
 	defer upstream.Close()
 
@@ -907,7 +915,9 @@ func TestHandler_ServeHTTP_DetailsQueryParam(t *testing.T) {
 
 	var data map[string]interface{}
 	respBody, _ := io.ReadAll(resp.Body)
-	json.Unmarshal(respBody, &data)
+	if err := json.Unmarshal(respBody, &data); err != nil {
+		t.Fatalf("json.Unmarshal failed: %v", err)
+	}
 
 	// When details=true and status is 200, should include x_pii_details
 	if _, exists := data["x_pii_details"]; !exists {

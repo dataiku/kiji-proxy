@@ -35,7 +35,7 @@ func TestNewSQLitePIIMappingDB_DefaultPath(t *testing.T) {
 	if err := os.Chdir(tmpDir); err != nil {
 		t.Fatal(err)
 	}
-	defer os.Chdir(origDir)
+	defer func() { _ = os.Chdir(origDir) }()
 
 	db, err := NewSQLitePIIMappingDB(context.Background(), DatabaseConfig{})
 	if err != nil {
@@ -466,7 +466,7 @@ func TestGetLogs_Empty(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetLogs failed: %v", err)
 	}
-	if logs != nil && len(logs) != 0 {
+	if len(logs) != 0 {
 		t.Errorf("expected empty logs, got %d", len(logs))
 	}
 }
@@ -484,7 +484,9 @@ func TestGetLogsCount(t *testing.T) {
 	}
 
 	for i := 0; i < 3; i++ {
-		db.InsertLog(ctx, "msg", "request_original", nil, false)
+		if err := db.InsertLog(ctx, "msg", "request_original", nil, false); err != nil {
+			t.Fatalf("InsertLog failed: %v", err)
+		}
 	}
 
 	count, err = db.GetLogsCount(ctx)
@@ -501,7 +503,9 @@ func TestClearLogs(t *testing.T) {
 	ctx := context.Background()
 
 	for i := 0; i < 3; i++ {
-		db.InsertLog(ctx, "msg", "request_original", nil, false)
+		if err := db.InsertLog(ctx, "msg", "request_original", nil, false); err != nil {
+			t.Fatalf("InsertLog failed: %v", err)
+		}
 	}
 
 	err := db.ClearLogs(ctx)
