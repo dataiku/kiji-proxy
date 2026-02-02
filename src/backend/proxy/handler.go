@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -23,15 +24,14 @@ import (
 
 // Handler handles HTTP requests and proxies them to LLM provider
 type Handler struct {
-	client             *http.Client
-	config             *config.Config
-	providers          *providers.Providers
-	detector           *pii.Detector
-	responseProcessor  *processor.ResponseProcessor
-	maskingService     *piiServices.MaskingService
-	electronConfigPath string
-	loggingDB          piiServices.LoggingDB    // Database or in-memory storage for logging
-	mappingDB          piiServices.PIIMappingDB // Same instance as loggingDB, for mapping operations
+	client            *http.Client
+	config            *config.Config
+	providers         *providers.Providers
+	detector          *pii.Detector
+	responseProcessor *processor.ResponseProcessor
+	maskingService    *piiServices.MaskingService
+	loggingDB         piiServices.LoggingDB    // Database or in-memory storage for logging
+	mappingDB         piiServices.PIIMappingDB // Same instance as loggingDB, for mapping operations
 }
 
 // ServeHTTP implements the http.Handler interface
@@ -388,36 +388,26 @@ func (h *Handler) createAndSendProxyRequest(r *http.Request, body []byte, provid
 	return resp, nil
 }
 
-// getForwardEndpoint reads the forward endpoint from Electron config file
-// Returns error if config file doesn't exist or forwardEndpoint is invalid
-func (h *Handler) getForwardEndpoint(provider *providers.Provider) (string, error) {
-	// If electron config path is set, read from it
-	if h.electronConfigPath != "" {
-		forwardEndpoint, err := config.ReadForwardEndpoint(h.electronConfigPath)
-		if err != nil {
-			return "", fmt.Errorf("failed to read forward endpoint from electron config: %w", err)
-		}
-		return forwardEndpoint, nil
-	}
-	// Fall back to provider if electron config path is not set
-	useHttps := true // TODO: should this be part of the config?
-	return (*provider).GetBaseURL(useHttps), nil
-}
-
 // buildTargetURL builds the target URL for the proxy request
 func (h *Handler) buildTargetURL(r *http.Request, provider *providers.Provider) (string, error) {
-	// Get forward endpoint (from Electron config or fallback to provider config)
-	forwardEndpoint, err := h.getForwardEndpoint(provider)
+	useHttps := true
+	baseURL := strings.TrimSuffix((*provider).GetBaseURL(useHttps), "/")
+
+	// Parse the base URL to extract any path prefix (e.g. "/v1" from "https://api.openai.com/v1")
+	parsed, err := url.Parse(baseURL)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("invalid base URL %q: %w", baseURL, err)
 	}
-	forwardEndpoint = strings.TrimSuffix(forwardEndpoint, "/")
 
-	// Get the request path
-	path := r.URL.Path
+	// If the base URL has a path prefix and the request path starts with it,
+	// strip the prefix to avoid duplication (e.g. /v1 + /v1/chat/completions → /v1/chat/completions)
+	requestPath := r.URL.Path
+	basePath := strings.TrimSuffix(parsed.Path, "/")
+	if basePath != "" && strings.HasPrefix(requestPath, basePath) {
+		requestPath = requestPath[len(basePath):]
+	}
 
-	// Construct and return target URL
-	targetURL := forwardEndpoint + path
+	targetURL := baseURL + requestPath
 	if r.URL.RawQuery != "" {
 		targetURL += "?" + r.URL.RawQuery
 	}
@@ -447,10 +437,11 @@ func (h *Handler) GetHTTPClient() *http.Client {
 	return h.client
 }
 
-func NewHandler(cfg *config.Config, electronConfigPath string) (*Handler, error) {
+func NewHandler(cfg *config.Config) (*Handler, error) {
+	// Create the ONNX detector directly
 	onnxDetector, err := pii.NewONNXModelDetectorSimple(cfg.ONNXModelPath, cfg.TokenizerPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create detector: %w", err)
+		return nil, fmt.Errorf("failed to create ONNX detector: %w", err)
 	}
 	var detector pii.Detector = onnxDetector
 
@@ -543,15 +534,14 @@ func NewHandler(cfg *config.Config, electronConfigPath string) (*Handler, error)
 	}
 
 	return &Handler{
-		client:             client,
-		config:             cfg,
-		providers:          &providers,
-		detector:           &detector,
-		responseProcessor:  responseProcessor,
-		maskingService:     maskingService,
-		electronConfigPath: electronConfigPath,
-		loggingDB:          loggingDB,
-		mappingDB:          loggingDB.(piiServices.PIIMappingDB), // Same instance, different interface
+		client:            client,
+		config:            cfg,
+		providers:         &providers,
+		detector:          &detector,
+		responseProcessor: responseProcessor,
+		maskingService:    maskingService,
+		loggingDB:         loggingDB,
+		mappingDB:         loggingDB.(piiServices.PIIMappingDB), // Same instance, different interface
 	}, nil
 }
 

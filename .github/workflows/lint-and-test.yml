@@ -1,4 +1,4 @@
-name: Lint
+name: Lint and Test
 
 on:
   push:
@@ -43,12 +43,47 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: "1.25"
 
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v6
+
+  go-test:
+    runs-on: ubuntu-latest
+    name: Go Tests
+    needs: go-lint
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+
+      - name: Cache tokenizers library
+        id: cache-tokenizers
+        uses: actions/cache@v4
+        with:
+          path: build/tokenizers/libtokenizers.a
+          key: ${{ runner.os }}-tokenizers-v1.23.0-prebuilt-v2
+
+      - name: Download tokenizers library
+        if: steps.cache-tokenizers.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p build/tokenizers
+          cd build/tokenizers
+          curl -L -o libtokenizers.linux-amd64.tar.gz \
+            https://github.com/daulet/tokenizers/releases/download/v1.23.0/libtokenizers.linux-amd64.tar.gz
+          tar -xzf libtokenizers.linux-amd64.tar.gz
+          rm -f libtokenizers.linux-amd64.tar.gz
+          ranlib libtokenizers.a
+
+      - name: Run Go tests
+        run: make test-go
 
   frontend-lint:
     runs-on: ubuntu-latest

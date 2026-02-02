@@ -31,7 +31,6 @@ func main() {
 
 	// Check for config file path from command-line flag
 	configPath := flag.String("config", "", "Path to JSON config file")
-	electronConfigPath := flag.String("electron-config", "", "Path to Electron's config.json file")
 	flag.Parse()
 
 	// Print version if requested
@@ -68,7 +67,7 @@ func main() {
 	}
 
 	// Run main logic
-	if err := run(configPath, electronConfigPath); err != nil {
+	if err := run(configPath); err != nil {
 		log.Printf("Fatal error: %v", err)
 		sentry.CaptureException(err)
 		sentry.Flush(2 * time.Second)
@@ -76,7 +75,7 @@ func main() {
 	}
 }
 
-func run(configPath *string, electronConfigPath *string) error {
+func run(configPath *string) error {
 	// Log version at startup with banner
 	log.Println("================================================================================")
 	log.Printf("🚀 Starting Dataiku's Yaak Privacy Proxy v%s", version)
@@ -130,7 +129,7 @@ func run(configPath *string, electronConfigPath *string) error {
 
 	if *configPath != "" {
 		// Development mode - use file system
-		srv, err = server.NewServer(cfg, *electronConfigPath, version)
+		srv, err = server.NewServer(cfg, version)
 		if err != nil {
 			return fmt.Errorf("failed to create server: %w", err)
 		}
@@ -153,7 +152,7 @@ func run(configPath *string, electronConfigPath *string) error {
 			}
 		}
 
-		srv, err = server.NewServerWithEmbedded(cfg, uiFiles, modelFiles, *electronConfigPath, version)
+		srv, err = server.NewServerWithEmbedded(cfg, uiFiles, modelFiles, version)
 		if err != nil {
 			return fmt.Errorf("failed to create server with embedded files: %w", err)
 		}

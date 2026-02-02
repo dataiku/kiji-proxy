@@ -38,6 +38,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: "1.21"
+          cache: false
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -68,26 +69,6 @@ jobs:
           key: lfs-${{ runner.os }}-${{ hashFiles('.gitattributes') }}
           restore-keys: |
             lfs-${{ runner.os }}-
-
-      - name: Cache Go modules
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/go/pkg/mod
-            ~/.cache/go-build
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
-
-      - name: Cache Python packages
-        uses: actions/cache@v4
-        with:
-          path: |
-            .venv
-            ~/.cache/pip
-          key: ${{ runner.os }}-python-${{ hashFiles('**/pyproject.toml', '**/uv.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-python-
 
       - name: Cache Rust/Cargo
         uses: actions/cache@v4
