@@ -34,11 +34,7 @@ func (p *MistralProvider) GetType() ProviderType {
 }
 
 func (p *MistralProvider) GetBaseURL(useHttps bool) string {
-	if useHttps {
-		return "https://" + p.apiDomain
-	} else {
-		return "http://" + p.apiDomain
-	}
+	return normalizeBaseURL(p.apiDomain, useHttps)
 }
 
 func (p *MistralProvider) ExtractRequestText(data map[string]interface{}) (string, error) {

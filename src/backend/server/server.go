@@ -76,10 +76,10 @@ type Server struct {
 }
 
 // NewServer creates a new server instance
-func NewServer(cfg *config.Config, electronConfigPath string, version string) (*Server, error) {
+func NewServer(cfg *config.Config, version string) (*Server, error) {
 	// Initialize PII mapping with database support
 
-	handler, err := proxy.NewHandler(cfg, electronConfigPath)
+	handler, err := proxy.NewHandler(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create proxy handler: %w", err)
 	}
@@ -117,8 +117,8 @@ func NewServer(cfg *config.Config, electronConfigPath string, version string) (*
 }
 
 // NewServerWithEmbedded creates a new server instance with embedded filesystems
-func NewServerWithEmbedded(cfg *config.Config, uiFS, modelFS fs.FS, electronConfigPath string, version string) (*Server, error) {
-	handler, err := proxy.NewHandler(cfg, electronConfigPath)
+func NewServerWithEmbedded(cfg *config.Config, uiFS, modelFS fs.FS, version string) (*Server, error) {
+	handler, err := proxy.NewHandler(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create proxy handler: %w", err)
 	}

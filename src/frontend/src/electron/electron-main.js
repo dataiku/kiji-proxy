@@ -789,9 +789,6 @@ const migrateConfig = (config) => {
     config.activeProvider = "openai";
   }
 
-  // Remove old forwardEndpoint (no longer needed)
-  delete config.forwardEndpoint;
-
   return config;
 };
 
@@ -1028,7 +1025,9 @@ ipcMain.handle("get-providers-config", async () => {
     for (const provider of VALID_PROVIDERS) {
       const providerConfig = config.providers?.[provider] || {};
       providers[provider] = {
-        hasApiKey: !!(providerConfig.apiKey && providerConfig.apiKey.length > 0),
+        hasApiKey: !!(
+          providerConfig.apiKey && providerConfig.apiKey.length > 0
+        ),
         model: providerConfig.model || "",
       };
     }
