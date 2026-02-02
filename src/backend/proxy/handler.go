@@ -34,28 +34,6 @@ type Handler struct {
 	mappingDB         piiServices.PIIMappingDB // Same instance as loggingDB, for mapping operations
 }
 
-// GetDetector returns the PII detector instance
-func (h *Handler) GetDetector() (pii.Detector, error) {
-	// read config for detector name
-	detectorName := h.config.DetectorName
-	if detectorName == "" {
-		return nil, fmt.Errorf("detector name is required")
-	}
-
-	// Create detector config from handler config
-	detectorConfig := make(map[string]interface{})
-	switch detectorName {
-	case pii.DetectorNameONNXModel:
-		detectorConfig["model_path"] = h.config.ONNXModelPath
-		detectorConfig["tokenizer_path"] = h.config.TokenizerPath
-	case pii.DetectorNameRegex:
-		detectorConfig["patterns"] = pii.PIIPatterns
-	default:
-		return nil, fmt.Errorf("invalid detector name: %s", detectorName)
-	}
-	return pii.NewDetector(detectorName, detectorConfig)
-}
-
 // ServeHTTP implements the http.Handler interface
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	startTime := time.Now()
@@ -460,12 +438,12 @@ func (h *Handler) GetHTTPClient() *http.Client {
 }
 
 func NewHandler(cfg *config.Config) (*Handler, error) {
-	// Create a temporary handler to get the detector
-	tempHandler := &Handler{config: cfg}
-	detector, err := tempHandler.GetDetector()
+	// Create the ONNX detector directly
+	onnxDetector, err := pii.NewONNXModelDetectorSimple(cfg.ONNXModelPath, cfg.TokenizerPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get detector: %w", err)
+		return nil, fmt.Errorf("failed to create ONNX detector: %w", err)
 	}
+	var detector pii.Detector = onnxDetector
 
 	// Create providers
 	openAIProvider := providers.NewOpenAIProvider(

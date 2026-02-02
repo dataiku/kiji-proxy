@@ -17,7 +17,6 @@
     }
   },
   "ProxyPort": ":8080",
-  "DetectorName": "onnx_model_detector",
   "Database": {
     "Enabled": false
   },
