@@ -169,11 +169,7 @@ func (s *Server) Start() error {
 		log.Println("PII detection enabled with ONNX model detector")
 	}
 
-	if s.config.Database.Enabled {
-		log.Println("Database storage enabled")
-	} else {
-		log.Println("Using in-memory storage")
-	}
+	log.Printf("Using SQLite database at %s", s.config.Database.Path)
 
 	// Start PAC server if enabled
 	if s.pacServer != nil {
