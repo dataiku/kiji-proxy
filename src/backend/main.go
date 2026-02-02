@@ -189,7 +189,6 @@ func loadConfigFromFile(path string, cfg *config.Config) {
 func loadConfigFromEnv(cfg *config.Config) {
 	loadDatabaseConfig(cfg)
 	loadApplicationConfig(cfg)
-	loadPIIDetectorConfig(cfg)
 	loadLoggingConfig(cfg)
 	loadProxyConfig(cfg)
 }
@@ -285,17 +284,6 @@ func loadApplicationConfig(cfg *config.Config) {
 		log.Printf("Loaded MISTRAL_API_KEY from environment (length: %d)", len(mistralApiKey))
 	} else {
 		log.Printf("Warning: MISTRAL_API_KEY is empty or not set")
-	}
-}
-
-// loadPIIDetectorConfig loads PII detector configuration from environment variables
-func loadPIIDetectorConfig(cfg *config.Config) {
-	if detectorName := os.Getenv("DETECTOR_NAME"); detectorName != "" {
-		cfg.DetectorName = detectorName
-	}
-
-	if modelBaseURL := os.Getenv("MODEL_BASE_URL"); modelBaseURL != "" {
-		cfg.ModelBaseURL = modelBaseURL
 	}
 }
 

@@ -165,13 +165,8 @@ func (s *Server) Start() error {
 	log.Printf("Forward Gemini requests to: %s", s.config.Providers.GeminiProviderConfig.APIDomain)
 	log.Printf("Forward Mistral requests to: %s", s.config.Providers.MistralProviderConfig.APIDomain)
 
-	// Get actual detector configuration from handler
 	if s.handler != nil {
-		detector, err := s.handler.GetDetector()
-		if err != nil {
-			log.Fatalf("Failed to get detector: %v", err)
-		}
-		log.Printf("PII detection enabled with detector: %s", detector.GetName())
+		log.Println("PII detection enabled with ONNX model detector")
 	}
 
 	if s.config.Database.Enabled {

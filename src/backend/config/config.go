@@ -65,8 +65,6 @@ type ProxyConfig struct {
 type Config struct {
 	Providers     ProvidersConfig `json:"providers"`
 	ProxyPort     string
-	DetectorName  string
-	ModelBaseURL  string
 	Database      DatabaseConfig
 	Logging       LoggingConfig
 	ONNXModelPath string
@@ -113,8 +111,6 @@ func DefaultConfig() *Config {
 			MistralProviderConfig:   defaultMistralProviderConfig,
 		},
 		ProxyPort:     ":8080",
-		DetectorName:  "onnx_model_detector",
-		ModelBaseURL:  "http://localhost:8000",
 		ONNXModelPath: "model/quantized/model_quantized.onnx",
 		TokenizerPath: "model/quantized/tokenizer.json",
 		UIPath:        "./src/frontend/dist",
