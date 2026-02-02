@@ -1,20 +1,12 @@
 // Yaak PII Guard - Background Service Worker
 "use strict";
 
-const DEFAULT_API_BASE = "http://localhost:8081";
-const HEALTH_CHECK_INTERVAL_MS = 30000;
-const CONTENT_SCRIPT_ID = "yaak-pii-guard";
+importScripts('config.js');
 
-const DEFAULT_DOMAINS = [
-  "https://chatgpt.com/*",
-  "https://chat.openai.com/*",
-  "https://claude.ai/*",
-  "https://gemini.google.com/*",
-  "https://copilot.microsoft.com/*",
-  "https://huggingface.co/chat/*",
-  "https://chat.mistral.ai/*",
-  "https://poe.com/*",
-];
+const DEFAULT_API_BASE = CONFIG.DEFAULT_API_BASE;
+const HEALTH_CHECK_INTERVAL_MS = CONFIG.HEALTH_CHECK_INTERVAL_MS;
+const CONTENT_SCRIPT_ID = CONFIG.CONTENT_SCRIPT_ID;
+const DEFAULT_DOMAINS = CONFIG.DEFAULT_DOMAINS;
 
 let backendUrl = DEFAULT_API_BASE;
 let isConnected = false;
@@ -46,6 +38,7 @@ async function updateContentScripts(domains) {
       },
     ]);
     console.log("Yaak PII Guard: Content scripts registered for", domains);
+    console.log("Yaak PII Guard: using backend URL", backendUrl);
   } catch (e) {
     console.error("Yaak PII Guard: Failed to register content scripts", e);
   }
@@ -114,6 +107,39 @@ chrome.runtime.onStartup.addListener(() => {
 // --- Message handling ---
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === "check-pii-text") {
+    // Handle PII check request from content script
+    fetch(`${backendUrl}/api/pii/check`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ message: message.text }),
+    })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`API error: ${response.status}`);
+        }
+        return response.json();
+      })
+      .then(data => {
+        // Update stats
+        chrome.storage.local.get({ checksTotal: 0, piiFound: 0 }, (result) => {
+          const updates = { checksTotal: result.checksTotal + 1 };
+          if (data.pii_found) {
+            updates.piiFound = result.piiFound + 1;
+          }
+          chrome.storage.local.set(updates);
+        });
+        sendResponse({ success: true, data });
+      })
+      .catch(error => {
+        console.error("Yaak PII Guard: Failed to check PII", error);
+        sendResponse({ success: false, error: error.message });
+      });
+    return true; // keep channel open for async sendResponse
+  }
+
   if (message.type === "pii-check") {
     chrome.storage.local.get({ checksTotal: 0, piiFound: 0 }, (result) => {
       const updates = { checksTotal: result.checksTotal + 1 };
@@ -164,7 +190,3 @@ chrome.storage.onChanged.addListener((changes, area) => {
     }
   }
 });
-
-// Start on service worker load
-loadSettingsAndCheck();
-loadDomainsAndRegister();

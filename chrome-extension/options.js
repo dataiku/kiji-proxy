@@ -1,17 +1,8 @@
 // Yaak PII Guard - Options Script
 "use strict";
 
-const DEFAULT_API_BASE = "http://localhost:8081";
-const DEFAULT_DOMAINS = [
-  "https://chatgpt.com/*",
-  "https://chat.openai.com/*",
-  "https://claude.ai/*",
-  "https://gemini.google.com/*",
-  "https://copilot.microsoft.com/*",
-  "https://huggingface.co/chat/*",
-  "https://chat.mistral.ai/*",
-  "https://poe.com/*",
-];
+const DEFAULT_API_BASE = CONFIG.DEFAULT_API_BASE;
+const DEFAULT_DOMAINS = CONFIG.DEFAULT_DOMAINS;
 
 document.addEventListener("DOMContentLoaded", () => {
   const urlInput = document.getElementById("backend-url");

@@ -172,23 +172,26 @@
     }, 5000);
   }
 
-  // Check for PII via API
+  // Check for PII via background script (to avoid CORS issues)
   async function checkPII(text) {
     try {
-      const response = await fetch(`${apiBase}/api/pii/check`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ message: text }),
+      const response = await chrome.runtime.sendMessage({
+        type: "check-pii-text",
+        text: text,
       });
 
-      if (!response.ok) {
-        console.error("Yaak PII Guard: API error", response.status);
+      // Check if response is undefined (background script didn't respond)
+      if (!response) {
+        console.error("Yaak PII Guard: No response from background script");
         return null;
       }
 
-      return await response.json();
+      if (!response.success) {
+        console.error("Yaak PII Guard: API error", response.error);
+        return null;
+      }
+
+      return response.data;
     } catch (error) {
       console.error("Yaak PII Guard: Failed to check PII", error);
       return null;
