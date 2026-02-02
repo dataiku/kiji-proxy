@@ -48,8 +48,6 @@ func (h *Handler) GetDetector() (pii.Detector, error) {
 	case pii.DetectorNameONNXModel:
 		detectorConfig["model_path"] = h.config.ONNXModelPath
 		detectorConfig["tokenizer_path"] = h.config.TokenizerPath
-	case pii.DetectorNameRegex:
-		detectorConfig["patterns"] = pii.PIIPatterns
 	default:
 		return nil, fmt.Errorf("invalid detector name: %s", detectorName)
 	}
