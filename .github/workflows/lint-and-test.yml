@@ -53,6 +53,7 @@ jobs:
   go-test:
     runs-on: ubuntu-latest
     name: Go Tests
+    needs: go-lint
 
     steps:
       - name: Checkout code
