@@ -1,7 +1,7 @@
 {
   "name": "yaak-privacy-proxy",
   "productName": "Yaak Privacy Proxy",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Dataiku's Yaak Privacy Proxy",
   "author": "Dataiku - Open Source Lab",
   "main": "src/electron/electron-main.js",
