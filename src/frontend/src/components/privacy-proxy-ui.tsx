@@ -981,27 +981,7 @@ export default function PrivacyProxyUI() {
             PII Detection and Masking Proxy
           </p>
 
-          {/* Server Status Banner */}
-          {serverStatus === "offline" ? (
-            <div className="mt-4 p-4 bg-red-50 border-2 border-red-200 rounded-lg inline-block">
-              <p className="text-sm text-red-900 flex items-center gap-2">
-                <WifiOff className="w-5 h-5" />
-                <span className="font-semibold">
-                  Backend server is offline.
-                </span>
-              </p>
-              <p className="text-xs text-red-700 mt-2">
-                Please ensure the Go backend server is running at localhost:8080
-              </p>
-            </div>
-          ) : (
-            <div className="mt-4 p-2 bg-green-50 border border-green-200 rounded-lg inline-block">
-              <p className="text-xs text-green-800 flex items-center gap-2">
-                <CheckCircle className="w-4 h-4" />
-                <span>Backend server is online</span>
-              </p>
-            </div>
-          )}
+
 
           {/* Model Health Banner */}
           {serverHealth.status === "online" && !serverHealth.modelHealthy && (
@@ -1311,7 +1291,13 @@ export default function PrivacyProxyUI() {
             }
           />
           <span className="text-sm">
-            {serverStatus === "online" ? "Server online" : "Server offline"}
+            {serverStatus === "online" ? (
+              "Server online"
+            ) : (
+              <span className="flex items-center gap-2">
+                Server offline - Please ensure the Go backend server is running at localhost:8080
+              </span>
+            )}
           </span>
         </div>
         {modelSignature && (
