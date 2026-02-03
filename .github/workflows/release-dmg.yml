@@ -128,6 +128,9 @@ jobs:
           uv venv --python 3.13
           uv pip install onnxruntime
 
+      - name: Install Root Dependencies
+        run: npm ci
+
       - name: Install Frontend Dependencies
         run: |
           cd src/frontend
