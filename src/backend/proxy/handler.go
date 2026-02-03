@@ -230,6 +230,11 @@ func (h *Handler) maskPIIInText(text string, logPrefix string) (string, map[stri
 	return result.MaskedText, result.MaskedToOriginal, result.Entities
 }
 
+// MaskPIIInText is the public version of maskPIIInText for use by other packages
+func (h *Handler) MaskPIIInText(text string) (string, map[string]string, []pii.Entity) {
+	return h.maskPIIInText(text, "[PIICheck]")
+}
+
 // ProcessedRequest contains the result of processing a request through the PII pipeline
 type ProcessedRequest struct {
 	RedactedBody     []byte
@@ -487,41 +492,20 @@ func NewHandler(cfg *config.Config) (*Handler, error) {
 	maskingService := piiServices.NewMaskingService(detector, generatorService)
 	responseProcessor := processor.NewResponseProcessor(&detector, cfg.Logging)
 
-	// Initialize logging (database or in-memory fallback)
-	var loggingDB piiServices.LoggingDB
-	if cfg.Database.Enabled {
-		ctx := context.Background()
-		dbConfig := piiServices.DatabaseConfig{
-			Host:         cfg.Database.Host,
-			Port:         cfg.Database.Port,
-			Database:     cfg.Database.Database,
-			Username:     cfg.Database.Username,
-			Password:     cfg.Database.Password,
-			SSLMode:      cfg.Database.SSLMode,
-			MaxOpenConns: cfg.Database.MaxOpenConns,
-			MaxIdleConns: cfg.Database.MaxIdleConns,
-			MaxLifetime:  time.Duration(cfg.Database.MaxLifetime) * time.Second,
-		}
-		db, dbErr := piiServices.NewPostgresPIIMappingDB(ctx, dbConfig)
-		if dbErr != nil {
-			log.Printf("⚠️  Failed to initialize database for logging: %v", dbErr)
-			log.Printf("Falling back to in-memory logging...")
-			// Fall back to in-memory storage
-			loggingDB = piiServices.NewInMemoryPIIMappingDB()
-		} else {
-			log.Println("✅ Database logging enabled")
-			loggingDB = db
-		}
-	} else {
-		// Use in-memory storage when database is disabled
-		log.Println("Using in-memory logging (database disabled)")
-		loggingDB = piiServices.NewInMemoryPIIMappingDB()
+	// Initialize SQLite database
+	ctx := context.Background()
+	dbConfig := piiServices.DatabaseConfig{
+		Path: cfg.Database.Path,
 	}
+	db, dbErr := piiServices.NewSQLitePIIMappingDB(ctx, dbConfig)
+	if dbErr != nil {
+		return nil, fmt.Errorf("failed to initialize SQLite database: %w", dbErr)
+	}
+	log.Printf("SQLite database initialized at %s", cfg.Database.Path)
+	var loggingDB piiServices.LoggingDB = db
 
 	// Set debug mode based on config
-	if loggingDB != nil {
-		loggingDB.SetDebugMode(cfg.Logging.DebugMode)
-	}
+	loggingDB.SetDebugMode(cfg.Logging.DebugMode)
 
 	// Create HTTP client that bypasses proxy to prevent infinite loop
 	// This is critical for transparent proxy mode where outbound requests
@@ -735,7 +719,7 @@ func (h *Handler) Close() error {
 			err = closeErr
 		}
 	}
-	// Close logging DB if it implements Close (PostgresPIIMappingDB does, InMemoryPIIMappingDB is a no-op)
+	// Close logging DB if it implements Close
 	if h.loggingDB != nil {
 		if closer, ok := h.loggingDB.(interface{ Close() error }); ok {
 			if closeErr := closer.Close(); closeErr != nil {

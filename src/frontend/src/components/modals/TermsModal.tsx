@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { X, FileText } from "lucide-react";
 import DOMPurify from "dompurify";
 import termsMarkdown from "./Terms.md";
@@ -15,39 +15,31 @@ export default function TermsModal({
   requireAcceptance = false,
 }: TermsModalProps) {
   const [hasAccepted, setHasAccepted] = useState(false);
-  const [termsHtml, setTermsHtml] = useState("");
-
   const isElectron =
     typeof window !== "undefined" && window.electronAPI !== undefined;
 
-  useEffect(() => {
+  const termsHtml = useMemo(() => {
     // Convert markdown to HTML
     // Simple markdown parser (supports headers and basic formatting)
-    const markdownToHtml = (md: string): string => {
-      let html = md
-        // Headers
-        .replace(/^## (.+)$/gm, "<h2>$1</h2>")
-        .replace(/^# (.+)$/gm, "<h1>$1</h1>")
-        // Bold
-        .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-        // Italic
-        .replace(/\*(.+?)\*/g, "<em>$1</em>")
-        // Line breaks
-        .replace(/\n\n/g, "</p><p>")
-        // Single line breaks
-        .replace(/\n/g, "<br />");
+    let html = termsMarkdown
+      // Headers
+      .replace(/^## (.+)$/gm, "<h2>$1</h2>")
+      .replace(/^# (.+)$/gm, "<h1>$1</h1>")
+      // Bold
+      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+      // Italic
+      .replace(/\*(.+?)\*/g, "<em>$1</em>")
+      // Line breaks
+      .replace(/\n\n/g, "</p><p>")
+      // Single line breaks
+      .replace(/\n/g, "<br />");
 
-      // Wrap in paragraph tags if not already wrapped
-      if (!html.startsWith("<h")) {
-        html = "<p>" + html + "</p>";
-      }
+    // Wrap in paragraph tags if not already wrapped
+    if (!html.startsWith("<h")) {
+      html = "<p>" + html + "</p>";
+    }
 
-      return html;
-    };
-
-    const htmlContent = markdownToHtml(termsMarkdown);
-    const sanitized = DOMPurify.sanitize(htmlContent);
-    setTermsHtml(sanitized);
+    return DOMPurify.sanitize(html);
   }, []);
 
   if (!isOpen) return null;

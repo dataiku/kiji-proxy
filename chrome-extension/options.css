@@ -1,0 +1,133 @@
+body {
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #1e1e1e;
+  color: #e0e0e0;
+}
+
+.options-container {
+  max-width: 480px;
+  margin: 40px auto;
+  padding: 24px;
+}
+
+h1 {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0 0 24px 0;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 6px;
+}
+
+.form-group input[type="url"] {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid #444;
+  background: #2a2a2a;
+  color: #e0e0e0;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.form-group input[type="url"]:focus {
+  outline: none;
+  border-color: #0d6efd;
+}
+
+.form-help {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #888;
+}
+
+.form-help code {
+  background: #2a2a2a;
+  padding: 2px 5px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+.label-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.label-row label {
+  margin-bottom: 0;
+}
+
+.reset-link {
+  font-size: 12px;
+  color: #6ea8fe;
+  text-decoration: none;
+}
+
+.reset-link:hover {
+  text-decoration: underline;
+}
+
+.form-group textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid #444;
+  background: #2a2a2a;
+  color: #e0e0e0;
+  font-size: 13px;
+  font-family: "SF Mono", "Menlo", "Monaco", "Consolas", monospace;
+  line-height: 1.6;
+  box-sizing: border-box;
+  resize: vertical;
+}
+
+.form-group textarea:focus {
+  outline: none;
+  border-color: #0d6efd;
+}
+
+.form-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.form-actions button {
+  padding: 10px 20px;
+  border-radius: 6px;
+  border: none;
+  background: #0d6efd;
+  color: white;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.form-actions button:hover {
+  background: #0b5ed7;
+}
+
+.save-status {
+  font-size: 13px;
+}
+
+.save-success {
+  color: #22c55e;
+}
+
+.save-error {
+  color: #dc3545;
+}
