@@ -103,32 +103,13 @@ module.exports = {
         interval: 1000,
       },
     },
-    proxy: {
-      "/details": {
-        target: "http://localhost:8080", // Use localhost for local development
+    proxy: [
+      {
+        context: ["/details", "/api", "/v1", "/version", "/health"],
+        target: "http://localhost:8080",
         secure: false,
         changeOrigin: true,
       },
-      "/api": {
-        target: "http://localhost:8080", // Use localhost for local development
-        secure: false,
-        changeOrigin: true,
-      },
-      "/v1": {
-        target: "http://localhost:8080", // Proxy OpenAI-compatible API requests to Go backend
-        secure: false,
-        changeOrigin: true,
-      },
-      "/version": {
-        target: "http://localhost:8080", // Proxy version endpoint to Go backend
-        secure: false,
-        changeOrigin: true,
-      },
-      "/health": {
-        target: "http://localhost:8080", // Proxy health endpoint to Go backend
-        secure: false,
-        changeOrigin: true,
-      },
-    },
+    ],
   },
 };
