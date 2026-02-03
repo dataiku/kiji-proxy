@@ -1,5 +1,11 @@
 # yaak-privacy-proxy
 
+## 0.3.4
+
+### Patch Changes
+
+- 0217f9a: Add animation and remove the cache from the ci/cd build
+
 ## 0.3.2
 
 ### Patch Changes

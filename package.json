@@ -1,7 +1,7 @@
 {
   "name": "yaak-privacy-proxy",
   "productName": "Yaak Privacy Proxy",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "Dataiku's Yaak Privacy Proxy - PII detection and masking proxy for LLMs",
   "author": "Dataiku - Open Source Lab",
   "license": "Apache-2.0",
