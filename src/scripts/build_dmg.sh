@@ -442,6 +442,13 @@ fi
 # When CSC_LINK is set, electron-builder will automatically sign with the Developer ID certificate.
 # When CSC_LINK is not set, electron-builder falls back to ad-hoc signing.
 echo "Running electron-builder..."
+# Unset Apple notarization credentials to prevent electron-builder's built-in
+# notarization from triggering automatically. Notarization is currently disabled
+# until a Developer ID Application certificate is configured.
+unset APPLE_ID
+unset APPLE_APP_SPECIFIC_PASSWORD
+unset APPLE_TEAM_ID
+
 if [ -z "${CSC_LINK:-}" ]; then
     echo "⚠️  No CSC_LINK set — code signing disabled (ad-hoc only)"
     CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder

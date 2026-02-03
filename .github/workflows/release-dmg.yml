@@ -34,9 +34,10 @@ jobs:
           MISSING=""
           [ -z "$CSC_LINK" ] && MISSING="$MISSING CSC_LINK"
           [ -z "$CSC_KEY_PASSWORD" ] && MISSING="$MISSING CSC_KEY_PASSWORD"
-          [ -z "$APPLE_ID" ] && MISSING="$MISSING APPLE_ID"
-          [ -z "$APPLE_APP_SPECIFIC_PASSWORD" ] && MISSING="$MISSING APPLE_APP_SPECIFIC_PASSWORD"
-          [ -z "$APPLE_TEAM_ID" ] && MISSING="$MISSING APPLE_TEAM_ID"
+          # Notarization is currently disabled; uncomment these checks when re-enabled:
+          # [ -z "$APPLE_ID" ] && MISSING="$MISSING APPLE_ID"
+          # [ -z "$APPLE_APP_SPECIFIC_PASSWORD" ] && MISSING="$MISSING APPLE_APP_SPECIFIC_PASSWORD"
+          # [ -z "$APPLE_TEAM_ID" ] && MISSING="$MISSING APPLE_TEAM_ID"
           if [ -n "$MISSING" ]; then
             echo "::error::Missing required environment secrets:$MISSING"
             echo "Ensure the 'DMG Build Environment' environment is configured with all required secrets."
