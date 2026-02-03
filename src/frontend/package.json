@@ -1,4 +1,5 @@
 {
+  "_note": "TODO: Enable notarization by adding \"afterSign\": \"../../src/scripts/notarize.js\" to the build config (requires Developer ID Application certificate)",
   "name": "yaak-privacy-proxy",
   "productName": "Yaak Privacy Proxy",
   "version": "0.3.5",
@@ -116,7 +117,6 @@
       "minimumSystemVersion": "10.13"
     },
     "afterPack": "../../build/scripts/remove-locales.js",
-    "_todo_afterSign": "Enable notarization by adding: \"afterSign\": \"../../src/scripts/notarize.js\" (requires Developer ID Application certificate)",
     "dmg": {
       "title": "${productName} ${version}",
       "background": "assets/dmg-background.png",
