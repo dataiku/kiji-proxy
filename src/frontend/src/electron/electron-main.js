@@ -468,7 +468,7 @@ function createWindow() {
   // Load the app
   // In both dev and production, the Go backend serves the UI on port 8080
   // The backend embeds the UI files when built with the 'embed' tag
-  let startUrl = "http://localhost:8080";
+  const startUrl = "http://localhost:8080";
 
   console.log("[DEBUG] Mode:", isDev ? "development" : "production");
   console.log("[DEBUG] Loading UI from Go backend at:", startUrl);

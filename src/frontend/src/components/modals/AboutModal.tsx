@@ -14,28 +14,23 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
 
   useEffect(() => {
     if (isOpen) {
-      // Load frontend version from package.json
-      // In Electron, we can access it via IPC or load it at build time
-      // For now, we'll fetch it from the backend
+      const loadVersion = async () => {
+        try {
+          const response = await fetch("http://localhost:8080/version");
+          if (response.ok) {
+            const data = await response.json();
+            setVersion(data.version || "Unknown");
+          } else {
+            setVersion("Unknown");
+          }
+        } catch (error) {
+          console.error("Failed to fetch version:", error);
+          setVersion("Unknown");
+        }
+      };
       loadVersion();
     }
   }, [isOpen]);
-
-  const loadVersion = async () => {
-    try {
-      // Fetch version from backend
-      const response = await fetch("http://localhost:8080/version");
-      if (response.ok) {
-        const data = await response.json();
-        setVersion(data.version || "Unknown");
-      } else {
-        setVersion("Unknown");
-      }
-    } catch (error) {
-      console.error("Failed to fetch version:", error);
-      setVersion("Unknown");
-    }
-  };
 
   if (!isOpen) return null;
 
