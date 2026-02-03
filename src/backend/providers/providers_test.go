@@ -1,6 +1,7 @@
 package providers
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"testing"
@@ -346,7 +347,7 @@ func TestOpenAIProvider_RestoreMaskedResponse(t *testing.T) {
 func TestOpenAIProvider_SetAuthHeaders(t *testing.T) {
 	t.Run("sets Authorization header", func(t *testing.T) {
 		p := NewOpenAIProvider("api.openai.com", "sk-test-key", nil)
-		req, _ := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", nil)
+		req, _ := http.NewRequestWithContext(context.Background(), "POST", "https://api.openai.com/v1/chat/completions", nil)
 		p.SetAuthHeaders(req)
 		if got := req.Header.Get("Authorization"); got != "Bearer sk-test-key" {
 			t.Errorf("Authorization = %q, want %q", got, "Bearer sk-test-key")
@@ -355,7 +356,7 @@ func TestOpenAIProvider_SetAuthHeaders(t *testing.T) {
 
 	t.Run("does not override existing Authorization", func(t *testing.T) {
 		p := NewOpenAIProvider("api.openai.com", "sk-test-key", nil)
-		req, _ := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", nil)
+		req, _ := http.NewRequestWithContext(context.Background(), "POST", "https://api.openai.com/v1/chat/completions", nil)
 		req.Header.Set("Authorization", "Bearer sk-existing")
 		p.SetAuthHeaders(req)
 		if got := req.Header.Get("Authorization"); got != "Bearer sk-existing" {
@@ -365,7 +366,7 @@ func TestOpenAIProvider_SetAuthHeaders(t *testing.T) {
 
 	t.Run("does not override existing X-OpenAI-API-Key", func(t *testing.T) {
 		p := NewOpenAIProvider("api.openai.com", "sk-test-key", nil)
-		req, _ := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", nil)
+		req, _ := http.NewRequestWithContext(context.Background(), "POST", "https://api.openai.com/v1/chat/completions", nil)
 		req.Header.Set("X-OpenAI-API-Key", "sk-custom")
 		p.SetAuthHeaders(req)
 		if got := req.Header.Get("Authorization"); got != "" {
@@ -380,7 +381,7 @@ func TestOpenAIProvider_SetAddlHeaders(t *testing.T) {
 		"X-Another":       "another-value",
 	}
 	p := NewOpenAIProvider("api.openai.com", "sk-test", headers)
-	req, _ := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", nil)
+	req, _ := http.NewRequestWithContext(context.Background(), "POST", "https://api.openai.com/v1/chat/completions", nil)
 	p.SetAddlHeaders(req)
 
 	for key, want := range headers {
@@ -528,7 +529,7 @@ func TestAnthropicProvider_RestoreMaskedResponse(t *testing.T) {
 func TestAnthropicProvider_SetAuthHeaders(t *testing.T) {
 	t.Run("sets X-Api-Key header", func(t *testing.T) {
 		p := NewAnthropicProvider("api.anthropic.com", "sk-ant-test", nil)
-		req, _ := http.NewRequest("POST", "https://api.anthropic.com/v1/messages", nil)
+		req, _ := http.NewRequestWithContext(context.Background(), "POST", "https://api.anthropic.com/v1/messages", nil)
 		p.SetAuthHeaders(req)
 		if got := req.Header.Get("X-Api-Key"); got != "sk-ant-test" {
 			t.Errorf("X-Api-Key = %q, want %q", got, "sk-ant-test")
@@ -537,7 +538,7 @@ func TestAnthropicProvider_SetAuthHeaders(t *testing.T) {
 
 	t.Run("does not override existing X-Api-Key", func(t *testing.T) {
 		p := NewAnthropicProvider("api.anthropic.com", "sk-ant-test", nil)
-		req, _ := http.NewRequest("POST", "https://api.anthropic.com/v1/messages", nil)
+		req, _ := http.NewRequestWithContext(context.Background(), "POST", "https://api.anthropic.com/v1/messages", nil)
 		req.Header.Set("X-Api-Key", "sk-existing")
 		p.SetAuthHeaders(req)
 		if got := req.Header.Get("X-Api-Key"); got != "sk-existing" {
@@ -694,7 +695,7 @@ func TestGeminiProvider_RestoreMaskedResponse(t *testing.T) {
 func TestGeminiProvider_SetAuthHeaders(t *testing.T) {
 	t.Run("sets x-goog-api-key header", func(t *testing.T) {
 		p := NewGeminiProvider("generativelanguage.googleapis.com", "AIza-test", nil)
-		req, _ := http.NewRequest("POST", "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent", nil)
+		req, _ := http.NewRequestWithContext(context.Background(), "POST", "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent", nil)
 		p.SetAuthHeaders(req)
 		if got := req.Header.Get("x-goog-api-key"); got != "AIza-test" {
 			t.Errorf("x-goog-api-key = %q, want %q", got, "AIza-test")
@@ -703,7 +704,7 @@ func TestGeminiProvider_SetAuthHeaders(t *testing.T) {
 
 	t.Run("does not override existing key", func(t *testing.T) {
 		p := NewGeminiProvider("generativelanguage.googleapis.com", "AIza-test", nil)
-		req, _ := http.NewRequest("POST", "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent", nil)
+		req, _ := http.NewRequestWithContext(context.Background(), "POST", "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent", nil)
 		req.Header.Set("x-goog-api-key", "AIza-existing")
 		p.SetAuthHeaders(req)
 		if got := req.Header.Get("x-goog-api-key"); got != "AIza-existing" {
@@ -761,7 +762,7 @@ func TestMistralProvider_ExtractResponseText(t *testing.T) {
 func TestMistralProvider_SetAuthHeaders(t *testing.T) {
 	t.Run("sets Authorization header", func(t *testing.T) {
 		p := NewMistralProvider("api.mistral.ai", "mistral-key", nil)
-		req, _ := http.NewRequest("POST", "https://api.mistral.ai/v1/chat/completions", nil)
+		req, _ := http.NewRequestWithContext(context.Background(), "POST", "https://api.mistral.ai/v1/chat/completions", nil)
 		p.SetAuthHeaders(req)
 		if got := req.Header.Get("Authorization"); got != "Bearer mistral-key" {
 			t.Errorf("Authorization = %q, want %q", got, "Bearer mistral-key")
@@ -770,7 +771,7 @@ func TestMistralProvider_SetAuthHeaders(t *testing.T) {
 
 	t.Run("does not override existing Authorization", func(t *testing.T) {
 		p := NewMistralProvider("api.mistral.ai", "mistral-key", nil)
-		req, _ := http.NewRequest("POST", "https://api.mistral.ai/v1/chat/completions", nil)
+		req, _ := http.NewRequestWithContext(context.Background(), "POST", "https://api.mistral.ai/v1/chat/completions", nil)
 		req.Header.Set("Authorization", "Bearer existing")
 		p.SetAuthHeaders(req)
 		if got := req.Header.Get("Authorization"); got != "Bearer existing" {
