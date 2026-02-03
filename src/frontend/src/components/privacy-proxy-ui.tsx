@@ -315,9 +315,18 @@ export default function PrivacyProxyUI() {
       };
     } else {
       // In web mode, fetch configured providers from backend
+      const abortController = new AbortController();
+      let isMounted = true;
+
       const loadWebSettings = async () => {
         try {
-          const response = await fetch("/api/providers/config");
+          const response = await fetch("/api/providers/config", {
+            signal: abortController.signal,
+          });
+
+          // Check if component is still mounted before updating state
+          if (!isMounted) return;
+
           if (response.ok) {
             const data: ProviderConfigResponse = await response.json();
 
@@ -357,15 +366,30 @@ export default function PrivacyProxyUI() {
                 providers: newProviders
               };
             });
+          } else {
+            // Non-OK response (e.g., 500) - assume no providers configured
+            console.error("Failed to load provider config: HTTP", response.status);
+            setHasAnyProviderConfigured(false);
           }
         } catch (error) {
-          console.error("Failed to load web provider config", error);
-          setHasAnyProviderConfigured(false);
+          // Ignore abort errors, only log other errors
+          if (error instanceof Error && error.name === "AbortError") {
+            return;
+          }
+          if (isMounted) {
+            console.error("Failed to load web provider config", error);
+            setHasAnyProviderConfigured(false);
+          }
         }
       };
 
       loadWebSettings();
-      return undefined;
+
+      // Cleanup function to abort fetch and prevent state updates
+      return () => {
+        isMounted = false;
+        abortController.abort();
+      };
     }
   }, [isElectron]);
 

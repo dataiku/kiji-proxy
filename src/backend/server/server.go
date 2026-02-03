@@ -359,7 +359,14 @@ func (s *Server) versionHandler(w http.ResponseWriter, r *http.Request) {
 		"service": "Yaak Privacy Proxy",
 	}
 
-	if err := json.NewEncoder(w).Encode(response); err != nil {
+	data, err := json.Marshal(response)
+	if err != nil {
+		log.Printf("Failed to encode version response: %v", err)
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
+
+	if _, err := w.Write(data); err != nil {
 		log.Printf("Failed to write version response: %v", err)
 	}
 }
@@ -495,10 +502,16 @@ func (s *Server) handleModelSecurity(w http.ResponseWriter, r *http.Request) {
 		"manifest": manifest,
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(response); err != nil {
+	data, err = json.Marshal(response)
+	if err != nil {
+		log.Printf("Failed to encode model security response: %v", err)
 		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if _, err := w.Write(data); err != nil {
+		log.Printf("Failed to write model security response: %v", err)
 	}
 }
 
@@ -574,10 +587,16 @@ func (s *Server) handlePIICheck(w http.ResponseWriter, r *http.Request) {
 		PIIFound:      len(entities) > 0,
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(response); err != nil {
+	data, err := json.Marshal(response)
+	if err != nil {
 		log.Printf("Failed to encode PII check response: %v", err)
 		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if _, err := w.Write(data); err != nil {
+		log.Printf("Failed to write PII check response: %v", err)
 	}
 }
 
@@ -656,10 +675,16 @@ func (s *Server) handleProvidersConfig(w http.ResponseWriter, r *http.Request) {
 		Configured: s.config.Providers.MistralProviderConfig.APIKey != "",
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(response); err != nil {
+	data, err := json.Marshal(response)
+	if err != nil {
 		log.Printf("Failed to encode provider config response: %v", err)
 		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if _, err := w.Write(data); err != nil {
+		log.Printf("Failed to write provider config response: %v", err)
 	}
 }
 
