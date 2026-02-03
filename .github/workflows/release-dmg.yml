@@ -23,12 +23,33 @@ jobs:
       github.event_name == 'workflow_dispatch'
 
     runs-on: macos-latest
-    environment: "Configure DMG Build Environment"
+    environment: "DMG Build Environment"
 
     permissions:
       contents: write # Required to create releases
 
     steps:
+      - name: Verify signing secrets are available
+        run: |
+          MISSING=""
+          [ -z "$CSC_LINK" ] && MISSING="$MISSING CSC_LINK"
+          [ -z "$CSC_KEY_PASSWORD" ] && MISSING="$MISSING CSC_KEY_PASSWORD"
+          [ -z "$APPLE_ID" ] && MISSING="$MISSING APPLE_ID"
+          [ -z "$APPLE_APP_SPECIFIC_PASSWORD" ] && MISSING="$MISSING APPLE_APP_SPECIFIC_PASSWORD"
+          [ -z "$APPLE_TEAM_ID" ] && MISSING="$MISSING APPLE_TEAM_ID"
+          if [ -n "$MISSING" ]; then
+            echo "::error::Missing required environment secrets:$MISSING"
+            echo "Ensure the 'DMG Build Environment' environment is configured with all required secrets."
+            exit 1
+          fi
+          echo "All signing secrets are set."
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
