@@ -1,5 +1,11 @@
 # yaak-privacy-proxy
 
+## 0.3.5
+
+### Patch Changes
+
+- 8ca3e6c: chore: ensure that root depedencies are provided in the ci/cd
+
 ## 0.3.4
 
 ### Patch Changes
