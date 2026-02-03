@@ -210,6 +210,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/model/security", s.handleModelSecurity)
 	mux.HandleFunc("/api/proxy/ca-cert", s.handleCACert)
 	mux.HandleFunc("/api/pii/check", s.handlePIICheck)
+	mux.HandleFunc("/api/providers/config", s.handleProvidersConfig)
 
 	// Add provider endpoints
 	mux.Handle(providers.ProviderSubpathOpenAI, s.handler) // same as Mistral
@@ -606,6 +607,52 @@ func (s *Server) handleCACert(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	if _, err := w.Write(data); err != nil {
 		log.Printf("Failed to write CA certificate: %v", err)
+	}
+}
+
+// ProviderConfigResponse represents the response for provider configuration
+type ProviderConfigResponse struct {
+	Providers map[string]ProviderStatus `json:"providers"`
+}
+
+// ProviderStatus represents the status of a single provider
+type ProviderStatus struct {
+	Configured bool `json:"configured"`
+}
+
+// handleProvidersConfig returns the configuration status of providers
+func (s *Server) handleProvidersConfig(w http.ResponseWriter, r *http.Request) {
+	// Add CORS headers
+	s.corsHandler(w, r)
+
+	// Only allow GET requests
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	response := ProviderConfigResponse{
+		Providers: make(map[string]ProviderStatus),
+	}
+
+	// Check each provider
+	response.Providers["openai"] = ProviderStatus{
+		Configured: s.config.Providers.OpenAIProviderConfig.APIKey != "",
+	}
+	response.Providers["anthropic"] = ProviderStatus{
+		Configured: s.config.Providers.AnthropicProviderConfig.APIKey != "",
+	}
+	response.Providers["gemini"] = ProviderStatus{
+		Configured: s.config.Providers.GeminiProviderConfig.APIKey != "",
+	}
+	response.Providers["mistral"] = ProviderStatus{
+		Configured: s.config.Providers.MistralProviderConfig.APIKey != "",
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		log.Printf("Failed to encode provider config response: %v", err)
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 	}
 }
 
