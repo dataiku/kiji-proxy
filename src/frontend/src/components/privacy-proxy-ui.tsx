@@ -929,27 +929,7 @@ export default function PrivacyProxyUI() {
             PII Detection and Masking Proxy
           </p>
 
-          {/* Server Status Banner */}
-          {serverStatus === "offline" ? (
-            <div className="mt-4 p-4 bg-red-50 border-2 border-red-200 rounded-lg inline-block">
-              <p className="text-sm text-red-900 flex items-center gap-2">
-                <WifiOff className="w-5 h-5" />
-                <span className="font-semibold">
-                  Backend server is offline.
-                </span>
-              </p>
-              <p className="text-xs text-red-700 mt-2">
-                Please ensure the Go backend server is running at localhost:8080
-              </p>
-            </div>
-          ) : (
-            <div className="mt-4 p-2 bg-green-50 border border-green-200 rounded-lg inline-block">
-              <p className="text-xs text-green-800 flex items-center gap-2">
-                <CheckCircle className="w-4 h-4" />
-                <span>Backend server is online</span>
-              </p>
-            </div>
-          )}
+
 
           {isElectron && !apiKey && (
             <div className="mt-4 p-2 bg-amber-50 border border-amber-200 rounded-lg inline-block">
@@ -985,8 +965,8 @@ export default function PrivacyProxyUI() {
             onChange={(e) => setInputData(e.target.value)}
             placeholder="Enter your message with sensitive information...&#10;&#10;Example: Hi, my name is John Smith and my email is john.smith@email.com. My phone is 555-123-4567.&#10;&#10;This will be processed through the real PII detection and masking pipeline."
             className={`w-full h-32 p-4 border-2 rounded-lg focus:outline-none resize-none font-mono text-sm placeholder:text-gray-400 ${serverStatus === "offline"
-                ? "border-red-200 bg-red-50 cursor-not-allowed opacity-60"
-                : "border-slate-200 focus:border-blue-500"
+              ? "border-red-200 bg-red-50 cursor-not-allowed opacity-60"
+              : "border-slate-200 focus:border-blue-500"
               }`}
             disabled={serverStatus === "offline"}
           />
@@ -1221,7 +1201,13 @@ export default function PrivacyProxyUI() {
             }
           />
           <span className="text-sm">
-            {serverStatus === "online" ? "Server online" : "Server offline"}
+            {serverStatus === "online" ? (
+              "Server online"
+            ) : (
+              <span className="flex items-center gap-2">
+                Server offline - Please ensure the Go backend server is running at localhost:8080
+              </span>
+            )}
           </span>
         </div>
         {modelSignature && (
