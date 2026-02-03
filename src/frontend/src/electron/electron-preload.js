@@ -7,24 +7,51 @@ const { contextBridge, ipcRenderer } = require("electron");
 // Expose protected methods that allow the renderer process to use
 // the API endpoint configuration and secure storage
 contextBridge.exposeInMainWorld("electronAPI", {
-  // Get the forward endpoint
-  getForwardEndpoint: async () => {
-    return await ipcRenderer.invoke("get-forward-endpoint");
-  },
-
-  // Set the forward endpoint
-  setForwardEndpoint: async (url) => {
-    return await ipcRenderer.invoke("set-forward-endpoint", url);
-  },
-
-  // Get the stored OpenAI API key
+  // Legacy methods (delegate to active provider for backwards compatibility)
+  // Get the stored API key for active provider
   getApiKey: async () => {
     return await ipcRenderer.invoke("get-api-key");
   },
 
-  // Set the OpenAI API key (securely stored)
+  // Set the API key for active provider (securely stored)
   setApiKey: async (apiKey) => {
     return await ipcRenderer.invoke("set-api-key", apiKey);
+  },
+
+  // Multi-provider methods
+  // Get the active provider
+  getActiveProvider: async () => {
+    return await ipcRenderer.invoke("get-active-provider");
+  },
+
+  // Set the active provider
+  setActiveProvider: async (provider) => {
+    return await ipcRenderer.invoke("set-active-provider", provider);
+  },
+
+  // Get API key for a specific provider
+  getProviderApiKey: async (provider) => {
+    return await ipcRenderer.invoke("get-provider-api-key", provider);
+  },
+
+  // Set API key for a specific provider
+  setProviderApiKey: async (provider, apiKey) => {
+    return await ipcRenderer.invoke("set-provider-api-key", provider, apiKey);
+  },
+
+  // Get custom model for a specific provider
+  getProviderModel: async (provider) => {
+    return await ipcRenderer.invoke("get-provider-model", provider);
+  },
+
+  // Set custom model for a specific provider
+  setProviderModel: async (provider, model) => {
+    return await ipcRenderer.invoke("set-provider-model", provider, model);
+  },
+
+  // Get full providers config (hasApiKey and model for each provider)
+  getProvidersConfig: async () => {
+    return await ipcRenderer.invoke("get-providers-config");
   },
 
   // Platform information

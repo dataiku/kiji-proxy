@@ -1,5 +1,43 @@
 # yaak-privacy-proxy
 
+## 0.3.6
+
+### Patch Changes
+
+- 534e539: updated the build process
+
+## 0.3.5
+
+### Patch Changes
+
+- 8ca3e6c: chore: ensure that root depedencies are provided in the ci/cd
+
+## 0.3.4
+
+### Patch Changes
+
+- 0217f9a: Add animation and remove the cache from the ci/cd build
+- bccd77a: updated signing process of dmg version
+
+## 0.3.2
+
+### Patch Changes
+
+- 2cf2bc0: Introducing multiple providers
+
+## 0.3.1
+
+### Patch Changes
+
+- 5f997ef: fix and updated proxy setup, updated docs and setup instructions
+- 9c8bbb3: Minor proxy tweaks
+
+## 0.3.0
+
+### Minor Changes
+
+- 2b80cfd: Updated terms and conditions
+
 ## 0.2.6
 
 ### Patch Changes

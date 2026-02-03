@@ -49,7 +49,8 @@ When using AI services like OpenAI or Anthropic, sensitive data in your prompts 
 - **🔒 Automatic PII Protection** - ML-powered detection of 16+ PII types (emails, SSNs, credit cards, etc.)
 - **🎭 Seamless Masking** - Replaces sensitive data with realistic dummy values before API calls
 - **🔄 Transparent Restoration** - Restores original data in responses so your app works normally
-- **🚀 Zero Code Changes** - Works as a transparent proxy - just point your app to `localhost:8080`
+- **🚀 Zero Code Changes** - Works as a transparent proxy with automatic configuration (PAC) on macOS
+- **🌐 Browser-Ready** - Automatic proxy setup for Safari, Chrome - no environment variables needed
 - **🏃 Fast Local Inference** - ONNX-optimized model runs locally, no external API calls
 - **💻 Easy to Use** - Desktop app for macOS, standalone server for Linux
 
@@ -73,9 +74,6 @@ When using AI services like OpenAI or Anthropic, sensitive data in your prompts 
 # Install
 open Yaak-Privacy-Proxy-*.dmg
 # Drag to Applications folder
-
-# First run - trust certificate
-xattr -cr "/Applications/Yaak Privacy Proxy.app"
 ```
 
 **Linux (Standalone Server):**
@@ -90,19 +88,47 @@ cd yaak-privacy-proxy-0.1.1-linux-amd64
 ```
 
 **Test It:**
-```bash
-# Set your API key
-export OPENAI_API_KEY="sk-..."
 
-# Make a request through the proxy
-curl -x http://localhost:8080 https://api.openai.com/v1/chat/completions \
+*macOS (with automatic PAC):*
+```bash
+# Start with sudo for automatic browser configuration
+sudo "/Applications/Yaak Privacy Proxy.app/Contents/MacOS/yaak-proxy"
+
+# Open browser - requests to api.openai.com automatically go through proxy!
+# No configuration needed for Safari/Chrome
+
+# For CLI tools, set environment variables:
+export OPENAI_API_KEY="sk-..."
+export HTTP_PROXY=http://127.0.0.1:8081
+export HTTPS_PROXY=http://127.0.0.1:8081
+
+curl https://api.openai.com/v1/chat/completions \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $OPENAI_API_KEY" \
   -d '{
     "model": "gpt-4",
     "messages": [{"role": "user", "content": "My email is john@example.com"}]
   }'
+```
 
+*Linux (manual proxy configuration):*
+```bash
+# Set environment variables
+export OPENAI_API_KEY="sk-..."
+export HTTP_PROXY=http://127.0.0.1:8081
+export HTTPS_PROXY=http://127.0.0.1:8081
+
+curl https://api.openai.com/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $OPENAI_API_KEY" \
+  -d '{
+    "model": "gpt-4",
+    "messages": [{"role": "user", "content": "My email is john@example.com"}]
+  }'
+```
+
+*What happens:*
+```bash
 # Check logs - "john@example.com" was masked before sending to OpenAI
 # Response contains the original email (restored automatically)
 ```
@@ -140,6 +166,7 @@ make electron
 
 - **16+ PII Types Detected** - Email, phone, SSN, credit cards, IP addresses, URLs, and more
 - **ML-Powered** - DistilBERT transformer model with ONNX Runtime
+- **Automatic Configuration** - PAC (Proxy Auto-Config) for zero-setup browser integration on macOS
 - **Real-Time Processing** - Sub-100ms latency for most requests
 - **Thread-Safe** - Handles concurrent requests with isolated mappings
 - **Desktop UI** - Native Electron app for macOS with visual request monitoring
@@ -160,6 +187,7 @@ Complete documentation is available in [docs/README.md](docs/README.md):
 
 **Quick Links:**
 - [Installation Guide](docs/01-getting-started.md#quick-installation)
+- [Automatic Proxy Setup (PAC)](docs/transparent-proxy-setup.md)
 - [VSCode Debugging](docs/02-development-guide.md#vscode-debugging)
 - [Build for macOS](docs/03-building-deployment.md#building-for-macos)
 - [Build for Linux](docs/03-building-deployment.md#building-for-linux)

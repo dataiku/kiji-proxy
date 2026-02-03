@@ -80,10 +80,10 @@ module.exports = {
     }),
     ...(isElectron
       ? [
-          new MiniCssExtractPlugin({
-            filename: "[name].[contenthash].css",
-          }),
-        ]
+        new MiniCssExtractPlugin({
+          filename: "[name].[contenthash].css",
+        }),
+      ]
       : []),
   ],
   devServer: {
@@ -111,6 +111,21 @@ module.exports = {
       },
       "/api": {
         target: "http://localhost:8080", // Use localhost for local development
+        secure: false,
+        changeOrigin: true,
+      },
+      "/v1": {
+        target: "http://localhost:8080", // Proxy OpenAI-compatible API requests to Go backend
+        secure: false,
+        changeOrigin: true,
+      },
+      "/version": {
+        target: "http://localhost:8080", // Proxy version endpoint to Go backend
+        secure: false,
+        changeOrigin: true,
+      },
+      "/health": {
+        target: "http://localhost:8080", // Proxy health endpoint to Go backend
         secure: false,
         changeOrigin: true,
       },

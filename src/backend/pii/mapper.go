@@ -16,16 +16,6 @@ type PIIMapping struct {
 	useCache        bool         // whether to use in-memory cache
 }
 
-// NewPIIMapping creates a new PII mapping instance with in-memory storage
-func NewPIIMapping() *PIIMapping {
-	return &PIIMapping{
-		OriginalToDummy: make(map[string]string),
-		DummyToOriginal: make(map[string]string),
-		db:              NewInMemoryPIIMappingDB(),
-		useCache:        true,
-	}
-}
-
 // NewPIIMappingWithDB creates a new PII mapping instance with database backend
 func NewPIIMappingWithDB(db PIIMappingDB, useCache bool) *PIIMapping {
 	return &PIIMapping{

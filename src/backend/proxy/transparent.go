@@ -11,10 +11,10 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"strings"
 	"time"
 
 	"github.com/hannes/yaak-private/src/backend/config"
+	"github.com/hannes/yaak-private/src/backend/providers"
 )
 
 // TransparentProxy handles transparent HTTP/HTTPS proxying with PII processing
@@ -67,17 +67,25 @@ func NewTransparentProxy(
 
 // ServeHTTP implements http.Handler interface
 func (tp *TransparentProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	log.Printf("[TransparentProxy] Received request: Method=%s, Host=%s, URL=%s, Path=%s", r.Method, r.Host, r.URL.String(), r.URL.Path)
-	if r.Method == http.MethodConnect {
-		tp.handleCONNECT(w, r)
+	// Determine provider for current request
+	provider, err := tp.handler.providers.GetProviderFromHost(r.Host, "[TransparentProxy]")
+	if err != nil {
+		log.Printf("[TransparentProxy] Error retrieving provider from host: %s", err.Error())
+		http.Error(w, "Error retrieving provider from host", http.StatusBadRequest)
 		return
 	}
 
-	tp.handleHTTPRequest(w, r)
+	log.Printf("[TransparentProxy] Received request: Method=%s, Host=%s, URL=%s, Path=%s, Provider=%s", r.Method, r.Host, r.URL.String(), r.URL.Path, (*provider).GetName())
+	if r.Method == http.MethodConnect {
+		tp.handleCONNECT(w, r, provider)
+		return
+	}
+
+	tp.handleHTTPRequest(w, r, provider)
 }
 
 // handleHTTPRequest handles standard HTTP requests
-func (tp *TransparentProxy) handleHTTPRequest(w http.ResponseWriter, r *http.Request) {
+func (tp *TransparentProxy) handleHTTPRequest(w http.ResponseWriter, r *http.Request, provider *providers.Provider) {
 	// Extract target host from request
 	targetHost := r.Host
 	if targetHost == "" {
@@ -92,12 +100,12 @@ func (tp *TransparentProxy) handleHTTPRequest(w http.ResponseWriter, r *http.Req
 	}
 
 	// Intercept and process with PII masking
-	tp.interceptHTTP(w, r, targetHost)
+	tp.interceptHTTP(w, r, targetHost, provider)
 }
 
 // interceptHTTP intercepts and processes HTTP requests with PII masking
 // This method delegates to the shared Handler for PII processing to ensure consistency
-func (tp *TransparentProxy) interceptHTTP(w http.ResponseWriter, r *http.Request, targetHost string) {
+func (tp *TransparentProxy) interceptHTTP(w http.ResponseWriter, r *http.Request, targetHost string, provider *providers.Provider) {
 	log.Printf("[TransparentProxy] Intercepting HTTP request to %s", targetHost)
 
 	// Read request body
@@ -111,7 +119,7 @@ func (tp *TransparentProxy) interceptHTTP(w http.ResponseWriter, r *http.Request
 
 	// Process request through shared handler pipeline (PII detection, masking, logging)
 	ctx := r.Context()
-	processed, err := tp.handler.ProcessRequestBody(ctx, body)
+	processed, err := tp.handler.ProcessRequestBody(ctx, body, provider)
 	if err != nil {
 		log.Printf("[TransparentProxy] ❌ Failed to process request: %v", err)
 		http.Error(w, "Failed to process request", http.StatusInternalServerError)
@@ -136,14 +144,12 @@ func (tp *TransparentProxy) interceptHTTP(w http.ResponseWriter, r *http.Request
 	// Copy headers using handler's method (filters Accept-Encoding)
 	tp.handler.CopyHeaders(r.Header, proxyReq.Header)
 
+	// Set auth and additional headers
+	(*provider).SetAuthHeaders(proxyReq)
+	(*provider).SetAddlHeaders(proxyReq)
+
 	// Explicitly set Accept-Encoding to identity to avoid compressed responses
 	proxyReq.Header.Set("Accept-Encoding", "identity")
-
-	// Add API key
-	apiKey := tp.getAPIKey(r)
-	if apiKey != "" {
-		proxyReq.Header.Set("Authorization", "Bearer "+apiKey)
-	}
 
 	// Forward request using handler's HTTP client (bypasses proxy to prevent infinite loop)
 	log.Printf("[TransparentProxy] Forwarding request directly to %s (bypassing proxy)", targetURL)
@@ -164,7 +170,7 @@ func (tp *TransparentProxy) interceptHTTP(w http.ResponseWriter, r *http.Request
 	}
 
 	// Process response through shared handler pipeline (PII restoration, logging)
-	modifiedBody := tp.handler.ProcessResponseBody(ctx, respBody, resp.Header.Get("Content-Type"), processed.MaskedToOriginal, processed.TransactionID)
+	modifiedBody := tp.handler.ProcessResponseBody(ctx, respBody, resp.Header.Get("Content-Type"), processed.MaskedToOriginal, processed.TransactionID, provider)
 
 	// Copy response headers
 	for key, values := range resp.Header {
@@ -242,7 +248,7 @@ func (tp *TransparentProxy) passthroughHTTP(w http.ResponseWriter, r *http.Reque
 }
 
 // handleCONNECT handles HTTPS CONNECT requests for tunneling
-func (tp *TransparentProxy) handleCONNECT(w http.ResponseWriter, r *http.Request) {
+func (tp *TransparentProxy) handleCONNECT(w http.ResponseWriter, r *http.Request, provider *providers.Provider) {
 	target := r.URL.Host
 
 	// Check if we should intercept
@@ -253,11 +259,11 @@ func (tp *TransparentProxy) handleCONNECT(w http.ResponseWriter, r *http.Request
 	}
 
 	// Intercept - establish MITM connection
-	tp.interceptCONNECT(w, r, target)
+	tp.interceptCONNECT(w, r, target, provider)
 }
 
 // interceptCONNECT establishes a MITM connection for intercepted HTTPS traffic
-func (tp *TransparentProxy) interceptCONNECT(w http.ResponseWriter, _ *http.Request, target string) {
+func (tp *TransparentProxy) interceptCONNECT(w http.ResponseWriter, _ *http.Request, target string, provider *providers.Provider) {
 	log.Printf("[TransparentProxy] Intercepting HTTPS CONNECT to %s", target)
 
 	// Extract hostname (remove port)
@@ -344,13 +350,13 @@ func (tp *TransparentProxy) interceptCONNECT(w http.ResponseWriter, _ *http.Requ
 		req.URL.Host = host
 
 		// Process the request
-		tp.interceptHTTPOverTLS(conn, req, host)
+		tp.interceptHTTPOverTLS(conn, req, host, provider)
 	}
 }
 
 // interceptHTTPOverTLS handles HTTP requests over a TLS connection
 // This method delegates to the shared Handler for PII processing to ensure consistency
-func (tp *TransparentProxy) interceptHTTPOverTLS(conn net.Conn, r *http.Request, targetHost string) {
+func (tp *TransparentProxy) interceptHTTPOverTLS(conn net.Conn, r *http.Request, targetHost string, provider *providers.Provider) {
 	// Read request body
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -362,7 +368,7 @@ func (tp *TransparentProxy) interceptHTTPOverTLS(conn net.Conn, r *http.Request,
 
 	// Process request through shared handler pipeline (PII detection, masking, logging)
 	ctx := r.Context()
-	processed, err := tp.handler.ProcessRequestBody(ctx, body)
+	processed, err := tp.handler.ProcessRequestBody(ctx, body, provider)
 	if err != nil {
 		log.Printf("[TransparentProxy] ❌ Failed to process request: %v", err)
 		tp.writeErrorResponse(conn, http.StatusInternalServerError, "Failed to process request")
@@ -383,14 +389,12 @@ func (tp *TransparentProxy) interceptHTTPOverTLS(conn net.Conn, r *http.Request,
 	// Copy headers using handler's method (filters Accept-Encoding)
 	tp.handler.CopyHeaders(r.Header, proxyReq.Header)
 
+	// Set auth and additional headers
+	(*provider).SetAuthHeaders(proxyReq)
+	(*provider).SetAddlHeaders(proxyReq)
+
 	// Explicitly set Accept-Encoding to identity to avoid compressed responses
 	proxyReq.Header.Set("Accept-Encoding", "identity")
-
-	// Add API key
-	apiKey := tp.getAPIKey(r)
-	if apiKey != "" {
-		proxyReq.Header.Set("Authorization", "Bearer "+apiKey)
-	}
 
 	// Forward request using handler's HTTP client (bypasses proxy to prevent infinite loop)
 	log.Printf("[TransparentProxy] Forwarding TLS request directly to %s (bypassing proxy)", targetURL)
@@ -411,7 +415,7 @@ func (tp *TransparentProxy) interceptHTTPOverTLS(conn net.Conn, r *http.Request,
 	}
 
 	// Process response through shared handler pipeline (PII restoration, logging)
-	modifiedBody := tp.handler.ProcessResponseBody(ctx, respBody, resp.Header.Get("Content-Type"), processed.MaskedToOriginal, processed.TransactionID)
+	modifiedBody := tp.handler.ProcessResponseBody(ctx, respBody, resp.Header.Get("Content-Type"), processed.MaskedToOriginal, processed.TransactionID, provider)
 
 	// Create new response with modified body
 	newResp := &http.Response{
@@ -521,22 +525,6 @@ func (tp *TransparentProxy) buildTargetURL(r *http.Request, targetHost string, s
 	}
 
 	return targetURL
-}
-
-// getAPIKey gets the API key from request header or config
-func (tp *TransparentProxy) getAPIKey(r *http.Request) string {
-	// Check for API key in custom header
-	if apiKey := r.Header.Get("X-OpenAI-API-Key"); apiKey != "" {
-		return apiKey
-	}
-	// Check for standard Authorization header
-	if auth := r.Header.Get("Authorization"); auth != "" {
-		if strings.HasPrefix(auth, "Bearer ") {
-			return strings.TrimPrefix(auth, "Bearer ")
-		}
-	}
-	// Fall back to config
-	return tp.config.OpenAIAPIKey
 }
 
 // mitmConn wraps a TLS connection to implement net.Conn for HTTP reading

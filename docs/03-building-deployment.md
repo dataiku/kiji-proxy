@@ -229,7 +229,7 @@ Uses electron-builder configuration for:
 - UDZO compression
 - Universal binary (Apple Silicon + Intel)
 - Custom background image
-- Code signing (if configured)
+- Code signing and notarization (when `CSC_LINK` is set)
 
 **Build Time:** 15-20 minutes (first run), 5-8 minutes (cached)
 
@@ -586,9 +586,6 @@ docker run -d \
 ```bash
 # Download DMG
 # Open and drag to Applications
-
-# First run - remove quarantine if needed
-xattr -cr "/Applications/Yaak Privacy Proxy.app"
 
 # Launch
 open "/Applications/Yaak Privacy Proxy.app"

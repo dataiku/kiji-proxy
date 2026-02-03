@@ -12,6 +12,7 @@ import {
   Flag,
 } from "lucide-react";
 import logoImage from "../../assets/logo.png";
+import yaakMascot from "../../assets/yaak.png";
 import SettingsModal from "./modals/SettingsModal";
 import LoggingModal from "./modals/LoggingModal";
 import AboutModal from "./modals/AboutModal";
@@ -41,6 +42,35 @@ declare global {
     performance: ExtendedPerformance;
   }
 }
+
+// Provider types
+type ProviderType = "openai" | "anthropic" | "gemini" | "mistral";
+
+interface ProviderSettings {
+  hasApiKey: boolean;
+  model: string;
+}
+
+interface ProvidersConfig {
+  activeProvider: ProviderType;
+  providers: Record<ProviderType, ProviderSettings>;
+}
+
+// Default models per provider
+const DEFAULT_MODELS: Record<ProviderType, string> = {
+  openai: "gpt-3.5-turbo",
+  anthropic: "claude-3-haiku-20240307",
+  gemini: "gemini-flash-latest",
+  mistral: "mistral-small-latest",
+};
+
+// Provider display names
+const PROVIDER_NAMES: Record<ProviderType, string> = {
+  openai: "OpenAI",
+  anthropic: "Anthropic",
+  gemini: "Gemini",
+  mistral: "Mistral",
+};
 
 interface PIIEntity {
   pii_type: string;
@@ -90,8 +120,20 @@ export default function PrivacyProxyUI() {
     source: string;
     modelVersion?: string;
   } | null>(null);
-  const [_, setForwardEndpoint] = useState("https://api.openai.com/v1");
+
+  // Multi-provider state
+  const [activeProvider, setActiveProvider] = useState<ProviderType>("openai");
+  const [providersConfig, setProvidersConfig] = useState<ProvidersConfig>({
+    activeProvider: "openai",
+    providers: {
+      openai: { hasApiKey: false, model: "" },
+      anthropic: { hasApiKey: false, model: "" },
+      gemini: { hasApiKey: false, model: "" },
+      mistral: { hasApiKey: false, model: "" },
+    },
+  });
   const [apiKey, setApiKey] = useState<string | null>(null);
+
   const [serverStatus, setServerStatus] = useState<"online" | "offline">(
     "offline"
   );
@@ -346,18 +388,24 @@ export default function PrivacyProxyUI() {
     if (!window.electronAPI) return;
 
     try {
-      const [url, key] = await Promise.all([
-        window.electronAPI.getForwardEndpoint(),
-        window.electronAPI.getApiKey(),
-      ]);
-      setForwardEndpoint(url);
+      // Load providers config
+      const config = await window.electronAPI.getProvidersConfig();
+      setProvidersConfig(config);
+      setActiveProvider(config.activeProvider);
+
+      // Load API key for active provider
+      const key = await window.electronAPI.getProviderApiKey(
+        config.activeProvider
+      );
       setApiKey(key);
 
       // Debug logging
       if (key) {
-        console.log("API key loaded from keychain (length:", key.length, ")");
+        console.log(
+          `API key loaded for ${config.activeProvider} (length: ${key.length})`
+        );
       } else {
-        console.log("No API key found in keychain");
+        console.log(`No API key found for ${config.activeProvider}`);
       }
     } catch (error) {
       console.error("Error loading settings:", error);
@@ -371,6 +419,152 @@ export default function PrivacyProxyUI() {
     }
     // In web mode, use relative path (proxied)
     return "";
+  };
+
+  // Get model for provider (custom or default)
+  const getModel = (provider: ProviderType, customModel: string): string => {
+    return customModel || DEFAULT_MODELS[provider] || "gpt-3.5-turbo";
+  };
+
+  // Build provider-specific request body
+  const buildRequestBody = (
+    provider: ProviderType,
+    model: string,
+    content: string
+  ) => {
+    // Always include provider field for backend routing
+    const baseFields = { provider };
+
+    switch (provider) {
+      case "openai":
+      case "mistral":
+        // OpenAI/Mistral format
+        return {
+          ...baseFields,
+          model,
+          messages: [{ role: "user", content }],
+          max_tokens: 1000,
+        };
+
+      case "anthropic":
+        // Anthropic format - max_tokens is REQUIRED
+        return {
+          ...baseFields,
+          model,
+          messages: [{ role: "user", content }],
+          max_tokens: 1024,
+        };
+
+      case "gemini":
+        // Gemini format - completely different structure
+        return {
+          ...baseFields,
+          model, // Backend uses this to build the URL
+          contents: [{ parts: [{ text: content }] }],
+          generationConfig: { maxOutputTokens: 1000 },
+        };
+
+      default:
+        // Fallback to OpenAI format
+        return {
+          ...baseFields,
+          model,
+          messages: [{ role: "user", content }],
+          max_tokens: 1000,
+        };
+    }
+  };
+
+  // Build provider-specific headers
+  const buildHeaders = (
+    provider: ProviderType,
+    providerApiKey: string
+  ): Record<string, string> => {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+
+    switch (provider) {
+      case "anthropic":
+        headers["x-api-key"] = providerApiKey;
+        headers["anthropic-version"] = "2023-06-01";
+        break;
+      case "gemini":
+        headers["x-goog-api-key"] = providerApiKey;
+        break;
+      default: // openai, mistral
+        headers["Authorization"] = `Bearer ${providerApiKey}`;
+    }
+
+    return headers;
+  };
+
+  // Get provider-specific API endpoint path
+  const getProviderEndpoint = (
+    provider: ProviderType,
+    model: string
+  ): string => {
+    switch (provider) {
+      case "openai":
+      case "mistral":
+        return "/v1/chat/completions";
+      case "anthropic":
+        return "/v1/messages";
+      case "gemini":
+        // Gemini requires the model name in the URL path
+        return `/v1beta/models/${model}:generateContent`;
+      default:
+        return "/v1/chat/completions";
+    }
+  };
+
+  // Extract assistant message from provider-specific response format
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const extractAssistantMessage = (
+    provider: ProviderType,
+    data: any
+  ): string => {
+    try {
+      switch (provider) {
+        case "openai":
+        case "mistral":
+          // OpenAI/Mistral format: { choices: [{ message: { content: "..." } }] }
+          return data.choices?.[0]?.message?.content || "";
+
+        case "anthropic":
+          // Anthropic format: { content: [{ type: "text", text: "..." }] }
+          // Content is an array of content blocks, we concatenate all text blocks
+          if (Array.isArray(data.content)) {
+            return data.content
+              .filter((block: { type: string }) => block.type === "text")
+              .map((block: { text: string }) => block.text)
+              .join("");
+          }
+          return "";
+
+        case "gemini": {
+          // Gemini format: { candidates: [{ content: { parts: [{ text: "..." }] } }] }
+          const parts = data.candidates?.[0]?.content?.parts;
+          if (Array.isArray(parts)) {
+            return parts
+              .filter((part: { text?: string }) => part.text !== undefined)
+              .map((part: { text: string }) => part.text)
+              .join("");
+          }
+          return "";
+        }
+
+        default:
+          // Fallback to OpenAI format
+          return data.choices?.[0]?.message?.content || "";
+      }
+    } catch (error) {
+      console.error(
+        `[ERROR] Failed to extract message for ${provider}:`,
+        error
+      );
+      return "";
+    }
   };
 
   // Call the real /details endpoint
@@ -395,6 +589,7 @@ export default function PrivacyProxyUI() {
     // Performance timing and memory logging
     const startTime = performance.now();
     console.log("[DEBUG] handleSubmit started");
+    console.log(`[DEBUG] Using provider: ${activeProvider}`);
 
     if (typeof window !== "undefined" && window.performance?.memory) {
       const mem = window.performance.memory;
@@ -406,39 +601,37 @@ export default function PrivacyProxyUI() {
     }
 
     try {
-      // Create OpenAI chat completion request format (standard format)
-      const requestBody = {
-        model: "gpt-3.5-turbo",
-        messages: [
-          {
-            role: "user",
-            content: inputData,
-          },
-        ],
-        max_tokens: 1000,
-      };
+      // Get model for current provider
+      const customModel =
+        providersConfig.providers[activeProvider]?.model || "";
+      const model = getModel(activeProvider, customModel);
 
-      // Call standard OpenAI proxy endpoint with details parameter for PII metadata
+      // Build provider-specific request body
+      const requestBody = buildRequestBody(activeProvider, model, inputData);
+
+      // Get provider-specific endpoint path
+      const endpointPath = getProviderEndpoint(activeProvider, model);
+
+      // Call provider-specific proxy endpoint with details parameter for PII metadata
       const goServerUrl = getGoServerAddress();
       const apiUrl = isElectron
-        ? `${goServerUrl}/v1/chat/completions?details=true` // Standard proxy with PII details
-        : "/v1/chat/completions?details=true"; // Proxied call in web mode
+        ? `${goServerUrl}${endpointPath}?details=true`
+        : `${endpointPath}?details=true`;
 
-      // Prepare headers with standard Authorization format
-      const headers: Record<string, string> = {
+      // Build provider-specific headers
+      let headers: Record<string, string> = {
         "Content-Type": "application/json",
       };
 
-      // Add API key as Bearer token (standard OpenAI format)
       if (isElectron && apiKey) {
-        headers["Authorization"] = `Bearer ${apiKey}`;
+        headers = buildHeaders(activeProvider, apiKey);
         console.log(
-          "Sending request with API key (length:",
-          apiKey.length,
-          ")"
+          `Sending request to ${activeProvider} with API key (length: ${apiKey.length})`
         );
       } else if (isElectron && !apiKey) {
-        console.warn("No API key available - request will likely fail");
+        console.warn(
+          `No API key available for ${activeProvider} - request will likely fail`
+        );
       }
 
       console.log("[DEBUG] Starting fetch request");
@@ -471,9 +664,9 @@ export default function PrivacyProxyUI() {
         `[DEBUG] Response size: ${JSON.stringify(data).length} bytes`
       );
 
-      // Extract standard OpenAI response
-      console.log("[DEBUG] Extracting assistant message");
-      let assistantMessage = data.choices?.[0]?.message?.content || "";
+      // Extract assistant message using provider-specific format
+      console.log(`[DEBUG] Extracting assistant message for ${activeProvider}`);
+      let assistantMessage = extractAssistantMessage(activeProvider, data);
 
       // Safety check: Truncate very large responses to prevent memory issues
       const MAX_RESPONSE_SIZE = 500000; // 500KB max per field
@@ -712,6 +905,24 @@ export default function PrivacyProxyUI() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4 md:p-8 pb-16">
+      {/* Yaak Mascot Loading Overlay */}
+      {isProcessing && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center animate-fade-in">
+          <div className="flex flex-col items-center gap-4">
+            <img
+              src={yaakMascot}
+              alt="Yaak mascot"
+              className="w-32 h-32 animate-bounce-slow drop-shadow-2xl"
+            />
+            <div className="flex items-center gap-3 bg-white/90 px-6 py-3 rounded-full shadow-lg">
+              <div className="w-5 h-5 border-3 border-blue-600 border-t-transparent rounded-full animate-spin" />
+              <span className="text-lg font-medium text-slate-700">
+                Processing your data...
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
@@ -821,15 +1032,17 @@ export default function PrivacyProxyUI() {
           )}
 
           {isElectron && !apiKey && (
-            <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg inline-block">
-              <p className="text-sm text-amber-900 flex items-center gap-2">
+            <div className="mt-4 p-2 bg-amber-50 border border-amber-200 rounded-lg inline-block">
+              <p className="text-xs text-amber-800 flex items-center gap-2">
                 <AlertCircle className="w-4 h-4" />
-                <span>OpenAI API key not configured. </span>
+                <span>
+                  {PROVIDER_NAMES[activeProvider]} API key not configured.{" "}
+                </span>
                 <button
                   onClick={() => setIsSettingsOpen(true)}
                   className="underline font-semibold"
                 >
-                  Configure it in Settings
+                  Configure in Settings
                 </button>
               </p>
             </div>
@@ -851,9 +1064,14 @@ export default function PrivacyProxyUI() {
             value={inputData}
             onChange={(e) => setInputData(e.target.value)}
             placeholder="Enter your message with sensitive information...&#10;&#10;Example: Hi, my name is John Smith and my email is john.smith@email.com. My phone is 555-123-4567.&#10;&#10;This will be processed through the real PII detection and masking pipeline."
-            className="w-full h-32 p-4 border-2 border-slate-200 rounded-lg focus:border-blue-500 focus:outline-none resize-none font-mono text-sm placeholder:text-gray-400"
+            className={`w-full h-32 p-4 border-2 rounded-lg focus:outline-none resize-none font-mono text-sm placeholder:text-gray-400 ${
+              serverStatus === "offline"
+                ? "border-red-200 bg-red-50 cursor-not-allowed opacity-60"
+                : "border-slate-200 focus:border-blue-500"
+            }`}
+            disabled={serverStatus === "offline"}
           />
-          <div className="flex gap-3 mt-4">
+          <div className="flex gap-3 mt-4 items-center">
             <button
               onClick={handleSubmit}
               disabled={
@@ -882,6 +1100,47 @@ export default function PrivacyProxyUI() {
             >
               Reset
             </button>
+
+            {/* Provider Selection - pushed to right */}
+            {isElectron && (
+              <div className="ml-auto flex items-center gap-2">
+                <label className="text-sm font-medium text-slate-600">
+                  Provider:
+                </label>
+                <select
+                  value={activeProvider}
+                  onChange={async (e) => {
+                    const newProvider = e.target.value as ProviderType;
+                    setActiveProvider(newProvider);
+                    if (window.electronAPI) {
+                      await window.electronAPI.setActiveProvider(newProvider);
+                      // Load API key for new provider
+                      const key = await window.electronAPI.getProviderApiKey(
+                        newProvider
+                      );
+                      setApiKey(key);
+                    }
+                  }}
+                  className="px-3 py-2 border-2 border-slate-200 rounded-lg focus:border-blue-500 focus:outline-none text-sm bg-white"
+                >
+                  {(
+                    [
+                      "openai",
+                      "anthropic",
+                      "gemini",
+                      "mistral",
+                    ] as ProviderType[]
+                  ).map((provider) => (
+                    <option key={provider} value={provider}>
+                      {PROVIDER_NAMES[provider]}
+                      {providersConfig.providers[provider]?.hasApiKey
+                        ? " ✓"
+                        : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
         </div>
 
@@ -944,7 +1203,7 @@ export default function PrivacyProxyUI() {
                   <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
                     <span>Masked Output (B')</span>
                     <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded">
-                      From OpenAI
+                      From {PROVIDER_NAMES[activeProvider]}
                     </span>
                   </div>
                   <div

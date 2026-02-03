@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { X, Info } from "lucide-react";
 import logoImage from "../../../assets/logo.png";
+import TermsModal from "./TermsModal";
 
 interface AboutModalProps {
   isOpen: boolean;
@@ -9,31 +10,27 @@ interface AboutModalProps {
 
 export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
   const [version, setVersion] = useState<string>("Loading...");
+  const [isTermsModalOpen, setIsTermsModalOpen] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
-      // Load frontend version from package.json
-      // In Electron, we can access it via IPC or load it at build time
-      // For now, we'll fetch it from the backend
+      const loadVersion = async () => {
+        try {
+          const response = await fetch("http://localhost:8080/version");
+          if (response.ok) {
+            const data = await response.json();
+            setVersion(data.version || "Unknown");
+          } else {
+            setVersion("Unknown");
+          }
+        } catch (error) {
+          console.error("Failed to fetch version:", error);
+          setVersion("Unknown");
+        }
+      };
       loadVersion();
     }
   }, [isOpen]);
-
-  const loadVersion = async () => {
-    try {
-      // Fetch version from backend
-      const response = await fetch("http://localhost:8080/version");
-      if (response.ok) {
-        const data = await response.json();
-        setVersion(data.version || "Unknown");
-      } else {
-        setVersion("Unknown");
-      }
-    } catch (error) {
-      console.error("Failed to fetch version:", error);
-      setVersion("Unknown");
-    }
-  };
 
   if (!isOpen) return null;
 
@@ -139,6 +136,12 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
             >
               Apache 2.0 License →
             </a>
+            <button
+              onClick={() => setIsTermsModalOpen(true)}
+              className="block text-sm text-blue-600 hover:text-blue-700 hover:underline text-left"
+            >
+              Terms &amp; Conditions →
+            </button>
           </div>
 
           {/* Copyright */}
@@ -160,6 +163,12 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
           </button>
         </div>
       </div>
+
+      <TermsModal
+        isOpen={isTermsModalOpen}
+        onClose={() => setIsTermsModalOpen(false)}
+        requireAcceptance={false}
+      />
     </div>
   );
 }

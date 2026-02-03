@@ -439,10 +439,23 @@ else
 fi
 
 # Package the app (this will create the DMG)
-# Disable code signing (compression level set in package.json)
+# When CSC_LINK is set, electron-builder will automatically sign with the Developer ID certificate.
+# When CSC_LINK is not set, electron-builder falls back to ad-hoc signing.
 echo "Running electron-builder..."
-CSC_IDENTITY_AUTO_DISCOVERY=false \
-npx electron-builder
+# Unset Apple notarization credentials to prevent electron-builder's built-in
+# notarization from triggering automatically. Notarization is currently disabled
+# until a Developer ID Application certificate is configured.
+unset APPLE_ID
+unset APPLE_APP_SPECIFIC_PASSWORD
+unset APPLE_TEAM_ID
+
+if [ -z "${CSC_LINK:-}" ]; then
+    echo "⚠️  No CSC_LINK set — code signing disabled (ad-hoc only)"
+    CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder
+else
+    echo "✅ CSC_LINK detected — signing with Developer ID certificate"
+    npx electron-builder
+fi
 
 if [ $? -ne 0 ]; then
     echo "❌ electron-builder packaging failed!"
@@ -450,81 +463,15 @@ if [ $? -ne 0 ]; then
 fi
 
 echo ""
-echo "📦 Step 12: Ad-hoc signing app and rebuilding DMG..."
-echo "---------------------------------------------------"
+echo "📦 Step 12: Code signing summary..."
+echo "-----------------------------------"
 
-# Check if we should skip signing (for faster local builds)
-if [ "${SKIP_DMG_SIGNING:-}" = "true" ]; then
-    echo "⏭️  Skipping ad-hoc signing (SKIP_DMG_SIGNING=true)"
+if [ -n "${CSC_LINK:-}" ]; then
+    echo "✅ App was signed with Developer ID certificate by electron-builder"
+    echo "   Notarization was handled by afterSign hook (if credentials were provided)"
 else
-    # Ad-hoc sign the app (no certificate needed) and rebuild DMG
-    # This helps macOS accept the app even without proper code signing
-    DMG_PATH=$(find release -name "*.dmg" | head -1)
-    if [ -n "$DMG_PATH" ]; then
-        echo "Processing DMG: $DMG_PATH"
-
-        # Create temporary directories
-        TEMP_DIR=$(mktemp -d)
-        MOUNT_POINT="$TEMP_DIR/mount"
-        EXTRACT_DIR="$TEMP_DIR/extract"
-        mkdir -p "$MOUNT_POINT" "$EXTRACT_DIR"
-
-        # Mount the DMG
-        hdiutil attach "$DMG_PATH" -mountpoint "$MOUNT_POINT" -quiet -readonly
-
-        # Copy contents to extract directory (use rsync for speed)
-        if command -v rsync >/dev/null 2>&1; then
-            rsync -a "$MOUNT_POINT/" "$EXTRACT_DIR/"
-        else
-            cp -R "$MOUNT_POINT"/* "$EXTRACT_DIR/"
-        fi
-
-        # Unmount the DMG
-        hdiutil detach "$MOUNT_POINT" -quiet
-
-        # Find and process the app bundle
-        APP_PATH=$(find "$EXTRACT_DIR" -name "*.app" -type d | head -1)
-        if [ -n "$APP_PATH" ]; then
-            echo "Processing app: $APP_PATH"
-
-            # Remove quarantine attribute (parallel execution)
-            xattr -cr "$APP_PATH" 2>/dev/null || true
-
-            # Ad-hoc sign the app bundle (this helps macOS accept it)
-            # Ad-hoc signing uses "-" which means "sign with ad-hoc identity"
-            if command -v codesign >/dev/null 2>&1; then
-                codesign --force --deep --sign - "$APP_PATH" 2>&1 || {
-                    echo "⚠️  Ad-hoc signing failed, continuing anyway..."
-                }
-
-                # Verify the signing
-                codesign --verify --verbose "$APP_PATH" 2>&1 || echo "⚠️  Code signing verification failed (expected for ad-hoc)"
-            else
-                echo "⚠️  codesign not available, skipping ad-hoc signing"
-            fi
-
-            echo "✅ App processed and ad-hoc signed"
-
-            # Get DMG metadata
-            DMG_NAME=$(basename "$DMG_PATH" .dmg)
-            DMG_DIR=$(dirname "$DMG_PATH")
-
-            # Remove old DMG
-            rm -f "$DMG_PATH"
-
-            # Create new DMG with better compression settings (ULFO is better than UDZO)
-            hdiutil create -volname "$DMG_NAME" -srcfolder "$EXTRACT_DIR" -ov -format ULFO "$DMG_DIR/$DMG_NAME.dmg"
-
-            echo "✅ DMG rebuilt with ad-hoc signed app"
-        else
-            echo "⚠️  App bundle not found in DMG"
-        fi
-
-        # Cleanup
-        rm -rf "$TEMP_DIR"
-    else
-        echo "⚠️  DMG not found, skipping processing"
-    fi
+    echo "⚠️  App was NOT signed with a Developer ID certificate (ad-hoc only)"
+    echo "   Users may see 'damaged app' warning — fix with: xattr -cr /Applications/Yaak\\ Privacy\\ Proxy.app"
 fi
 
 cd "$PROJECT_ROOT"
@@ -560,14 +507,15 @@ echo "   The DMG includes both the Go binary and Electron app."
 echo "   Users can drag the app to Applications and it will automatically"
 echo "   launch the Go backend when started."
 echo ""
-if [ "${SKIP_DMG_SIGNING:-}" != "true" ]; then
-    echo "🔧 Ad-hoc signed for macOS compatibility"
+if [ -n "${CSC_LINK:-}" ]; then
+    echo "🔐 Signed with Developer ID certificate and notarized"
+else
+    echo "🔧 Ad-hoc signed (no Developer ID certificate)"
     echo "   If users see 'Privacy Proxy is damaged' error:"
     echo "   1. Right-click → Open → Open (recommended)"
-    echo "   2. Or run: xattr -cr /Applications/Privacy\\ Proxy.app"
+    echo "   2. Or run: xattr -cr /Applications/Yaak\\ Privacy\\ Proxy.app"
 fi
 echo ""
 echo "💡 Speed Tips:"
-echo "   - Set SKIP_DMG_SIGNING=true for faster local builds (skip step 11)"
 echo "   - Dependencies are cached - subsequent builds will be faster"
 echo "   - Parallel jobs: $PARALLEL_JOBS cores used"

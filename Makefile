@@ -15,6 +15,9 @@ GREEN := \033[0;32m
 YELLOW := \033[1;33m
 NC := \033[0m # No Color
 
+# Go build flags
+CGO_LDFLAGS := -L./build/tokenizers
+
 # Version from package.json
 VERSION := $(shell cd src/frontend && node -p "require('./package.json').version" 2>/dev/null || echo "0.0.0")
 
@@ -155,7 +158,7 @@ test-python: ## Run Python tests
 
 test-go: ## Run Go tests
 	@echo "$(BLUE)Running Go tests...$(NC)"
-	go test ./... -v
+	CGO_LDFLAGS="$(CGO_LDFLAGS)" go test ./... -v
 	@echo "$(GREEN)✅ Go tests complete$(NC)"
 
 test-all: test test-go ## Run all tests (Python, Go)
@@ -212,8 +215,9 @@ build-go: ## Build Go binary for development
 	@echo "$(BLUE)Building Go binary for development...$(NC)"
 	@mkdir -p build
 	@CGO_ENABLED=1 \
+	CGO_LDFLAGS="$(CGO_LDFLAGS)" \
 	go build \
-	  -ldflags="-X main.version=$(VERSION) -extldflags '-L./build/tokenizers'" \
+	  -ldflags="-X main.version=$(VERSION) -extldflags '$(CGO_LDFLAGS)'" \
 	  -o build/yaak-proxy \
 	  ./src/backend
 	@echo "$(GREEN)✅ Go binary built at build/yaak-proxy (version $(VERSION))$(NC)"
@@ -251,15 +255,10 @@ electron-dev: ## Run Electron app in development mode (assumes backend is runnin
 
 electron-dev-external: electron-dev ## Alias for electron-dev (for backwards compatibility)
 
-update-vscode-version: ## Update version in VSCode launch.json
-	@echo "$(BLUE)Updating VSCode launch.json with version $(VERSION)...$(NC)"
-	@if [ -f ".vscode/launch.json" ]; then \
-		sed -i.bak "s/main.version=[0-9.]*-dev/main.version=$(VERSION)-dev/" .vscode/launch.json && \
-		rm -f .vscode/launch.json.bak && \
-		echo "$(GREEN)✅ VSCode launch.json updated with version $(VERSION)-dev$(NC)"; \
-	else \
-		echo "$(YELLOW)⚠️  .vscode/launch.json not found$(NC)"; \
-	fi
+go-backend-dev: ## Run Go backend in development mode
+	@echo "$(BLUE)Running Go backend in development mode...$(NC)"
+	CGO_LDFLAGS="$(CGO_LDFLAGS)" go run ./src/backend -config ./src/backend/config/config.development.json
+
 
 ##@ Build
 

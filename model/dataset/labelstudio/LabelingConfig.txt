@@ -2,13 +2,49 @@
   <Header value="Entity &amp; Coreference Annotation"/>
 
   <Labels name="entities" toName="text">
-    <Label value="Person" background="red"/>
-    <Label value="Email" background="darkorange"/>
-    <Label value="Phone Number" background="orange"/>
-    <Label value="Address" background="blue"/>
-    <Label value="SSN" background="purple"/>
-    <Label value="Pronoun" background="green"/>
-    <Label value="Other Entity" background="#777"/>
+    <!-- Person Information -->
+    <Label value="SURNAME" background="#e74c3c"/>        <!-- Red -->
+    <Label value="FIRSTNAME" background="#3498db"/>      <!-- Blue - contrasts with SURNAME -->
+
+    <!-- Contact Information -->
+    <Label value="EMAIL" background="#9b59b6"/>          <!-- Purple -->
+    <Label value="PHONENUMBER" background="#27ae60"/>    <!-- Green -->
+    <Label value="URL" background="#e67e22"/>            <!-- Orange -->
+
+    <!-- Address Information - High contrast colors for adjacent fields -->
+    <Label value="BUILDINGNUM" background="#f39c12"/>    <!-- Gold -->
+    <Label value="STREET" background="#c0392b"/>         <!-- Dark red -->
+    <Label value="CITY" background="#16a085"/>           <!-- Teal -->
+    <Label value="STATE" background="#8e44ad"/>          <!-- Purple -->
+    <Label value="ZIP" background="#e91e63"/>            <!-- Pink -->
+    <Label value="COUNTRY" background="#2c3e50"/>        <!-- Dark blue-gray -->
+
+    <!-- Date/Time Information -->
+    <Label value="DATEOFBIRTH" background="#d35400"/>    <!-- Dark orange -->
+    <Label value="AGE" background="#2980b9"/>            <!-- Blue -->
+
+    <!-- Identification Numbers - Varied colors -->
+    <Label value="SSN" background="#c2185b"/>            <!-- Magenta -->
+    <Label value="DRIVERLICENSENUM" background="#00bcd4"/>  <!-- Cyan -->
+    <Label value="PASSPORTID" background="#ff5722"/>     <!-- Red-orange -->
+    <Label value="NATIONALID" background="#4caf50"/>     <!-- Green -->
+    <Label value="IDCARDNUM" background="#9c27b0"/>      <!-- Purple -->
+    <Label value="TAXNUM" background="#607d8b"/>         <!-- Blue-gray -->
+    <Label value="LICENSEPLATENUM" background="#ffc107"/> <!-- Amber -->
+
+    <!-- Financial Information -->
+    <Label value="IBAN" background="#673ab7"/>           <!-- Deep purple -->
+
+    <!-- Organization Information -->
+    <Label value="COMPANYNAME" background="#795548"/>    <!-- Brown -->
+
+    <!-- Security Information -->
+    <Label value="PASSWORD" background="#f44336"/>       <!-- Bright red -->
+    <Label value="SECURITYTOKEN" background="#9c27b0"/>       <!-- Purple -->
+
+    <!-- Other -->
+    <Label value="OTHER" background="#D3D3D3" />
+
   </Labels>
 
   <Text name="text" value="$text" granularity="word"/>

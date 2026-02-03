@@ -148,9 +148,20 @@ export NODE_EXTRA_CA_CERTS=~/.yaak-proxy/certs/ca.crt
 
 **Test with curl:**
 ```bash
-curl -x http://localhost:8080 https://api.openai.com/v1/models
+# Set proxy environment variables
+export HTTP_PROXY=http://127.0.0.1:8081
+export HTTPS_PROXY=http://127.0.0.1:8081
+
+# Test request
+curl https://api.openai.com/v1/models
 # Should succeed without SSL errors
 ```
+
+**Test with browser (macOS with PAC enabled):**
+- Open Safari or Chrome
+- Navigate to `https://api.openai.com/v1/models`
+- Request automatically goes through proxy
+- No manual configuration needed!
 
 **Test with openssl:**
 ```bash
@@ -238,129 +249,544 @@ Model signing ensures the integrity and provenance of ML models. This is critica
 
 ### Signing Methods
 
-**1. OIDC Signing (Recommended for CI):**
+Yaak Proxy supports three methods for model signing:
 
-Uses Sigstore's keyless signing with OIDC tokens from CI platforms.
+#### 1. Hash-Only Verification (Default, No Browser)
+
+**Overview:**
+Generates cryptographic hashes (SHA-256, SHA-512) without creating a digital signature. This provides integrity verification but not provenance.
 
 **Advantages:**
-- No key management
-- Automatic identity verification
-- Transparent certificate logs
-- Industry standard
+- ✅ No authentication required
+- ✅ Works in any environment
+- ✅ Fast and deterministic
+- ✅ No external dependencies
+- ✅ No browser needed
 
-**Requirements:**
+**Limitations:**
+- ❌ No provenance verification
+- ❌ No signature verification
+- ❌ Just integrity checking
+
+**When to use:**
+- Local development
+- Quick integrity checks
+- Environments without signing infrastructure
+
+**Usage:**
+```bash
+# Automatically used when no key or CI OIDC available
+python model/src/model_signing.py model/quantized
+```
+
+#### 2. Private Key Signing (Recommended, No Browser)
+
+**Overview:**
+Traditional cryptographic key signing using ECDSA or RSA keys. Best for headless environments and CI/CD pipelines.
+
+**Advantages:**
+- ✅ No browser authentication required
+- ✅ Works in headless environments
+- ✅ Full control over keys
+- ✅ Works offline
+- ✅ Fast and deterministic
+
+**Limitations:**
+- ❌ Must manage private keys securely
+- ❌ Key compromise = signature validity compromised
+- ❌ No transparency log
+
+**When to use:**
+- Automated CI/CD pipelines
+- Headless servers
+- Offline environments
+- Production deployments
+
+**Usage:**
+See [Private Key Signing Setup](#private-key-signing-setup) below.
+
+#### 3. OIDC Signing (CI with Browser)
+
+**Overview:**
+Uses Sigstore's keyless signing with OIDC tokens from CI platforms or browser-based authentication.
+
+**Advantages:**
+- ✅ No key management
+- ✅ Automatic identity verification
+- ✅ Transparent certificate logs (Rekor)
+- ✅ Industry standard
+
+**Limitations:**
+- ❌ Requires browser (if not in CI)
+- ❌ Requires internet access
+- ❌ Requires OIDC-enabled CI or interactive session
+
+**When to use:**
 - CI with OIDC support (GitHub Actions, GitLab CI)
-- Internet access to Sigstore
+- Interactive local signing
+- Maximum transparency required
 
-**2. Private Key Signing:**
+### Private Key Signing Setup
 
-Traditional cryptographic key signing.
+This section provides detailed instructions for setting up private key signing for model integrity verification.
 
-**Advantages:**
-- Works offline
-- Full control over keys
-- No external dependencies
+#### Step 1: Generate Signing Keys
 
-**Requirements:**
-- Secure key generation/storage
-- Key rotation management
-- Secret management in CI
+**Generate ECDSA key (Recommended):**
 
-### Setup for GitHub Actions
+```bash
+# Create keys directory
+mkdir -p model/keys
 
-**OIDC Signing:**
+# Generate private key (ECDSA P-256)
+openssl ecparam -genkey -name prime256v1 -noout -out model/keys/signing_key.pem
 
-The `.github/workflows/sign-model.yml` workflow is pre-configured:
+# Extract public key
+openssl ec -in model/keys/signing_key.pem -pubout -out model/keys/signing_key.pub
+
+# Set restrictive permissions
+chmod 600 model/keys/signing_key.pem
+chmod 644 model/keys/signing_key.pub
+
+# Verify
+ls -lh model/keys/
+```
+
+**Alternative - Generate RSA key:**
+
+```bash
+# Generate RSA-2048 key
+openssl genrsa -out model/keys/signing_key.pem 2048
+
+# Extract public key
+openssl rsa -in model/keys/signing_key.pem -pubout -out model/keys/signing_key.pub
+
+# Set permissions
+chmod 600 model/keys/signing_key.pem
+chmod 644 model/keys/signing_key.pub
+```
+
+**Key Recommendations:**
+- ✅ ECDSA P-256 (prime256v1) - Smaller, faster, modern
+- ✅ RSA-2048 or higher - Widely supported, proven
+- ❌ Avoid RSA-1024 - Too weak
+- ❌ Avoid DSA - Deprecated
+
+#### Step 2: Secure Key Storage
+
+**Add to `.gitignore`:**
+
+```bash
+# Add to .gitignore to prevent committing private keys
+echo "model/keys/*.pem" >> .gitignore
+echo "model/keys/*_key.*" >> .gitignore
+
+# Verify it's ignored
+git status model/keys/signing_key.pem
+# Should show: nothing to commit
+```
+
+**Public key is safe to commit:**
+
+```bash
+# Public key can be committed for verification
+git add model/keys/signing_key.pub
+git commit -m "Add model signing public key"
+```
+
+#### Step 3: Local Development Setup
+
+**Option A - Environment Variable (Recommended):**
+
+```bash
+# Add to your shell profile (~/.bashrc, ~/.zshrc)
+export MODEL_SIGNING_KEY_PATH="$HOME/yaak-proxy/model/keys/signing_key.pem"
+
+# Or use direnv for project-specific config
+echo 'export MODEL_SIGNING_KEY_PATH="$(pwd)/model/keys/signing_key.pem"' > .envrc
+direnv allow
+```
+
+**Option B - Direct Path:**
+
+```bash
+# Pass directly when signing
+python model/src/model_signing.py model/quantized \
+  --private-key model/keys/signing_key.pem
+```
+
+**Sign the model:**
+
+```bash
+# Using environment variable
+python model/src/model_signing.py model/quantized
+
+# Or with direct path
+python model/src/model_signing.py model/quantized \
+  --private-key model/keys/signing_key.pem
+```
+
+**Expected output:**
+
+```
+Model SHA-256 Hash: b31b8ea1167ee0380c86d17205e2b25a06f7ac2c7839924928bf74605ed311ec
+Generated manifest with 25 files
+Using private key signing from: model/keys/signing_key.pem
+Model signed successfully: model/quantized.sig
+```
+
+#### Step 4: CI/CD Setup (GitHub Actions)
+
+**Store private key as secret:**
+
+```bash
+# Copy key content (keep the newlines!)
+cat model/keys/signing_key.pem | pbcopy  # macOS
+cat model/keys/signing_key.pem | xclip -selection clipboard  # Linux
+
+# Go to: GitHub repo → Settings → Secrets → Actions → New secret
+# Name: MODEL_SIGNING_PRIVATE_KEY
+# Value: <paste key content>
+```
+
+**Update workflow:**
 
 ```yaml
+# .github/workflows/train-model.yml
+name: Train and Sign Model
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          pip install -e ".[training,quantization,signing]"
+      
+      - name: Write signing key to file
+        run: |
+          mkdir -p model/keys
+          echo "${{ secrets.MODEL_SIGNING_PRIVATE_KEY }}" > model/keys/signing_key.pem
+          chmod 600 model/keys/signing_key.pem
+      
+      - name: Run training pipeline
+        env:
+          MODEL_SIGNING_KEY_PATH: model/keys/signing_key.pem
+        run: |
+          python model/flows/training_pipeline.py run
+      
+      - name: Verify signature
+        run: |
+          python -c "
+          from model.src.model_signing import ModelSigner
+          signer = ModelSigner('model/quantized')
+          assert signer.verify_signature('model/quantized.sig')
+          print('✅ Signature verified')
+          "
+      
+      - name: Upload signed model
+        uses: actions/upload-artifact@v4
+        with:
+          name: signed-model
+          path: |
+            model/quantized/
+            !model/quantized/model.onnx
+```
+
+#### Step 5: GitLab CI Setup
+
+**Store private key as variable:**
+
+```bash
+# GitLab: Settings → CI/CD → Variables → Add Variable
+# Key: MODEL_SIGNING_PRIVATE_KEY
+# Value: <paste key content>
+# Type: File (recommended) or Variable
+# Protected: Yes
+# Masked: No (contains newlines)
+```
+
+**Update `.gitlab-ci.yml`:**
+
+```yaml
+train-and-sign:
+  image: python:3.11
+  stage: train
+  script:
+    - pip install -e ".[training,quantization,signing]"
+    
+    # Write key to file
+    - mkdir -p model/keys
+    - echo "$MODEL_SIGNING_PRIVATE_KEY" > model/keys/signing_key.pem
+    - chmod 600 model/keys/signing_key.pem
+    
+    # Run training pipeline
+    - export MODEL_SIGNING_KEY_PATH=model/keys/signing_key.pem
+    - python model/flows/training_pipeline.py run
+    
+    # Verify signature
+    - python -c "from model.src.model_signing import ModelSigner; signer = ModelSigner('model/quantized'); assert signer.verify_signature('model/quantized.sig')"
+  
+  artifacts:
+    paths:
+      - model/quantized/
+    exclude:
+      - model/quantized/model.onnx
+```
+
+#### Step 6: Metaflow Pipeline Integration
+
+**The pipeline automatically uses the key if available:**
+
+```bash
+# Set environment variable before running
+export MODEL_SIGNING_KEY_PATH="$(pwd)/model/keys/signing_key.pem"
+
+# Run pipeline (will auto-detect and use key)
+uv run --extra training --extra quantization --extra signing \
+  python model/flows/training_pipeline.py run
+```
+
+**Output verification:**
+
+```
+[sign_model/6] Using private key signing from: model/keys/signing_key.pem
+[sign_model/6] Model signed successfully: /tmp/.../model/quantized.sig
+[sign_model/6] Signed (quantized): b31b8ea1167ee038...
+```
+
+#### Step 7: Verification
+
+**Verify signed model:**
+
+```python
+from model.src.model_signing import ModelSigner
+
+# Load signed model
+signer = ModelSigner('model/quantized')
+
+# Verify signature
+is_valid = signer.verify_signature('model/quantized.sig')
+print(f"Signature valid: {is_valid}")
+
+# Check manifest
+manifest = signer.generate_model_manifest()
+print(f"Model hash: {manifest['hashes']['sha256']}")
+print(f"Files: {len(manifest['files'])}")
+```
+
+**Verify from CLI:**
+
+```bash
+# Using model-signing CLI (if installed globally)
+model-signing verify \
+  --model-path model/quantized \
+  --signature model/quantized.sig \
+  --public-key model/keys/signing_key.pub
+```
+
+#### Key Rotation
+
+**When to rotate keys:**
+- Every 6-12 months (recommended)
+- After suspected compromise
+- Before major releases
+- When team members leave
+
+**How to rotate:**
+
+```bash
+# 1. Generate new key
+openssl ecparam -genkey -name prime256v1 -noout -out model/keys/signing_key_v2.pem
+openssl ec -in model/keys/signing_key_v2.pem -pubout -out model/keys/signing_key_v2.pub
+
+# 2. Update environment variables
+export MODEL_SIGNING_KEY_PATH="$(pwd)/model/keys/signing_key_v2.pem"
+
+# 3. Update CI/CD secrets with new key
+
+# 4. Re-sign all models
+python model/src/model_signing.py model/quantized --private-key model/keys/signing_key_v2.pem
+
+# 5. Archive old key (don't delete immediately)
+mv model/keys/signing_key.pem model/keys/signing_key_v1.pem.bak
+mv model/keys/signing_key.pub model/keys/signing_key_v1.pub.bak
+
+# 6. Rename new key
+mv model/keys/signing_key_v2.pem model/keys/signing_key.pem
+mv model/keys/signing_key_v2.pub model/keys/signing_key.pub
+```
+
+### OIDC Signing (Alternative, Requires Browser)
+
+If you prefer Sigstore's keyless signing and have OIDC support, you can use browser-based or CI-based OIDC authentication.
+
+**GitHub Actions with OIDC:**
+
+```yaml
+# .github/workflows/train-model.yml
+name: Train and Sign Model (OIDC)
+
+on:
+  workflow_dispatch:
+
 permissions:
   id-token: write  # Required for OIDC
   contents: read
   actions: read
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          pip install -e ".[training,quantization,signing]"
+      
+      - name: Run training pipeline (auto-detects CI OIDC)
+        run: |
+          python model/flows/training_pipeline.py run
+      
+      - name: Upload signed model
+        uses: actions/upload-artifact@v4
+        with:
+          name: signed-model
+          path: model/quantized/
 ```
 
-**Trigger:**
+**Local OIDC Signing (Requires Browser):**
+
 ```bash
-# Manual trigger
-gh workflow run sign-model.yml -f signing_method=oidc
-```
-
-**Private Key Signing:**
-
-1. **Generate keys:**
-```bash
-python src/scripts/generate_signing_key.py \
-  --private-key keys/signing_key.pem \
-  --public-key keys/signing_key.pub
-```
-
-2. **Store as secret:**
-   - GitHub: Settings → Secrets → `SIGNING_PRIVATE_KEY`
-   - GitLab: Settings → CI/CD → Variables
-
-3. **Trigger:**
-```bash
-gh workflow run sign-model.yml -f signing_method=private_key
-```
-
-### Local Signing
-
-**OIDC (requires browser):**
-```bash
+# Will open browser for authentication
 python model/src/model_signing.py model/quantized
 ```
 
-**Private Key:**
-```bash
-python model/src/model_signing.py model/quantized \
-  --private-key keys/signing_key.pem
-```
+**GitLab CI with OIDC:**
 
-### Verification
-
-**Verify signature:**
-```python
-from model.src.model_signing import ModelSigner
-
-signer = ModelSigner('model/quantized')
-if signer.verify_signature('model/quantized.sig'):
-    print("✓ Signature valid")
-else:
-    print("✗ Signature invalid")
-```
-
-**Check integrity:**
-```python
-signer = ModelSigner('model/quantized')
-current_hash = signer.compute_model_hash()
-manifest = signer.generate_model_manifest()
-stored_hash = manifest['hashes']['sha256']
-
-if current_hash == stored_hash:
-    print("✓ Model integrity verified")
+```yaml
+train-and-sign-oidc:
+  image: python:3.11
+  stage: train
+  id_tokens:
+    SIGSTORE_ID_TOKEN:
+      aud: sigstore
+  script:
+    - pip install -e ".[training,quantization,signing]"
+    - python model/flows/training_pipeline.py run
+  artifacts:
+    paths:
+      - model/quantized/
 ```
 
 ### Security Best Practices
 
-**Key Management:**
-- Never commit private keys
-- Use secure secret storage
-- Rotate keys regularly
-- Limit access to keys
-- Use strong encryption
+#### Key Management (Private Key Signing)
 
-**OIDC Security:**
-- Verify token audience
-- Use short-lived tokens
-- Monitor Rekor logs
-- Validate certificate chains
+**Storage:**
+- ✅ Store keys in secure secret management (GitHub Secrets, AWS Secrets Manager)
+- ✅ Use environment variables, never hardcode paths
+- ✅ Set restrictive file permissions (`chmod 600`)
+- ✅ Keep keys separate per environment (dev/staging/prod)
+- ❌ Never commit private keys to git
+- ❌ Never share keys via email or chat
+- ❌ Never store keys in plain text files in project
 
-**General:**
-- Sign close to production
-- Verify before deployment
-- Keep audit logs
-- Use isolated CI environments
-- Update dependencies regularly
+**Access Control:**
+- Limit who can access private keys
+- Use separate keys for different teams/purposes
+- Audit key access regularly
+- Revoke access when team members leave
+
+**Rotation:**
+- Rotate keys every 6-12 months minimum
+- Rotate immediately if compromised
+- Keep audit trail of key generations
+- Archive old keys securely (for verification of old signatures)
+
+**Backup:**
+- Store backup copies in secure locations
+- Use encrypted storage for backups
+- Document backup locations
+- Test recovery procedures
+
+#### OIDC Security
+
+**CI/CD Configuration:**
+- Use minimal permissions (`id-token: write` only)
+- Verify OIDC token audience
+- Use short-lived tokens (default)
+- Monitor Sigstore Rekor logs for unexpected signatures
+
+**Verification:**
+- Always verify signatures before deployment
+- Check certificate chains
+- Validate identity claims in certificates
+- Monitor for unauthorized signings
+
+#### General Signing Security
+
+**Development:**
+- ✅ Sign models close to production deployment
+- ✅ Verify signatures in CI/CD pipelines
+- ✅ Keep audit logs of all signing operations
+- ✅ Use isolated environments for signing
+- ✅ Regularly update signing dependencies
+- ❌ Don't sign untrusted models
+- ❌ Don't skip signature verification
+- ❌ Don't reuse compromised keys
+
+**Production:**
+- Verify signatures before loading models
+- Monitor for signature verification failures
+- Have incident response plan for key compromise
+- Maintain chain of custody documentation
+- Regular security audits of signing infrastructure
+
+**Compliance:**
+- Document signing procedures
+- Maintain signature verification logs
+- Implement change management for keys
+- Regular compliance audits
+- Penetration testing of signing infrastructure
+
+#### Incident Response
+
+**If private key is compromised:**
+
+1. **Immediately revoke the key** - Remove from all systems
+2. **Generate new key pair** - Follow rotation procedure
+3. **Re-sign all models** - With new key
+4. **Notify stakeholders** - Security team, users
+5. **Audit impact** - Check which models were signed with compromised key
+6. **Update documentation** - Record incident and actions taken
+
+**If signature verification fails:**
+
+1. **Stop deployment** - Don't use unverified model
+2. **Investigate cause** - Tampering vs. process error
+3. **Verify model hash** - Check against known good hash
+4. **Re-sign if process error** - From trusted source
+5. **Report if tampering** - Security incident
+6. **Document resolution** - For audit trail
 
 ## Build Troubleshooting
 

@@ -3,6 +3,8 @@ package config
 import (
 	"os"
 	"path/filepath"
+
+	"github.com/hannes/yaak-private/src/backend/providers"
 )
 
 // LoggingConfig holds logging configuration options
@@ -17,36 +19,42 @@ type LoggingConfig struct {
 
 // DatabaseConfig holds database configuration
 type DatabaseConfig struct {
-	Enabled      bool   // Whether to use database storage
-	Host         string // Database host
-	Port         int    // Database port
-	Database     string // Database name
-	Username     string // Database username
-	Password     string // Database password
-	SSLMode      string // SSL mode (disable, require, etc.)
-	MaxOpenConns int    // Maximum open connections
-	MaxIdleConns int    // Maximum idle connections
-	MaxLifetime  int    // Connection max lifetime in seconds
-	UseCache     bool   // Whether to use in-memory cache
+	Path         string // Path to SQLite database file
 	CleanupHours int    // Hours after which to cleanup old mappings
+}
+
+// Provider config structs
+type DefaultProvidersConfig struct {
+	OpenAISubpath providers.ProviderType `json:"openai_subpath"`
+}
+
+type ProviderConfig struct {
+	APIDomain         string            `json:"api_domain"`
+	APIKey            string            `json:"api_key"`
+	AdditionalHeaders map[string]string `json:"additional_headers"`
+}
+
+type ProvidersConfig struct {
+	DefaultProvidersConfig  DefaultProvidersConfig `json:"default_providers_config"`
+	OpenAIProviderConfig    ProviderConfig         `json:"openai_provider_config"`
+	AnthropicProviderConfig ProviderConfig         `json:"anthropic_provider_config"`
+	GeminiProviderConfig    ProviderConfig         `json:"gemini_provider_config"`
+	MistralProviderConfig   ProviderConfig         `json:"mistral_provider_config"`
 }
 
 // ProxyConfig holds transparent proxy configuration
 type ProxyConfig struct {
-	TransparentEnabled bool     `json:"transparent_enabled"`
-	InterceptDomains   []string `json:"intercept_domains"`
-	ProxyPort          string   `json:"proxy_port"`
-	CAPath             string   `json:"ca_path"`
-	KeyPath            string   `json:"key_path"`
+	TransparentEnabled bool   `json:"transparent_enabled"`
+	ProxyPort          string `json:"proxy_port"`
+	CAPath             string `json:"ca_path"`
+	KeyPath            string `json:"key_path"`
+	EnablePAC          bool   `json:"enable_pac"` // Enable PAC (Proxy Auto-Config) for automatic system proxy setup
 }
 
 // Config holds all configuration for the PII proxy service
 type Config struct {
-	OpenAIBaseURL      string
-	OpenAIAPIKey       string
+	Providers          ProvidersConfig `json:"providers"`
 	ProxyPort          string
-	DetectorName       string
-	ModelBaseURL       string
 	Database           DatabaseConfig
 	Logging            LoggingConfig
 	ONNXModelPath      string
@@ -58,31 +66,48 @@ type Config struct {
 
 // DefaultConfig returns the default configuration
 func DefaultConfig() *Config {
+	// Provider parameters
+	defaultProvidersConfig := DefaultProvidersConfig{
+		OpenAISubpath: providers.ProviderTypeOpenAI,
+	}
+
+	defaultOpenAIProviderConfig := ProviderConfig{
+		APIDomain:         providers.ProviderAPIDomainOpenAI,
+		AdditionalHeaders: map[string]string{},
+	}
+	defaultAnthropicProviderConfig := ProviderConfig{
+		APIDomain:         providers.ProviderAPIDomainAnthropic,
+		AdditionalHeaders: map[string]string{},
+	}
+	defaultGeminiProviderConfig := ProviderConfig{
+		APIDomain:         providers.ProviderAPIDomainGemini,
+		AdditionalHeaders: map[string]string{},
+	}
+	defaultMistralProviderConfig := ProviderConfig{
+		APIDomain:         providers.ProviderAPIDomainMistral,
+		AdditionalHeaders: map[string]string{},
+	}
+
+	// Transparent proxy parameters
 	homeDir, _ := os.UserHomeDir()
-	caPath := filepath.Join(homeDir, ".yaak-proxy", "ca-cert.pem")
-	keyPath := filepath.Join(homeDir, ".yaak-proxy", "ca-key.pem")
+	caPath := filepath.Join(homeDir, ".yaak-proxy", "certs", "ca.crt")
+	keyPath := filepath.Join(homeDir, ".yaak-proxy", "certs", "ca.key")
 
 	return &Config{
-		OpenAIBaseURL:      "https://api.openai.com/v1",
+		Providers: ProvidersConfig{
+			DefaultProvidersConfig:  defaultProvidersConfig,
+			OpenAIProviderConfig:    defaultOpenAIProviderConfig,
+			AnthropicProviderConfig: defaultAnthropicProviderConfig,
+			GeminiProviderConfig:    defaultGeminiProviderConfig,
+			MistralProviderConfig:   defaultMistralProviderConfig,
+		},
 		ProxyPort:          ":8080",
-		DetectorName:       "onnx_model_detector",
-		ModelBaseURL:       "http://localhost:8000",
 		ONNXModelPath:      "model/quantized/model_quantized.onnx",
 		TokenizerPath:      "model/quantized/tokenizer.json",
 		ONNXModelDirectory: "model/quantized",
 		UIPath:             "./src/frontend/dist",
 		Database: DatabaseConfig{
-			Enabled:      false,
-			Host:         "localhost",
-			Port:         5432,
-			Database:     "yaak",
-			Username:     "postgres",
-			Password:     "",
-			SSLMode:      "disable",
-			MaxOpenConns: 25,
-			MaxIdleConns: 25,
-			MaxLifetime:  300,
-			UseCache:     true,
+			Path:         "yaak.db",
 			CleanupHours: 24,
 		},
 		Logging: LoggingConfig{
@@ -94,11 +119,21 @@ func DefaultConfig() *Config {
 		},
 		Proxy: ProxyConfig{
 			TransparentEnabled: true,
-			InterceptDomains:   []string{"api.openai.com", "openai.com"},
 			ProxyPort:          ":8081",
 			CAPath:             caPath,
 			KeyPath:            keyPath,
+			EnablePAC:          true, // Enable PAC by default for automatic proxy configuration
 		},
+	}
+}
+
+// GetInterceptDomains returns the list of intercept domains (as a union of all provider domains)
+func (pc ProvidersConfig) GetInterceptDomains() []string {
+	return []string{
+		pc.AnthropicProviderConfig.APIDomain,
+		pc.OpenAIProviderConfig.APIDomain,
+		pc.GeminiProviderConfig.APIDomain,
+		pc.MistralProviderConfig.APIDomain,
 	}
 }
 

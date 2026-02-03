@@ -23,11 +23,34 @@ jobs:
       github.event_name == 'workflow_dispatch'
 
     runs-on: macos-latest
+    environment: "DMG Build Environment"
 
     permissions:
       contents: write # Required to create releases
 
     steps:
+      - name: Verify signing secrets are available
+        run: |
+          MISSING=""
+          [ -z "$CSC_LINK" ] && MISSING="$MISSING CSC_LINK"
+          [ -z "$CSC_KEY_PASSWORD" ] && MISSING="$MISSING CSC_KEY_PASSWORD"
+          # Notarization is currently disabled; uncomment these checks when re-enabled:
+          # [ -z "$APPLE_ID" ] && MISSING="$MISSING APPLE_ID"
+          # [ -z "$APPLE_APP_SPECIFIC_PASSWORD" ] && MISSING="$MISSING APPLE_APP_SPECIFIC_PASSWORD"
+          # [ -z "$APPLE_TEAM_ID" ] && MISSING="$MISSING APPLE_TEAM_ID"
+          if [ -n "$MISSING" ]; then
+            echo "::error::Missing required environment secrets:$MISSING"
+            echo "Ensure the 'DMG Build Environment' environment is configured with all required secrets."
+            exit 1
+          fi
+          echo "All signing secrets are set."
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
@@ -38,6 +61,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: "1.21"
+          cache: false
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -68,26 +92,6 @@ jobs:
           key: lfs-${{ runner.os }}-${{ hashFiles('.gitattributes') }}
           restore-keys: |
             lfs-${{ runner.os }}-
-
-      - name: Cache Go modules
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/go/pkg/mod
-            ~/.cache/go-build
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
-
-      - name: Cache Python packages
-        uses: actions/cache@v4
-        with:
-          path: |
-            .venv
-            ~/.cache/pip
-          key: ${{ runner.os }}-python-${{ hashFiles('**/pyproject.toml', '**/uv.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-python-
 
       - name: Cache Rust/Cargo
         uses: actions/cache@v4
@@ -147,6 +151,9 @@ jobs:
           uv venv --python 3.13
           uv pip install onnxruntime
 
+      - name: Install Root Dependencies
+        run: npm ci
+
       - name: Install Frontend Dependencies
         run: |
           cd src/frontend
@@ -155,7 +162,19 @@ jobs:
       - name: Build DMG
         run: make build-dmg
         env:
-          SKIP_DMG_SIGNING: false
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+          # Update CSC_LINK:**
+          # 1. In [Apple Developer Portal](https://developer.apple.com/account/resources/certificates/list), create or find a **"Developer ID Application"** certificate (under "Software" → "Developer ID Application")
+          # 2. Export it as a `.p12` file from Keychain Access (with a password)
+          # 3. Base64-encode it: `base64 -i certificate.p12 | pbcopy`
+          # 4. Update the `CSC_LINK` secret in your GitHub environment with the base64 string
+          # 5. Update `CSC_KEY_PASSWORD` with the `.p12` export password
+          # The "Apple Development" certificate type is for local development/testing via Xcode. Only "Developer ID Application" certificates are accepted by Apple's notarization service for distributing outside the App Store.
 
       - name: Rename DMG with Version
         run: |
@@ -205,12 +224,6 @@ jobs:
             1. Download `Yaak-Privacy-Proxy-${{ steps.version.outputs.version }}.dmg`
             2. Open the DMG and drag to Applications
             3. Launch "Yaak Privacy Proxy"
-
-            **If you see "damaged app" warning:**
-            ```bash
-            xattr -cr "/Applications/Yaak Privacy Proxy.app"
-            ```
-            Then launch again. This is required because the app is not code-signed with an Apple Developer certificate.
 
             **HTTPS Support - Install CA Certificate:**
 

@@ -11,10 +11,9 @@
       "program": "${workspaceFolder}/src/backend",
       "cwd": "${workspaceFolder}",
       "envFile": "${workspaceFolder}/.env",
-      "buildFlags": "-ldflags='-X main.version=0.2.4-dev'",
+      "buildFlags": "-ldflags='-X main.version=0.3.6-dev'",
       "env": {
         "PROXY_PORT": ":8080",
-        "OPENAI_BASE_URL": "https://api.openai.com/v1",
         "DETECTOR_NAME": "onnx_model_detector",
         "MODEL_BASE_URL": "http://localhost:8000",
         "DB_ENABLED": "false",

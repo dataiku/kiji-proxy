@@ -24,6 +24,11 @@ venv/
 ENV/
 env/
 
+# uv (Python package manager)
+# Note: uv.lock should be committed for reproducible builds
+.uv/
+.uvcache/
+
 # Go
 *.exe
 *.dll
@@ -37,7 +42,7 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-package-lock.json
+# Note: package-lock.json should be committed for reproducible builds
 
 # IDEs
 # .vscode/
@@ -73,11 +78,21 @@ release/
 *.safetensors.bak
 src/frontend/resources
 src/backend/model/
+model/trained/
 
+# model signing key
+model/keys/**
 
 # Dataset folders
-model/dataset/samples/
-model/dataset/reviewed_samples/
-model/dataset/annotation_samples/
-model/dataset/training_samples/
+model/dataset/data_samples/samples/
+model/dataset/data_samples/reviewed_samples/
+model/dataset/data_samples/annotation_samples/
+model/dataset/data_samples/training_samples/
+model/dataset/doubleword/temp/
 Archive.zip
+
+# Pipeline folders
+.metaflow/
+
+# AI assistant files
+CLAUDE.md

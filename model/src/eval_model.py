@@ -19,12 +19,12 @@ of the multi-task model, showing detected entities and how they are clustered.
 
 import argparse
 import json
-import logging
 import sys
 import time
 from pathlib import Path
 
 import torch
+from absl import logging
 from safetensors import safe_open
 from transformers import AutoTokenizer
 
@@ -37,10 +37,6 @@ try:
     from model.model import MultiTaskPIIDetectionModel
 except ImportError:
     from .model import MultiTaskPIIDetectionModel
-
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 
 # =============================================================================
@@ -83,7 +79,7 @@ class PIIModelLoader:
 
     def load_model(self):
         """Load multi-task model, tokenizer, and label mappings."""
-        logger.info(f"\n📥 Loading model from: {self.model_path}")
+        logging.info(f"\n📥 Loading model from: {self.model_path}")
 
         # Load label mappings
         mappings_path = Path(self.model_path) / "label_mappings.json"
@@ -99,20 +95,20 @@ class PIIModelLoader:
         # Load PII label mappings
         self.pii_label2id = mappings["pii"]["label2id"]
         self.pii_id2label = {int(k): v for k, v in mappings["pii"]["id2label"].items()}
-        logger.info(f"✅ Loaded {len(self.pii_label2id)} PII label mappings")
+        logging.info(f"✅ Loaded {len(self.pii_label2id)} PII label mappings")
 
         # Load co-reference label mappings
         if "coref" in mappings:
             self.coref_id2label = {
                 int(k): v for k, v in mappings["coref"]["id2label"].items()
             }
-            logger.info(
+            logging.info(
                 f"✅ Loaded {len(self.coref_id2label)} co-reference label mappings"
             )
 
         # Load tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_path)
-        logger.info("✅ Loaded tokenizer")
+        logging.info("✅ Loaded tokenizer")
 
         # Load model config to get base model name
         config_path = Path(self.model_path) / "config.json"
@@ -128,7 +124,7 @@ class PIIModelLoader:
                 base_model_name = "distilbert-base-cased"
         else:
             base_model_name = "distilbert-base-cased"
-            logger.warning(
+            logging.warning(
                 "⚠️  config.json not found, using default: distilbert-base-cased"
             )
 
@@ -151,12 +147,12 @@ class PIIModelLoader:
                 bin_files = list(Path(self.model_path).glob("*.bin"))
                 if bin_files:
                     model_weights_path = bin_files[0]
-                    logger.info(f"   Found weights: {model_weights_path.name}")
+                    logging.info(f"   Found weights: {model_weights_path.name}")
 
         # Load model weights first to determine correct num_coref_labels
         state_dict = None
         if model_weights_path.exists():
-            logger.info(f"📦 Loading weights from: {model_weights_path.name}")
+            logging.info(f"📦 Loading weights from: {model_weights_path.name}")
 
             # Handle safetensors files
             if model_weights_path.suffix == ".safetensors":
@@ -182,15 +178,15 @@ class PIIModelLoader:
             for key in state_dict.keys():
                 if "coref_classifier.weight" in key:
                     num_coref_labels = state_dict[key].shape[0]
-                    logger.info(
+                    logging.info(
                         f"   Detected {num_coref_labels} co-reference labels from model weights"
                     )
                     break
 
-        logger.info("📋 Model configuration:")
-        logger.info(f"   Base model: {base_model_name}")
-        logger.info(f"   PII labels: {num_pii_labels}")
-        logger.info(f"   Co-reference labels: {num_coref_labels}")
+        logging.info("📋 Model configuration:")
+        logging.info(f"   Base model: {base_model_name}")
+        logging.info(f"   PII labels: {num_pii_labels}")
+        logging.info(f"   Co-reference labels: {num_coref_labels}")
 
         # Load multi-task model
         self.model = MultiTaskPIIDetectionModel(
@@ -224,9 +220,9 @@ class PIIModelLoader:
                     }
 
             self.model.load_state_dict(state_dict, strict=False)
-            logger.info("✅ Model weights loaded")
+            logging.info("✅ Model weights loaded")
         else:
-            logger.warning(
+            logging.warning(
                 "⚠️  Model weights not found, using randomly initialized model"
             )
 
@@ -236,7 +232,7 @@ class PIIModelLoader:
         device_name = (
             "MPS (Apple Silicon)" if self.device.type == "mps" else str(self.device)
         )
-        logger.info(f"✅ Loaded model on device: {device_name}")
+        logging.info(f"✅ Loaded model on device: {device_name}")
 
     def predict(
         self, text: str
@@ -523,20 +519,20 @@ def print_results(
         inference_time_ms: Inference time in milliseconds
         coref_id2label: Optional mapping from cluster ID to label name
     """
-    logger.info(f"\n{'=' * 80}")
-    logger.info(f"Test Case {case_num}")
-    logger.info(f"{'=' * 80}")
-    logger.info(f"Text: {text}")
-    logger.info(f"Inference Time: {inference_time_ms:.2f} ms")
+    logging.info(f"\n{'=' * 80}")
+    logging.info(f"Test Case {case_num}")
+    logging.info(f"{'=' * 80}")
+    logging.info(f"Text: {text}")
+    logging.info(f"Inference Time: {inference_time_ms:.2f} ms")
 
-    logger.info("\n🔍 Detected PII Entities:")
+    logging.info("\n🔍 Detected PII Entities:")
     if entities:
         for entity_text, label, start, end in entities:
-            logger.info(f"  • [{label}] '{entity_text}' (position {start}-{end})")
+            logging.info(f"  • [{label}] '{entity_text}' (position {start}-{end})")
     else:
-        logger.info("  (No PII entities detected)")
+        logging.info("  (No PII entities detected)")
 
-    logger.info("\n🔗 Co-reference Clusters:")
+    logging.info("\n🔗 Co-reference Clusters:")
     if coref_clusters:
         # Sort clusters by ID for consistent output
         for cluster_id in sorted(coref_clusters.keys()):
@@ -545,11 +541,11 @@ def print_results(
             else:
                 cluster_label = f"CLUSTER_{cluster_id}"
             spans = coref_clusters[cluster_id]
-            logger.info(f"  • {cluster_label} ({len(spans)} mention(s)):")
+            logging.info(f"  • {cluster_label} ({len(spans)} mention(s)):")
             for token_text, start, end in spans:
-                logger.info(f"      - '{token_text}' (position {start}-{end})")
+                logging.info(f"      - '{token_text}' (position {start}-{end})")
     else:
-        logger.info("  (No co-reference clusters detected)")
+        logging.info("  (No co-reference clusters detected)")
 
 
 def main():
@@ -570,44 +566,44 @@ def main():
 
     args = parser.parse_args()
 
-    logger.info("=" * 80)
-    logger.info("PII Detection Model Evaluation")
-    logger.info("=" * 80)
+    logging.info("=" * 80)
+    logging.info("PII Detection Model Evaluation")
+    logging.info("=" * 80)
 
     # Determine model path
     model_path = args.local_model
 
     # Try to find model if path doesn't exist
     if not Path(model_path).exists():
-        logger.warning(f"⚠️  Model path not found: {model_path}")
+        logging.warning(f"⚠️  Model path not found: {model_path}")
         # Try common locations
         local_paths = ["./model/trained", "../model/trained", "model/trained"]
         for path in local_paths:
             if Path(path).exists():
                 model_path = path
-                logger.info(f"✅ Found model at: {model_path}")
+                logging.info(f"✅ Found model at: {model_path}")
                 break
 
     if not Path(model_path).exists():
-        logger.error("\n❌ No model found! Please specify a valid model path.")
-        logger.error(f"   Searched: {args.local_model}")
-        logger.error("   Use --local-model <path> to specify a local model")
+        logging.error("\n❌ No model found! Please specify a valid model path.")
+        logging.error(f"   Searched: {args.local_model}")
+        logging.error("   Use --local-model <path> to specify a local model")
         return
 
-    logger.info(f"\n📁 Using model: {model_path}")
+    logging.info(f"\n📁 Using model: {model_path}")
 
     # Check device availability
     device = get_device()
     device_name = "MPS (Apple Silicon)" if device.type == "mps" else str(device)
-    logger.info(f"🖥️  Device: {device_name}")
+    logging.info(f"🖥️  Device: {device_name}")
 
     # Load model
-    logger.info("\n📥 Loading model...")
+    logging.info("\n📥 Loading model...")
     loader = PIIModelLoader(model_path)
     loader.load_model()
 
     # Run inference on test cases
-    logger.info(
+    logging.info(
         f"\n🚀 Running inference on {min(args.num_tests, len(TEST_CASES))} test cases..."
     )
 
@@ -636,28 +632,28 @@ def main():
     total_time = sum(inference_times)
 
     # Summary
-    logger.info(f"\n{'=' * 80}")
-    logger.info("✅ Evaluation Complete!")
-    logger.info(f"{'=' * 80}")
-    logger.info(f"Model: {model_path}")
-    logger.info(f"Device: {loader.device}")
-    logger.info(f"Test cases processed: {min(args.num_tests, len(TEST_CASES))}")
-    logger.info("\n📊 Inference Time Statistics:")
-    logger.info(f"  Total time: {total_time:.2f} ms ({total_time / 1000:.3f} seconds)")
-    logger.info(f"  Average time per test: {avg_time:.2f} ms")
-    logger.info(f"  Min time: {min_time:.2f} ms")
-    logger.info(f"  Max time: {max_time:.2f} ms")
-    logger.info(f"  Throughput: {1000 / avg_time:.2f} texts/second")
-    logger.info("\n📈 Detection Statistics:")
-    logger.info(f"  Total PII entities detected: {total_entities}")
-    logger.info(
+    logging.info(f"\n{'=' * 80}")
+    logging.info("✅ Evaluation Complete!")
+    logging.info(f"{'=' * 80}")
+    logging.info(f"Model: {model_path}")
+    logging.info(f"Device: {loader.device}")
+    logging.info(f"Test cases processed: {min(args.num_tests, len(TEST_CASES))}")
+    logging.info("\n📊 Inference Time Statistics:")
+    logging.info(f"  Total time: {total_time:.2f} ms ({total_time / 1000:.3f} seconds)")
+    logging.info(f"  Average time per test: {avg_time:.2f} ms")
+    logging.info(f"  Min time: {min_time:.2f} ms")
+    logging.info(f"  Max time: {max_time:.2f} ms")
+    logging.info(f"  Throughput: {1000 / avg_time:.2f} texts/second")
+    logging.info("\n📈 Detection Statistics:")
+    logging.info(f"  Total PII entities detected: {total_entities}")
+    logging.info(
         f"  Average entities per test: {total_entities / len(inference_times):.1f}"
     )
-    logger.info(f"  Total co-reference clusters detected: {total_clusters}")
-    logger.info(
+    logging.info(f"  Total co-reference clusters detected: {total_clusters}")
+    logging.info(
         f"  Average clusters per test: {total_clusters / len(inference_times):.1f}"
     )
-    logger.info(f"{'=' * 80}\n")
+    logging.info(f"{'=' * 80}\n")
 
 
 if __name__ == "__main__":

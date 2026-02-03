@@ -4,10 +4,59 @@ import {
   Save,
   Key,
   Server,
+  ChevronDown,
+  ChevronRight,
   AlertCircle,
   CheckCircle2,
+  Cpu,
   FolderOpen,
 } from "lucide-react";
+
+type ProviderType = "openai" | "anthropic" | "gemini" | "mistral";
+
+interface ProviderSettings {
+  hasApiKey: boolean;
+  model: string;
+}
+
+interface ProvidersConfig {
+  activeProvider: ProviderType;
+  providers: Record<ProviderType, ProviderSettings>;
+}
+
+// Provider display information
+const PROVIDER_INFO: Record<
+  ProviderType,
+  { name: string; defaultModel: string; placeholder: string }
+> = {
+  openai: {
+    name: "OpenAI",
+    defaultModel: "gpt-3.5-turbo",
+    placeholder: "sk-...",
+  },
+  anthropic: {
+    name: "Anthropic",
+    defaultModel: "claude-3-haiku-20240307",
+    placeholder: "sk-ant-...",
+  },
+  gemini: {
+    name: "Gemini",
+    defaultModel: "gemini-flash-latest",
+    placeholder: "AIza...",
+  },
+  mistral: {
+    name: "Mistral",
+    defaultModel: "mistral-small-latest",
+    placeholder: "...",
+  },
+};
+
+const PROVIDER_ORDER: ProviderType[] = [
+  "openai",
+  "anthropic",
+  "gemini",
+  "mistral",
+];
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -15,15 +64,47 @@ interface SettingsModalProps {
 }
 
 export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
-  const [apiKey, setApiKey] = useState("");
-  const [forwardEndpoint, setForwardEndpoint] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<{
     type: "success" | "error";
     text: string;
   } | null>(null);
-  const [hasApiKey, setHasApiKey] = useState(false);
+
+  // Provider state
+  const [providersConfig, setProvidersConfig] = useState<ProvidersConfig>({
+    activeProvider: "openai",
+    providers: {
+      openai: { hasApiKey: false, model: "" },
+      anthropic: { hasApiKey: false, model: "" },
+      gemini: { hasApiKey: false, model: "" },
+      mistral: { hasApiKey: false, model: "" },
+    },
+  });
+
+  // Expanded accordion state
+  const [expandedProvider, setExpandedProvider] = useState<ProviderType | null>(
+    null
+  );
+
+  // Form state for each provider (API key inputs and model overrides)
+  const [providerApiKeys, setProviderApiKeys] = useState<
+    Record<ProviderType, string>
+  >({
+    openai: "",
+    anthropic: "",
+    gemini: "",
+    mistral: "",
+  });
+
+  const [providerModels, setProviderModels] = useState<
+    Record<ProviderType, string>
+  >({
+    openai: "",
+    anthropic: "",
+    gemini: "",
+    mistral: "",
+  });
 
   // Model directory state
   const [modelDirectory, setModelDirectory] = useState("");
@@ -54,15 +135,29 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
     setIsLoading(true);
     try {
-      const [storedApiKey, storedForwardEndpoint] = await Promise.all([
-        window.electronAPI.getApiKey(),
-        window.electronAPI.getForwardEndpoint(),
-      ]);
+      const config = await window.electronAPI.getProvidersConfig();
+      setProvidersConfig(config);
+      setExpandedProvider(config.activeProvider);
 
-      // Don't show the actual API key, just indicate if one exists
-      setHasApiKey(!!storedApiKey);
-      setApiKey(""); // Clear the input
-      setForwardEndpoint(storedForwardEndpoint || "https://api.openai.com/v1");
+      // Load models from config
+      const models: Record<ProviderType, string> = {
+        openai: "",
+        anthropic: "",
+        gemini: "",
+        mistral: "",
+      };
+      for (const provider of PROVIDER_ORDER) {
+        models[provider] = config.providers[provider]?.model || "";
+      }
+      setProviderModels(models);
+
+      // Clear API key inputs
+      setProviderApiKeys({
+        openai: "",
+        anthropic: "",
+        gemini: "",
+        mistral: "",
+      });
     } catch (error) {
       console.error("Error loading settings:", error);
       setMessage({ type: "error", text: "Failed to load settings" });
@@ -160,49 +255,57 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     setMessage(null);
 
     try {
-      // Validate forward endpoint
-      if (forwardEndpoint && forwardEndpoint.trim()) {
-        try {
-          new URL(forwardEndpoint.trim());
-        } catch {
+      // Save API keys and models for each provider
+      for (const provider of PROVIDER_ORDER) {
+        // Save API key if provided
+        if (providerApiKeys[provider].trim()) {
+          const keyResult = await window.electronAPI.setProviderApiKey(
+            provider,
+            providerApiKeys[provider].trim()
+          );
+          if (!keyResult.success) {
+            setMessage({
+              type: "error",
+              text:
+                keyResult.error ||
+                `Failed to save ${PROVIDER_INFO[provider].name} API key`,
+            });
+            setIsSaving(false);
+            return;
+          }
+        }
+
+        // Save model override
+        const modelResult = await window.electronAPI.setProviderModel(
+          provider,
+          providerModels[provider].trim()
+        );
+        if (!modelResult.success) {
           setMessage({
             type: "error",
-            text: "Invalid forward endpoint format",
+            text:
+              modelResult.error ||
+              `Failed to save ${PROVIDER_INFO[provider].name} model`,
           });
           setIsSaving(false);
           return;
         }
-      }
-
-      // Save API key if provided
-      if (apiKey.trim()) {
-        const result = await window.electronAPI.setApiKey(apiKey.trim());
-        if (!result.success) {
-          setMessage({
-            type: "error",
-            text: result.error || "Failed to save API key",
-          });
-          setIsSaving(false);
-          return;
-        }
-        setHasApiKey(true);
-        setApiKey(""); // Clear after saving
-      }
-
-      // Save forward endpoint
-      const urlResult = await window.electronAPI.setForwardEndpoint(
-        forwardEndpoint.trim()
-      );
-      if (!urlResult.success) {
-        setMessage({
-          type: "error",
-          text: urlResult.error || "Failed to save forward endpoint",
-        });
-        setIsSaving(false);
-        return;
       }
 
       setMessage({ type: "success", text: "Settings saved successfully!" });
+
+      // Reload config to update hasApiKey status
+      const updatedConfig = await window.electronAPI.getProvidersConfig();
+      setProvidersConfig(updatedConfig);
+
+      // Clear API key inputs after successful save
+      setProviderApiKeys({
+        openai: "",
+        anthropic: "",
+        gemini: "",
+        mistral: "",
+      });
+
       setTimeout(() => {
         onClose();
       }, 1000);
@@ -214,18 +317,28 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     }
   };
 
-  const handleClearApiKey = async () => {
+  const handleClearApiKey = async (provider: ProviderType) => {
     if (!window.electronAPI) return;
 
     setIsSaving(true);
     setMessage(null);
 
     try {
-      const result = await window.electronAPI.setApiKey("");
+      const result = await window.electronAPI.setProviderApiKey(provider, "");
       if (result.success) {
-        setHasApiKey(false);
-        setApiKey("");
-        setMessage({ type: "success", text: "API key cleared" });
+        // Update local state
+        setProvidersConfig((prev) => ({
+          ...prev,
+          providers: {
+            ...prev.providers,
+            [provider]: { ...prev.providers[provider], hasApiKey: false },
+          },
+        }));
+        setProviderApiKeys((prev) => ({ ...prev, [provider]: "" }));
+        setMessage({
+          type: "success",
+          text: `${PROVIDER_INFO[provider].name} API key cleared`,
+        });
       } else {
         setMessage({
           type: "error",
@@ -238,6 +351,10 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const toggleProviderExpansion = (provider: ProviderType) => {
+    setExpandedProvider(expandedProvider === provider ? null : provider);
   };
 
   if (!isOpen) return null;
@@ -283,60 +400,121 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           </div>
         ) : (
           <div className="space-y-6">
-            {/* OpenAI API Key */}
+            {/* Provider Settings Accordion */}
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
-                <Key className="w-4 h-4" />
-                OpenAI API Key
+              <label className="block text-sm font-semibold text-slate-700 mb-3">
+                Provider Settings
               </label>
-              <div className="space-y-2">
-                {hasApiKey && !apiKey && (
-                  <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 p-2 rounded">
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>API key is configured</span>
-                  </div>
-                )}
-                <input
-                  type="password"
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  placeholder={
-                    hasApiKey
-                      ? "Enter new API key to update"
-                      : "Enter your OpenAI API key"
-                  }
-                  className="w-full px-4 py-2 border-2 border-slate-200 rounded-lg focus:border-blue-500 focus:outline-none font-mono text-sm placeholder:text-gray-400"
-                />
-                {hasApiKey && (
-                  <button
-                    onClick={handleClearApiKey}
-                    className="text-sm text-red-600 hover:text-red-700 transition-colors"
-                  >
-                    Clear API key
-                  </button>
-                )}
-                <p className="text-xs text-slate-500">
-                  Your API key is stored securely using system keychain
-                  encryption.
-                </p>
-              </div>
-            </div>
+              <div className="border-2 border-slate-200 rounded-lg overflow-hidden">
+                {PROVIDER_ORDER.map((provider, index) => {
+                  const info = PROVIDER_INFO[provider];
+                  const config = providersConfig.providers[provider];
+                  const isExpanded = expandedProvider === provider;
 
-            {/* Forward Endpoint */}
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
-                <Server className="w-4 h-4" />
-                Forward Endpoint
-              </label>
-              <input
-                type="text"
-                value={forwardEndpoint}
-                onChange={(e) => setForwardEndpoint(e.target.value)}
-                placeholder="https://api.openai.com/v1"
-                className="w-full px-4 py-2 border-2 border-slate-200 rounded-lg focus:border-blue-500 focus:outline-none font-mono text-sm placeholder:text-gray-400"
-              />
-              <p className="text-xs text-slate-500 mt-1">
-                URL of the Privacy Proxy forward endpoint
+                  return (
+                    <div
+                      key={provider}
+                      className={index > 0 ? "border-t border-slate-200" : ""}
+                    >
+                      {/* Accordion Header */}
+                      <button
+                        onClick={() => toggleProviderExpansion(provider)}
+                        className="w-full px-4 py-3 flex items-center justify-between hover:bg-slate-50 transition-colors"
+                      >
+                        <div className="flex items-center gap-2">
+                          {isExpanded ? (
+                            <ChevronDown className="w-4 h-4 text-slate-500" />
+                          ) : (
+                            <ChevronRight className="w-4 h-4 text-slate-500" />
+                          )}
+                          <span className="font-medium text-slate-700">
+                            {info.name}
+                          </span>
+                        </div>
+                        <span
+                          className={`text-xs px-2 py-1 rounded ${
+                            config?.hasApiKey
+                              ? "bg-green-100 text-green-700"
+                              : "bg-slate-100 text-slate-500"
+                          }`}
+                        >
+                          {config?.hasApiKey ? "Configured" : "Not Set"}
+                        </span>
+                      </button>
+
+                      {/* Accordion Content */}
+                      {isExpanded && (
+                        <div className="px-4 pb-4 pt-2 bg-slate-50 space-y-4">
+                          {/* API Key */}
+                          <div>
+                            <label className="block text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
+                              <Key className="w-4 h-4" />
+                              API Key
+                            </label>
+                            {config?.hasApiKey &&
+                              !providerApiKeys[provider] && (
+                                <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 p-2 rounded mb-2">
+                                  <CheckCircle2 className="w-4 h-4" />
+                                  <span>API key is configured</span>
+                                </div>
+                              )}
+                            <input
+                              type="password"
+                              value={providerApiKeys[provider]}
+                              onChange={(e) =>
+                                setProviderApiKeys((prev) => ({
+                                  ...prev,
+                                  [provider]: e.target.value,
+                                }))
+                              }
+                              placeholder={
+                                config?.hasApiKey
+                                  ? "Enter new API key to update"
+                                  : `Enter your ${info.name} API key (${info.placeholder})`
+                              }
+                              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:border-blue-500 focus:outline-none font-mono text-sm placeholder:text-gray-400"
+                            />
+                            {config?.hasApiKey && (
+                              <button
+                                onClick={() => handleClearApiKey(provider)}
+                                className="text-sm text-red-600 hover:text-red-700 transition-colors mt-1"
+                              >
+                                Clear API key
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Model Override */}
+                          <div>
+                            <label className="block text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
+                              <Cpu className="w-4 h-4" />
+                              Model ID
+                            </label>
+                            <input
+                              type="text"
+                              value={providerModels[provider]}
+                              onChange={(e) =>
+                                setProviderModels((prev) => ({
+                                  ...prev,
+                                  [provider]: e.target.value,
+                                }))
+                              }
+                              placeholder={info.defaultModel}
+                              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:border-blue-500 focus:outline-none font-mono text-sm placeholder:text-gray-400"
+                            />
+                            <p className="text-xs text-slate-500 mt-1">
+                              Default: {info.defaultModel}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-slate-500 mt-2">
+                Your API keys are stored securely using system keychain
+                encryption.
               </p>
             </div>
 

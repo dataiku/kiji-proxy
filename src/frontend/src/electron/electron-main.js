@@ -379,7 +379,7 @@ function createTray() {
     },
     { type: "separator" },
     {
-      label: "Terms & Conditions",
+      label: "Terms && Conditions",
       click: () => {
         showMainWindow();
         // Send IPC to open terms after a short delay to ensure window is ready
@@ -468,7 +468,7 @@ function createWindow() {
   // Load the app
   // In both dev and production, the Go backend serves the UI on port 8080
   // The backend embeds the UI files when built with the 'embed' tag
-  let startUrl = "http://localhost:8080";
+  const startUrl = "http://localhost:8080";
 
   console.log("[DEBUG] Mode:", isDev ? "development" : "production");
   console.log("[DEBUG] Loading UI from Go backend at:", startUrl);
@@ -640,7 +640,7 @@ function createMenu() {
           },
         },
         {
-          label: "Terms and Conditions",
+          label: "Terms && Conditions",
           click: () => {
             if (mainWindow) {
               mainWindow.webContents.send("open-terms");
@@ -756,76 +756,144 @@ app.on("will-quit", () => {
   stopGoBinary();
 });
 
+// Valid provider types
+const VALID_PROVIDERS = ["openai", "anthropic", "gemini", "mistral"];
+
+// Migrate old single-key config format to new multi-provider format
+const migrateConfig = (config) => {
+  // If already migrated (has providers object), return as-is
+  if (config.providers) {
+    return config;
+  }
+
+  console.log("[DEBUG] Migrating config to multi-provider format");
+
+  // Initialize providers object
+  config.providers = {
+    openai: { apiKey: "", encrypted: false, model: "" },
+    anthropic: { apiKey: "", encrypted: false, model: "" },
+    gemini: { apiKey: "", encrypted: false, model: "" },
+    mistral: { apiKey: "", encrypted: false, model: "" },
+  };
+
+  // Migrate old apiKey to openai provider
+  if (config.apiKey) {
+    config.providers.openai.apiKey = config.apiKey;
+    config.providers.openai.encrypted = config.encrypted || false;
+    delete config.apiKey;
+    delete config.encrypted;
+  }
+
+  // Set default active provider
+  if (!config.activeProvider) {
+    config.activeProvider = "openai";
+  }
+
+  return config;
+};
+
+// Read and migrate config file
+const readConfig = () => {
+  const storagePath = getStoragePath();
+  let config = {};
+
+  if (fs.existsSync(storagePath)) {
+    const data = fs.readFileSync(storagePath, "utf8");
+    config = JSON.parse(data);
+  }
+
+  // Migrate if needed
+  const migratedConfig = migrateConfig(config);
+
+  // Save if migrated
+  if (!config.providers) {
+    fs.writeFileSync(
+      storagePath,
+      JSON.stringify(migratedConfig, null, 2),
+      "utf8"
+    );
+  }
+
+  return migratedConfig;
+};
+
+// Save config file
+const saveConfig = (config) => {
+  const storagePath = getStoragePath();
+  fs.writeFileSync(storagePath, JSON.stringify(config, null, 2), "utf8");
+};
+
+// Decrypt an API key
+const decryptApiKey = (providerConfig) => {
+  if (!providerConfig || !providerConfig.apiKey) {
+    return null;
+  }
+
+  if (providerConfig.encrypted && isEncryptionAvailable()) {
+    const buffer = Buffer.from(providerConfig.apiKey, "base64");
+    return safeStorage.decryptString(buffer);
+  } else if (!providerConfig.encrypted) {
+    return providerConfig.apiKey;
+  }
+
+  return null;
+};
+
+// Encrypt an API key
+const encryptApiKey = (apiKey) => {
+  if (!apiKey || !apiKey.trim()) {
+    return { apiKey: "", encrypted: false };
+  }
+
+  if (isEncryptionAvailable()) {
+    const encrypted = safeStorage.encryptString(apiKey.trim());
+    return { apiKey: encrypted.toString("base64"), encrypted: true };
+  } else {
+    console.warn("Encryption not available, storing API key unencrypted");
+    return { apiKey: apiKey.trim(), encrypted: false };
+  }
+};
+
 // IPC handlers for secure storage
+
+// Legacy handler - delegates to active provider
 ipcMain.handle("get-api-key", async () => {
   try {
-    const storagePath = getStoragePath();
-    console.log("[DEBUG] Reading API key from:", storagePath);
+    const config = readConfig();
+    const activeProvider = config.activeProvider || "openai";
+    const providerConfig = config.providers?.[activeProvider];
 
-    if (!fs.existsSync(storagePath)) {
-      console.log("[DEBUG] Config file does not exist - no API key stored");
-      return null;
-    }
-
-    const data = fs.readFileSync(storagePath, "utf8");
-    const config = JSON.parse(data);
-
-    if (config.apiKey && config.encrypted && isEncryptionAvailable()) {
-      // Decrypt the API key
-      console.log("[DEBUG] Decrypting API key from keychain");
-      const buffer = Buffer.from(config.apiKey, "base64");
-      const decrypted = safeStorage.decryptString(buffer);
+    const decrypted = decryptApiKey(providerConfig);
+    if (decrypted) {
       console.log(
-        "[DEBUG] API key decrypted successfully (length:",
-        decrypted.length,
-        ")"
+        `[DEBUG] API key decrypted for ${activeProvider} (length: ${decrypted.length})`
       );
-      return decrypted;
-    } else if (config.apiKey && !config.encrypted) {
-      // Legacy unencrypted storage (migrate on next save)
-      console.log("[DEBUG] Loading unencrypted API key (legacy)");
-      return config.apiKey;
     }
-
-    console.log("[DEBUG] No API key found in config");
-    return null;
+    return decrypted;
   } catch (error) {
     console.error("[ERROR] Error reading API key:", error);
     return null;
   }
 });
 
+// Legacy handler - delegates to active provider
 ipcMain.handle("set-api-key", async (event, apiKey) => {
   try {
-    const storagePath = getStoragePath();
-    let config = {};
+    const config = readConfig();
+    const activeProvider = config.activeProvider || "openai";
 
-    // Read existing config if it exists
-    if (fs.existsSync(storagePath)) {
-      const data = fs.readFileSync(storagePath, "utf8");
-      config = JSON.parse(data);
+    if (!config.providers) {
+      config.providers = {};
+    }
+    if (!config.providers[activeProvider]) {
+      config.providers[activeProvider] = { model: "" };
     }
 
-    if (apiKey && apiKey.trim()) {
-      if (isEncryptionAvailable()) {
-        // Encrypt the API key
-        const encrypted = safeStorage.encryptString(apiKey);
-        config.apiKey = encrypted.toString("base64");
-        config.encrypted = true;
-      } else {
-        // Fallback to unencrypted storage (not ideal, but works)
-        console.warn("Encryption not available, storing API key unencrypted");
-        config.apiKey = apiKey;
-        config.encrypted = false;
-      }
-    } else {
-      // Remove API key
-      delete config.apiKey;
-      delete config.encrypted;
-    }
+    const { apiKey: encryptedKey, encrypted } = encryptApiKey(apiKey);
+    config.providers[activeProvider].apiKey = encryptedKey;
+    config.providers[activeProvider].encrypted = encrypted;
 
-    // Save config
-    fs.writeFileSync(storagePath, JSON.stringify(config, null, 2), "utf8");
+    saveConfig(config);
     return { success: true };
   } catch (error) {
     console.error("Error saving API key:", error);
@@ -833,55 +901,152 @@ ipcMain.handle("set-api-key", async (event, apiKey) => {
   }
 });
 
-ipcMain.handle("get-forward-endpoint", async () => {
+// Get active provider
+ipcMain.handle("get-active-provider", async () => {
   try {
-    const storagePath = getStoragePath();
-    const defaultEndpoint = "https://api.openai.com/v1";
-
-    if (!fs.existsSync(storagePath)) {
-      return defaultEndpoint;
-    }
-
-    const data = fs.readFileSync(storagePath, "utf8");
-    const config = JSON.parse(data);
-
-    // Migrate old default value to new default
-    if (config.forwardEndpoint === "http://localhost:8080") {
-      config.forwardEndpoint = defaultEndpoint;
-      // Save the updated config
-      fs.writeFileSync(storagePath, JSON.stringify(config, null, 2), "utf8");
-    }
-
-    return config.forwardEndpoint || defaultEndpoint;
+    const config = readConfig();
+    return config.activeProvider || "openai";
   } catch (error) {
-    console.error("Error reading forward endpoint:", error);
-    return "https://api.openai.com/v1";
+    console.error("Error reading active provider:", error);
+    return "openai";
   }
 });
 
-ipcMain.handle("set-forward-endpoint", async (event, url) => {
+// Set active provider
+ipcMain.handle("set-active-provider", async (event, provider) => {
   try {
-    const storagePath = getStoragePath();
-    let config = {};
-
-    // Read existing config if it exists
-    if (fs.existsSync(storagePath)) {
-      const data = fs.readFileSync(storagePath, "utf8");
-      config = JSON.parse(data);
+    if (!VALID_PROVIDERS.includes(provider)) {
+      return { success: false, error: `Invalid provider: ${provider}` };
     }
 
-    if (url && url.trim()) {
-      config.forwardEndpoint = url.trim();
-    } else {
-      delete config.forwardEndpoint;
-    }
-
-    // Save config
-    fs.writeFileSync(storagePath, JSON.stringify(config, null, 2), "utf8");
+    const config = readConfig();
+    config.activeProvider = provider;
+    saveConfig(config);
     return { success: true };
   } catch (error) {
-    console.error("Error saving forward endpoint:", error);
+    console.error("Error setting active provider:", error);
     return { success: false, error: error.message };
+  }
+});
+
+// Get API key for specific provider
+ipcMain.handle("get-provider-api-key", async (event, provider) => {
+  try {
+    if (!VALID_PROVIDERS.includes(provider)) {
+      console.error(`Invalid provider: ${provider}`);
+      return null;
+    }
+
+    const config = readConfig();
+    const providerConfig = config.providers?.[provider];
+    return decryptApiKey(providerConfig);
+  } catch (error) {
+    console.error(`Error reading API key for ${provider}:`, error);
+    return null;
+  }
+});
+
+// Set API key for specific provider
+ipcMain.handle("set-provider-api-key", async (event, provider, apiKey) => {
+  try {
+    if (!VALID_PROVIDERS.includes(provider)) {
+      return { success: false, error: `Invalid provider: ${provider}` };
+    }
+
+    const config = readConfig();
+    if (!config.providers) {
+      config.providers = {};
+    }
+    if (!config.providers[provider]) {
+      config.providers[provider] = { model: "" };
+    }
+
+    const { apiKey: encryptedKey, encrypted } = encryptApiKey(apiKey);
+    config.providers[provider].apiKey = encryptedKey;
+    config.providers[provider].encrypted = encrypted;
+
+    saveConfig(config);
+    return { success: true };
+  } catch (error) {
+    console.error(`Error saving API key for ${provider}:`, error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Get custom model for specific provider
+ipcMain.handle("get-provider-model", async (event, provider) => {
+  try {
+    if (!VALID_PROVIDERS.includes(provider)) {
+      console.error(`Invalid provider: ${provider}`);
+      return "";
+    }
+
+    const config = readConfig();
+    return config.providers?.[provider]?.model || "";
+  } catch (error) {
+    console.error(`Error reading model for ${provider}:`, error);
+    return "";
+  }
+});
+
+// Set custom model for specific provider
+ipcMain.handle("set-provider-model", async (event, provider, model) => {
+  try {
+    if (!VALID_PROVIDERS.includes(provider)) {
+      return { success: false, error: `Invalid provider: ${provider}` };
+    }
+
+    const config = readConfig();
+    if (!config.providers) {
+      config.providers = {};
+    }
+    if (!config.providers[provider]) {
+      config.providers[provider] = { apiKey: "", encrypted: false };
+    }
+
+    config.providers[provider].model = model || "";
+
+    saveConfig(config);
+    return { success: true };
+  } catch (error) {
+    console.error(`Error saving model for ${provider}:`, error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Get full providers config
+ipcMain.handle("get-providers-config", async () => {
+  try {
+    const config = readConfig();
+    const activeProvider = config.activeProvider || "openai";
+
+    // Build response with hasApiKey (boolean) and model for each provider
+    const providers = {};
+    for (const provider of VALID_PROVIDERS) {
+      const providerConfig = config.providers?.[provider] || {};
+      providers[provider] = {
+        hasApiKey: !!(
+          providerConfig.apiKey && providerConfig.apiKey.length > 0
+        ),
+        model: providerConfig.model || "",
+      };
+    }
+
+    return {
+      activeProvider,
+      providers,
+    };
+  } catch (error) {
+    console.error("Error reading providers config:", error);
+    return {
+      activeProvider: "openai",
+      providers: {
+        openai: { hasApiKey: false, model: "" },
+        anthropic: { hasApiKey: false, model: "" },
+        gemini: { hasApiKey: false, model: "" },
+        mistral: { hasApiKey: false, model: "" },
+      },
+    };
   }
 });
 
