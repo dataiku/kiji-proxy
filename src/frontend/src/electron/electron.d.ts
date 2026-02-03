@@ -44,6 +44,10 @@ interface ElectronAPI {
   setTermsAccepted: (
     accepted: boolean
   ) => Promise<{ success: boolean; error?: string }>;
+  getWelcomeDismissed: () => Promise<boolean>;
+  setWelcomeDismissed: (
+    dismissed: boolean
+  ) => Promise<{ success: boolean; error?: string }>;
 
   // Platform and version info
   platform: string;
