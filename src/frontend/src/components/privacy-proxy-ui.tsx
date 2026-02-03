@@ -66,6 +66,15 @@ interface ProvidersConfig {
   providers: Record<ProviderType, ProviderSettings>;
 }
 
+// API response types for /api/providers/config endpoint
+interface ProviderStatus {
+  configured: boolean;
+}
+
+interface ProviderConfigResponse {
+  providers: Record<string, ProviderStatus>;
+}
+
 // Default models per provider
 const DEFAULT_MODELS: Record<ProviderType, string> = {
   openai: "gpt-3.5-turbo",
@@ -306,58 +315,59 @@ export default function PrivacyProxyUI() {
       };
     } else {
       // In web mode, fetch configured providers from backend
+      const loadWebSettings = async () => {
+        try {
+          const response = await fetch("/api/providers/config");
+          if (response.ok) {
+            const data: ProviderConfigResponse = await response.json();
+
+            // Process provider configuration
+            let anyConfigured = false;
+            let firstConfigured: ProviderType | null = null;
+            const providerKeys: ProviderType[] = ["openai", "anthropic", "gemini", "mistral"];
+
+            providerKeys.forEach(key => {
+              const isConfigured = data.providers[key]?.configured || false;
+              if (isConfigured) {
+                anyConfigured = true;
+                if (!firstConfigured) firstConfigured = key;
+              }
+            });
+
+            // Update state based on processed data
+            setHasAnyProviderConfigured(anyConfigured);
+
+            if (firstConfigured) {
+              setActiveProvider(firstConfigured);
+            }
+
+            setProvidersConfig((prev: ProvidersConfig) => {
+              const newProviders = { ...prev.providers };
+
+              providerKeys.forEach(key => {
+                const isConfigured = data.providers[key]?.configured || false;
+                newProviders[key] = {
+                  ...newProviders[key],
+                  hasApiKey: isConfigured
+                };
+              });
+
+              return {
+                ...prev,
+                providers: newProviders
+              };
+            });
+          }
+        } catch (error) {
+          console.error("Failed to load web provider config", error);
+          setHasAnyProviderConfigured(false);
+        }
+      };
+
       loadWebSettings();
+      return undefined;
     }
   }, [isElectron]);
-
-  const loadWebSettings = async () => {
-    try {
-      const response = await fetch("/api/providers/config");
-      if (response.ok) {
-        const data = await response.json();
-
-        // Process provider configuration
-        let anyConfigured = false;
-        let firstConfigured: ProviderType | null = null;
-        const providerKeys: ProviderType[] = ["openai", "anthropic", "gemini", "mistral"];
-
-        providerKeys.forEach(key => {
-          const isConfigured = data.providers[key]?.configured || false;
-          if (isConfigured) {
-            anyConfigured = true;
-            if (!firstConfigured) firstConfigured = key;
-          }
-        });
-
-        // Update state based on processed data
-        setHasAnyProviderConfigured(anyConfigured);
-
-        if (firstConfigured) {
-          setActiveProvider(firstConfigured);
-        }
-
-        setProvidersConfig((prev: ProvidersConfig) => {
-          const newProviders = { ...prev.providers };
-
-          providerKeys.forEach(key => {
-            const isConfigured = data.providers[key]?.configured || false;
-            newProviders[key] = {
-              ...newProviders[key],
-              hasApiKey: isConfigured
-            };
-          });
-
-          return {
-            ...prev,
-            providers: newProviders
-          };
-        });
-      }
-    } catch (error) {
-      console.error("Failed to load web provider config", error);
-      setHasAnyProviderConfigured(false);
-    }
-  };
 
   // Check server status periodically
   useEffect(() => {
@@ -628,7 +638,7 @@ export default function PrivacyProxyUI() {
     console.log(`[DEBUG] Using provider: ${activeProvider}`);
 
     if (typeof window !== "undefined" && (window.performance as PerformanceWithMemory)?.memory) {
-      const mem = (window.performance as PerformanceWithMemory).memory;
+      const mem = (window.performance as PerformanceWithMemory).memory!;
       console.log("[DEBUG] Memory before request:", {
         usedJSHeapSize: `${(mem.usedJSHeapSize / 1024 / 1024).toFixed(2)} MB`,
         totalJSHeapSize: `${(mem.totalJSHeapSize / 1024 / 1024).toFixed(2)} MB`,
@@ -809,7 +819,7 @@ export default function PrivacyProxyUI() {
         typeof window !== "undefined" &&
         (window.performance as PerformanceWithMemory)?.memory
       ) {
-        const mem = (window.performance as PerformanceWithMemory).memory;
+        const mem = (window.performance as PerformanceWithMemory).memory!;
         console.log("[DEBUG] Memory after processing:", {
           usedJSHeapSize: `${(mem.usedJSHeapSize / 1024 / 1024).toFixed(2)} MB`,
           totalJSHeapSize: `${(mem.totalJSHeapSize / 1024 / 1024).toFixed(
@@ -970,6 +980,8 @@ export default function PrivacyProxyUI() {
                   onClick={() => setIsMenuOpen(!isMenuOpen)}
                   className="p-2 text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
                   title="Menu"
+                  aria-expanded={isMenuOpen}
+                  aria-haspopup="true"
                 >
                   <Menu className={`transition-all duration-300 ${isScrolled ? "w-5 h-5" : "w-6 h-6"}`} />
                 </button>
@@ -1039,9 +1051,6 @@ export default function PrivacyProxyUI() {
 
         {/* Warnings Section */}
         <div className="text-center mb-8">
-
-
-
           {isElectron && !apiKey && (
             <div className="mt-4 p-2 bg-amber-50 border border-amber-200 rounded-lg inline-block">
               <p className="text-xs text-amber-800 flex items-center gap-2">
@@ -1077,40 +1086,49 @@ export default function PrivacyProxyUI() {
           <div className="flex items-center mb-4">
             {/* Provider Selection */}
             <div className="flex items-center gap-2 relative">
-              <label className="text-sm font-medium text-slate-600">
-                Type your request to:
-              </label>
               {isElectron ? (
-                <select
-                  value={activeProvider}
-                  onChange={async (e) => {
-                    const newProvider = e.target.value as ProviderType;
-                    setActiveProvider(newProvider);
-                    // Only try to use electronAPI if it exists
-                    if (typeof window !== "undefined" && window.electronAPI) {
-                      await window.electronAPI.setActiveProvider(newProvider);
-                      // Load API key for new provider
-                      const key = await window.electronAPI.getProviderApiKey(newProvider);
-                      setApiKey(key);
-                    }
-                  }}
-                  className="px-3 py-2 border-2 border-slate-200 rounded-lg focus:border-blue-500 focus:outline-none text-sm bg-white"
-                >
-                  {(
-                    ["openai", "anthropic", "gemini", "mistral"] as ProviderType[]
-                  ).map((provider) => (
-                    <option key={provider} value={provider}>
-                      {PROVIDER_NAMES[provider]}
-                      {providersConfig.providers[provider]?.hasApiKey ? " ✓" : ""}
-                    </option>
-                  ))}
-                </select>
+                <>
+                  <label htmlFor="provider-select" className="text-sm font-medium text-slate-600">
+                    Type your request to:
+                  </label>
+                  <select
+                    id="provider-select"
+                    value={activeProvider}
+                    onChange={async (e) => {
+                      const newProvider = e.target.value as ProviderType;
+                      setActiveProvider(newProvider);
+                      // Only try to use electronAPI if it exists
+                      if (typeof window !== "undefined" && window.electronAPI) {
+                        await window.electronAPI.setActiveProvider(newProvider);
+                        // Load API key for new provider
+                        const key = await window.electronAPI.getProviderApiKey(newProvider);
+                        setApiKey(key);
+                      }
+                    }}
+                    className="px-3 py-2 border-2 border-slate-200 rounded-lg focus:border-blue-500 focus:outline-none text-sm bg-white"
+                  >
+                    {(
+                      ["openai", "anthropic", "gemini", "mistral"] as ProviderType[]
+                    ).map((provider) => (
+                      <option key={provider} value={provider}>
+                        {PROVIDER_NAMES[provider]}
+                        {providersConfig.providers[provider]?.hasApiKey ? " ✓" : ""}
+                      </option>
+                    ))}
+                  </select>
+                </>
               ) : (
-                // Web mode: show frozen provider (non-selectable)
-                <div className="px-3 py-2 border-2 border-slate-200 rounded-lg text-sm bg-slate-100 text-slate-600 cursor-not-allowed">
-                  {PROVIDER_NAMES[activeProvider]}
-                  <span className="ml-2 text-xs text-slate-400">(via Backend)</span>
-                </div>
+                // Web mode: show frozen provider (non-selectable) - use span instead of label
+                // since the div is not an interactive form control
+                <>
+                  <span className="text-sm font-medium text-slate-600">
+                    Type your request to:
+                  </span>
+                  <div className="px-3 py-2 border-2 border-slate-200 rounded-lg text-sm bg-slate-100 text-slate-600 cursor-not-allowed">
+                    {PROVIDER_NAMES[activeProvider]}
+                    <span className="ml-2 text-xs text-slate-400">(via Backend)</span>
+                  </div>
+                </>
               )}
             </div>
           </div>
@@ -1118,11 +1136,11 @@ export default function PrivacyProxyUI() {
             value={inputData}
             onChange={(e) => setInputData(e.target.value)}
             placeholder="Enter your message with sensitive information...&#10;&#10;Example: Hi, my name is John Smith and my email is john.smith@email.com. My phone is 555-123-4567.&#10;&#10;This will be processed through the real PII detection and masking pipeline."
-            className={`w-full h-32 p-4 border-2 rounded-lg focus:outline-none resize-none font-mono text-sm placeholder:text-gray-400 ${serverStatus === "offline"
+            className={`w-full h-32 p-4 border-2 rounded-lg focus:outline-none resize-none font-mono text-sm placeholder:text-gray-400 ${serverStatus === "offline" || (!isElectron && !hasAnyProviderConfigured)
               ? "border-red-200 bg-red-50 cursor-not-allowed opacity-60"
               : "border-slate-200 focus:border-blue-500"
               }`}
-            disabled={serverStatus === "offline"}
+            disabled={serverStatus === "offline" || (!isElectron && !hasAnyProviderConfigured)}
           />
           <div className="flex gap-3 mt-4 items-center">
             <button
@@ -1348,11 +1366,9 @@ export default function PrivacyProxyUI() {
                 {modelSignature}
               </code>
               {!isElectron && (
-                <div className="absolute top-full right-0 mt-1 mr-1 pointer-events-none">
-                  <span className="text-[10px] text-slate-400 whitespace-nowrap bg-white/80 px-1 rounded">
-                    Configured on Backend
-                  </span>
-                </div>
+                <span className="ml-2 text-[10px] text-slate-400 whitespace-nowrap bg-slate-700/50 px-1.5 py-0.5 rounded">
+                  via Backend
+                </span>
               )}
             </div>
             {showModelTooltip && (
