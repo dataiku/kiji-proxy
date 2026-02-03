@@ -116,7 +116,7 @@
       "minimumSystemVersion": "10.13"
     },
     "afterPack": "../../build/scripts/remove-locales.js",
-    "afterSign": "../../src/scripts/notarize.js",
+    "_todo_afterSign": "Enable notarization by adding: \"afterSign\": \"../../src/scripts/notarize.js\" (requires Developer ID Application certificate)",
     "dmg": {
       "title": "${productName} ${version}",
       "background": "assets/dmg-background.png",

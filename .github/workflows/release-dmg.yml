@@ -167,6 +167,14 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
+          # Update CSC_LINK:**
+          # 1. In [Apple Developer Portal](https://developer.apple.com/account/resources/certificates/list), create or find a **"Developer ID Application"** certificate (under "Software" → "Developer ID Application")
+          # 2. Export it as a `.p12` file from Keychain Access (with a password)
+          # 3. Base64-encode it: `base64 -i certificate.p12 | pbcopy`
+          # 4. Update the `CSC_LINK` secret in your GitHub environment with the base64 string
+          # 5. Update `CSC_KEY_PASSWORD` with the `.p12` export password
+          # The "Apple Development" certificate type is for local development/testing via Xcode. Only "Developer ID Application" certificates are accepted by Apple's notarization service for distributing outside the App Store.
+
       - name: Rename DMG with Version
         run: |
           cd src/frontend/release
