@@ -108,14 +108,14 @@
       "target": [
         "dmg"
       ],
-      "hardenedRuntime": false,
+      "hardenedRuntime": true,
       "gatekeeperAssess": false,
-      "entitlements": null,
-      "entitlementsInherit": null,
-      "identity": null,
+      "entitlements": "assets/entitlements.mac.plist",
+      "entitlementsInherit": "assets/entitlements.mac.plist",
       "minimumSystemVersion": "10.13"
     },
     "afterPack": "../../build/scripts/remove-locales.js",
+    "afterSign": "../../src/scripts/notarize.js",
     "dmg": {
       "title": "${productName} ${version}",
       "background": "assets/dmg-background.png",

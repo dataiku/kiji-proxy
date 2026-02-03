@@ -74,9 +74,6 @@ When using AI services like OpenAI or Anthropic, sensitive data in your prompts 
 # Install
 open Yaak-Privacy-Proxy-*.dmg
 # Drag to Applications folder
-
-# First run - trust certificate
-xattr -cr "/Applications/Yaak Privacy Proxy.app"
 ```
 
 **Linux (Standalone Server):**
