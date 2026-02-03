@@ -1039,14 +1039,45 @@ export default function PrivacyProxyUI() {
 
         {/* Input Section */}
         <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-slate-800 flex items-center gap-2">
-              <Eye className="w-5 h-5" />
-              Input Data (A)
-            </h2>
-            <span className="text-sm text-slate-500">
-              Original data with PII
-            </span>
+          <div className="flex items-center mb-4">
+            {/* Provider Selection */}
+            <div className="flex items-center gap-2 relative">
+              <label className="text-sm font-medium text-slate-600">
+                Type your request to:
+              </label>
+              {isElectron ? (
+                <select
+                  value={activeProvider}
+                  onChange={async (e) => {
+                    const newProvider = e.target.value as ProviderType;
+                    setActiveProvider(newProvider);
+                    // Only try to use electronAPI if it exists
+                    if (typeof window !== "undefined" && window.electronAPI) {
+                      await window.electronAPI.setActiveProvider(newProvider);
+                      // Load API key for new provider
+                      const key = await window.electronAPI.getProviderApiKey(newProvider);
+                      setApiKey(key);
+                    }
+                  }}
+                  className="px-3 py-2 border-2 border-slate-200 rounded-lg focus:border-blue-500 focus:outline-none text-sm bg-white"
+                >
+                  {(
+                    ["openai", "anthropic", "gemini", "mistral"] as ProviderType[]
+                  ).map((provider) => (
+                    <option key={provider} value={provider}>
+                      {PROVIDER_NAMES[provider]}
+                      {providersConfig.providers[provider]?.hasApiKey ? " ✓" : ""}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                // Web mode: show frozen provider (non-selectable)
+                <div className="px-3 py-2 border-2 border-slate-200 rounded-lg text-sm bg-slate-100 text-slate-600 cursor-not-allowed">
+                  {PROVIDER_NAMES[activeProvider]}
+                  <span className="ml-2 text-xs text-slate-400">(via Backend)</span>
+                </div>
+              )}
+            </div>
           </div>
           <textarea
             value={inputData}
@@ -1087,45 +1118,6 @@ export default function PrivacyProxyUI() {
             >
               Reset
             </button>
-
-            {/* Provider Selection - pushed to right */}
-            <div className="ml-auto flex items-center gap-2 relative">
-              <label className="text-sm font-medium text-slate-600">
-                Provider:
-              </label>
-              {isElectron ? (
-                <select
-                  value={activeProvider}
-                  onChange={async (e) => {
-                    const newProvider = e.target.value as ProviderType;
-                    setActiveProvider(newProvider);
-                    // Only try to use electronAPI if it exists
-                    if (typeof window !== "undefined" && window.electronAPI) {
-                      await window.electronAPI.setActiveProvider(newProvider);
-                      // Load API key for new provider
-                      const key = await window.electronAPI.getProviderApiKey(newProvider);
-                      setApiKey(key);
-                    }
-                  }}
-                  className="px-3 py-2 border-2 border-slate-200 rounded-lg focus:border-blue-500 focus:outline-none text-sm bg-white"
-                >
-                  {(
-                    ["openai", "anthropic", "gemini", "mistral"] as ProviderType[]
-                  ).map((provider) => (
-                    <option key={provider} value={provider}>
-                      {PROVIDER_NAMES[provider]}
-                      {providersConfig.providers[provider]?.hasApiKey ? " ✓" : ""}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                // Web mode: show frozen provider (non-selectable)
-                <div className="px-3 py-2 border-2 border-slate-200 rounded-lg text-sm bg-slate-100 text-slate-600 cursor-not-allowed">
-                  {PROVIDER_NAMES[activeProvider]}
-                  <span className="ml-2 text-xs text-slate-400">(via Backend)</span>
-                </div>
-              )}
-            </div>
           </div>
         </div>
 
