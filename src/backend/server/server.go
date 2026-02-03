@@ -622,7 +622,14 @@ type ProviderStatus struct {
 
 // handleProvidersConfig returns the configuration status of providers
 func (s *Server) handleProvidersConfig(w http.ResponseWriter, r *http.Request) {
-	// Add CORS headers
+	// Handle CORS preflight OPTIONS request
+	if r.Method == http.MethodOptions {
+		s.corsHandler(w, r)
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	// Add CORS headers to all responses
 	s.corsHandler(w, r)
 
 	// Only allow GET requests
