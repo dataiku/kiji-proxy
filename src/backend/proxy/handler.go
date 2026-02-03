@@ -26,7 +26,7 @@ import (
 type Handler struct {
 	client            *http.Client
 	config            *config.Config
-	modelManager       *piiServices.ModelManager
+	modelManager      *piiServices.ModelManager
 	providers         *providers.Providers
 	detector          *pii.Detector
 	responseProcessor *processor.ResponseProcessor
@@ -486,34 +486,26 @@ func NewHandler(cfg *config.Config) (*Handler, error) {
 	var detector pii.Detector
 	var err error
 
-	// Initialize model manager if using ONNX detector
-	if cfg.DetectorName == pii.DetectorNameONNXModel {
-		modelDir := cfg.ONNXModelDirectory
-		if modelDir == "" {
-			modelDir = "model/quantized" // Default directory
-		}
+	// Initialize model manager for ONNX detector
+	modelDir := cfg.ONNXModelDirectory
+	if modelDir == "" {
+		modelDir = "model/quantized" // Default directory
+	}
 
-		log.Printf("[Handler] Initializing ModelManager with directory: %s", modelDir)
-		modelManager, err = piiServices.NewModelManager(modelDir)
-		if err != nil {
-			return nil, fmt.Errorf("failed to initialize model manager: %w", err)
-		}
+	log.Printf("[Handler] Initializing ModelManager with directory: %s", modelDir)
+	modelManager, err = piiServices.NewModelManager(modelDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize model manager: %w", err)
+	}
 
-		// Try to get detector, but allow handler creation even if model is unhealthy
-		detector, err = modelManager.GetDetector()
-		if err != nil {
-			log.Printf("[Handler] Warning: Model is unhealthy, requests will fail until model is fixed: %v", err)
-			// Create a dummy detector that will fail on use - this allows the server to start
-			// so users can access the health endpoint and settings UI to fix the model
-			detector = nil
-		}
-	} else {
-		// For non-ONNX detectors, use legacy creation
-		tempHandler := &Handler{config: cfg}
-		detector, err = tempHandler.GetDetector()
-		if err != nil {
-			return nil, fmt.Errorf("failed to get detector: %w", err)
-		}
+	// Try to get detector, but allow handler creation even if model is unhealthy
+	detector, err = modelManager.GetDetector()
+	if err != nil {
+		log.Printf("[Handler] Warning: Model is unhealthy, requests will fail until model is fixed: %v", err)
+		// Create a dummy detector that will fail on use - this allows the server to start
+		// so users can access the health endpoint and settings UI to fix the model
+		detector = nil
+	}
 
 	// Create providers
 	openAIProvider := providers.NewOpenAIProvider(
@@ -595,7 +587,7 @@ func NewHandler(cfg *config.Config) (*Handler, error) {
 	return &Handler{
 		client:            client,
 		config:            cfg,
-		modelManager:       modelManager,
+		modelManager:      modelManager,
 		providers:         &providers,
 		detector:          &detector,
 		responseProcessor: responseProcessor,
