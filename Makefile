@@ -256,15 +256,6 @@ go-backend-dev: ## Run Go backend in development mode
 	@echo "$(BLUE)Running Go backend in development mode...$(NC)"
 	CGO_LDFLAGS="$(CGO_LDFLAGS)" go run ./src/backend -config ./src/backend/config/config.development.json
 
-update-vscode-version: ## Update version in VSCode launch.json
-	@echo "$(BLUE)Updating VSCode launch.json with version $(VERSION)...$(NC)"
-	@if [ -f ".vscode/launch.json" ]; then \
-		sed -i.bak "s/main.version=[0-9.]*-dev/main.version=$(VERSION)-dev/" .vscode/launch.json && \
-		rm -f .vscode/launch.json.bak && \
-		echo "$(GREEN)✅ VSCode launch.json updated with version $(VERSION)-dev$(NC)"; \
-	else \
-		echo "$(YELLOW)⚠️  .vscode/launch.json not found$(NC)"; \
-	fi
 
 ##@ Build
 
