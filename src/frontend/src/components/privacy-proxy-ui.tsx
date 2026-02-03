@@ -144,6 +144,7 @@ export default function PrivacyProxyUI() {
     },
   });
   const [apiKey, setApiKey] = useState<string | null>(null);
+  const [hasAnyProviderConfigured, setHasAnyProviderConfigured] = useState(true); // Assume true until proven otherwise
 
   const [serverStatus, setServerStatus] = useState<"online" | "offline">(
     "offline"
@@ -293,9 +294,60 @@ export default function PrivacyProxyUI() {
           window.electronAPI.removeTermsListener();
         }
       };
+    } else {
+      // In web mode, fetch configured providers from backend
+      loadWebSettings();
     }
-    return undefined;
   }, [isElectron]);
+
+  const loadWebSettings = async () => {
+    try {
+      const response = await fetch("/api/providers/config");
+      if (response.ok) {
+        const data = await response.json();
+
+        // Process provider configuration
+        let anyConfigured = false;
+        let firstConfigured: ProviderType | null = null;
+        const providerKeys: ProviderType[] = ["openai", "anthropic", "gemini", "mistral"];
+
+        providerKeys.forEach(key => {
+          const isConfigured = data.providers[key]?.configured || false;
+          if (isConfigured) {
+            anyConfigured = true;
+            if (!firstConfigured) firstConfigured = key;
+          }
+        });
+
+        // Update state based on processed data
+        setHasAnyProviderConfigured(anyConfigured);
+
+        if (firstConfigured) {
+          setActiveProvider(firstConfigured);
+        }
+
+        setProvidersConfig((prev: ProvidersConfig) => {
+          const newProviders = { ...prev.providers };
+
+          providerKeys.forEach(key => {
+            const isConfigured = data.providers[key]?.configured || false;
+            newProviders[key] = {
+              ...newProviders[key],
+              hasApiKey: isConfigured
+            };
+          });
+
+          return {
+            ...prev,
+            providers: newProviders
+          };
+        });
+      }
+    } catch (error) {
+      console.error("Failed to load web provider config", error);
+      setHasAnyProviderConfigured(false);
+    }
+  };
 
   // Check server status periodically
   useEffect(() => {
@@ -897,51 +949,53 @@ export default function PrivacyProxyUI() {
         {/* Header */}
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-3 mb-4 relative">
-            {isElectron && (
-              <div className="absolute left-0" ref={menuRef}>
-                <button
-                  onClick={() => setIsMenuOpen(!isMenuOpen)}
-                  className="p-2 text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
-                  title="Menu"
-                >
-                  <Menu className="w-6 h-6" />
-                </button>
-                {isMenuOpen && (
-                  <div className="absolute left-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-slate-200 z-50">
-                    <button
-                      onClick={() => {
-                        setIsSettingsOpen(true);
-                        setIsMenuOpen(false);
-                      }}
-                      className="w-full text-left px-4 py-3 text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2 first:rounded-t-lg"
-                    >
-                      <Settings className="w-4 h-4" />
-                      Settings
-                    </button>
-                    <button
-                      onClick={() => {
-                        setIsLoggingOpen(true);
-                        setIsMenuOpen(false);
-                      }}
-                      className="w-full text-left px-4 py-3 text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
-                    >
-                      <FileText className="w-4 h-4" />
-                      Logging
-                    </button>
-                    <button
-                      onClick={() => {
-                        setIsAboutOpen(true);
-                        setIsMenuOpen(false);
-                      }}
-                      className="w-full text-left px-4 py-3 text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2 last:rounded-b-lg"
-                    >
-                      <Info className="w-4 h-4" />
-                      About Yaak Proxy
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
+            <div className="absolute left-0" ref={menuRef}>
+              <button
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                className="p-2 text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
+                title="Menu"
+              >
+                <Menu className="w-6 h-6" />
+              </button>
+              {isMenuOpen && (
+                <div className="absolute left-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-slate-200 z-50 overflow-hidden">
+                  {isElectron && (
+                    <>
+                      <button
+                        onClick={() => {
+                          setIsSettingsOpen(true);
+                          setIsMenuOpen(false);
+                        }}
+                        className="w-full text-left px-4 py-3 text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
+                      >
+                        <Settings className="w-4 h-4" />
+                        Settings
+                      </button>
+                      <button
+                        onClick={() => {
+                          setIsLoggingOpen(true);
+                          setIsMenuOpen(false);
+                        }}
+                        className="w-full text-left px-4 py-3 text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
+                      >
+                        <FileText className="w-4 h-4" />
+                        Logging
+                      </button>
+                    </>
+                  )}
+                  <button
+                    onClick={() => {
+                      setIsAboutOpen(true);
+                      setIsMenuOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-3 text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
+                  >
+                    <Info className="w-4 h-4" />
+                    About Yaak Proxy
+                  </button>
+                </div>
+              )}
+            </div>
             <img src={logoImage} alt="Yaak Logo" className="w-12 h-12" />
             <h1 className="text-4xl font-bold text-slate-800">
               Yaak Privacy Proxy
@@ -966,6 +1020,18 @@ export default function PrivacyProxyUI() {
                 >
                   Configure in Settings
                 </button>
+              </p>
+            </div>
+          )}
+
+          {/* Banner for web mode when no provider is configured */}
+          {!isElectron && !hasAnyProviderConfigured && (
+            <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-sm text-red-800 flex items-center gap-2">
+                <AlertCircle className="w-5 h-5" />
+                <span>
+                  <strong>No AI provider configured.</strong> Contact your administrator to set up backend API keys.
+                </span>
               </p>
             </div>
           )}
@@ -1023,21 +1089,21 @@ export default function PrivacyProxyUI() {
             </button>
 
             {/* Provider Selection - pushed to right */}
-            {isElectron && (
-              <div className="ml-auto flex items-center gap-2">
-                <label className="text-sm font-medium text-slate-600">
-                  Provider:
-                </label>
+            <div className="ml-auto flex items-center gap-2 relative">
+              <label className="text-sm font-medium text-slate-600">
+                Provider:
+              </label>
+              {isElectron ? (
                 <select
                   value={activeProvider}
                   onChange={async (e) => {
                     const newProvider = e.target.value as ProviderType;
                     setActiveProvider(newProvider);
-                    if (window.electronAPI) {
+                    // Only try to use electronAPI if it exists
+                    if (typeof window !== "undefined" && window.electronAPI) {
                       await window.electronAPI.setActiveProvider(newProvider);
                       // Load API key for new provider
-                      const key =
-                        await window.electronAPI.getProviderApiKey(newProvider);
+                      const key = await window.electronAPI.getProviderApiKey(newProvider);
                       setApiKey(key);
                     }
                   }}
@@ -1052,8 +1118,14 @@ export default function PrivacyProxyUI() {
                     </option>
                   ))}
                 </select>
-              </div>
-            )}
+              ) : (
+                // Web mode: show frozen provider (non-selectable)
+                <div className="px-3 py-2 border-2 border-slate-200 rounded-lg text-sm bg-slate-100 text-slate-600 cursor-not-allowed">
+                  {PROVIDER_NAMES[activeProvider]}
+                  <span className="ml-2 text-xs text-slate-400">(via Backend)</span>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -1248,6 +1320,13 @@ export default function PrivacyProxyUI() {
               >
                 {modelSignature}
               </code>
+              {!isElectron && (
+                <div className="absolute top-full right-0 mt-1 mr-1 pointer-events-none">
+                  <span className="text-[10px] text-slate-400 whitespace-nowrap bg-white/80 px-1 rounded">
+                    Configured on Backend
+                  </span>
+                </div>
+              )}
             </div>
             {showModelTooltip && (
               <div className="absolute bottom-full right-0 mb-2 px-2 py-1 text-xs text-white bg-gray-900 border border-gray-700 rounded shadow-lg whitespace-nowrap z-50">
