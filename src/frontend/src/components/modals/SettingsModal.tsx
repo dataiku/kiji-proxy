@@ -519,11 +519,11 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               </p>
             </div>
 
-            {/* PII Model Directory */}
+            {/* Load Custom Yaak PII Model */}
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
                 <Server className="w-4 h-4" />
-                PII Model Directory
+                Load Custom Yaak PII Model
               </label>
 
               {/* Current Model Info */}
