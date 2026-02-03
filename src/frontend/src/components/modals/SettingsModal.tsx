@@ -137,7 +137,8 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     try {
       const config = await window.electronAPI.getProvidersConfig();
       setProvidersConfig(config);
-      setExpandedProvider(config.activeProvider);
+      // TODO: CODE REVIEW DECISION: CAN WE COLLAPSE ALL PROVIDERS INITIALLY TO SAVE SPACE?
+      // setExpandedProvider(config.activeProvider);
 
       // Load models from config
       const models: Record<ProviderType, string> = {
