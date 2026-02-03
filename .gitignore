@@ -96,3 +96,7 @@ Archive.zip
 
 # AI assistant files
 CLAUDE.md
+
+# SQLite database
+*.db-shm
+*.db-wal
