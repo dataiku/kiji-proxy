@@ -2,102 +2,126 @@
 
 This directory contains all CI/CD workflows for the Yaak Privacy Proxy project.
 
-## 📋 Workflow Overview
+## Workflow Overview
 
 | Workflow | Trigger | Purpose | Artifacts |
 |----------|---------|---------|-----------|
 | **changesets.yml** | Push to `main` | Creates Version PRs | None |
-| **release.yml** | Version PR merge, Tag push, Manual | Builds DMG, Creates releases | DMG files (90 days) |
-| **lint.yml** | Push/PR to `main`/`develop` | Code quality checks | None |
+| **auto-tag.yml** | Release PR merged to `main` | Creates git tags automatically | None |
+| **release-dmg.yml** | Tag `v*`, Manual | Builds macOS DMG, creates releases | DMG files (90 days) |
+| **release-linux.yml** | Tag `v*`, Manual | Builds Linux binary, creates releases | tar.gz + checksum (90 days) |
+| **release-chrome-extension.yml** | Tag `v*`, Manual | Packages Chrome extension | zip + checksum (90 days) |
+| **lint-and-test.yml** | Push/PR to `main`/`develop` | Linting and tests | None |
 | **cleanup-artifacts.yml** | Daily (2 AM UTC), Manual | Cleans old artifacts | None |
 | **sign-model.yml** | Manual only | Signs ML models | Signed models (30 days) |
 
-## 🚀 Main Workflows
+## Main Workflows
 
 ### 1. Changesets Workflow (`changesets.yml`)
 
-**Purpose:** Manages version bumping and changelog generation
+**Purpose:** Manages version bumping and changelog generation.
 
 **Triggers:**
 - Push to `main` branch
 
 **What it does:**
 1. Detects pending changesets in `.changeset/` directory
-2. Bumps version in `package.json`
-3. Updates `CHANGELOG.md`
-4. Creates/updates a "Version PR" for review
-
-**When it runs:**
-- Automatically after merging any PR with changesets to `main`
-
-**What to expect:**
-- A PR titled "chore: version packages" appears
-- Contains version bump and changelog updates
-- Ready for review and merge
+2. Runs `changeset version` to bump versions in `src/frontend/package.json` and root `package.json`
+3. Syncs `.vscode/launch.json` dev version
+4. Updates `CHANGELOG.md`
+5. Creates/updates a "Version PR" (branch: `changeset-release/main`, label: `release`)
 
 ---
 
-### 2. Release Workflow (`release.yml`)
+### 2. Auto-Tag Workflow (`auto-tag.yml`)
 
-**Purpose:** Builds DMG packages and creates GitHub releases
+**Purpose:** Automatically creates a git tag when a release PR is merged.
 
 **Triggers:**
-- Version PR merged to `main` (automatic) - detected by:
-  - PR title: "chore: version packages"
-  - PR branch: "changeset-release/main"
-  - PR label: "release"
-- Tag starting with `v*` pushed (e.g., `v1.2.0`)
-- Manual via Actions UI
-
-**Note:** Regular PRs do NOT trigger this workflow - only Version PRs from Changesets!
+- Pull request merged to `main` with the `release` label
 
 **What it does:**
-1. **Setup Environment:**
-   - Go 1.21, Python 3.11, Node.js 20, Rust
-   - Extensive caching (LFS, Go modules, Python, Rust, tokenizers, ONNX)
+1. Extracts version from `src/frontend/package.json`
+2. Checks if the tag already exists
+3. Creates and pushes tag `v{version}` (e.g., `v0.3.5`)
 
-2. **Version Extraction:**
-   - From git tag if available
-   - From `package.json` otherwise
+This tag push then triggers the release workflows (`release-dmg.yml`, `release-linux.yml`, `release-chrome-extension.yml`).
 
-3. **LFS Verification:**
-   - Ensures model files are actual binaries, not LFS pointers
-   - Fails early if LFS didn't work
-
-4. **Build DMG:**
-   - Runs `make build-dmg`
-   - Includes Go binary with embedded model
-   - Electron app with desktop UI
-
-5. **Upload Artifacts:**
-   - DMG stored for 90 days
-   - Named: `yaak-privacy-proxy-{version}-macos`
-
-6. **Create Release (on tag push):**
-   - GitHub Release with proper version
-   - DMG attached
-   - Auto-generated release notes
-   - Installation instructions included
-
-**Caching Strategy:**
-- LFS objects (Git LFS files)
-- Go modules and build cache
-- Python venv and pip cache
-- Rust/Cargo registry and builds
-- Tokenizers library (pre-built)
-- ONNX Runtime library
-- **Result:** ~50% faster builds on cache hit
-
-**Manual Trigger:**
-1. Go to Actions → "Build and Release DMG"
-2. Click "Run workflow"
-3. Optionally check "Create GitHub Release"
+**Requires:** `PAT_TOKEN` repository secret (to allow tag push to trigger other workflows).
 
 ---
 
-### 3. Lint Workflow (`lint.yml`)
+### 3. Release DMG Workflow (`release-dmg.yml`)
 
-**Purpose:** Ensures code quality standards
+**Purpose:** Builds macOS DMG installer and creates GitHub releases.
+
+**Triggers:**
+- Tag starting with `v*` pushed
+- Manual via Actions UI
+
+**Environment:** `DMG Build Environment` (GitHub environment with signing secrets)
+
+**Required secrets (in the environment):**
+- `CSC_LINK` - Base64-encoded `.p12` certificate
+- `CSC_KEY_PASSWORD` - Password for the `.p12` certificate
+
+**Notarization secrets (currently unused, see TODOs below):**
+- `APPLE_ID`
+- `APPLE_APP_SPECIFIC_PASSWORD`
+- `APPLE_TEAM_ID`
+
+**What it does:**
+1. Verifies signing secrets are available (fails fast if missing)
+2. Sets up Go, Python, Node.js, Rust toolchains
+3. Verifies Git LFS files are actual binaries
+4. Installs dependencies
+5. Runs `make build-dmg` (Go binary + Electron app)
+6. Uploads DMG as artifact (90 day retention)
+7. Creates/updates GitHub Release on tag push
+
+**Caching:** LFS objects, Rust/Cargo, tokenizers library, ONNX Runtime.
+
+---
+
+### 4. Release Linux Workflow (`release-linux.yml`)
+
+**Purpose:** Builds Linux standalone binary archive.
+
+**Triggers:**
+- Tag starting with `v*` pushed
+- Manual via Actions UI
+
+**What it does:**
+1. Sets up Go, Rust toolchains
+2. Verifies Git LFS files
+3. Runs `./src/scripts/build_linux.sh`
+4. Uploads tar.gz + SHA256 checksum as artifact (90 day retention)
+5. Appends Linux artifacts to GitHub Release on tag push
+
+**Caching:** LFS objects, Go modules, Rust/Cargo, tokenizers library, ONNX Runtime.
+
+---
+
+### 5. Release Chrome Extension Workflow (`release-chrome-extension.yml`)
+
+**Purpose:** Packages the Chrome extension as a zip for distribution.
+
+**Triggers:**
+- Tag starting with `v*` pushed
+- Manual via Actions UI
+
+**What it does:**
+1. Stamps the release version into `chrome-extension/manifest.json`
+2. Creates a zip of the `chrome-extension/` directory
+3. Generates SHA256 checksum
+4. Uploads zip + checksum as artifact (90 day retention)
+5. Appends Chrome extension to GitHub Release on tag push
+
+---
+
+### 6. Lint and Test Workflow (`lint-and-test.yml`)
+
+**Purpose:** Code quality checks and tests.
 
 **Triggers:**
 - Push to `main` or `develop`
@@ -105,147 +129,113 @@ This directory contains all CI/CD workflows for the Yaak Privacy Proxy project.
 
 **Jobs:**
 
-**Python Lint:**
-- Uses `ruff` for linting and formatting
-- Checks `model/src/` and `model/dataset/`
-- Format check ensures consistent style
-
-**Go Lint:**
-- Uses `golangci-lint`
-- Comprehensive Go linting rules
-
-**When it runs:**
-- On every push and PR (fast feedback)
-- Prevents merging code with quality issues
+| Job | What it does |
+|-----|-------------|
+| **Python Lint** | Runs `ruff` linter and formatter on `model/src/` and `model/dataset/` |
+| **Go Lint** | Runs `golangci-lint` |
+| **Go Tests** | Runs `make test-go` (depends on Go Lint passing) |
+| **Frontend Lint & Type Check** | Runs ESLint and TypeScript type checking on `src/frontend/` |
 
 ---
 
-### 4. Cleanup Artifacts Workflow (`cleanup-artifacts.yml`)
+### 7. Cleanup Artifacts Workflow (`cleanup-artifacts.yml`)
 
-**Purpose:** Manages storage by cleaning old artifacts
+**Purpose:** Manages storage by cleaning old artifacts.
 
 **Triggers:**
 - Daily at 2 AM UTC (automatic)
 - Manual via Actions UI (with dry-run option)
 
 **What it does:**
-1. **Clean by age:** Deletes artifacts older than 7 days
-2. **Clean failures:** Removes artifacts from failed/cancelled runs
+1. Deletes artifacts older than 7 days
+2. Deletes artifacts from failed/cancelled runs
 
-**Manual Options:**
-- Dry run mode (default: true)
-- Shows what would be deleted without actually deleting
-
-**Why it's needed:**
-- GitHub has storage limits
-- Old artifacts waste space
-- Failed build artifacts are unnecessary
+**Manual options:**
+- Dry run mode (default: true) - shows what would be deleted without deleting
 
 ---
 
-### 5. Sign Model Workflow (`sign-model.yml`)
+### 8. Sign Model Workflow (`sign-model.yml`)
 
-**Purpose:** Cryptographically signs ML models
+**Purpose:** Cryptographically signs ML models.
 
 **Triggers:**
 - Manual only (via Actions UI)
 
 **Options:**
 - **OIDC signing** (default): Uses GitHub's OIDC tokens
-- **Private key signing**: Uses repository secret
+- **Private key signing**: Uses `SIGNING_PRIVATE_KEY` repository secret
 
 **What it does:**
 1. Signs model files with cryptographic signature
-2. Creates verification manifest
-3. Uploads signed artifacts
-
-**Use cases:**
-- Model releases
-- Supply chain security
-- Tamper detection
-
-**Currently:** Disabled for automatic triggers (manual only)
+2. Verifies the signature
+3. Uploads signed artifacts (30 day retention)
 
 ---
 
-## 🔄 Complete Release Flow
+## Complete Release Flow
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  Developer Workflow                                         │
-└─────────────────────────────────────────────────────────────┘
+Developer Workflow
   1. Make changes in feature branch
   2. Add changeset: npm run changeset
   3. Create PR, get reviews
   4. Merge PR to main
-              ↓
-┌─────────────────────────────────────────────────────────────┐
-│  changesets.yml (automatic)                                 │
-└─────────────────────────────────────────────────────────────┘
-  • Detects changesets
-  • Bumps version (1.0.0 → 1.0.1)
-  • Updates CHANGELOG.md
-  • Creates "Version PR"
-              ↓
-┌─────────────────────────────────────────────────────────────┐
-│  Human Review (manual)                                      │
-└─────────────────────────────────────────────────────────────┘
-  • Review version bump
-  • Review changelog
-  • Merge Version PR
-              ↓
-┌─────────────────────────────────────────────────────────────┐
-│  release.yml (automatic - PR merge)                         │
-└─────────────────────────────────────────────────────────────┘
-  • Build DMG with version 1.0.1
-  • Upload to GitHub Artifacts
-  • Available for 90 days
-              ↓
-┌─────────────────────────────────────────────────────────────┐
-│  Create Tag (manual)                                        │
-└─────────────────────────────────────────────────────────────┘
-  git tag -a v1.0.1 -m "Release 1.0.1"
-  git push origin v1.0.1
-              ↓
-┌─────────────────────────────────────────────────────────────┐
-│  release.yml (automatic - tag push)                         │
-└─────────────────────────────────────────────────────────────┘
-  • Build DMG (or use cached)
-  • Create GitHub Release v1.0.1
-  • Attach DMG to release
-  • Generate release notes
-              ↓
-┌─────────────────────────────────────────────────────────────┐
-│  ✅ Release Published!                                      │
-└─────────────────────────────────────────────────────────────┘
-  Users can download DMG from Releases page
+              |
+              v
+changesets.yml (automatic on push to main)
+  - Detects changesets
+  - Bumps version (e.g., 0.3.4 -> 0.3.5)
+  - Updates CHANGELOG.md
+  - Creates "Version PR" with label: release
+              |
+              v
+Human Review (manual)
+  - Review version bump and changelog
+  - Merge Version PR to main
+              |
+              v
+auto-tag.yml (automatic on PR merge with release label)
+  - Reads version from package.json
+  - Creates and pushes tag v0.3.5
+              |
+              v
+Release workflows (automatic on tag push)
+  - release-dmg.yml    -> macOS DMG
+  - release-linux.yml  -> Linux tar.gz
+  - release-chrome-extension.yml -> Chrome extension zip
+  - All attach artifacts to the same GitHub Release
+              |
+              v
+Release Published!
+  Users can download from the Releases page
 ```
 
 ---
 
-## 💡 Key Improvements from Consolidation
+## TODOs
 
-### Before (Multiple Workflows)
-❌ `build-dmg.yml` ran on **every push to main**
-❌ Created releases with run numbers instead of versions
-❌ Duplicate caching configurations
-❌ No integration with version management
+### Notarization (macOS DMG)
 
-### After (Consolidated)
-✅ Builds only on **actual releases** (Version PR merge or tag)
-✅ Proper semantic versioning
-✅ Efficient, granular caching (~50% faster)
-✅ Integrated with Changesets workflow
-✅ Manual trigger option available
+Notarization is currently **disabled**. The DMG is code-signed but not notarized by Apple. Users may see Gatekeeper warnings when opening the app.
 
-### Cost Savings
-- **Old:** ~15 builds per month (every main push)
-- **New:** ~2-4 builds per month (only releases)
-- **Savings:** ~70% reduction in build minutes
+**To enable notarization:**
+
+1. Obtain a **Developer ID Application** certificate from the [Apple Developer Portal](https://developer.apple.com/account/resources/certificates/list) (under "Software" > "Developer ID Application"). The current certificate is an "Apple Development" certificate, which Apple's notarization service rejects.
+
+2. Export the certificate as a `.p12` file from Keychain Access, base64-encode it (`base64 -i certificate.p12 | pbcopy`), and update the `CSC_LINK` secret in the `DMG Build Environment` GitHub environment.
+
+3. Update `CSC_KEY_PASSWORD` with the `.p12` export password.
+
+4. Add `"afterSign": "../../src/scripts/notarize.js"` to the `build` config in `src/frontend/package.json` (see the `_note` field at the top of that file).
+
+5. In `src/scripts/build_dmg.sh`, remove the `unset APPLE_ID` / `unset APPLE_APP_SPECIFIC_PASSWORD` / `unset APPLE_TEAM_ID` lines that currently suppress notarization.
+
+6. In `.github/workflows/release-dmg.yml`, uncomment the `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, and `APPLE_TEAM_ID` checks in the "Verify signing secrets" step.
 
 ---
 
-## 🛠️ Maintenance
+## Maintenance
 
 ### Adding a New Workflow
 
@@ -254,13 +244,6 @@ This directory contains all CI/CD workflows for the Yaak Privacy Proxy project.
 3. Test with `workflow_dispatch` first
 4. Update the table at the top
 
-### Modifying Existing Workflows
-
-1. Test changes in a fork/branch first
-2. Use `workflow_dispatch` for testing
-3. Check Actions logs for issues
-4. Update documentation if behavior changes
-
 ### Common Issues
 
 **Workflow not triggering:**
@@ -268,25 +251,16 @@ This directory contains all CI/CD workflows for the Yaak Privacy Proxy project.
 - Verify branch/path filters
 - Check repository permissions
 
-**Caching not working:**
-- Verify cache keys match
-- Check cache restore-keys
-- Ensure paths are correct
+**DMG signing secrets not available:**
+- Ensure the job has `environment: "DMG Build Environment"`
+- Verify secrets are stored in the GitHub environment (not repository secrets)
+- Environment names are case-sensitive
 
 **Build failures:**
-- Check LFS files are downloaded
+- Check LFS files are downloaded (not pointer files)
 - Verify all dependencies installed
 - Review step-by-step logs
 
 ---
 
-## 📚 Additional Resources
-
-- [GitHub Actions Documentation](https://docs.github.com/en/actions)
-- [Release Process Guide](../../docs/RELEASE.md)
-- [Changesets Documentation](https://github.com/changesets/changesets)
-- [Build Guide](../../docs/BUILD.md)
-
----
-
-**Last Updated:** December 22, 2025 (Issue #58 consolidation)
+**Last Updated:** February 2, 2026
