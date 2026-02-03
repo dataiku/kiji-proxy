@@ -3,8 +3,6 @@ import {
   Eye,
   Send,
   AlertCircle,
-  CheckCircle,
-  WifiOff,
   Settings,
   FileText,
   Info,
@@ -25,6 +23,36 @@ import {
   highlightEntitiesByOriginal,
 } from "../utils/textHighlight";
 import { reportMisclassification } from "../utils/misclassificationReporter";
+
+interface PerformanceWithMemory extends Performance {
+  memory?: {
+    jsHeapSizeLimit: number;
+    totalJSHeapSize: number;
+    usedJSHeapSize: number;
+  };
+}
+
+interface ContentBlock {
+  type: string;
+  text: string;
+}
+
+interface Part {
+  text?: string;
+}
+
+interface PiiEntityForProcessing {
+  label: string;
+  text: string;
+  masked_text: string;
+  confidence: number;
+}
+
+interface ProviderResponse {
+  choices?: { message: { content: string } }[];
+  content?: { type: string; text: string }[];
+  candidates?: { content: { parts: { text?: string }[] } }[];
+}
 
 // Provider types
 type ProviderType = "openai" | "anthropic" | "gemini" | "mistral";
@@ -472,8 +500,7 @@ export default function PrivacyProxyUI() {
   };
 
   // Extract assistant message from provider-specific response format
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const extractAssistantMessage = (provider: ProviderType, data: any): string => {
+  const extractAssistantMessage = (provider: ProviderType, data: ProviderResponse): string => {
     try {
       switch (provider) {
         case "openai":
@@ -486,8 +513,8 @@ export default function PrivacyProxyUI() {
           // Content is an array of content blocks, we concatenate all text blocks
           if (Array.isArray(data.content)) {
             return data.content
-              .filter((block: { type: string }) => block.type === "text")
-              .map((block: { text: string }) => block.text)
+              .filter((block: ContentBlock) => block.type === "text")
+              .map((block: ContentBlock) => block.text)
               .join("");
           }
           return "";
@@ -497,8 +524,8 @@ export default function PrivacyProxyUI() {
           const parts = data.candidates?.[0]?.content?.parts;
           if (Array.isArray(parts)) {
             return parts
-              .filter((part: { text?: string }) => part.text !== undefined)
-              .map((part: { text: string }) => part.text)
+              .filter((part: Part) => part.text !== undefined)
+              .map((part: Part) => part.text)
               .join("");
           }
           return "";
@@ -538,8 +565,8 @@ export default function PrivacyProxyUI() {
     console.log("[DEBUG] handleSubmit started");
     console.log(`[DEBUG] Using provider: ${activeProvider}`);
 
-    if (typeof window !== "undefined" && (window as any).performance?.memory) {
-      const mem = (window as any).performance.memory;
+    if (typeof window !== "undefined" && (window.performance as PerformanceWithMemory)?.memory) {
+      const mem = (window.performance as PerformanceWithMemory).memory;
       console.log("[DEBUG] Memory before request:", {
         usedJSHeapSize: `${(mem.usedJSHeapSize / 1024 / 1024).toFixed(2)} MB`,
         totalJSHeapSize: `${(mem.totalJSHeapSize / 1024 / 1024).toFixed(2)} MB`,
@@ -681,12 +708,7 @@ export default function PrivacyProxyUI() {
           }
 
           transformedEntities = entitiesToProcess.map(
-            (entity: {
-              label: string;
-              text: string;
-              masked_text: string;
-              confidence: number;
-            }) => ({
+            (entity: PiiEntityForProcessing) => ({
               type: entity.label.toLowerCase(),
               original: entity.text,
               token: entity.masked_text,
@@ -723,9 +745,9 @@ export default function PrivacyProxyUI() {
 
       if (
         typeof window !== "undefined" &&
-        (window as any).performance?.memory
+        (window.performance as PerformanceWithMemory)?.memory
       ) {
-        const mem = (window as any).performance.memory;
+        const mem = (window.performance as PerformanceWithMemory).memory;
         console.log("[DEBUG] Memory after processing:", {
           usedJSHeapSize: `${(mem.usedJSHeapSize / 1024 / 1024).toFixed(2)} MB`,
           totalJSHeapSize: `${(mem.totalJSHeapSize / 1024 / 1024).toFixed(
