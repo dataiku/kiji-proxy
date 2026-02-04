@@ -81,23 +81,17 @@ func run(configPath *string) error {
 	log.Printf("🚀 Starting Dataiku's Yaak Privacy Proxy v%s", version)
 	log.Println("================================================================================")
 
-	// Load configuration
+	// Load and validate configuration
 	cfg := config.DefaultConfig()
 
 	if *configPath != "" {
 		loadConfigFromFile(*configPath, cfg)
 	}
-
-	// Override configuration with environment variables
 	loadConfigFromEnv(cfg)
 
-	// Example: Customize logging configuration
-	// Uncomment and modify these lines to change logging behavior:
-
-	// cfg.Logging.LogRequests = false   // Don't log request content
-	// cfg.Logging.LogResponses = true   // Log response content
-	// cfg.Logging.LogPIIChanges = true  // Log PII detection/restoration
-	// cfg.Logging.LogVerbose = true     // Log detailed PII changes
+	if err := cfg.ValidateConfig(); err != nil {
+		return err
+	}
 
 	// Create and start server
 	var srv *server.Server
