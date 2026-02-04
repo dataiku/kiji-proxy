@@ -160,6 +160,7 @@ export default function PrivacyProxyUI() {
   const [modelSignature, setModelSignature] = useState<string | null>(null);
   const [showModelTooltip, setShowModelTooltip] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
   const [version, setVersion] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -244,6 +245,15 @@ export default function PrivacyProxyUI() {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [isMenuOpen]);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 20);
+    };
+
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   // Load settings on mount and listen for menu command
   useEffect(() => {
@@ -945,61 +955,70 @@ export default function PrivacyProxyUI() {
       )}
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-3 mb-4 relative">
-            {isElectron && (
-              <div className="absolute left-0" ref={menuRef}>
-                <button
-                  onClick={() => setIsMenuOpen(!isMenuOpen)}
-                  className="p-2 text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
-                  title="Menu"
-                >
-                  <Menu className="w-6 h-6" />
-                </button>
-                {isMenuOpen && (
-                  <div className="absolute left-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-slate-200 z-50">
-                    <button
-                      onClick={() => {
-                        setIsSettingsOpen(true);
-                        setIsMenuOpen(false);
-                      }}
-                      className="w-full text-left px-4 py-3 text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2 first:rounded-t-lg"
-                    >
-                      <Settings className="w-4 h-4" />
-                      Settings
-                    </button>
-                    <button
-                      onClick={() => {
-                        setIsLoggingOpen(true);
-                        setIsMenuOpen(false);
-                      }}
-                      className="w-full text-left px-4 py-3 text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
-                    >
-                      <FileText className="w-4 h-4" />
-                      Logging
-                    </button>
-                    <button
-                      onClick={() => {
-                        setIsAboutOpen(true);
-                        setIsMenuOpen(false);
-                      }}
-                      className="w-full text-left px-4 py-3 text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2 last:rounded-b-lg"
-                    >
-                      <Info className="w-4 h-4" />
-                      About Yaak Proxy
-                    </button>
-                  </div>
-                )}
-              </div>
+        <div
+          className={`sticky top-0 z-40 transition-all duration-300 -mx-4 md:-mx-8 px-4 md:px-8 py-4 mb-8 ${isScrolled
+              ? "bg-white/80 backdrop-blur-md shadow-md py-2 border-b border-slate-200"
+              : "bg-transparent"
+            }`}
+        >
+          <div className={`flex flex-col items-center justify-center transition-all duration-300 ${isScrolled ? "scale-90" : "scale-100"}`}>
+            <div className="flex items-center justify-center gap-3 relative w-full max-w-4xl">
+              {isElectron && (
+                <div className="absolute left-0" ref={menuRef}>
+                  <button
+                    onClick={() => setIsMenuOpen(!isMenuOpen)}
+                    className="p-2 text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
+                    title="Menu"
+                  >
+                    <Menu className="w-6 h-6" />
+                  </button>
+                  {isMenuOpen && (
+                    <div className="absolute left-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-slate-200 z-50">
+                      <button
+                        onClick={() => {
+                          setIsSettingsOpen(true);
+                          setIsMenuOpen(false);
+                        }}
+                        className="w-full text-left px-4 py-3 text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2 first:rounded-t-lg"
+                      >
+                        <Settings className="w-4 h-4" />
+                        Settings
+                      </button>
+                      <button
+                        onClick={() => {
+                          setIsLoggingOpen(true);
+                          setIsMenuOpen(false);
+                        }}
+                        className="w-full text-left px-4 py-3 text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
+                      >
+                        <FileText className="w-4 h-4" />
+                        Logging
+                      </button>
+                      <button
+                        onClick={() => {
+                          setIsAboutOpen(true);
+                          setIsMenuOpen(false);
+                        }}
+                        className="w-full text-left px-4 py-3 text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2 last:rounded-b-lg"
+                      >
+                        <Info className="w-4 h-4" />
+                        About Yaak Proxy
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+              <img src={logoImage} alt="Yaak Logo" className={`transition-all duration-300 ${isScrolled ? "w-8 h-8" : "w-12 h-12"}`} />
+              <h1 className={`font-bold text-slate-800 transition-all duration-300 ${isScrolled ? "text-2xl" : "text-4xl"}`}>
+                Yaak Privacy Proxy
+              </h1>
+            </div>
+            {!isScrolled && (
+              <p className="text-slate-600 text-lg mt-2 animate-fade-in">
+                PII Detection and Masking Proxy
+              </p>
             )}
-            <img src={logoImage} alt="Yaak Logo" className="w-12 h-12" />
-            <h1 className="text-4xl font-bold text-slate-800">
-              Yaak Privacy Proxy
-            </h1>
           </div>
-          <p className="text-slate-600 text-lg">
-            PII Detection and Masking Proxy
-          </p>
 
 
 
