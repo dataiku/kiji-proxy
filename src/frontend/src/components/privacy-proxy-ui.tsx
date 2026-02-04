@@ -599,12 +599,14 @@ export default function PrivacyProxyUI() {
     console.log(`[DEBUG] Using provider: ${activeProvider}`);
 
     if (typeof window !== "undefined" && (window.performance as PerformanceWithMemory)?.memory) {
-      const mem = (window.performance as PerformanceWithMemory).memory!;
-      console.log("[DEBUG] Memory before request:", {
-        usedJSHeapSize: `${(mem.usedJSHeapSize / 1024 / 1024).toFixed(2)} MB`,
-        totalJSHeapSize: `${(mem.totalJSHeapSize / 1024 / 1024).toFixed(2)} MB`,
-        jsHeapSizeLimit: `${(mem.jsHeapSizeLimit / 1024 / 1024).toFixed(2)} MB`,
-      });
+      const mem = (window.performance as PerformanceWithMemory).memory;
+      if (mem) {
+        console.log("[DEBUG] Memory before request:", {
+          usedJSHeapSize: `${(mem.usedJSHeapSize / 1024 / 1024).toFixed(2)} MB`,
+          totalJSHeapSize: `${(mem.totalJSHeapSize / 1024 / 1024).toFixed(2)} MB`,
+          jsHeapSizeLimit: `${(mem.jsHeapSizeLimit / 1024 / 1024).toFixed(2)} MB`,
+        });
+      }
     }
 
     try {
@@ -780,16 +782,18 @@ export default function PrivacyProxyUI() {
         typeof window !== "undefined" &&
         (window.performance as PerformanceWithMemory)?.memory
       ) {
-        const mem = (window.performance as PerformanceWithMemory).memory!;
-        console.log("[DEBUG] Memory after processing:", {
-          usedJSHeapSize: `${(mem.usedJSHeapSize / 1024 / 1024).toFixed(2)} MB`,
-          totalJSHeapSize: `${(mem.totalJSHeapSize / 1024 / 1024).toFixed(
-            2
-          )} MB`,
-          jsHeapSizeLimit: `${(mem.jsHeapSizeLimit / 1024 / 1024).toFixed(
-            2
-          )} MB`,
-        });
+        const mem = (window.performance as PerformanceWithMemory).memory;
+        if (mem) {
+          console.log("[DEBUG] Memory after processing:", {
+            usedJSHeapSize: `${(mem.usedJSHeapSize / 1024 / 1024).toFixed(2)} MB`,
+            totalJSHeapSize: `${(mem.totalJSHeapSize / 1024 / 1024).toFixed(
+              2
+            )} MB`,
+            jsHeapSizeLimit: `${(mem.jsHeapSizeLimit / 1024 / 1024).toFixed(
+              2
+            )} MB`,
+          });
+        }
       }
     } catch (error) {
       console.error("[DEBUG] Error in handleSubmit:", error);
