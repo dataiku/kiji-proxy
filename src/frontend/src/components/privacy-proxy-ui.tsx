@@ -1091,9 +1091,6 @@ export default function PrivacyProxyUI() {
                 </select>
               </div>
             )}
-            <span className="text-sm text-slate-500">
-              Original data with PII
-            </span>
           </div>
           <textarea
             value={inputData}
