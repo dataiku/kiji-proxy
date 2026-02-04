@@ -81,31 +81,6 @@ func (c *Config) ValidateConfig() error {
 	if err := validatePort(c.Proxy.ProxyPort, "Proxy.ProxyPort"); err != nil {
 		errs = append(errs, err.Error())
 	}
-	if err := validatePath(c.Proxy.CAPath, "Proxy.CAPath"); err != nil {
-		errs = append(errs, err.Error())
-	}
-	if err := validatePath(c.Proxy.KeyPath, "Proxy.KeyPath"); err != nil {
-		errs = append(errs, err.Error())
-	}
-
-	// Validate DatabaseConfig paths
-	if err := validatePath(c.Database.Path, "Database.Path"); err != nil {
-		errs = append(errs, err.Error())
-	}
-
-	// Validate model paths
-	if err := validatePath(c.ONNXModelPath, "ONNXModelPath"); err != nil {
-		errs = append(errs, err.Error())
-	}
-	if err := validatePath(c.TokenizerPath, "TokenizerPath"); err != nil {
-		errs = append(errs, err.Error())
-	}
-	if err := validatePath(c.ONNXModelDirectory, "ONNXModelDirectory"); err != nil {
-		errs = append(errs, err.Error())
-	}
-	if err := validatePath(c.UIPath, "UIPath"); err != nil {
-		errs = append(errs, err.Error())
-	}
 
 	// Validate provider configs
 	if err := validateProviderConfig(c.Providers.OpenAIProviderConfig, "OpenAI"); err != nil {
@@ -142,16 +117,6 @@ func validatePort(port string, fieldName string) error {
 	return nil
 }
 
-func validatePath(path string, fieldName string) error {
-	if path == "" {
-		return fmt.Errorf("%s: path cannot be empty", fieldName)
-	}
-	if strings.ContainsAny(path, "\x00") {
-		return fmt.Errorf("%s: path contains invalid characters (current value: %s)", fieldName, path)
-	}
-	return nil
-}
-
 func validateProviderConfig(pc ProviderConfig, providerName string) error {
 	var errs []string
 
@@ -178,7 +143,7 @@ func validateDomain(domain string, fieldName string) error {
 	}
 	domainRegex := regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$`)
 	if !domainRegex.MatchString(domain) {
-		return fmt.Errorf("%s: domain format is invalid current value: %s)", fieldName, domain)
+		return fmt.Errorf("%s: domain format is invalid (current value: %s)", fieldName, domain)
 	}
 	return nil
 }
