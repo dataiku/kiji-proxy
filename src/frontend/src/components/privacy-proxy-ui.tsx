@@ -3,8 +3,6 @@ import {
   Eye,
   Send,
   AlertCircle,
-  CheckCircle,
-  WifiOff,
   Settings,
   FileText,
   Info,
@@ -27,21 +25,34 @@ import {
 } from "../utils/textHighlight";
 import { reportMisclassification } from "../utils/misclassificationReporter";
 
-// Type declaration for Chrome's non-standard Performance Memory API
-interface PerformanceMemory {
-  usedJSHeapSize: number;
-  totalJSHeapSize: number;
-  jsHeapSizeLimit: number;
+interface PerformanceWithMemory extends Performance {
+  memory?: {
+    jsHeapSizeLimit: number;
+    totalJSHeapSize: number;
+    usedJSHeapSize: number;
+  };
 }
 
-interface ExtendedPerformance extends Performance {
-  memory?: PerformanceMemory;
+interface ContentBlock {
+  type: string;
+  text: string;
 }
 
-declare global {
-  interface Window {
-    performance: ExtendedPerformance;
-  }
+interface Part {
+  text?: string;
+}
+
+interface PiiEntityForProcessing {
+  label: string;
+  text: string;
+  masked_text: string;
+  confidence: number;
+}
+
+interface ProviderResponse {
+  choices?: { message: { content: string } }[];
+  content?: { type: string; text: string }[];
+  candidates?: { content: { parts: { text?: string }[] } }[];
 }
 
 // Provider types
@@ -531,11 +542,7 @@ export default function PrivacyProxyUI() {
   };
 
   // Extract assistant message from provider-specific response format
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const extractAssistantMessage = (
-    provider: ProviderType,
-    data: any
-  ): string => {
+  const extractAssistantMessage = (provider: ProviderType, data: ProviderResponse): string => {
     try {
       switch (provider) {
         case "openai":
@@ -548,8 +555,8 @@ export default function PrivacyProxyUI() {
           // Content is an array of content blocks, we concatenate all text blocks
           if (Array.isArray(data.content)) {
             return data.content
-              .filter((block: { type: string }) => block.type === "text")
-              .map((block: { text: string }) => block.text)
+              .filter((block: ContentBlock) => block.type === "text")
+              .map((block: ContentBlock) => block.text)
               .join("");
           }
           return "";
@@ -559,8 +566,8 @@ export default function PrivacyProxyUI() {
           const parts = data.candidates?.[0]?.content?.parts;
           if (Array.isArray(parts)) {
             return parts
-              .filter((part: { text?: string }) => part.text !== undefined)
-              .map((part: { text: string }) => part.text)
+              .filter((part: Part) => part.text !== undefined)
+              .map((part: Part) => part.text)
               .join("");
           }
           return "";
@@ -603,13 +610,15 @@ export default function PrivacyProxyUI() {
     console.log("[DEBUG] handleSubmit started");
     console.log(`[DEBUG] Using provider: ${activeProvider}`);
 
-    if (typeof window !== "undefined" && window.performance?.memory) {
-      const mem = window.performance.memory;
-      console.log("[DEBUG] Memory before request:", {
-        usedJSHeapSize: `${(mem.usedJSHeapSize / 1024 / 1024).toFixed(2)} MB`,
-        totalJSHeapSize: `${(mem.totalJSHeapSize / 1024 / 1024).toFixed(2)} MB`,
-        jsHeapSizeLimit: `${(mem.jsHeapSizeLimit / 1024 / 1024).toFixed(2)} MB`,
-      });
+    if (typeof window !== "undefined" && (window.performance as PerformanceWithMemory)?.memory) {
+      const mem = (window.performance as PerformanceWithMemory).memory;
+      if (mem) {
+        console.log("[DEBUG] Memory before request:", {
+          usedJSHeapSize: `${(mem.usedJSHeapSize / 1024 / 1024).toFixed(2)} MB`,
+          totalJSHeapSize: `${(mem.totalJSHeapSize / 1024 / 1024).toFixed(2)} MB`,
+          jsHeapSizeLimit: `${(mem.jsHeapSizeLimit / 1024 / 1024).toFixed(2)} MB`,
+        });
+      }
     }
 
     try {
@@ -746,12 +755,7 @@ export default function PrivacyProxyUI() {
           }
 
           transformedEntities = entitiesToProcess.map(
-            (entity: {
-              label: string;
-              text: string;
-              masked_text: string;
-              confidence: number;
-            }) => ({
+            (entity: PiiEntityForProcessing) => ({
               type: entity.label.toLowerCase(),
               original: entity.text,
               token: entity.masked_text,
@@ -786,17 +790,22 @@ export default function PrivacyProxyUI() {
         ).toFixed(2)}ms`
       );
 
-      if (typeof window !== "undefined" && window.performance?.memory) {
-        const mem = window.performance.memory;
-        console.log("[DEBUG] Memory after processing:", {
-          usedJSHeapSize: `${(mem.usedJSHeapSize / 1024 / 1024).toFixed(2)} MB`,
-          totalJSHeapSize: `${(mem.totalJSHeapSize / 1024 / 1024).toFixed(
-            2
-          )} MB`,
-          jsHeapSizeLimit: `${(mem.jsHeapSizeLimit / 1024 / 1024).toFixed(
-            2
-          )} MB`,
-        });
+      if (
+        typeof window !== "undefined" &&
+        (window.performance as PerformanceWithMemory)?.memory
+      ) {
+        const mem = (window.performance as PerformanceWithMemory).memory;
+        if (mem) {
+          console.log("[DEBUG] Memory after processing:", {
+            usedJSHeapSize: `${(mem.usedJSHeapSize / 1024 / 1024).toFixed(2)} MB`,
+            totalJSHeapSize: `${(mem.totalJSHeapSize / 1024 / 1024).toFixed(
+              2
+            )} MB`,
+            jsHeapSizeLimit: `${(mem.jsHeapSizeLimit / 1024 / 1024).toFixed(
+              2
+            )} MB`,
+          });
+        }
       }
     } catch (error) {
       console.error("[DEBUG] Error in handleSubmit:", error);
@@ -993,27 +1002,7 @@ export default function PrivacyProxyUI() {
             PII Detection and Masking Proxy
           </p>
 
-          {/* Server Status Banner */}
-          {serverStatus === "offline" ? (
-            <div className="mt-4 p-4 bg-red-50 border-2 border-red-200 rounded-lg inline-block">
-              <p className="text-sm text-red-900 flex items-center gap-2">
-                <WifiOff className="w-5 h-5" />
-                <span className="font-semibold">
-                  Backend server is offline.
-                </span>
-              </p>
-              <p className="text-xs text-red-700 mt-2">
-                Please ensure the Go backend server is running at localhost:8080
-              </p>
-            </div>
-          ) : (
-            <div className="mt-4 p-2 bg-green-50 border border-green-200 rounded-lg inline-block">
-              <p className="text-xs text-green-800 flex items-center gap-2">
-                <CheckCircle className="w-4 h-4" />
-                <span>Backend server is online</span>
-              </p>
-            </div>
-          )}
+
 
           {/* Model Health Banner */}
           {serverHealth.status === "online" && !serverHealth.modelHealthy && (
@@ -1323,7 +1312,13 @@ export default function PrivacyProxyUI() {
             }
           />
           <span className="text-sm">
-            {serverStatus === "online" ? "Server online" : "Server offline"}
+            {serverStatus === "online" ? (
+              "Server online"
+            ) : (
+              <span className="flex items-center gap-2">
+                Server offline - Please ensure the Go backend server is running at localhost:8080
+              </span>
+            )}
           </span>
         </div>
         {modelSignature && (
