@@ -254,6 +254,11 @@ func loadApplicationConfig(cfg *config.Config) {
 	} else {
 		log.Printf("Warning: MISTRAL_API_KEY is empty or not set")
 	}
+
+	if modelDir := os.Getenv("ONNX_MODEL_DIRECTORY"); modelDir != "" {
+		cfg.ONNXModelDirectory = modelDir
+		log.Printf("Loaded ONNX_MODEL_DIRECTORY from environment: %s", modelDir)
+	}
 }
 
 // loadLoggingConfig loads logging configuration from environment variables

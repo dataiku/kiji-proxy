@@ -78,10 +78,8 @@ func NewONNXModelDetectorSimple(modelPath string, tokenizerPath string) (*ONNXMo
 	// Load tokenizer
 	tk, err := tokenizers.FromFile(tokenizerPath)
 	if err != nil {
-		if err := onnxruntime.DestroyEnvironment(); err != nil {
-			// Log but don't fail on cleanup error
-			fmt.Printf("Warning: failed to destroy environment during cleanup: %v\n", err)
-		}
+		// Don't destroy ONNX environment on error - it's shared globally
+		// and may be in use by other detectors
 		return nil, fmt.Errorf("failed to load tokenizer: %w", err)
 	}
 
@@ -106,9 +104,7 @@ func NewONNXModelDetectorSimple(modelPath string, tokenizerPath string) (*ONNXMo
 		if err := tk.Close(); err != nil {
 			fmt.Printf("Warning: failed to close tokenizer during cleanup: %v\n", err)
 		}
-		if err := onnxruntime.DestroyEnvironment(); err != nil {
-			fmt.Printf("Warning: failed to destroy environment during cleanup: %v\n", err)
-		}
+		// Don't destroy ONNX environment on error - it's shared globally
 		return nil, fmt.Errorf("failed to load model configuration from any of the attempted paths: %v", configPaths)
 	}
 
@@ -125,9 +121,7 @@ func NewONNXModelDetectorSimple(modelPath string, tokenizerPath string) (*ONNXMo
 		if err := tk.Close(); err != nil {
 			fmt.Printf("Warning: failed to close tokenizer during cleanup: %v\n", err)
 		}
-		if err := onnxruntime.DestroyEnvironment(); err != nil {
-			fmt.Printf("Warning: failed to destroy environment during cleanup: %v\n", err)
-		}
+		// Don't destroy ONNX environment on error - it's shared globally
 		return nil, fmt.Errorf("failed to parse config: %w", err)
 	}
 
@@ -447,30 +441,37 @@ func (d *ONNXModelDetectorSimple) Close() error {
 		if err := d.session.Destroy(); err != nil {
 			errs = append(errs, fmt.Errorf("failed to destroy session: %w", err))
 		}
+		d.session = nil
 	}
 	if d.inputTensor != nil {
 		if err := d.inputTensor.Destroy(); err != nil {
 			errs = append(errs, fmt.Errorf("failed to destroy input tensor: %w", err))
 		}
+		d.inputTensor = nil
 	}
 	if d.maskTensor != nil {
 		if err := d.maskTensor.Destroy(); err != nil {
 			errs = append(errs, fmt.Errorf("failed to destroy mask tensor: %w", err))
 		}
+		d.maskTensor = nil
 	}
 	if d.outputTensor != nil {
 		if err := d.outputTensor.Destroy(); err != nil {
 			errs = append(errs, fmt.Errorf("failed to destroy output tensor: %w", err))
 		}
+		d.outputTensor = nil
 	}
 	if d.tokenizer != nil {
 		if err := d.tokenizer.Close(); err != nil {
 			errs = append(errs, fmt.Errorf("failed to close tokenizer: %w", err))
 		}
+		d.tokenizer = nil
 	}
-	if err := onnxruntime.DestroyEnvironment(); err != nil {
-		errs = append(errs, fmt.Errorf("failed to destroy environment: %w", err))
-	}
+	// NOTE: We intentionally do NOT call onnxruntime.DestroyEnvironment() here.
+	// The ONNX runtime environment is global and shared across all detectors.
+	// Destroying it would invalidate any other detectors that are still in use
+	// (e.g., the new detector loaded during a hot reload).
+	// The environment should only be destroyed when the entire application shuts down.
 
 	if len(errs) > 0 {
 		return fmt.Errorf("cleanup errors: %v", errs)

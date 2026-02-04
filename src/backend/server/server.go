@@ -208,6 +208,8 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/mappings", s.mappingsHandler)
 	mux.HandleFunc("/stats", s.statsHandler)
 	mux.HandleFunc("/api/model/security", s.handleModelSecurity)
+	mux.HandleFunc("/api/model/reload", s.handleModelReload)
+	mux.HandleFunc("/api/model/info", s.handleModelInfo)
 	mux.HandleFunc("/api/proxy/ca-cert", s.handleCACert)
 	mux.HandleFunc("/api/pii/check", s.handlePIICheck)
 
@@ -338,9 +340,32 @@ func (s *Server) healthCheck(w http.ResponseWriter, r *http.Request) {
 	// Add CORS headers
 	s.corsHandler(w, r)
 
+	// Check model health
+	modelHealthy := s.handler.IsModelHealthy()
+
+	status := "healthy"
+	httpStatus := http.StatusOK
+
+	if !modelHealthy {
+		status = "unhealthy"
+		httpStatus = http.StatusServiceUnavailable
+	}
+
+	response := map[string]interface{}{
+		"status":        status,
+		"service":       "Yaak Proxy Service",
+		"model_healthy": modelHealthy,
+	}
+
+	if !modelHealthy {
+		if err := s.handler.GetModelError(); err != nil {
+			response["model_error"] = err.Error()
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	if _, err := w.Write([]byte(`{"status":"healthy","service":"Yaak Proxy Service"}`)); err != nil {
+	w.WriteHeader(httpStatus)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
 		log.Printf("Failed to write health check response: %v", err)
 	}
 }
@@ -606,6 +631,73 @@ func (s *Server) handleCACert(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	if _, err := w.Write(data); err != nil {
 		log.Printf("Failed to write CA certificate: %v", err)
+	}
+}
+
+// handleModelReload handles POST /api/model/reload requests
+func (s *Server) handleModelReload(w http.ResponseWriter, r *http.Request) {
+	s.corsHandler(w, r)
+
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		Directory string `json:"directory"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+
+	if req.Directory == "" {
+		http.Error(w, "Directory is required", http.StatusBadRequest)
+		return
+	}
+
+	// Trigger model reload via handler
+	if err := s.handler.ReloadModel(req.Directory); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		response := map[string]interface{}{
+			"success": false,
+			"error":   err.Error(),
+		}
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			log.Printf("Failed to encode error response: %v", err)
+		}
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	response := map[string]interface{}{
+		"success":   true,
+		"message":   "Model reloaded successfully",
+		"directory": req.Directory,
+	}
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		log.Printf("Failed to encode success response: %v", err)
+	}
+}
+
+// handleModelInfo handles GET /api/model/info requests
+func (s *Server) handleModelInfo(w http.ResponseWriter, r *http.Request) {
+	s.corsHandler(w, r)
+
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	info := s.handler.GetModelInfo()
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(info); err != nil {
+		log.Printf("Failed to encode model info response: %v", err)
 	}
 }
 

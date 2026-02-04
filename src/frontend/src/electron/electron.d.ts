@@ -44,6 +44,18 @@ interface ElectronAPI {
   setTermsAccepted: (
     accepted: boolean
   ) => Promise<{ success: boolean; error?: string }>;
+  // Model directory settings
+  getModelDirectory: () => Promise<string | null>;
+  setModelDirectory: (
+    path: string
+  ) => Promise<{ success: boolean; error?: string }>;
+  getModelInfo: () => Promise<{
+    healthy: boolean;
+    directory?: string;
+    error?: string;
+  }>;
+  reloadModel: (path: string) => Promise<{ success: boolean; error?: string }>;
+  selectModelDirectory: () => Promise<string | null>;
 
   // Platform and version info
   platform: string;

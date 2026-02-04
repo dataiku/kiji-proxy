@@ -53,14 +53,15 @@ type ProxyConfig struct {
 
 // Config holds all configuration for the PII proxy service
 type Config struct {
-	Providers     ProvidersConfig `json:"providers"`
-	ProxyPort     string
-	Database      DatabaseConfig
-	Logging       LoggingConfig
-	ONNXModelPath string
-	TokenizerPath string
-	UIPath        string
-	Proxy         ProxyConfig `json:"Proxy"`
+	Providers          ProvidersConfig `json:"providers"`
+	ProxyPort          string
+	Database           DatabaseConfig
+	Logging            LoggingConfig
+	ONNXModelPath      string
+	TokenizerPath      string
+	ONNXModelDirectory string
+	UIPath             string
+	Proxy              ProxyConfig `json:"Proxy"`
 }
 
 // DefaultConfig returns the default configuration
@@ -100,10 +101,11 @@ func DefaultConfig() *Config {
 			GeminiProviderConfig:    defaultGeminiProviderConfig,
 			MistralProviderConfig:   defaultMistralProviderConfig,
 		},
-		ProxyPort:     ":8080",
-		ONNXModelPath: "model/quantized/model_quantized.onnx",
-		TokenizerPath: "model/quantized/tokenizer.json",
-		UIPath:        "./src/frontend/dist",
+		ProxyPort:          ":8080",
+		ONNXModelPath:      "model/quantized/model_quantized.onnx",
+		TokenizerPath:      "model/quantized/tokenizer.json",
+		ONNXModelDirectory: "model/quantized",
+		UIPath:             "./src/frontend/dist",
 		Database: DatabaseConfig{
 			Path:         "yaak.db",
 			CleanupHours: 24,
