@@ -15,23 +15,40 @@ type MaskedResult struct {
 	Entities         []detectors.Entity
 }
 
+// DetectorProvider is an interface for getting the current detector
+// This allows MaskingService to always use the latest detector after hot reloads
+type DetectorProvider interface {
+	GetDetector() (detectors.Detector, error)
+}
+
 // MaskingService handles PII detection and masking
 type MaskingService struct {
-	detector  detectors.Detector
-	generator *GeneratorService
+	detectorProvider DetectorProvider
+	generator        *GeneratorService
 }
 
 // NewMaskingService creates a new masking service
-func NewMaskingService(detector detectors.Detector, generator *GeneratorService) *MaskingService {
+// The detectorProvider should be a ModelManager that provides the current detector
+func NewMaskingService(detectorProvider DetectorProvider, generator *GeneratorService) *MaskingService {
 	return &MaskingService{
-		detector:  detector,
-		generator: generator,
+		detectorProvider: detectorProvider,
+		generator:        generator,
 	}
 }
 
 // MaskText detects PII in text and returns masked text with mappings
 func (s *MaskingService) MaskText(text string, logPrefix string) MaskedResult {
-	piiFound, err := s.detector.Detect(context.Background(), detectors.DetectorInput{Text: text})
+	detector, err := s.detectorProvider.GetDetector()
+	if err != nil {
+		log.Printf("%s ❌ Failed to get detector: %v", logPrefix, err)
+		return MaskedResult{
+			MaskedText:       text,
+			MaskedToOriginal: make(map[string]string),
+			Entities:         []detectors.Entity{},
+		}
+	}
+
+	piiFound, err := detector.Detect(context.Background(), detectors.DetectorInput{Text: text})
 	if err != nil {
 		log.Printf("%s ❌ Failed to detect PII: %v", logPrefix, err)
 		return MaskedResult{

@@ -1147,7 +1147,6 @@ ipcMain.handle("set-welcome-dismissed", async (event, dismissed) => {
     const storagePath = getStoragePath();
     let config = {};
 
-    // Read existing config if it exists
     if (fs.existsSync(storagePath)) {
       const data = fs.readFileSync(storagePath, "utf8");
       config = JSON.parse(data);
@@ -1155,12 +1154,147 @@ ipcMain.handle("set-welcome-dismissed", async (event, dismissed) => {
 
     config.welcomeDismissed = !!dismissed;
 
-    // Save config
     fs.writeFileSync(storagePath, JSON.stringify(config, null, 2), "utf8");
     return { success: true };
   } catch (error) {
     console.error("Error saving welcome dismissed flag:", error);
     return { success: false, error: error.message };
+  }
+});
+
+// Model directory management
+ipcMain.handle("select-model-directory", async () => {
+  const { dialog } = require("electron");
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ["openDirectory"],
+    title: "Select Model Directory",
+    message: "Choose the directory containing your PII model files",
+  });
+
+  if (result.canceled || result.filePaths.length === 0) {
+    return null;
+  }
+
+  return result.filePaths[0];
+});
+
+ipcMain.handle("get-model-directory", async () => {
+  try {
+    const storagePath = getStoragePath();
+    if (!fs.existsSync(storagePath)) {
+      return null;
+    }
+    const data = fs.readFileSync(storagePath, "utf8");
+    const config = JSON.parse(data);
+    return config.modelDirectory || null;
+  } catch (error) {
+    console.error("Error reading model directory:", error);
+    return null;
+  }
+});
+
+ipcMain.handle("set-model-directory", async (event, directory) => {
+  try {
+    const storagePath = getStoragePath();
+    let config = {};
+
+    if (fs.existsSync(storagePath)) {
+      const data = fs.readFileSync(storagePath, "utf8");
+      config = JSON.parse(data);
+    }
+
+    if (directory && directory.trim()) {
+      config.modelDirectory = directory.trim();
+    } else {
+      delete config.modelDirectory;
+    }
+
+    fs.writeFileSync(storagePath, JSON.stringify(config, null, 2), "utf8");
+    return { success: true };
+  } catch (error) {
+    console.error("Error saving model directory:", error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle("reload-model", async (event, directory) => {
+  try {
+    const { net } = require("electron");
+    const request = net.request({
+      method: "POST",
+      url: "http://localhost:8080/api/model/reload",
+    });
+
+    request.setHeader("Content-Type", "application/json");
+
+    return new Promise((resolve, reject) => {
+      let responseData = "";
+
+      request.on("response", (response) => {
+        response.on("data", (chunk) => {
+          responseData += chunk.toString();
+        });
+
+        response.on("end", () => {
+          try {
+            const data = JSON.parse(responseData);
+            resolve(data);
+          } catch (error) {
+            reject(error);
+          }
+        });
+      });
+
+      request.on("error", (error) => {
+        console.error("Error reloading model:", error);
+        resolve({ success: false, error: error.message });
+      });
+
+      request.write(JSON.stringify({ directory }));
+      request.end();
+    });
+  } catch (error) {
+    console.error("Error reloading model:", error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle("get-model-info", async () => {
+  try {
+    const { net } = require("electron");
+    const request = net.request({
+      method: "GET",
+      url: "http://localhost:8080/api/model/info",
+    });
+
+    return new Promise((resolve, reject) => {
+      let responseData = "";
+
+      request.on("response", (response) => {
+        response.on("data", (chunk) => {
+          responseData += chunk.toString();
+        });
+
+        response.on("end", () => {
+          try {
+            const data = JSON.parse(responseData);
+            resolve(data);
+          } catch (error) {
+            reject(error);
+          }
+        });
+      });
+
+      request.on("error", (error) => {
+        console.error("Error getting model info:", error);
+        resolve({ error: error.message });
+      });
+
+      request.end();
+    });
+  } catch (error) {
+    console.error("Error getting model info:", error);
+    return { error: error.message };
   }
 });
 

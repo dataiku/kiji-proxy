@@ -26,12 +26,47 @@ import (
 type Handler struct {
 	client            *http.Client
 	config            *config.Config
+	modelManager      *piiServices.ModelManager
 	providers         *providers.Providers
 	detector          *pii.Detector
 	responseProcessor *processor.ResponseProcessor
 	maskingService    *piiServices.MaskingService
 	loggingDB         piiServices.LoggingDB    // Database or in-memory storage for logging
 	mappingDB         piiServices.PIIMappingDB // Same instance as loggingDB, for mapping operations
+}
+
+// ReloadModel reloads the PII model from the specified directory
+func (h *Handler) ReloadModel(directory string) error {
+	if h.modelManager == nil {
+		return fmt.Errorf("model manager not initialized")
+	}
+	return h.modelManager.ReloadModel(directory)
+}
+
+// IsModelHealthy returns whether the PII model is healthy
+func (h *Handler) IsModelHealthy() bool {
+	if h.modelManager == nil {
+		return false
+	}
+	return h.modelManager.IsHealthy()
+}
+
+// GetModelError returns the last model error (if any)
+func (h *Handler) GetModelError() error {
+	if h.modelManager == nil {
+		return nil
+	}
+	return h.modelManager.GetLastError()
+}
+
+// GetModelInfo returns information about the current model state
+func (h *Handler) GetModelInfo() map[string]interface{} {
+	if h.modelManager == nil {
+		return map[string]interface{}{
+			"error": "model manager not initialized",
+		}
+	}
+	return h.modelManager.GetInfo()
 }
 
 // ServeHTTP implements the http.Handler interface
@@ -226,6 +261,10 @@ func (h *Handler) readRequestBody(r *http.Request) ([]byte, error) {
 
 // maskPIIInText detects PII in text and returns masked text with mappings
 func (h *Handler) maskPIIInText(text string, logPrefix string) (string, map[string]string, []pii.Entity) {
+	if h.maskingService == nil {
+		// Model is unhealthy - return text unchanged
+		return text, make(map[string]string), []pii.Entity{}
+	}
 	result := h.maskingService.MaskText(text, logPrefix)
 	return result.MaskedText, result.MaskedToOriginal, result.Entities
 }
@@ -443,12 +482,29 @@ func (h *Handler) GetHTTPClient() *http.Client {
 }
 
 func NewHandler(cfg *config.Config) (*Handler, error) {
-	// Create the ONNX detector directly
-	onnxDetector, err := pii.NewONNXModelDetectorSimple(cfg.ONNXModelPath, cfg.TokenizerPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create ONNX detector: %w", err)
+	var modelManager *piiServices.ModelManager
+	var detector pii.Detector
+	var err error
+
+	// Initialize model manager for ONNX detector
+	modelDir := cfg.ONNXModelDirectory
+	if modelDir == "" {
+		modelDir = "model/quantized" // Default directory
 	}
-	var detector pii.Detector = onnxDetector
+
+	log.Printf("[Handler] Initializing ModelManager with directory: %s", modelDir)
+	modelManager, err = piiServices.NewModelManager(modelDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize model manager: %w", err)
+	}
+
+	// Try to get detector to verify model health, but allow handler creation even if unhealthy
+	detector, err = modelManager.GetDetector()
+	if err != nil {
+		log.Printf("[Handler] Warning: Model is unhealthy, requests will fail until model is fixed: %v", err)
+		// Allow server to start so users can access the health endpoint and settings UI to fix the model
+		detector = nil
+	}
 
 	// Create providers
 	openAIProvider := providers.NewOpenAIProvider(
@@ -488,9 +544,19 @@ func NewHandler(cfg *config.Config) (*Handler, error) {
 	}
 
 	// Create services
+	// MaskingService now uses ModelManager as a DetectorProvider, so it always gets
+	// the current detector after hot reloads
 	generatorService := piiServices.NewGeneratorService()
-	maskingService := piiServices.NewMaskingService(detector, generatorService)
-	responseProcessor := processor.NewResponseProcessor(&detector, cfg.Logging)
+	maskingService := piiServices.NewMaskingService(modelManager, generatorService)
+
+	var responseProcessor *processor.ResponseProcessor
+	if detector != nil {
+		responseProcessor = processor.NewResponseProcessor(&detector, cfg.Logging)
+	} else {
+		// Model is unhealthy at startup - log warning but allow server to start
+		log.Printf("[Handler] Creating handler with unhealthy model - PII detection disabled until model is fixed")
+		responseProcessor = nil
+	}
 
 	// Initialize SQLite database
 	ctx := context.Background()
@@ -520,6 +586,7 @@ func NewHandler(cfg *config.Config) (*Handler, error) {
 	return &Handler{
 		client:            client,
 		config:            cfg,
+		modelManager:      modelManager,
 		providers:         &providers,
 		detector:          &detector,
 		responseProcessor: responseProcessor,
@@ -714,8 +781,9 @@ func (h *Handler) HandleStats(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) Close() error {
 	var err error
-	if h.detector != nil {
-		if closeErr := (*h.detector).Close(); closeErr != nil {
+	// Close model manager if using ONNX detector
+	if h.modelManager != nil {
+		if closeErr := h.modelManager.Close(); closeErr != nil {
 			err = closeErr
 		}
 	}

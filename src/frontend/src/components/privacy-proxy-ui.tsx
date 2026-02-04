@@ -27,6 +27,23 @@ import {
 } from "../utils/textHighlight";
 import { reportMisclassification } from "../utils/misclassificationReporter";
 
+// Type declaration for Chrome's non-standard Performance Memory API
+interface PerformanceMemory {
+  usedJSHeapSize: number;
+  totalJSHeapSize: number;
+  jsHeapSizeLimit: number;
+}
+
+interface ExtendedPerformance extends Performance {
+  memory?: PerformanceMemory;
+}
+
+declare global {
+  interface Window {
+    performance: ExtendedPerformance;
+  }
+}
+
 // Provider types
 type ProviderType = "openai" | "anthropic" | "gemini" | "mistral";
 
@@ -122,6 +139,14 @@ export default function PrivacyProxyUI() {
   const [serverStatus, setServerStatus] = useState<"online" | "offline">(
     "offline"
   );
+  const [serverHealth, setServerHealth] = useState<{
+    status: "online" | "offline";
+    modelHealthy: boolean;
+    modelError?: string;
+  }>({
+    status: "offline",
+    modelHealthy: false,
+  });
   const [modelSignature, setModelSignature] = useState<string | null>(null);
   const [showModelTooltip, setShowModelTooltip] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -298,9 +323,28 @@ export default function PrivacyProxyUI() {
         });
 
         clearTimeout(timeoutId);
-        setServerStatus(response.ok ? "online" : "offline");
+
+        if (response.ok) {
+          const data = await response.json();
+          setServerStatus("online");
+          setServerHealth({
+            status: "online",
+            modelHealthy: data.model_healthy !== false,
+            modelError: data.model_error,
+          });
+        } else {
+          setServerStatus("offline");
+          setServerHealth({
+            status: "offline",
+            modelHealthy: false,
+          });
+        }
       } catch (_error) {
         setServerStatus("offline");
+        setServerHealth({
+          status: "offline",
+          modelHealthy: false,
+        });
       }
     };
 
@@ -559,8 +603,8 @@ export default function PrivacyProxyUI() {
     console.log("[DEBUG] handleSubmit started");
     console.log(`[DEBUG] Using provider: ${activeProvider}`);
 
-    if (typeof window !== "undefined" && (window as any).performance?.memory) {
-      const mem = (window as any).performance.memory;
+    if (typeof window !== "undefined" && window.performance?.memory) {
+      const mem = window.performance.memory;
       console.log("[DEBUG] Memory before request:", {
         usedJSHeapSize: `${(mem.usedJSHeapSize / 1024 / 1024).toFixed(2)} MB`,
         totalJSHeapSize: `${(mem.totalJSHeapSize / 1024 / 1024).toFixed(2)} MB`,
@@ -742,11 +786,8 @@ export default function PrivacyProxyUI() {
         ).toFixed(2)}ms`
       );
 
-      if (
-        typeof window !== "undefined" &&
-        (window as any).performance?.memory
-      ) {
-        const mem = (window as any).performance.memory;
+      if (typeof window !== "undefined" && window.performance?.memory) {
+        const mem = window.performance.memory;
         console.log("[DEBUG] Memory after processing:", {
           usedJSHeapSize: `${(mem.usedJSHeapSize / 1024 / 1024).toFixed(2)} MB`,
           totalJSHeapSize: `${(mem.totalJSHeapSize / 1024 / 1024).toFixed(
@@ -970,6 +1011,34 @@ export default function PrivacyProxyUI() {
               <p className="text-xs text-green-800 flex items-center gap-2">
                 <CheckCircle className="w-4 h-4" />
                 <span>Backend server is online</span>
+              </p>
+            </div>
+          )}
+
+          {/* Model Health Banner */}
+          {serverHealth.status === "online" && !serverHealth.modelHealthy && (
+            <div className="mt-4 p-4 bg-red-50 border-2 border-red-200 rounded-lg inline-block max-w-2xl">
+              <p className="text-sm text-red-900 flex items-center gap-2">
+                <AlertCircle className="w-5 h-5" />
+                <span className="font-semibold">Model is unhealthy</span>
+              </p>
+              {serverHealth.modelError && (
+                <p className="text-xs text-red-700 mt-2 break-all">
+                  {serverHealth.modelError}
+                </p>
+              )}
+              <p className="text-xs text-red-700 mt-2">
+                Please check model configuration in{" "}
+                {isElectron ? (
+                  <button
+                    onClick={() => setIsSettingsOpen(true)}
+                    className="underline font-semibold"
+                  >
+                    Settings
+                  </button>
+                ) : (
+                  "Settings"
+                )}
               </p>
             </div>
           )}
