@@ -133,11 +133,11 @@ func validatePort(port string, fieldName string) error {
 	}
 	portRegex := regexp.MustCompile(`^:\d+$`)
 	if !portRegex.MatchString(port) {
-		return fmt.Errorf("%s: port must be in format ':PORT' where PORT is numeric", fieldName)
+		return fmt.Errorf("%s: port must be in format ':PORT' where PORT is numeric (current value: %s)", fieldName, port)
 	}
 	portNum, err := strconv.Atoi(port[1:])
 	if err != nil || portNum < 1 || portNum > 65535 {
-		return fmt.Errorf("%s: port must be between 1 and 65535", fieldName)
+		return fmt.Errorf("%s: port must be between 1 and 65535 (current value: %d)", fieldName, portNum)
 	}
 	return nil
 }
@@ -147,7 +147,7 @@ func validatePath(path string, fieldName string) error {
 		return fmt.Errorf("%s: path cannot be empty", fieldName)
 	}
 	if strings.ContainsAny(path, "\x00") {
-		return fmt.Errorf("%s: path contains invalid characters", fieldName)
+		return fmt.Errorf("%s: path contains invalid characters (current value: %s)", fieldName, path)
 	}
 	return nil
 }
@@ -174,11 +174,11 @@ func validateDomain(domain string, fieldName string) error {
 		return fmt.Errorf("%s: domain cannot be empty", fieldName)
 	}
 	if strings.HasPrefix(domain, "http://") || strings.HasPrefix(domain, "https://") {
-		return fmt.Errorf("%s: domain must not include protocol (http:// or https://)", fieldName)
+		return fmt.Errorf("%s: domain must not include protocol 'http://' or 'https://' (current value: %s)", fieldName, domain)
 	}
 	domainRegex := regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$`)
 	if !domainRegex.MatchString(domain) {
-		return fmt.Errorf("%s: domain format is invalid", fieldName)
+		return fmt.Errorf("%s: domain format is invalid current value: %s)", fieldName, domain)
 	}
 	return nil
 }
