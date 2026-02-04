@@ -241,9 +241,7 @@ func TestValidateProviderConfig(t *testing.T) {
 
 func TestValidateConfig(t *testing.T) {
 	// Create a valid default config to modify for testing
-	newDefaultConfig := func() *Config {
-		return DefaultConfig()
-	}
+	newDefaultConfig := DefaultConfig
 
 	testCases := []struct {
 		name      string
@@ -313,10 +311,8 @@ func TestValidateConfig(t *testing.T) {
 								t.Errorf("expected error to contain '%s', but got '%s'", subErr, err.Error())
 							}
 						}
-					} else {
-						if err.Error() != tc.errString {
-							t.Errorf("expected error string '%s', but got '%s'", tc.errString, err.Error())
-						}
+					} else if err.Error() != tc.errString {
+						t.Errorf("expected error string '%s', but got '%s'", tc.errString, err.Error())
 					}
 				}
 			} else if err != nil {
