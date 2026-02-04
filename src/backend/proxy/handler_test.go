@@ -34,6 +34,15 @@ func (d *mockDetector) Detect(_ context.Context, input pii.DetectorInput) (pii.D
 	}, nil
 }
 
+// mockDetectorProvider implements piiServices.DetectorProvider for testing
+type mockDetectorProvider struct {
+	detector pii.Detector
+}
+
+func (p *mockDetectorProvider) GetDetector() (pii.Detector, error) {
+	return p.detector, nil
+}
+
 // mockLoggingDB implements piiServices.LoggingDB for testing
 type mockLoggingDB struct {
 	logs      []mockLogEntry
@@ -219,8 +228,9 @@ func newTestHandler(t *testing.T, detector *mockDetector, upstreamServer *httpte
 	}
 
 	var det pii.Detector = detector
+	detectorProvider := &mockDetectorProvider{detector: det}
 	generatorService := piiServices.NewGeneratorService()
-	maskingService := piiServices.NewMaskingService(det, generatorService)
+	maskingService := piiServices.NewMaskingService(detectorProvider, generatorService)
 	responseProcessor := processor.NewResponseProcessor(&det, cfg.Logging)
 	loggingDB := &mockLoggingDB{}
 	mappingDB := newMockMappingDB()

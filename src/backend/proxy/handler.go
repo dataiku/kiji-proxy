@@ -498,12 +498,11 @@ func NewHandler(cfg *config.Config) (*Handler, error) {
 		return nil, fmt.Errorf("failed to initialize model manager: %w", err)
 	}
 
-	// Try to get detector, but allow handler creation even if model is unhealthy
+	// Try to get detector to verify model health, but allow handler creation even if unhealthy
 	detector, err = modelManager.GetDetector()
 	if err != nil {
 		log.Printf("[Handler] Warning: Model is unhealthy, requests will fail until model is fixed: %v", err)
-		// Create a dummy detector that will fail on use - this allows the server to start
-		// so users can access the health endpoint and settings UI to fix the model
+		// Allow server to start so users can access the health endpoint and settings UI to fix the model
 		detector = nil
 	}
 
@@ -544,18 +543,18 @@ func NewHandler(cfg *config.Config) (*Handler, error) {
 		MistralProvider:   mistralProvider,
 	}
 
-	// Create services - handle nil detector case
+	// Create services
+	// MaskingService now uses ModelManager as a DetectorProvider, so it always gets
+	// the current detector after hot reloads
 	generatorService := piiServices.NewGeneratorService()
-	var maskingService *piiServices.MaskingService
-	var responseProcessor *processor.ResponseProcessor
+	maskingService := piiServices.NewMaskingService(modelManager, generatorService)
 
+	var responseProcessor *processor.ResponseProcessor
 	if detector != nil {
-		maskingService = piiServices.NewMaskingService(detector, generatorService)
 		responseProcessor = processor.NewResponseProcessor(&detector, cfg.Logging)
 	} else {
-		// Model is unhealthy - create minimal services
+		// Model is unhealthy at startup - log warning but allow server to start
 		log.Printf("[Handler] Creating handler with unhealthy model - PII detection disabled until model is fixed")
-		maskingService = nil
 		responseProcessor = nil
 	}
 
