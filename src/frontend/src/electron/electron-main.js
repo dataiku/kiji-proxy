@@ -1126,6 +1126,42 @@ ipcMain.handle("set-terms-accepted", async (event, accepted) => {
   }
 });
 
+ipcMain.handle("get-welcome-dismissed", async () => {
+  try {
+    const storagePath = getStoragePath();
+    if (!fs.existsSync(storagePath)) {
+      return false;
+    }
+
+    const data = fs.readFileSync(storagePath, "utf8");
+    const config = JSON.parse(data);
+    return config.welcomeDismissed || false;
+  } catch (error) {
+    console.error("Error reading welcome dismissed flag:", error);
+    return false;
+  }
+});
+
+ipcMain.handle("set-welcome-dismissed", async (event, dismissed) => {
+  try {
+    const storagePath = getStoragePath();
+    let config = {};
+
+    if (fs.existsSync(storagePath)) {
+      const data = fs.readFileSync(storagePath, "utf8");
+      config = JSON.parse(data);
+    }
+
+    config.welcomeDismissed = !!dismissed;
+
+    fs.writeFileSync(storagePath, JSON.stringify(config, null, 2), "utf8");
+    return { success: true };
+  } catch (error) {
+    console.error("Error saving welcome dismissed flag:", error);
+    return { success: false, error: error.message };
+  }
+});
+
 // Model directory management
 ipcMain.handle("select-model-directory", async () => {
   const { dialog } = require("electron");

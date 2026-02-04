@@ -19,6 +19,7 @@ import AboutModal from "./modals/AboutModal";
 import MisclassificationModal from "./modals/MisclassificationModal";
 import TermsModal from "./modals/TermsModal";
 import CACertSetupModal from "./modals/CACertSetupModal";
+import WelcomeModal from "./modals/WelcomeModal";
 import {
   highlightTextByCharacter,
   highlightEntitiesByToken,
@@ -107,6 +108,7 @@ export default function PrivacyProxyUI() {
     useState(false);
   const [isTermsOpen, setIsTermsOpen] = useState(false);
   const [isCACertSetupOpen, setIsCACertSetupOpen] = useState(false);
+  const [isWelcomeOpen, setIsWelcomeOpen] = useState(false);
   const [termsRequireAcceptance, setTermsRequireAcceptance] = useState(false);
   const [reportingData, setReportingData] = useState<{
     entities: Array<{
@@ -253,6 +255,16 @@ export default function PrivacyProxyUI() {
           setTimeout(() => {
             setIsCACertSetupOpen(true);
           }, 1000);
+        }
+      });
+
+      // Check if welcome modal has been dismissed
+      window.electronAPI.getWelcomeDismissed().then((dismissed) => {
+        if (!dismissed) {
+          // Show welcome modal after a short delay (after other modals)
+          setTimeout(() => {
+            setIsWelcomeOpen(true);
+          }, 500);
         }
       });
 
@@ -1388,6 +1400,12 @@ export default function PrivacyProxyUI() {
       <CACertSetupModal
         isOpen={isCACertSetupOpen}
         onClose={() => setIsCACertSetupOpen(false)}
+      />
+
+      {/* Welcome Modal */}
+      <WelcomeModal
+        isOpen={isWelcomeOpen}
+        onClose={() => setIsWelcomeOpen(false)}
       />
     </div>
   );

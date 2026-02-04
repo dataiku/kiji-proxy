@@ -104,6 +104,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
     return await ipcRenderer.invoke("set-terms-accepted", accepted);
   },
 
+  // Get welcome modal dismissed flag
+  getWelcomeDismissed: async () => {
+    return await ipcRenderer.invoke("get-welcome-dismissed");
+  },
+
+  // Set welcome modal dismissed flag
+  setWelcomeDismissed: async (dismissed) => {
+    return await ipcRenderer.invoke("set-welcome-dismissed", dismissed);
+  },
+
   // Listen for terms menu command
   onTermsOpen: (callback) => {
     ipcRenderer.on("open-terms", callback);
