@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import {
-  Eye,
   Send,
   AlertCircle,
   Settings,
@@ -1053,60 +1052,10 @@ export default function PrivacyProxyUI() {
         {/* Input Section */}
         <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-slate-800 flex items-center gap-2">
-              <Eye className="w-5 h-5" />
-              Input Data (A)
-            </h2>
-            <span className="text-sm text-slate-500">
-              Original data with PII
-            </span>
-          </div>
-          <textarea
-            value={inputData}
-            onChange={(e) => setInputData(e.target.value)}
-            placeholder="Enter your message with sensitive information...&#10;&#10;Example: Hi, my name is John Smith and my email is john.smith@email.com. My phone is 555-123-4567.&#10;&#10;This will be processed through the real PII detection and masking pipeline."
-            className={`w-full h-32 p-4 border-2 rounded-lg focus:outline-none resize-none font-mono text-sm placeholder:text-gray-400 ${
-              serverStatus === "offline"
-                ? "border-red-200 bg-red-50 cursor-not-allowed opacity-60"
-                : "border-slate-200 focus:border-blue-500"
-            }`}
-            disabled={serverStatus === "offline"}
-          />
-          <div className="flex gap-3 mt-4 items-center">
-            <button
-              onClick={handleSubmit}
-              disabled={
-                !inputData.trim() || isProcessing || serverStatus === "offline"
-              }
-              className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
-              title={
-                serverStatus === "offline" ? "Backend server is offline" : ""
-              }
-            >
-              {isProcessing ? (
-                <>
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Processing...
-                </>
-              ) : (
-                <>
-                  <Send className="w-5 h-5" />
-                  Process Data
-                </>
-              )}
-            </button>
-            <button
-              onClick={handleReset}
-              className="px-6 py-3 border-2 border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors font-medium"
-            >
-              Reset
-            </button>
-
-            {/* Provider Selection - pushed to right */}
             {isElectron && (
-              <div className="ml-auto flex items-center gap-2">
+              <div className="flex items-center gap-2">
                 <label className="text-sm font-medium text-slate-600">
-                  Provider:
+                  Type your request to:
                 </label>
                 <select
                   value={activeProvider}
@@ -1142,6 +1091,48 @@ export default function PrivacyProxyUI() {
                 </select>
               </div>
             )}
+          </div>
+          <textarea
+            value={inputData}
+            onChange={(e) => setInputData(e.target.value)}
+            placeholder="Enter your message with sensitive information...&#10;&#10;Example: Hi, my name is John Smith and my email is john.smith@email.com. My phone is 555-123-4567.&#10;&#10;This will be processed through the real PII detection and masking pipeline."
+            className={`w-full h-32 p-4 border-2 rounded-lg focus:outline-none resize-none font-mono text-sm placeholder:text-gray-400 ${serverStatus === "offline"
+              ? "border-red-200 bg-red-50 cursor-not-allowed opacity-60"
+              : "border-slate-200 focus:border-blue-500"
+              }`}
+            disabled={serverStatus === "offline"}
+          />
+          <div className="flex gap-3 mt-4 items-center">
+            <button
+              onClick={handleSubmit}
+              disabled={
+                !inputData.trim() || isProcessing || serverStatus === "offline"
+              }
+              className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+              title={
+                serverStatus === "offline" ? "Backend server is offline" : ""
+              }
+            >
+              {isProcessing ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <Send className="w-5 h-5" />
+                  Process Data
+                </>
+              )}
+            </button>
+            <button
+              onClick={handleReset}
+              className="px-6 py-3 border-2 border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors font-medium"
+            >
+              Reset
+            </button>
+
+
           </div>
         </div>
 
@@ -1260,13 +1251,13 @@ export default function PrivacyProxyUI() {
                   <div className="text-2xl font-bold text-slate-800">
                     {detectedEntities.length > 0
                       ? (
-                          (detectedEntities.reduce(
-                            (sum, e) => sum + (e.confidence || 0),
-                            0
-                          ) /
-                            detectedEntities.length) *
-                          100
-                        ).toFixed(1)
+                        (detectedEntities.reduce(
+                          (sum, e) => sum + (e.confidence || 0),
+                          0
+                        ) /
+                          detectedEntities.length) *
+                        100
+                      ).toFixed(1)
                       : 0}
                     %
                   </div>
@@ -1304,9 +1295,8 @@ export default function PrivacyProxyUI() {
       <div className="fixed bottom-0 left-0 right-0 bg-slate-800 text-slate-200 px-4 py-2 flex items-center justify-between border-t border-slate-700">
         <div className="flex items-center gap-2">
           <div
-            className={`w-3 h-3 rounded-full ${
-              serverStatus === "online" ? "bg-green-500" : "bg-red-500"
-            } ${serverStatus === "online" ? "animate-pulse" : ""}`}
+            className={`w-3 h-3 rounded-full ${serverStatus === "online" ? "bg-green-500" : "bg-red-500"
+              } ${serverStatus === "online" ? "animate-pulse" : ""}`}
             title={
               serverStatus === "online" ? "Server online" : "Server offline"
             }
