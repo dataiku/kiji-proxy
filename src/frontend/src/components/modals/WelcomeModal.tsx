@@ -340,17 +340,17 @@ function HoverCard({
 }
 
 /* ───── Animated Floating Particles ───── */
-function Particles() {
-  const dots = Array.from({ length: 18 }, (_, i) => ({
-    id: i,
-    x: Math.random() * 100,
-    y: Math.random() * 100,
-    size: 1.5 + Math.random() * 2,
-    dur: 12 + Math.random() * 20,
-    delay: Math.random() * -20,
-    opacity: 0.06 + Math.random() * 0.08,
-  }));
+const particleDots = Array.from({ length: 18 }, (_, i) => ({
+  id: i,
+  x: (i * 37 + 13) % 100,
+  y: (i * 53 + 7) % 100,
+  size: 1.5 + ((i * 17) % 20) / 10,
+  dur: 12 + ((i * 29) % 20),
+  delay: -((i * 11) % 20),
+  opacity: 0.06 + ((i * 13) % 8) / 100,
+}));
 
+function Particles() {
   return (
     <div
       style={{
@@ -360,7 +360,7 @@ function Particles() {
         pointerEvents: "none",
       }}
     >
-      {dots.map((d) => (
+      {particleDots.map((d) => (
         <div
           key={d.id}
           style={{
