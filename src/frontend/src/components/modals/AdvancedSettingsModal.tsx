@@ -1,11 +1,5 @@
 import { useState, useEffect } from "react";
-import {
-  X,
-  Server,
-  AlertCircle,
-  CheckCircle2,
-  FolderOpen,
-} from "lucide-react";
+import { X, Server, AlertCircle, CheckCircle2, FolderOpen } from "lucide-react";
 
 interface AdvancedSettingsModalProps {
   isOpen: boolean;
@@ -117,7 +111,10 @@ export default function AdvancedSettingsModal({
       }
     } catch (error) {
       console.error("Error selecting model directory:", error);
-      setReloadMessage({ type: "error", text: "Failed to open folder selector" });
+      setReloadMessage({
+        type: "error",
+        text: "Failed to open folder selector",
+      });
     }
   };
 
@@ -247,16 +244,6 @@ export default function AdvancedSettingsModal({
                 {reloadMessage.text}
               </div>
             )}
-          </div>
-
-          {/* Actions */}
-          <div className="flex gap-3 pt-4">
-            <button
-              onClick={onClose}
-              className="px-6 py-3 border-2 border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors font-medium flex-1"
-            >
-              Close
-            </button>
           </div>
         </div>
       </div>

@@ -463,11 +463,11 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             )}
 
             {/* Actions */}
-            <div className="flex gap-3 pt-4">
+            <div className="pt-4">
               <button
                 onClick={handleSave}
                 disabled={isSaving}
-                className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium flex-1"
+                className="flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium w-full"
               >
                 {isSaving ? (
                   <>
@@ -480,12 +480,6 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     Save Settings
                   </>
                 )}
-              </button>
-              <button
-                onClick={onClose}
-                className="px-6 py-3 border-2 border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors font-medium"
-              >
-                Cancel
               </button>
             </div>
           </div>
