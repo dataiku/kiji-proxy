@@ -1,7 +1,7 @@
-# Dataiku's Yaak Privacy Proxy
+# Dataiku's Kiji Privacy Proxy
 
 <div align="center">
-  <img src="build/static/yaak.png" alt="Yaak Mascot" width="300">
+  <img src="build/static/yaak.png" alt="Kiji Mascot" width="300">
 
   <p>
     <a href="https://github.com/hanneshapke/yaak-proxy/actions/workflows/release-dmg.yml">
@@ -38,13 +38,13 @@
   </p>
 </div>
 
-**An intelligent privacy layer for AI APIs.** Yaak automatically detects and masks personally identifiable information (PII) in requests to AI services, ensuring your sensitive data never leaves your control.
+**An intelligent privacy layer for AI APIs.** Kiji automatically detects and masks personally identifiable information (PII) in requests to AI services, ensuring your sensitive data never leaves your control.
 
 ---
 
-## 🎯 Why Yaak?
+## 🎯 Why Kiji?
 
-When using AI services like OpenAI or Anthropic, sensitive data in your prompts gets sent to external servers. Yaak solves this by:
+When using AI services like OpenAI or Anthropic, sensitive data in your prompts gets sent to external servers. Kiji solves this by:
 
 - **🔒 Automatic PII Protection** - ML-powered detection of 16+ PII types (emails, SSNs, credit cards, etc.)
 - **🎭 Seamless Masking** - Replaces sensitive data with realistic dummy values before API calls
@@ -72,7 +72,7 @@ When using AI services like OpenAI or Anthropic, sensitive data in your prompts 
 # https://github.com/hanneshapke/yaak-proxy/releases
 
 # Install
-open Yaak-Privacy-Proxy-*.dmg
+open Kiji-Privacy-Proxy-*.dmg
 # Drag to Applications folder
 ```
 
@@ -92,7 +92,7 @@ cd yaak-privacy-proxy-0.1.1-linux-amd64
 *macOS (with automatic PAC):*
 ```bash
 # Start with sudo for automatic browser configuration
-sudo "/Applications/Yaak Privacy Proxy.app/Contents/MacOS/yaak-proxy"
+sudo "/Applications/Kiji Privacy Proxy.app/Contents/MacOS/yaak-proxy"
 
 # Open browser - requests to api.openai.com automatically go through proxy!
 # No configuration needed for Safari/Chrome
@@ -198,7 +198,7 @@ Complete documentation is available in [docs/README.md](docs/README.md):
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│  Your App/CLI   │───►│   Yaak Proxy    │───►│   OpenAI API    │
+│  Your App/CLI   │───►│   Kiji Proxy    │───►│   OpenAI API    │
 │                 │    │   (Port 8080)   │    │  (Masked Data)  │
 │                 │◄───┤  - Detect PII   │◄───┤                 │
 │  Original Data  │    │  - Mask/Restore │    │                 │
@@ -206,8 +206,8 @@ Complete documentation is available in [docs/README.md](docs/README.md):
 ```
 
 **What Happens:**
-1. Your app sends request to Yaak proxy
-2. Yaak detects PII using ML model
+1. Your app sends request to Kiji proxy
+2. Kiji detects PII using ML model
 3. PII is replaced with dummy data
 4. Request forwarded to OpenAI (with masked data)
 5. Response received and PII restored
@@ -249,7 +249,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 
 ## 💖 Support the Project
 
-If you find Yaak useful, here's how you can support its development:
+If you find Kiji useful, here's how you can support its development:
 
 ### ⭐ Star the Repository
 Click the ⭐ button at the top of this page - it helps others discover the project!
@@ -318,7 +318,7 @@ See [docs/02-development-guide.md](docs/02-development-guide.md) for detailed de
 
 Download the latest release from [GitHub Releases](https://github.com/hanneshapke/yaak-proxy/releases):
 
-- **macOS:** `Yaak-Privacy-Proxy-{version}.dmg` (~400MB)
+- **macOS:** `Kiji-Privacy-Proxy-{version}.dmg` (~400MB)
 - **Linux:** `yaak-privacy-proxy-{version}-linux-amd64.tar.gz` (~150MB)
 
 **Automated Builds:** CI/CD builds both platforms in parallel on every release tag.

@@ -1,6 +1,6 @@
 # Advanced Topics
 
-This chapter covers advanced features, security considerations, and troubleshooting for Yaak Privacy Proxy.
+This chapter covers advanced features, security considerations, and troubleshooting for Kiji Privacy Proxy.
 
 ## Table of Contents
 
@@ -14,7 +14,7 @@ This chapter covers advanced features, security considerations, and troubleshoot
 
 ### Overview
 
-Yaak Proxy uses Man-in-the-Middle (MITM) techniques to intercept and inspect HTTPS traffic. This enables PII detection and masking for encrypted connections.
+Kiji Proxy uses Man-in-the-Middle (MITM) techniques to intercept and inspect HTTPS traffic. This enables PII detection and masking for encrypted connections.
 
 ### How MITM Proxy Works
 
@@ -27,7 +27,7 @@ Client ──[TLS]──> api.openai.com
 
 **MITM Proxy Connection:**
 ```
-Client ──[TLS]──> Yaak Proxy ──[TLS]──> api.openai.com
+Client ──[TLS]──> Kiji Proxy ──[TLS]──> api.openai.com
          ↑                      ↑
     Proxy's cert           Real cert
 ```
@@ -36,7 +36,7 @@ Client ──[TLS]──> Yaak Proxy ──[TLS]──> api.openai.com
 
 1. **Client Connects:** Client sends `CONNECT api.openai.com:443`
 2. **Proxy Responds:** `200 Connection Established`
-3. **TLS Handshake:** Proxy presents certificate signed by Yaak CA
+3. **TLS Handshake:** Proxy presents certificate signed by Kiji CA
 4. **Decryption:** Proxy decrypts client request
 5. **Processing:** PII detection and masking
 6. **Forwarding:** New TLS connection to real server
@@ -50,7 +50,7 @@ Client ──[TLS]──> Yaak Proxy ──[TLS]──> api.openai.com
 - **Purpose:** Signs all leaf certificates
 - **Validity:** 10 years
 - **Location:** `~/.yaak-proxy/certs/ca.crt`
-- **Common Name:** "Yaak Proxy CA"
+- **Common Name:** "Kiji Proxy CA"
 - **Key Type:** RSA 2048-bit
 
 **2. Leaf Certificates (Dynamic)**
@@ -88,7 +88,7 @@ security add-trusted-cert \
 1. Open **Keychain Access**
 2. File → Import Items
 3. Select `~/.yaak-proxy/certs/ca.crt`
-4. Double-click "Yaak Proxy CA"
+4. Double-click "Kiji Proxy CA"
 5. Trust → **Always Trust**
 6. Close (enter password)
 
@@ -110,7 +110,7 @@ ls /etc/ssl/certs/ | grep yaak-proxy
 ```bash
 sudo cp ~/.yaak-proxy/certs/ca.crt /etc/pki/ca-trust/source/anchors/yaak-proxy-ca.crt
 sudo update-ca-trust
-trust list | grep "Yaak Proxy CA"
+trust list | grep "Kiji Proxy CA"
 ```
 
 **Linux - Arch:**
@@ -220,10 +220,10 @@ proxy:
 **macOS:**
 ```bash
 # System keychain
-sudo security delete-certificate -c "Yaak Proxy CA" /Library/Keychains/System.keychain
+sudo security delete-certificate -c "Kiji Proxy CA" /Library/Keychains/System.keychain
 
 # User keychain
-security delete-certificate -c "Yaak Proxy CA" ~/Library/Keychains/login.keychain
+security delete-certificate -c "Kiji Proxy CA" ~/Library/Keychains/login.keychain
 ```
 
 **Linux:**
@@ -249,7 +249,7 @@ Model signing ensures the integrity and provenance of ML models. This is critica
 
 ### Signing Methods
 
-Yaak Proxy supports three methods for model signing:
+Kiji Proxy supports three methods for model signing:
 
 #### 1. Hash-Only Verification (Default, No Browser)
 

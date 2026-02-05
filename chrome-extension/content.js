@@ -1,4 +1,4 @@
-// Yaak Guard Extension - Content Script for ChatGPT
+// Kiji Guard Extension - Content Script for ChatGPT
 (function () {
   "use strict";
 
@@ -182,18 +182,20 @@
 
       // Check if response is undefined (background script didn't respond)
       if (!response) {
-        console.error("Yaak Guard Extension: No response from background script");
+        console.error(
+          "Kiji Guard Extension: No response from background script"
+        );
         return null;
       }
 
       if (!response.success) {
-        console.error("Yaak Guard Extension: API error", response.error);
+        console.error("Kiji Guard Extension: API error", response.error);
         return null;
       }
 
       return response.data;
     } catch (error) {
-      console.error("Yaak Guard Extension: Failed to check PII", error);
+      console.error("Kiji Guard Extension: Failed to check PII", error);
       return null;
     }
   }
@@ -230,9 +232,11 @@
 
       if (result === null) {
         // API error - warn user and allow submission
-        console.log("Yaak Guard Extension: API unavailable, allowing submission");
+        console.log(
+          "Kiji Guard Extension: API unavailable, allowing submission"
+        );
         showToast(
-          "Yaak proxy server is unavailable. Message sent without PII check.",
+          "Kiji proxy server is unavailable. Message sent without PII check.",
           "warning"
         );
         triggerSubmit();
@@ -250,7 +254,7 @@
       }
 
       if (result.pii_found) {
-        console.log("Yaak Guard Extension: PII detected", result);
+        console.log("Kiji Guard Extension: PII detected", result);
         showPIIModal(result, text, (action, maskedText) => {
           switch (action) {
             case "cancel":
@@ -267,11 +271,11 @@
           }
         });
       } else {
-        console.log("Yaak Guard Extension: No PII detected, proceeding");
+        console.log("Kiji Guard Extension: No PII detected, proceeding");
         triggerSubmit();
       }
     } catch (error) {
-      console.error("Yaak Guard Extension: Error", error);
+      console.error("Kiji Guard Extension: Error", error);
       triggerSubmit();
     } finally {
       isChecking = false;
@@ -301,7 +305,7 @@
     );
     if (button) {
       button.addEventListener("click", handleSubmit, true);
-      console.log("Yaak Guard Extension: Attached to submit button");
+      console.log("Kiji Guard Extension: Attached to submit button");
       return true;
     }
     return false;
@@ -323,7 +327,7 @@
 
   // Initialize
   function init() {
-    console.log("Yaak Guard Extension: Initializing...");
+    console.log("Kiji Guard Extension: Initializing...");
 
     // Create modal
     getModal();
@@ -342,7 +346,7 @@
     // Listen for Enter key submissions
     document.addEventListener("keydown", handleKeydown, true);
 
-    console.log("Yaak Guard Extension: Ready");
+    console.log("Kiji Guard Extension: Ready");
   }
 
   // Wait for DOM to be ready

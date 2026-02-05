@@ -1,6 +1,6 @@
 # Release Management
 
-This guide covers version management, release workflows, and CI/CD processes for Yaak Privacy Proxy.
+This guide covers version management, release workflows, and CI/CD processes for Kiji Privacy Proxy.
 
 ## Table of Contents
 
@@ -14,7 +14,7 @@ This guide covers version management, release workflows, and CI/CD processes for
 
 ## Overview
 
-Yaak Privacy Proxy uses [Changesets](https://github.com/changesets/changesets) for automated version management and releases. This provides:
+Kiji Privacy Proxy uses [Changesets](https://github.com/changesets/changesets) for automated version management and releases. This provides:
 
 - **Semantic Versioning:** Automatic version bumping based on change types
 - **Changelog Generation:** Auto-generated from changesets
@@ -300,7 +300,7 @@ Workflows trigger on:
 6. Upload artifact
 7. Create/update GitHub Release
 
-**Output:** `Yaak-Privacy-Proxy-{version}.dmg`
+**Output:** `Kiji-Privacy-Proxy-{version}.dmg`
 
 **Build Time:** 5-8 minutes (cached), 15-20 minutes (cold)
 
@@ -464,7 +464,7 @@ Version is managed in `src/frontend/package.json`:
 ```json
 {
   "name": "yaak-privacy-proxy",
-  "productName": "Yaak Privacy Proxy",
+  "productName": "Kiji Privacy Proxy",
   "version": "0.1.1"
 }
 ```
@@ -485,7 +485,7 @@ go build -ldflags="-X main.version=${VERSION}" ./src/backend
 **Binary:**
 ```bash
 ./yaak-proxy --version
-# Output: Yaak Privacy Proxy version 0.1.1
+# Output: Kiji Privacy Proxy version 0.1.1
 ```
 
 **API:**
@@ -496,7 +496,7 @@ curl http://localhost:8080/version
 
 **Logs:**
 ```
-🚀 Starting Yaak Privacy Proxy v0.1.1
+🚀 Starting Kiji Privacy Proxy v0.1.1
 ```
 
 ### Development Versions

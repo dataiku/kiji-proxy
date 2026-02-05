@@ -1,4 +1,4 @@
-// Yaak Guard Extension - Shared Configuration
+// Kiji Guard Extension - Shared Configuration
 "use strict";
 
 const CONFIG = {

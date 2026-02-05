@@ -82,6 +82,7 @@ model/trained/
 
 # model signing key
 model/keys/**
+*.sig
 
 # Dataset folders
 model/dataset/data_samples/samples/

@@ -1,6 +1,6 @@
 # Building & Deployment
 
-This comprehensive guide covers building Dataiku's Yaak Privacy Proxy for macOS and Linux platforms, from local development builds to production deployment.
+This comprehensive guide covers building Dataiku's Kiji Privacy Proxy for macOS and Linux platforms, from local development builds to production deployment.
 
 ## Table of Contents
 
@@ -15,7 +15,7 @@ This comprehensive guide covers building Dataiku's Yaak Privacy Proxy for macOS 
 
 ## Overview
 
-Yaak Privacy Proxy can be built for two platforms with different deployment models:
+Kiji Privacy Proxy can be built for two platforms with different deployment models:
 
 ### macOS (DMG Package)
 - **Format:** Desktop application with Electron UI
@@ -133,7 +133,7 @@ ls -lh model/quantized/model_quantized.onnx  # Should be ~63MB
 # One command to build everything
 make build-dmg
 
-# Output: src/frontend/release/Yaak-Privacy-Proxy-{version}.dmg
+# Output: src/frontend/release/Kiji-Privacy-Proxy-{version}.dmg
 ```
 
 ### Step-by-Step Build Process
@@ -261,14 +261,14 @@ CGO_ENABLED=1 go build \
 open src/frontend/release/*.dmg
 
 # Install
-sudo cp -r "/Volumes/Yaak Privacy Proxy/Yaak Privacy Proxy.app" /Applications/
+sudo cp -r "/Volumes/Kiji Privacy Proxy/Kiji Privacy Proxy.app" /Applications/
 
 # Run
-open "/Applications/Yaak Privacy Proxy.app"
+open "/Applications/Kiji Privacy Proxy.app"
 
 # Check version
 tail -f ~/Library/Logs/yaak-proxy/app.log
-# Should show: Starting Yaak Privacy Proxy v{version}
+# Should show: Starting Kiji Privacy Proxy v{version}
 ```
 
 ## Building for Linux
@@ -525,7 +525,7 @@ curl http://localhost:8080/health
 
 ```ini
 [Unit]
-Description=Yaak Privacy Proxy
+Description=Kiji Privacy Proxy
 After=network.target
 
 [Service]
@@ -588,7 +588,7 @@ docker run -d \
 # Open and drag to Applications
 
 # Launch
-open "/Applications/Yaak Privacy Proxy.app"
+open "/Applications/Kiji Privacy Proxy.app"
 ```
 
 ## Troubleshooting

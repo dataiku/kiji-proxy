@@ -1,4 +1,4 @@
-// Yaak Guard Extension - Options Script
+// Kiji Guard Extension - Options Script
 "use strict";
 
 const DEFAULT_API_BASE = CONFIG.DEFAULT_API_BASE;

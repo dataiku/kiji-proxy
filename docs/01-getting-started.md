@@ -1,23 +1,23 @@
 # Getting Started
 
-Welcome to Dataiku's Yaak Privacy Proxy! This guide will help you get started with installation, configuration, and your first release.
+Welcome to Dataiku's Kiji Privacy Proxy! This guide will help you get started with installation, configuration, and your first release.
 
 ## Table of Contents
 
-- [What is Yaak Privacy Proxy?](#what-is-yaak-privacy-proxy)
+- [What is Kiji Privacy Proxy?](#what-is-yaak-privacy-proxy)
 - [Quick Installation](#quick-installation)
 - [Platform-Specific Installation](#platform-specific-installation)
 - [First Run](#first-run)
 - [Your First Release](#your-first-release)
 - [Next Steps](#next-steps)
 
-## What is Yaak Privacy Proxy?
+## What is Kiji Privacy Proxy?
 
-Dataiku's Yaak Privacy Proxy is a privacy-preserving proxy with integrated PII (Personally Identifiable Information) detection and masking capabilities. It intercepts HTTP/HTTPS traffic to LLM providers, automatically detects sensitive data using machine learning or regex patterns, and masks it before forwarding requests. When responses arrive, the proxy restores the original values so your application receives the expected data.
+Dataiku's Kiji Privacy Proxy is a privacy-preserving proxy with integrated PII (Personally Identifiable Information) detection and masking capabilities. It intercepts HTTP/HTTPS traffic to LLM providers, automatically detects sensitive data using machine learning or regex patterns, and masks it before forwarding requests. When responses arrive, the proxy restores the original values so your application receives the expected data.
 
 ### Supported LLM Providers
 
-Yaak Privacy Proxy supports multiple LLM providers out of the box:
+Kiji Privacy Proxy supports multiple LLM providers out of the box:
 - **OpenAI** (ChatCompletions API)
 - **Anthropic** (Messages API)
 - **Google Gemini** (GenerateContent API)
@@ -27,7 +27,7 @@ The proxy automatically detects which provider to route to based on request char
 
 ### Deployment Modes
 
-Yaak Privacy Proxy can be deployed in two ways:
+Kiji Privacy Proxy can be deployed in two ways:
 
 | Mode | Description | Platform |
 |------|-------------|----------|
@@ -57,7 +57,7 @@ The backend supports two proxy modes that can run simultaneously:
 
 1. Download the latest DMG from [Releases](https://github.com/hanneshapke/yaak-proxy/releases)
 2. Open the DMG file
-3. Drag "Yaak Privacy Proxy" to Applications
+3. Drag "Kiji Privacy Proxy" to Applications
 4. Launch the app
 
 The desktop app provides a GUI for configuration and monitoring. It bundles the Go backend and manages both proxy modes automatically.
@@ -93,21 +93,21 @@ The standalone backend runs as a headless server. Configure via environment vari
 
 1. **Download DMG:**
    - Visit [Releases](https://github.com/hanneshapke/yaak-proxy/releases)
-   - Download `Yaak-Privacy-Proxy-{version}.dmg`
+   - Download `Kiji-Privacy-Proxy-{version}.dmg`
 
 2. **Install:**
    ```bash
    # Mount DMG
-   open Yaak-Privacy-Proxy-*.dmg
+   open Kiji-Privacy-Proxy-*.dmg
    
    # Drag to Applications folder
    # Or via command line:
-   cp -r "/Volumes/Yaak Privacy Proxy/Yaak Privacy Proxy.app" /Applications/
+   cp -r "/Volumes/Kiji Privacy Proxy/Kiji Privacy Proxy.app" /Applications/
    ```
 
 3. **First Launch:**
    ```bash
-   open "/Applications/Yaak Privacy Proxy.app"
+   open "/Applications/Kiji Privacy Proxy.app"
    ```
 
 **Installing CA Certificate (Required for HTTPS):**
@@ -126,7 +126,7 @@ sudo security add-trusted-cert \
 Or use Keychain Access GUI:
 1. Open **Keychain Access**
 2. File → Import Items → Select `~/.yaak-proxy/certs/ca.crt`
-3. Double-click "Yaak Proxy CA" certificate
+3. Double-click "Kiji Proxy CA" certificate
 4. Expand **Trust** → Set to **Always Trust**
 
 See [Advanced Topics: Transparent Proxy](05-advanced-topics.md#transparent-proxy-mitm) for details.
@@ -137,7 +137,7 @@ For automatic transparent proxying without setting environment variables, run th
 
 ```bash
 # Start proxy with automatic system configuration
-sudo /Applications/Yaak\ Privacy\ Proxy.app/Contents/MacOS/yaak-proxy
+sudo /Applications/Kiji\ Privacy\ Proxy.app/Contents/MacOS/yaak-proxy
 
 # Or if running from source
 sudo ./build/yaak-proxy
@@ -226,7 +226,7 @@ sudo trust extract-compat
 
 1. **Launch the app:**
    ```bash
-   open "/Applications/Yaak Privacy Proxy.app"
+   open "/Applications/Kiji Privacy Proxy.app"
    ```
 
 2. **Configure via UI:**
@@ -382,7 +382,7 @@ export TRANSPARENT_PROXY_KEY_PATH="~/.yaak-proxy/certs/ca.key"
 
 ### Provider Detection
 
-Yaak Privacy Proxy supports multiple LLM providers (OpenAI, Anthropic, Gemini, Mistral) and automatically detects which provider to route requests to based on the proxy mode.
+Kiji Privacy Proxy supports multiple LLM providers (OpenAI, Anthropic, Gemini, Mistral) and automatically detects which provider to route requests to based on the proxy mode.
 
 **Forward Proxy Mode (default port 8080)**
 
@@ -530,7 +530,7 @@ Both macOS and Linux builds start automatically:
 1. Go to [Releases](https://github.com/hanneshapke/yaak-proxy/releases)
 2. Find "Release v1.0.1"
 3. Verify artifacts:
-   - `Yaak-Privacy-Proxy-1.0.1.dmg`
+   - `Kiji-Privacy-Proxy-1.0.1.dmg`
    - `yaak-privacy-proxy-1.0.1-linux-amd64.tar.gz`
    - `yaak-privacy-proxy-1.0.1-linux-amd64.tar.gz.sha256`
 
@@ -540,7 +540,7 @@ Download and test on your platform:
 
 ```bash
 # macOS
-open Yaak-Privacy-Proxy-1.0.1.dmg
+open Kiji-Privacy-Proxy-1.0.1.dmg
 
 # Linux
 tar -xzf yaak-privacy-proxy-1.0.1-linux-amd64.tar.gz
@@ -552,7 +552,7 @@ Congratulations! You've created your first release.
 
 ## Next Steps
 
-Now that you have Yaak Privacy Proxy running, here's what to explore next:
+Now that you have Kiji Privacy Proxy running, here's what to explore next:
 
 ### For Users
 

@@ -22,13 +22,13 @@
 
 ## Overview
 
-The Yaak PII Guard Chrome extension intercepts user input on AI chat services (ChatGPT, Claude, Gemini, etc.) and checks for personally identifiable information before submission. It communicates with the Yaak proxy backend for PII detection and presents users with options to mask, cancel, or send anyway.
+The Kiji PII Guard Chrome extension intercepts user input on AI chat services (ChatGPT, Claude, Gemini, etc.) and checks for personally identifiable information before submission. It communicates with the Kiji proxy backend for PII detection and presents users with options to mask, cancel, or send anyway.
 
 The extension lives in the `chrome-extension/` directory at the repository root. It is plain JavaScript with no build step — the directory is directly loadable by Chrome.
 
 ## Local Development
 
-1. Start the Yaak proxy backend:
+1. Start the Kiji proxy backend:
    ```bash
    make electron-run
    ```
@@ -67,7 +67,7 @@ chrome-extension/
 
 All settings are accessible via the extension's options page (right-click extension icon > Options):
 
-- **Backend URL** — The Yaak proxy server address (default: `http://localhost:8081`)
+- **Backend URL** — The Kiji proxy server address (default: `http://localhost:8081`)
 - **Intercept domains** — URL match patterns where the extension is active (one per line)
 
 Default domains:
@@ -147,7 +147,7 @@ async function updateContentScripts(domains) {
   // Verify we have permission for all domains
   const granted = await chrome.permissions.contains({ origins: domains });
   if (!granted) {
-    console.warn("Yaak PII Guard: Missing host permissions for some domains");
+    console.warn("Kiji PII Guard: Missing host permissions for some domains");
   }
   // ... rest of registration logic
 }
@@ -185,7 +185,7 @@ Required for any extension that handles user data. Host it at a public URL (GitH
 1. Go to the [Chrome Developer Dashboard](https://chrome.google.com/webstore/devconsole)
 2. Click **New Item** and upload the zip file
 3. Fill in the listing:
-   - **Name:** Yaak PII Guard
+   - **Name:** Kiji PII Guard
    - **Description:** Detects and masks personally identifiable information before sending messages to AI chat services. Works with ChatGPT, Claude, Gemini, Copilot, and more.
    - **Category:** Productivity
    - **Language:** English

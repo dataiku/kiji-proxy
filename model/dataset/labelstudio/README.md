@@ -1,5 +1,5 @@
-# Using LabelStudio with Yaak
-Looking to add your own types to the Yaak PII replacement tool? Label Studio Provides an easy way to train the model for whatever types of data you might care about.
+# Using LabelStudio with Kiji
+Looking to add your own types to the Kiji PII replacement tool? Label Studio Provides an easy way to train the model for whatever types of data you might care about.
 
 To learn more about Label Studio, visit our [website](https://labelstud.io)
 
@@ -24,7 +24,7 @@ uv run label-studio start
 This will launch Label Studio in your browser at `http://localhost:8080`.
 
 ## Step 2: Preparing your data
-Label Studio accepts a wide variety of data formats. For this project, you'll need a set of texts containing the types of PII that you're looking to train Yaak to replace.
+Label Studio accepts a wide variety of data formats. For this project, you'll need a set of texts containing the types of PII that you're looking to train Kiji to replace.
 
 ### Option A: Import with Pre-annotations (Recommended)
 To speed up the labeling process, you can import data that already includes predictions from your existing model. This allows you to review and correct predictions rather than labeling from scratch.
@@ -137,6 +137,6 @@ python export_annotations.py
 
 The exported samples will be saved to `model/dataset/training_samples/` in a format ready for training.
 
-## Step 7: Retraining the Yaak Model
+## Step 7: Retraining the Kiji Model
 
 Now that you've completed your annotations and exported them, you're ready to retrain your model using the samples in the `training_samples` folder!

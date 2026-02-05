@@ -182,7 +182,7 @@ jobs:
           for dmg in *.dmg; do
             if [ -f "$dmg" ]; then
               # Replace spaces with hyphens for cleaner filename
-              # Example: "Yaak Privacy Proxy-0.2.0.dmg" -> "Yaak-Privacy-Proxy-0.2.0.dmg"
+              # Example: "Kiji Privacy Proxy-0.2.0.dmg" -> "Kiji-Privacy-Proxy-0.2.0.dmg"
               NEW_NAME=$(echo "$dmg" | tr ' ' '-')
               if [ "$dmg" != "$NEW_NAME" ]; then
                 mv "$dmg" "$NEW_NAME"
@@ -212,7 +212,7 @@ jobs:
           append_body: false
           generate_release_notes: true
           body: |
-            ## Yaak Privacy Proxy v${{ steps.version.outputs.version }}
+            ## Kiji Privacy Proxy v${{ steps.version.outputs.version }}
 
             ### Downloads
             - **macOS**: DMG installer (Apple Silicon and Intel) - Desktop app with UI
@@ -221,9 +221,9 @@ jobs:
             ### macOS Installation
 
             **Quick Start:**
-            1. Download `Yaak-Privacy-Proxy-${{ steps.version.outputs.version }}.dmg`
+            1. Download `Kiji-Privacy-Proxy-${{ steps.version.outputs.version }}.dmg`
             2. Open the DMG and drag to Applications
-            3. Launch "Yaak Privacy Proxy"
+            3. Launch "Kiji Privacy Proxy"
 
             **HTTPS Support - Install CA Certificate:**
 
@@ -241,7 +241,7 @@ jobs:
             Or use **Keychain Access**:
             1. Open Keychain Access app
             2. File → Import Items → `~/.yaak-proxy/certs/ca.crt`
-            3. Double-click "Yaak Proxy CA" certificate
+            3. Double-click "Kiji Proxy CA" certificate
             4. Expand **Trust** → Set to **Always Trust**
 
             ### Linux Installation

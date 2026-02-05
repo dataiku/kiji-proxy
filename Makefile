@@ -24,7 +24,7 @@ VERSION := $(shell cd src/frontend && node -p "require('./package.json').version
 ##@ General
 
 help: ## Display this help message
-	@echo "$(BLUE)Yaak PII Detection - Development Commands$(NC)"
+	@echo "$(BLUE)Kiji PII Detection - Development Commands$(NC)"
 	@echo ""
 	@awk 'BEGIN {FS = ":.*##"; printf "Usage:\n  make $(GREEN)<target>$(NC)\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  $(GREEN)%-20s$(NC) %s\n", $$1, $$2 } /^##@/ { printf "\n$(BLUE)%s$(NC)\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 

@@ -1,4 +1,4 @@
-// Yaak Guard Extension - Popup Script
+// Kiji Guard Extension - Popup Script
 "use strict";
 
 document.addEventListener("DOMContentLoaded", () => {

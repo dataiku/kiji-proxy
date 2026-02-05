@@ -1,6 +1,6 @@
 # Development Guide
 
-This guide covers setting up your development environment, debugging workflows, and best practices for developing Yaak Privacy Proxy.
+This guide covers setting up your development environment, debugging workflows, and best practices for developing Kiji Privacy Proxy.
 
 ## Table of Contents
 
@@ -336,7 +336,7 @@ make electron-build
 When running via VSCode debugger or `go run`, the version displays as "dev" instead of the actual version:
 
 ```
-🚀 Starting Yaak Privacy Proxy vdev
+🚀 Starting Kiji Privacy Proxy vdev
 ```
 
 This happens because versions are normally injected via ldflags during build.
@@ -348,7 +348,7 @@ This happens because versions are normally injected via ldflags during build.
 make update-vscode-version
 
 # Now press F5 to debug
-# Shows: 🚀 Starting Yaak Privacy Proxy v0.1.1-dev
+# Shows: 🚀 Starting Kiji Privacy Proxy v0.1.1-dev
 ```
 
 **When to run:** After bumping version in `package.json`
@@ -361,7 +361,7 @@ make build-go
 
 # Run binary
 ./build/yaak-proxy
-# Shows: 🚀 Starting Yaak Privacy Proxy v0.1.1
+# Shows: 🚀 Starting Kiji Privacy Proxy v0.1.1
 ```
 
 ### Solution 3: Manual go run
@@ -741,7 +741,7 @@ export PROXY_PORT=":8081"
 
 ## Adding a New LLM Provider
 
-This section explains how to add support for a new LLM provider to Yaak Privacy Proxy.
+This section explains how to add support for a new LLM provider to Kiji Privacy Proxy.
 
 ### Files to Modify
 
