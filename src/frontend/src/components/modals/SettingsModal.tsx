@@ -424,14 +424,24 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             </div>
 
             {/* Advanced Settings Link */}
-            <div>
-              <button
-                onClick={() => setIsAdvancedSettingsOpen(true)}
-                className="flex items-center gap-2 text-sm text-slate-600 hover:text-slate-800 transition-colors"
-              >
-                <Settings2 className="w-4 h-4" />
-                Advanced Settings
-              </button>
+            <div
+              onClick={() => setIsAdvancedSettingsOpen(true)}
+              className="border-2 border-slate-200 rounded-lg p-4 hover:border-slate-300 hover:bg-slate-50 transition-colors cursor-pointer"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Settings2 className="w-5 h-5 text-slate-600" />
+                  <div>
+                    <p className="font-medium text-slate-700">
+                      Advanced Settings
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      Load custom PII model
+                    </p>
+                  </div>
+                </div>
+                <ChevronRight className="w-5 h-5 text-slate-400" />
+              </div>
             </div>
 
             {/* Message */}
