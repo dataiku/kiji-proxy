@@ -1188,7 +1188,7 @@ export default function PrivacyProxyUI() {
                   : "What was sent to the LLM: "}
               </h2>
               <div className="grid md:grid-cols-2 gap-4">
-                <div>
+                <div className="flex flex-col">
                   <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
                     <span>Request submitted</span>
                     <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs rounded">
@@ -1196,7 +1196,7 @@ export default function PrivacyProxyUI() {
                     </span>
                   </div>
                   <div
-                    className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap"
+                    className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap flex-1"
                     dangerouslySetInnerHTML={{
                       __html: highlightedInputOriginalHTML,
                     }}
@@ -1215,7 +1215,7 @@ export default function PrivacyProxyUI() {
                     </p>
                   </div>
                 </div>
-                <div>
+                <div className="flex flex-col">
                   <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
                     <span>Request submitted with personal information removed</span>
                     <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded">
@@ -1223,14 +1223,16 @@ export default function PrivacyProxyUI() {
                     </span>
                   </div>
                   <div
-                    className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap"
+                    className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap flex-1"
                     dangerouslySetInnerHTML={{
                       __html: highlightedInputMaskedHTML,
                     }}
                   />
-                  <p className="text-sm font-semibold mt-2 text-green-600">
-                    {detectedEntities.length} PII replaced
-                  </p>
+                  <div className="mt-2">
+                    <p className="text-sm font-semibold text-green-600">
+                      {detectedEntities.length} PII replaced
+                    </p>
+                  </div>
                 </div>
               </div>
 
@@ -1244,7 +1246,7 @@ export default function PrivacyProxyUI() {
                 {isElectron ? `What ${PROVIDER_NAMES[activeProvider]} returned` : "What the LLM returned"}
               </h2>
               <div className="grid md:grid-cols-2 gap-4">
-                <div>
+                <div className="flex flex-col">
                   <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
                     <span>Request received</span>
                     <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded">
@@ -1252,26 +1254,18 @@ export default function PrivacyProxyUI() {
                     </span>
                   </div>
                   <div
-                    className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap"
+                    className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap flex-1"
                     dangerouslySetInnerHTML={{
                       __html: highlightedOutputMaskedHTML,
                     }}
                   />
-                  <div className="flex justify-between items-center mt-2">
+                  <div className="mt-2">
                     <p className="text-sm font-semibold text-slate-700">
                       {detectedEntities.length} fake PIIs received
                     </p>
-                    <p
-                      className="text-sm font-semibold"
-                      style={{
-                        color: getConfidenceColor(averageConfidence),
-                      }}
-                    >
-                      {(averageConfidence * 100).toFixed(1)}% avg confidence
-                    </p>
                   </div>
                 </div>
-                <div>
+                <div className="flex flex-col">
                   <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
                     <span>Request received with personal information restored</span>
                     <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">
@@ -1279,14 +1273,16 @@ export default function PrivacyProxyUI() {
                     </span>
                   </div>
                   <div
-                    className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap"
+                    className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap flex-1"
                     dangerouslySetInnerHTML={{
                       __html: highlightedOutputFinalHTML,
                     }}
                   />
-                  <p className="text-sm font-semibold mt-2 text-green-600">
-                    {detectedEntities.length} PII restored
-                  </p>
+                  <div className="mt-2">
+                    <p className="text-sm font-semibold text-green-600">
+                      {detectedEntities.length} PII restored
+                    </p>
+                  </div>
                 </div>
               </div>
 
