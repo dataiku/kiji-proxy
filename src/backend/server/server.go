@@ -63,16 +63,18 @@ func (rl *RateLimiter) CleanupOldVisitors() {
 
 // Server represents the HTTP server
 type Server struct {
-	config             *config.Config
-	handler            *proxy.Handler
-	transparentProxy   *proxy.TransparentProxy
-	transparentServer  *http.Server
-	pacServer          *proxy.PACServer
-	systemProxyManager *proxy.SystemProxyManager
-	uiFS               fs.FS
-	modelFS            fs.FS
-	rateLimiter        *RateLimiter
-	version            string
+	config                  *config.Config
+	handler                 *proxy.Handler
+	transparentProxy        *proxy.TransparentProxy
+	transparentServer       *http.Server
+	pacServer               *proxy.PACServer
+	systemProxyManager      *proxy.SystemProxyManager
+	uiFS                    fs.FS
+	modelFS                 fs.FS
+	rateLimiter             *RateLimiter
+	version                 string
+	transparentProxyEnabled bool
+	transparentProxyMu      sync.RWMutex
 }
 
 // NewServer creates a new server instance
@@ -105,15 +107,23 @@ func NewServer(cfg *config.Config, version string) (*Server, error) {
 		systemProxyManager = proxy.NewSystemProxyManager("http://localhost:9090/proxy.pac")
 	}
 
-	return &Server{
-		config:             cfg,
-		handler:            handler,
-		transparentProxy:   transparentProxy,
-		pacServer:          pacServer,
-		systemProxyManager: systemProxyManager,
-		rateLimiter:        rateLimiter,
-		version:            version,
-	}, nil
+	s := &Server{
+		config:                  cfg,
+		handler:                 handler,
+		transparentProxy:        transparentProxy,
+		pacServer:               pacServer,
+		systemProxyManager:      systemProxyManager,
+		rateLimiter:             rateLimiter,
+		version:                 version,
+		transparentProxyEnabled: cfg.Proxy.TransparentEnabled,
+	}
+
+	// Wire up the enabled check function to the transparent proxy
+	if transparentProxy != nil {
+		transparentProxy.SetEnabledFunc(s.IsTransparentProxyEnabled)
+	}
+
+	return s, nil
 }
 
 // NewServerWithEmbedded creates a new server instance with embedded filesystems
@@ -144,17 +154,25 @@ func NewServerWithEmbedded(cfg *config.Config, uiFS, modelFS fs.FS, version stri
 		systemProxyManager = proxy.NewSystemProxyManager("http://localhost:9090/proxy.pac")
 	}
 
-	return &Server{
-		config:             cfg,
-		handler:            handler,
-		transparentProxy:   transparentProxy,
-		pacServer:          pacServer,
-		systemProxyManager: systemProxyManager,
-		uiFS:               uiFS,
-		modelFS:            modelFS,
-		rateLimiter:        rateLimiter,
-		version:            version,
-	}, nil
+	s := &Server{
+		config:                  cfg,
+		handler:                 handler,
+		transparentProxy:        transparentProxy,
+		pacServer:               pacServer,
+		systemProxyManager:      systemProxyManager,
+		uiFS:                    uiFS,
+		modelFS:                 modelFS,
+		rateLimiter:             rateLimiter,
+		version:                 version,
+		transparentProxyEnabled: cfg.Proxy.TransparentEnabled,
+	}
+
+	// Wire up the enabled check function to the transparent proxy
+	if transparentProxy != nil {
+		transparentProxy.SetEnabledFunc(s.IsTransparentProxyEnabled)
+	}
+
+	return s, nil
 }
 
 // Start starts the HTTP server
@@ -211,6 +229,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/model/reload", s.handleModelReload)
 	mux.HandleFunc("/api/model/info", s.handleModelInfo)
 	mux.HandleFunc("/api/proxy/ca-cert", s.handleCACert)
+	mux.HandleFunc("/api/proxy/transparent/toggle", s.handleTransparentProxyToggle)
 	mux.HandleFunc("/api/pii/check", s.handlePIICheck)
 
 	// Add provider endpoints
@@ -603,6 +622,52 @@ func (s *Server) handlePIICheck(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Failed to encode PII check response: %v", err)
 		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 	}
+}
+
+// handleTransparentProxyToggle handles POST /api/proxy/transparent/toggle requests
+func (s *Server) handleTransparentProxyToggle(w http.ResponseWriter, r *http.Request) {
+	s.corsHandler(w, r)
+
+	if r.Method == http.MethodOptions {
+		return
+	}
+
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		Enabled bool `json:"enabled"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+
+	s.transparentProxyMu.Lock()
+	s.transparentProxyEnabled = req.Enabled
+	s.transparentProxyMu.Unlock()
+
+	log.Printf("Transparent proxy toggled: enabled=%v", req.Enabled)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	response := map[string]interface{}{
+		"success": true,
+		"enabled": req.Enabled,
+	}
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		log.Printf("Failed to encode response: %v", err)
+	}
+}
+
+// IsTransparentProxyEnabled returns whether the transparent proxy is currently enabled
+func (s *Server) IsTransparentProxyEnabled() bool {
+	s.transparentProxyMu.RLock()
+	defer s.transparentProxyMu.RUnlock()
+	return s.transparentProxyEnabled
 }
 
 // handleCACert returns the CA certificate for installation

@@ -15,7 +15,7 @@ import LoggingModal from "./modals/LoggingModal";
 import AboutModal from "./modals/AboutModal";
 import MisclassificationModal from "./modals/MisclassificationModal";
 import TermsModal from "./modals/TermsModal";
-import CACertSetupModal from "./modals/CACertSetupModal";
+
 import WelcomeModal from "./modals/WelcomeModal";
 import {
   highlightTextByCharacter,
@@ -117,7 +117,7 @@ export default function PrivacyProxyUI() {
   const [isMisclassificationModalOpen, setIsMisclassificationModalOpen] =
     useState(false);
   const [isTermsOpen, setIsTermsOpen] = useState(false);
-  const [isCACertSetupOpen, setIsCACertSetupOpen] = useState(false);
+
   const [isWelcomeOpen, setIsWelcomeOpen] = useState(false);
   const [termsRequireAcceptance, setTermsRequireAcceptance] = useState(false);
   const [reportingData, setReportingData] = useState<{
@@ -170,6 +170,26 @@ export default function PrivacyProxyUI() {
   // Detect if running in Electron
   const isElectron =
     typeof window !== "undefined" && window.electronAPI !== undefined;
+
+  // Helper function to calculate gradient color from red (0%) to green (100%)
+  const getConfidenceColor = (confidence: number): string => {
+    // Clamp confidence between 0 and 1
+    const clampedConfidence = Math.max(0, Math.min(1, confidence));
+
+    // Interpolate from red (rgb(220, 38, 38)) to green (rgb(34, 197, 94))
+    const red = Math.round(220 - (220 - 34) * clampedConfidence);
+    const green = Math.round(38 + (197 - 38) * clampedConfidence);
+    const blue = Math.round(38 + (94 - 38) * clampedConfidence);
+
+    return `rgb(${red}, ${green}, ${blue})`;
+  };
+
+  // Calculate average confidence
+  const averageConfidence = useMemo(() => {
+    if (detectedEntities.length === 0) return 0;
+    const sum = detectedEntities.reduce((acc, entity) => acc + (entity.confidence || 0), 0);
+    return sum / detectedEntities.length;
+  }, [detectedEntities]);
 
   // Memoize highlighted text to prevent re-computation and memory explosion
   // Safety limit for text highlighting to prevent memory issues
@@ -265,16 +285,6 @@ export default function PrivacyProxyUI() {
         if (!accepted) {
           setTermsRequireAcceptance(true);
           setIsTermsOpen(true);
-        }
-      });
-
-      // Check if CA cert setup has been dismissed
-      window.electronAPI.getCACertSetupDismissed().then((dismissed) => {
-        if (!dismissed) {
-          // Show CA cert setup modal after a short delay (after terms if needed)
-          setTimeout(() => {
-            setIsCACertSetupOpen(true);
-          }, 1000);
         }
       });
 
@@ -551,7 +561,10 @@ export default function PrivacyProxyUI() {
   };
 
   // Extract assistant message from provider-specific response format
-  const extractAssistantMessage = (provider: ProviderType, data: ProviderResponse): string => {
+  const extractAssistantMessage = (
+    provider: ProviderType,
+    data: ProviderResponse
+  ): string => {
     try {
       switch (provider) {
         case "openai":
@@ -619,13 +632,20 @@ export default function PrivacyProxyUI() {
     console.log("[DEBUG] handleSubmit started");
     console.log(`[DEBUG] Using provider: ${activeProvider}`);
 
-    if (typeof window !== "undefined" && (window.performance as PerformanceWithMemory)?.memory) {
+    if (
+      typeof window !== "undefined" &&
+      (window.performance as PerformanceWithMemory)?.memory
+    ) {
       const mem = (window.performance as PerformanceWithMemory).memory;
       if (mem) {
         console.log("[DEBUG] Memory before request:", {
           usedJSHeapSize: `${(mem.usedJSHeapSize / 1024 / 1024).toFixed(2)} MB`,
-          totalJSHeapSize: `${(mem.totalJSHeapSize / 1024 / 1024).toFixed(2)} MB`,
-          jsHeapSizeLimit: `${(mem.jsHeapSizeLimit / 1024 / 1024).toFixed(2)} MB`,
+          totalJSHeapSize: `${(mem.totalJSHeapSize / 1024 / 1024).toFixed(
+            2
+          )} MB`,
+          jsHeapSizeLimit: `${(mem.jsHeapSizeLimit / 1024 / 1024).toFixed(
+            2
+          )} MB`,
         });
       }
     }
@@ -806,7 +826,9 @@ export default function PrivacyProxyUI() {
         const mem = (window.performance as PerformanceWithMemory).memory;
         if (mem) {
           console.log("[DEBUG] Memory after processing:", {
-            usedJSHeapSize: `${(mem.usedJSHeapSize / 1024 / 1024).toFixed(2)} MB`,
+            usedJSHeapSize: `${(mem.usedJSHeapSize / 1024 / 1024).toFixed(
+              2
+            )} MB`,
             totalJSHeapSize: `${(mem.totalJSHeapSize / 1024 / 1024).toFixed(
               2
             )} MB`,
@@ -1022,7 +1044,6 @@ export default function PrivacyProxyUI() {
             </div>
           </div>
 
-
           {/* Model Health Banner */}
           {serverHealth.status === "online" && !serverHealth.modelHealthy && (
             <div className="mt-4 p-4 bg-red-50 border-2 border-red-200 rounded-lg inline-block max-w-2xl">
@@ -1116,10 +1137,11 @@ export default function PrivacyProxyUI() {
             value={inputData}
             onChange={(e) => setInputData(e.target.value)}
             placeholder="Enter your message with sensitive information...&#10;&#10;Example: Hi, my name is John Smith and my email is john.smith@email.com. My phone is 555-123-4567.&#10;&#10;This will be processed through the real PII detection and masking pipeline."
-            className={`w-full h-32 p-4 border-2 rounded-lg focus:outline-none resize-none font-mono text-sm placeholder:text-gray-400 ${serverStatus === "offline"
-              ? "border-red-200 bg-red-50 cursor-not-allowed opacity-60"
-              : "border-slate-200 focus:border-blue-500"
-              }`}
+            className={`w-full h-32 p-4 border-2 rounded-lg focus:outline-none resize-none font-mono text-sm placeholder:text-gray-400 ${
+              serverStatus === "offline"
+                ? "border-red-200 bg-red-50 cursor-not-allowed opacity-60"
+                : "border-slate-200 focus:border-blue-500"
+            }`}
             disabled={serverStatus === "offline"}
           />
           <div className="flex gap-3 mt-4 items-center">
@@ -1151,106 +1173,135 @@ export default function PrivacyProxyUI() {
             >
               Reset
             </button>
-
-
           </div>
         </div>
 
         {/* Diff View */}
         {maskedInput && (
           <div className="space-y-6">
-            {/* Input Diff */}
+            {/* Combined Input and Output Diff */}
             <div className="bg-white rounded-xl shadow-lg p-6">
+              {/* Input Diff */}
               <h2 className="text-xl font-semibold text-slate-800 mb-4 flex items-center gap-2">
                 <AlertCircle className="w-5 h-5 text-amber-600" />
-                Input Transformation (A → A')
+                {isElectron
+                  ? `What was sent to ${PROVIDER_NAMES[activeProvider]}`
+                  : "What was sent to the LLM: "}
               </h2>
               <div className="grid md:grid-cols-2 gap-4">
-                <div>
+                <div className="flex flex-col">
                   <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
-                    <span>Original (A)</span>
+                    <span>Request submitted</span>
                     <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs rounded">
                       PII Exposed
                     </span>
                   </div>
                   <div
-                    className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap"
+                    className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap flex-1"
                     dangerouslySetInnerHTML={{
                       __html: highlightedInputOriginalHTML,
                     }}
                   />
+                  <div className="flex justify-between items-center mt-2">
+                    <p className="text-sm font-semibold text-slate-700">
+                      {detectedEntities.length} PII detected
+                    </p>
+                    <p
+                      className="text-sm font-semibold"
+                      style={{
+                        color: getConfidenceColor(averageConfidence),
+                      }}
+                    >
+                      {(averageConfidence * 100).toFixed(1)}% avg confidence
+                    </p>
+                  </div>
                 </div>
-                <div>
+                <div className="flex flex-col">
                   <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
-                    <span>Masked (A')</span>
+                    <span>Request submitted with personal information removed</span>
                     <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded">
                       PII Protected
                     </span>
                   </div>
                   <div
-                    className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap"
+                    className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap flex-1"
                     dangerouslySetInnerHTML={{
                       __html: highlightedInputMaskedHTML,
                     }}
                   />
+                  <div className="mt-2">
+                    <p className="text-sm font-semibold text-green-600">
+                      {detectedEntities.length} PII replaced
+                    </p>
+                  </div>
                 </div>
               </div>
-              <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                <p className="text-sm text-amber-900">
-                  <span className="font-semibold">Changes:</span>{" "}
-                  {detectedEntities.length} PII entities detected and replaced
-                  with tokens
-                </p>
-              </div>
-            </div>
 
-            {/* Output Diff */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
+
+              {/* Divider */}
+              <div className="my-6 border-t-2 border-slate-200"></div>
+
+              {/* Output Diff */}
               <h2 className="text-xl font-semibold text-slate-800 mb-4 flex items-center gap-2">
                 <AlertCircle className="w-5 h-5 text-blue-600" />
-                Output Transformation (B' → B)
+                {isElectron ? `What ${PROVIDER_NAMES[activeProvider]} returned` : "What the LLM returned"}
               </h2>
               <div className="grid md:grid-cols-2 gap-4">
-                <div>
+                <div className="flex flex-col">
                   <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
-                    <span>Masked Output (B')</span>
+                    <span>Request received</span>
                     <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded">
                       From {PROVIDER_NAMES[activeProvider]}
                     </span>
                   </div>
                   <div
-                    className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap"
+                    className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap flex-1"
                     dangerouslySetInnerHTML={{
                       __html: highlightedOutputMaskedHTML,
                     }}
                   />
+                  <div className="mt-2">
+                    <p className="text-sm font-semibold text-slate-700">
+                      {detectedEntities.length} fake PIIs received
+                    </p>
+                  </div>
                 </div>
-                <div>
+                <div className="flex flex-col">
                   <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
-                    <span>Final Output (B)</span>
+                    <span>Request received with personal information restored</span>
                     <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">
                       Restored
                     </span>
                   </div>
                   <div
-                    className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap"
+                    className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap flex-1"
                     dangerouslySetInnerHTML={{
                       __html: highlightedOutputFinalHTML,
                     }}
                   />
+                  <div className="mt-2">
+                    <p className="text-sm font-semibold text-green-600">
+                      {detectedEntities.length} PII restored
+                    </p>
+                  </div>
                 </div>
               </div>
-              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-sm text-blue-900">
-                  <span className="font-semibold">Changes:</span>{" "}
-                  {detectedEntities.length} tokens replaced with original PII
-                  values
-                </p>
+
+              {/* Report Misclassification Button */}
+              <div className="mt-6 flex justify-end">
+                <button
+                  onClick={handleReportMisclassification}
+                  className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-colors font-medium"
+                  title="Report incorrect PII classification"
+                >
+                  <Flag className="w-4 h-4" />
+                  Report Misclassification
+                </button>
               </div>
             </div>
 
             {/* Transformation Summary */}
-            <div className="bg-gradient-to-r from-slate-50 to-slate-100 rounded-xl shadow-lg p-6">
+            {false && (<div className="bg-gradient-to-r from-slate-50 to-slate-100 rounded-xl shadow-lg p-6">
               <h3 className="text-lg font-semibold text-slate-800 mb-4">
                 Transformation Summary
               </h3>
@@ -1271,13 +1322,13 @@ export default function PrivacyProxyUI() {
                   <div className="text-2xl font-bold text-slate-800">
                     {detectedEntities.length > 0
                       ? (
-                        (detectedEntities.reduce(
-                          (sum, e) => sum + (e.confidence || 0),
-                          0
-                        ) /
-                          detectedEntities.length) *
-                        100
-                      ).toFixed(1)
+                          (detectedEntities.reduce(
+                            (sum, e) => sum + (e.confidence || 0),
+                            0
+                          ) /
+                            detectedEntities.length) *
+                          100
+                        ).toFixed(1)
                       : 0}
                     %
                   </div>
@@ -1296,7 +1347,7 @@ export default function PrivacyProxyUI() {
                   Report Misclassification
                 </button>
               </div>
-            </div>
+            </div>)}
           </div>
         )}
 
@@ -1315,8 +1366,9 @@ export default function PrivacyProxyUI() {
       <div className="fixed bottom-0 left-0 right-0 bg-slate-800 text-slate-200 px-4 py-2 flex items-center justify-between border-t border-slate-700">
         <div className="flex items-center gap-2">
           <div
-            className={`w-3 h-3 rounded-full ${serverStatus === "online" ? "bg-green-500" : "bg-red-500"
-              } ${serverStatus === "online" ? "animate-pulse" : ""}`}
+            className={`w-3 h-3 rounded-full ${
+              serverStatus === "online" ? "bg-green-500" : "bg-red-500"
+            } ${serverStatus === "online" ? "animate-pulse" : ""}`}
             title={
               serverStatus === "online" ? "Server online" : "Server offline"
             }
@@ -1326,7 +1378,8 @@ export default function PrivacyProxyUI() {
               "Server online"
             ) : (
               <span className="flex items-center gap-2">
-                Server offline - Please ensure the Go backend server is running at localhost:8080
+                Server offline - Please ensure the Go backend server is running
+                at localhost:8080
               </span>
             )}
           </span>
@@ -1399,12 +1452,6 @@ export default function PrivacyProxyUI() {
           setTermsRequireAcceptance(false);
         }}
         requireAcceptance={termsRequireAcceptance}
-      />
-
-      {/* CA Certificate Setup Modal */}
-      <CACertSetupModal
-        isOpen={isCACertSetupOpen}
-        onClose={() => setIsCACertSetupOpen(false)}
       />
 
       {/* Welcome Modal */}

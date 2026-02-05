@@ -25,6 +25,7 @@ type TransparentProxy struct {
 	config       *config.Config
 	client       *http.Client
 	reverseProxy *httputil.ReverseProxy
+	enabledFunc  func() bool // Function to check if proxy is enabled at runtime
 }
 
 // NewTransparentProxy creates a new transparent proxy
@@ -62,11 +63,37 @@ func NewTransparentProxy(
 		config:       cfg,
 		client:       client,
 		reverseProxy: reverseProxy,
+		enabledFunc:  func() bool { return true }, // Default to enabled
 	}
+}
+
+// SetEnabledFunc sets the function used to check if the proxy is enabled
+func (tp *TransparentProxy) SetEnabledFunc(f func() bool) {
+	tp.enabledFunc = f
+}
+
+// IsEnabled returns whether the proxy is currently enabled
+func (tp *TransparentProxy) IsEnabled() bool {
+	if tp.enabledFunc == nil {
+		return true
+	}
+	return tp.enabledFunc()
 }
 
 // ServeHTTP implements http.Handler interface
 func (tp *TransparentProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Check if proxy is enabled
+	if !tp.IsEnabled() {
+		// When disabled, passthrough all requests without PII processing
+		log.Printf("[TransparentProxy] Proxy disabled, passing through request to %s", r.Host)
+		if r.Method == http.MethodConnect {
+			tp.passthroughCONNECT(w, r, r.Host)
+		} else {
+			tp.passthroughHTTP(w, r)
+		}
+		return
+	}
+
 	// Determine provider for current request
 	provider, err := tp.handler.providers.GetProviderFromHost(r.Host, "[TransparentProxy]")
 	if err != nil {

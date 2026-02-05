@@ -61,6 +61,12 @@ interface ElectronAPI {
   reloadModel: (path: string) => Promise<{ success: boolean; error?: string }>;
   selectModelDirectory: () => Promise<string | null>;
 
+  // Transparent proxy settings
+  getTransparentProxyEnabled: () => Promise<boolean>;
+  setTransparentProxyEnabled: (
+    enabled: boolean
+  ) => Promise<{ success: boolean; error?: string }>;
+
   // Platform and version info
   platform: string;
   versions: {
