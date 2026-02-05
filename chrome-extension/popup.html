@@ -1,40 +1,40 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" href="popup.css">
-  <title>Yaak Guard Extension</title>
-</head>
-<body>
-  <div class="popup-container">
-    <div class="popup-header">
-      <img src="icons/icon48.png" alt="Yaak" class="popup-logo">
-      <h1>Yaak Guard Extension</h1>
-    </div>
-
-    <div class="popup-status">
-      <span id="status-dot" class="status-dot status-disconnected"></span>
-      <span id="status-text">Checking...</span>
-    </div>
-
-    <div class="popup-url" id="backend-url"></div>
-
-    <div class="popup-stats">
-      <div class="stat">
-        <span class="stat-value" id="checks-total">0</span>
-        <span class="stat-label">Messages checked</span>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="popup.css" />
+    <title>Kiji Guard Extension</title>
+  </head>
+  <body>
+    <div class="popup-container">
+      <div class="popup-header">
+        <img src="icons/icon48.png" alt="Kiji" class="popup-logo" />
+        <h1>Kiji Guard Extension</h1>
       </div>
-      <div class="stat">
-        <span class="stat-value" id="pii-found">0</span>
-        <span class="stat-label">PII detections</span>
+
+      <div class="popup-status">
+        <span id="status-dot" class="status-dot status-disconnected"></span>
+        <span id="status-text">Checking...</span>
+      </div>
+
+      <div class="popup-url" id="backend-url"></div>
+
+      <div class="popup-stats">
+        <div class="stat">
+          <span class="stat-value" id="checks-total">0</span>
+          <span class="stat-label">Messages checked</span>
+        </div>
+        <div class="stat">
+          <span class="stat-value" id="pii-found">0</span>
+          <span class="stat-label">PII detections</span>
+        </div>
+      </div>
+
+      <div class="popup-footer">
+        <a href="#" id="open-settings">Settings</a>
       </div>
     </div>
-
-    <div class="popup-footer">
-      <a href="#" id="open-settings">Settings</a>
-    </div>
-  </div>
-  <script src="popup.js"></script>
-</body>
+    <script src="popup.js"></script>
+  </body>
 </html>

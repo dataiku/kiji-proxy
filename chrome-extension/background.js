@@ -1,7 +1,7 @@
-// Yaak Guard Extension - Background Service Worker
+// Kiji Guard Extension - Background Service Worker
 "use strict";
 
-importScripts('config.js');
+importScripts("config.js");
 
 const DEFAULT_API_BASE = CONFIG.DEFAULT_API_BASE;
 const HEALTH_CHECK_INTERVAL_MS = CONFIG.HEALTH_CHECK_INTERVAL_MS;
@@ -37,10 +37,16 @@ async function updateContentScripts(domains) {
         runAt: "document_idle",
       },
     ]);
-    console.log("Yaak Guard Extension: Content scripts registered for", domains);
-    console.log("Yaak Guard Extension: using backend URL", backendUrl);
+    console.log(
+      "Kiji Guard Extension: Content scripts registered for",
+      domains
+    );
+    console.log("Kiji Guard Extension: using backend URL", backendUrl);
   } catch (e) {
-    console.error("Yaak Guard Extension: Failed to register content scripts", e);
+    console.error(
+      "Kiji Guard Extension: Failed to register content scripts",
+      e
+    );
   }
 }
 
@@ -116,13 +122,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       },
       body: JSON.stringify({ message: message.text }),
     })
-      .then(response => {
+      .then((response) => {
         if (!response.ok) {
           throw new Error(`API error: ${response.status}`);
         }
         return response.json();
       })
-      .then(data => {
+      .then((data) => {
         // Update stats
         chrome.storage.local.get({ checksTotal: 0, piiFound: 0 }, (result) => {
           const updates = { checksTotal: result.checksTotal + 1 };
@@ -133,8 +139,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         });
         sendResponse({ success: true, data });
       })
-      .catch(error => {
-        console.error("Yaak Guard Extension: Failed to check PII", error);
+      .catch((error) => {
+        console.error("Kiji Guard Extension: Failed to check PII", error);
         sendResponse({ success: false, error: error.message });
       });
     return true; // keep channel open for async sendResponse

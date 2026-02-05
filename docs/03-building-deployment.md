@@ -1,6 +1,6 @@
 # Building & Deployment
 
-This comprehensive guide covers building Dataiku's Yaak Privacy Proxy for macOS and Linux platforms, from local development builds to production deployment.
+This comprehensive guide covers building Dataiku's Kiji Privacy Proxy for macOS and Linux platforms, from local development builds to production deployment.
 
 ## Table of Contents
 
@@ -15,7 +15,7 @@ This comprehensive guide covers building Dataiku's Yaak Privacy Proxy for macOS 
 
 ## Overview
 
-Yaak Privacy Proxy can be built for two platforms with different deployment models:
+Kiji Privacy Proxy can be built for two platforms with different deployment models:
 
 ### macOS (DMG Package)
 - **Format:** Desktop application with Electron UI
@@ -109,7 +109,7 @@ ls -lh model/quantized/model_quantized.onnx  # Should be ~63MB
 ┌─────────────────────────────────────────┐
 │   Linux Tarball Package                 │
 ├─────────────────────────────────────────┤
-│  bin/yaak-proxy                          │
+│  bin/kiji-proxy                          │
 │    ├── Backend API Server               │
 │    ├── Embedded ML Model                │
 │    ├── Embedded Tokenizers              │
@@ -121,7 +121,7 @@ ls -lh model/quantized/model_quantized.onnx  # Should be ~63MB
 │                                          │
 │  run.sh (launcher with LD_LIBRARY_PATH) │
 │  README.txt (usage guide)               │
-│  yaak-proxy.service (systemd example)   │
+│  kiji-proxy.service (systemd example)   │
 └─────────────────────────────────────────┘
 ```
 
@@ -133,7 +133,7 @@ ls -lh model/quantized/model_quantized.onnx  # Should be ~63MB
 # One command to build everything
 make build-dmg
 
-# Output: src/frontend/release/Yaak-Privacy-Proxy-{version}.dmg
+# Output: src/frontend/release/Kiji-Privacy-Proxy-{version}.dmg
 ```
 
 ### Step-by-Step Build Process
@@ -203,7 +203,7 @@ VERSION=$(cd src/frontend && node -p "require('./package.json').version")
 CGO_ENABLED=1 go build \
   -tags embed \
   -ldflags="-X main.version=${VERSION} -s -w -extldflags '-L./build/tokenizers'" \
-  -o build/yaak-proxy \
+  -o build/kiji-proxy \
   ./src/backend
 ```
 
@@ -237,13 +237,13 @@ Uses electron-builder configuration for:
 
 ```bash
 # Development build (fast, with debug symbols)
-go build -o yaak-proxy ./src/backend
+go build -o kiji-proxy ./src/backend
 
 # Production build (optimized, stripped)
 CGO_ENABLED=1 go build \
   -tags embed \
   -ldflags="-X main.version=${VERSION} -s -w" \
-  -o yaak-proxy \
+  -o kiji-proxy \
   ./src/backend
 ```
 
@@ -261,14 +261,14 @@ CGO_ENABLED=1 go build \
 open src/frontend/release/*.dmg
 
 # Install
-sudo cp -r "/Volumes/Yaak Privacy Proxy/Yaak Privacy Proxy.app" /Applications/
+sudo cp -r "/Volumes/Kiji Privacy Proxy/Kiji Privacy Proxy.app" /Applications/
 
 # Run
-open "/Applications/Yaak Privacy Proxy.app"
+open "/Applications/Kiji Privacy Proxy.app"
 
 # Check version
-tail -f ~/Library/Logs/yaak-proxy/app.log
-# Should show: Starting Yaak Privacy Proxy v{version}
+tail -f ~/Library/Logs/kiji-proxy/app.log
+# Should show: Starting Kiji Privacy Proxy v{version}
 ```
 
 ## Building for Linux
@@ -282,7 +282,7 @@ make build-linux
 # Verify build
 make verify-linux
 
-# Output: release/linux/yaak-privacy-proxy-{version}-linux-amd64.tar.gz
+# Output: release/linux/kiji-privacy-proxy-{version}-linux-amd64.tar.gz
 ```
 
 ### Step-by-Step Build Process
@@ -342,7 +342,7 @@ GOARCH=amd64 \
 go build \
   -tags embed \
   -ldflags="-X main.version=${VERSION}" \
-  -o build/yaak-proxy \
+  -o build/kiji-proxy \
   ./src/backend
 ```
 
@@ -350,11 +350,11 @@ go build \
 
 ```bash
 # Create directory
-PACKAGE_DIR="release/linux/yaak-privacy-proxy-${VERSION}-linux-amd64"
+PACKAGE_DIR="release/linux/kiji-privacy-proxy-${VERSION}-linux-amd64"
 mkdir -p ${PACKAGE_DIR}/{bin,lib}
 
 # Copy binary
-cp build/yaak-proxy ${PACKAGE_DIR}/bin/
+cp build/kiji-proxy ${PACKAGE_DIR}/bin/
 
 # Copy library
 cp build/libonnxruntime.so.1.23.1 ${PACKAGE_DIR}/lib/
@@ -369,12 +369,12 @@ cat > ${PACKAGE_DIR}/run.sh << 'EOF'
 #!/bin/bash
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export LD_LIBRARY_PATH="${SCRIPT_DIR}/lib:${LD_LIBRARY_PATH}"
-exec "${SCRIPT_DIR}/bin/yaak-proxy" "$@"
+exec "${SCRIPT_DIR}/bin/kiji-proxy" "$@"
 EOF
 chmod +x ${PACKAGE_DIR}/run.sh
 
 # README.txt - Usage guide
-# yaak-proxy.service - Systemd service
+# kiji-proxy.service - Systemd service
 ```
 
 **7. Create Tarball:**
@@ -382,12 +382,12 @@ chmod +x ${PACKAGE_DIR}/run.sh
 ```bash
 # Create archive
 cd release/linux
-tar -czf yaak-privacy-proxy-${VERSION}-linux-amd64.tar.gz \
-  yaak-privacy-proxy-${VERSION}-linux-amd64/
+tar -czf kiji-privacy-proxy-${VERSION}-linux-amd64.tar.gz \
+  kiji-privacy-proxy-${VERSION}-linux-amd64/
 
 # Generate checksum
-sha256sum yaak-privacy-proxy-${VERSION}-linux-amd64.tar.gz > \
-  yaak-privacy-proxy-${VERSION}-linux-amd64.tar.gz.sha256
+sha256sum kiji-privacy-proxy-${VERSION}-linux-amd64.tar.gz > \
+  kiji-privacy-proxy-${VERSION}-linux-amd64.tar.gz.sha256
 
 cd ../..
 ```
@@ -418,8 +418,8 @@ make verify-linux
 ```bash
 # Extract
 cd release/linux
-tar -xzf yaak-privacy-proxy-*-linux-amd64.tar.gz
-cd yaak-privacy-proxy-*-linux-amd64
+tar -xzf kiji-privacy-proxy-*-linux-amd64.tar.gz
+cd kiji-privacy-proxy-*-linux-amd64
 
 # Run
 ./run.sh
@@ -437,10 +437,10 @@ Using `-ldflags="-s -w"` reduces binary size by 20-30MB:
 
 ```bash
 # Without stripping: ~90MB
-go build -o yaak-proxy ./src/backend
+go build -o kiji-proxy ./src/backend
 
 # With stripping: ~60MB
-go build -ldflags="-s -w" -o yaak-proxy ./src/backend
+go build -ldflags="-s -w" -o kiji-proxy ./src/backend
 ```
 
 - `-s` - Omit symbol table and debug info
@@ -481,43 +481,43 @@ Both local and CI builds cache:
 **1. Extract Package:**
 
 ```bash
-sudo tar -xzf yaak-privacy-proxy-*-linux-amd64.tar.gz -C /opt/
-cd /opt/yaak-privacy-proxy-*-linux-amd64
+sudo tar -xzf kiji-privacy-proxy-*-linux-amd64.tar.gz -C /opt/
+cd /opt/kiji-privacy-proxy-*-linux-amd64
 ```
 
 **2. Create Service User:**
 
 ```bash
-sudo useradd -r -s /bin/false yaak
-sudo chown -R yaak:yaak /opt/yaak-privacy-proxy-*
+sudo useradd -r -s /bin/false kiji
+sudo chown -R kiji:kiji /opt/kiji-privacy-proxy-*
 ```
 
 **3. Configure Environment:**
 
 ```bash
-sudo tee /etc/yaak-proxy.env << EOF
+sudo tee /etc/kiji-proxy.env << EOF
 OPENAI_API_KEY=your-api-key
 PROXY_PORT=:8080
 LOG_PII_CHANGES=false
 EOF
 
-sudo chmod 600 /etc/yaak-proxy.env
+sudo chmod 600 /etc/kiji-proxy.env
 ```
 
 **4. Install Systemd Service:**
 
 ```bash
-sudo cp yaak-proxy.service /etc/systemd/system/
+sudo cp kiji-proxy.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable yaak-proxy
-sudo systemctl start yaak-proxy
+sudo systemctl enable kiji-proxy
+sudo systemctl start kiji-proxy
 ```
 
 **5. Verify:**
 
 ```bash
-sudo systemctl status yaak-proxy
-sudo journalctl -u yaak-proxy -f
+sudo systemctl status kiji-proxy
+sudo journalctl -u kiji-proxy -f
 curl http://localhost:8080/health
 ```
 
@@ -525,17 +525,17 @@ curl http://localhost:8080/health
 
 ```ini
 [Unit]
-Description=Yaak Privacy Proxy
+Description=Kiji Privacy Proxy
 After=network.target
 
 [Service]
 Type=simple
-User=yaak
-Group=yaak
-WorkingDirectory=/opt/yaak-privacy-proxy
-Environment="LD_LIBRARY_PATH=/opt/yaak-privacy-proxy/lib"
-EnvironmentFile=/etc/yaak-proxy.env
-ExecStart=/opt/yaak-privacy-proxy/bin/yaak-proxy
+User=kiji
+Group=kiji
+WorkingDirectory=/opt/kiji-privacy-proxy
+Environment="LD_LIBRARY_PATH=/opt/kiji-privacy-proxy/lib"
+EnvironmentFile=/etc/kiji-proxy.env
+ExecStart=/opt/kiji-privacy-proxy/bin/kiji-proxy
 Restart=on-failure
 RestartSec=5s
 StandardOutput=journal
@@ -556,7 +556,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy extracted package
-COPY yaak-privacy-proxy-*-linux-amd64 /app
+COPY kiji-privacy-proxy-*-linux-amd64 /app
 WORKDIR /app
 
 # Set library path
@@ -566,19 +566,19 @@ ENV LD_LIBRARY_PATH=/app/lib
 EXPOSE 8080
 
 # Run
-CMD ["./bin/yaak-proxy"]
+CMD ["./bin/kiji-proxy"]
 ```
 
 ```bash
 # Build
-docker build -t yaak-proxy:0.1.1 .
+docker build -t kiji-proxy:0.1.1 .
 
 # Run
 docker run -d \
-  --name yaak-proxy \
+  --name kiji-proxy \
   -p 8080:8080 \
   -e OPENAI_API_KEY=your-key \
-  yaak-proxy:0.1.1
+  kiji-proxy:0.1.1
 ```
 
 ### macOS Installation
@@ -588,7 +588,7 @@ docker run -d \
 # Open and drag to Applications
 
 # Launch
-open "/Applications/Yaak Privacy Proxy.app"
+open "/Applications/Kiji Privacy Proxy.app"
 ```
 
 ## Troubleshooting
@@ -690,7 +690,7 @@ ls -la src/backend/model/quantized/
 CGO_ENABLED=1 go build -tags embed ...
 
 # Check binary size
-ls -lh build/yaak-proxy
+ls -lh build/kiji-proxy
 # Should be 60-90MB
 ```
 
@@ -704,7 +704,7 @@ ls -lh build/yaak-proxy
 
 # Or set manually
 export LD_LIBRARY_PATH=/path/to/lib:$LD_LIBRARY_PATH
-./bin/yaak-proxy
+./bin/kiji-proxy
 
 # Or install system-wide
 sudo cp lib/libonnxruntime.so.1.23.1 /usr/local/lib/

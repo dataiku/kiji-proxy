@@ -1,6 +1,6 @@
 # Development Guide
 
-This guide covers setting up your development environment, debugging workflows, and best practices for developing Yaak Privacy Proxy.
+This guide covers setting up your development environment, debugging workflows, and best practices for developing Kiji Privacy Proxy.
 
 ## Table of Contents
 
@@ -38,8 +38,8 @@ This guide covers setting up your development environment, debugging workflows, 
 
 ```bash
 # 1. Clone repository
-git clone https://github.com/hanneshapke/yaak-proxy.git
-cd yaak-proxy
+git clone https://github.com/hanneshapke/kiji-proxy.git
+cd kiji-proxy
 
 # 2. Pull model files
 git lfs pull
@@ -186,7 +186,7 @@ make release-linux-arm64
 
 The project includes pre-configured debug settings in `.vscode/launch.json`:
 
-1. **Launch yaak-proxy** - Main development configuration
+1. **Launch kiji-proxy** - Main development configuration
 2. **Debug Current File** - Debug any Go file
 3. **Debug Current Test** - Debug tests in current file
 4. **Attach to Process** - Attach to running process
@@ -195,7 +195,7 @@ The project includes pre-configured debug settings in `.vscode/launch.json`:
 
 1. Open project in VSCode
 2. Set breakpoints by clicking in the left margin
-3. Press **F5** or select "Launch yaak-proxy" from Run and Debug
+3. Press **F5** or select "Launch kiji-proxy" from Run and Debug
 4. Use debug controls:
    - **Continue:** F5
    - **Step Over:** F10
@@ -204,11 +204,11 @@ The project includes pre-configured debug settings in `.vscode/launch.json`:
 
 ### Debug Configuration
 
-The "Launch yaak-proxy" configuration:
+The "Launch kiji-proxy" configuration:
 
 ```json
 {
-  "name": "Launch yaak-proxy",
+  "name": "Launch kiji-proxy",
   "type": "go",
   "request": "launch",
   "program": "${workspaceFolder}/src/backend",
@@ -336,7 +336,7 @@ make electron-build
 When running via VSCode debugger or `go run`, the version displays as "dev" instead of the actual version:
 
 ```
-🚀 Starting Yaak Privacy Proxy vdev
+🚀 Starting Kiji Privacy Proxy vdev
 ```
 
 This happens because versions are normally injected via ldflags during build.
@@ -348,7 +348,7 @@ This happens because versions are normally injected via ldflags during build.
 make update-vscode-version
 
 # Now press F5 to debug
-# Shows: 🚀 Starting Yaak Privacy Proxy v0.1.1-dev
+# Shows: 🚀 Starting Kiji Privacy Proxy v0.1.1-dev
 ```
 
 **When to run:** After bumping version in `package.json`
@@ -360,8 +360,8 @@ make update-vscode-version
 make build-go
 
 # Run binary
-./build/yaak-proxy
-# Shows: 🚀 Starting Yaak Privacy Proxy v0.1.1
+./build/kiji-proxy
+# Shows: 🚀 Starting Kiji Privacy Proxy v0.1.1
 ```
 
 ### Solution 3: Manual go run
@@ -470,7 +470,7 @@ Best for testing production-like builds:
 make build-go
 
 # Test
-./build/yaak-proxy
+./build/kiji-proxy
 
 # Or build DMG
 make build-dmg
@@ -741,7 +741,7 @@ export PROXY_PORT=":8081"
 
 ## Adding a New LLM Provider
 
-This section explains how to add support for a new LLM provider to Yaak Privacy Proxy.
+This section explains how to add support for a new LLM provider to Kiji Privacy Proxy.
 
 ### Files to Modify
 

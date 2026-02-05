@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	detectors "github.com/hannes/yaak-private/src/backend/pii/detectors"
+	detectors "github.com/hannes/kiji-private/src/backend/pii/detectors"
 )
 
 // newTestDB creates a temporary SQLite database for testing.

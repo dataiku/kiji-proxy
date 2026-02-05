@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"time"
 
-	detectors "github.com/hannes/yaak-private/src/backend/pii/detectors"
+	detectors "github.com/hannes/kiji-private/src/backend/pii/detectors"
 	_ "modernc.org/sqlite"
 )
 

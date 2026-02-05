@@ -22,13 +22,13 @@
 
 ## Overview
 
-The Yaak PII Guard Chrome extension intercepts user input on AI chat services (ChatGPT, Claude, Gemini, etc.) and checks for personally identifiable information before submission. It communicates with the Yaak proxy backend for PII detection and presents users with options to mask, cancel, or send anyway.
+The Kiji PII Guard Chrome extension intercepts user input on AI chat services (ChatGPT, Claude, Gemini, etc.) and checks for personally identifiable information before submission. It communicates with the Kiji Privacy Proxy backend for PII detection and presents users with options to mask, cancel, or send anyway.
 
 The extension lives in the `chrome-extension/` directory at the repository root. It is plain JavaScript with no build step — the directory is directly loadable by Chrome.
 
 ## Local Development
 
-1. Start the Yaak proxy backend:
+1. Start the Kiji Privacy Proxy backend:
    ```bash
    make electron-run
    ```
@@ -67,7 +67,7 @@ chrome-extension/
 
 All settings are accessible via the extension's options page (right-click extension icon > Options):
 
-- **Backend URL** — The Yaak proxy server address (default: `http://localhost:8081`)
+- **Backend URL** — The Kiji Privacy Proxy server address (default: `http://localhost:8081`)
 - **Intercept domains** — URL match patterns where the extension is active (one per line)
 
 Default domains:
@@ -103,7 +103,7 @@ The GitHub Actions workflow `release-chrome-extension.yml` produces a versioned 
 
 ```bash
 cd chrome-extension
-zip -r ../yaak-pii-guard.zip . -x '*.DS_Store' '*.svg' '*.git*'
+zip -r ../kiji-pii-guard.zip . -x '*.DS_Store' '*.svg' '*.git*'
 ```
 
 ### Switch to Optional Host Permissions
@@ -147,7 +147,7 @@ async function updateContentScripts(domains) {
   // Verify we have permission for all domains
   const granted = await chrome.permissions.contains({ origins: domains });
   if (!granted) {
-    console.warn("Yaak PII Guard: Missing host permissions for some domains");
+    console.warn("Kiji PII Guard: Missing host permissions for some domains");
   }
   // ... rest of registration logic
 }
@@ -185,7 +185,7 @@ Required for any extension that handles user data. Host it at a public URL (GitH
 1. Go to the [Chrome Developer Dashboard](https://chrome.google.com/webstore/devconsole)
 2. Click **New Item** and upload the zip file
 3. Fill in the listing:
-   - **Name:** Yaak PII Guard
+   - **Name:** Kiji PII Guard
    - **Description:** Detects and masks personally identifiable information before sending messages to AI chat services. Works with ChatGPT, Claude, Gemini, Copilot, and more.
    - **Category:** Productivity
    - **Language:** English
@@ -248,7 +248,7 @@ To fully automate publishing, add a step to the workflow that uploads to the Chr
      if: startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-beta') && !contains(github.ref, '-alpha') && !contains(github.ref, '-rc')
      uses: mnao305/chrome-extension-upload@v5.0.0
      with:
-       file-path: yaak-pii-guard-${{ steps.version.outputs.version }}.zip
+       file-path: kiji-pii-guard-${{ steps.version.outputs.version }}.zip
        extension-id: <your-extension-id>
        client-id: ${{ secrets.CHROME_WEB_STORE_CLIENT_ID }}
        client-secret: ${{ secrets.CHROME_WEB_STORE_CLIENT_SECRET }}

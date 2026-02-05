@@ -1,4 +1,4 @@
-// Yaak Guard Extension - Shared Configuration
+// Kiji Guard Extension - Shared Configuration
 "use strict";
 
 const CONFIG = {
@@ -14,5 +14,5 @@ const CONFIG = {
     "https://poe.com/*",
   ],
   HEALTH_CHECK_INTERVAL_MS: 30000,
-  CONTENT_SCRIPT_ID: "yaak-pii-guard",
+  CONTENT_SCRIPT_ID: "kiji-pii-guard",
 };

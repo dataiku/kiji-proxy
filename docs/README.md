@@ -1,10 +1,10 @@
-# Dataiku's Yaak Privacy Proxy Documentation
+# Dataiku's Kiji Privacy Proxy Documentation
 
-Complete documentation for Yaak Privacy Proxy - a transparent MITM proxy with ML-powered PII detection and masking.
+Complete documentation for Kiji Privacy Proxy - a transparent MITM proxy with ML-powered PII detection and masking.
 
-## What is Yaak Privacy Proxy?
+## What is Kiji Privacy Proxy?
 
-Yaak Privacy Proxy is an intelligent privacy layer for API traffic. It automatically detects and masks personally identifiable information (PII) in requests to AI services, ensuring sensitive data never leaves your control.
+Kiji Privacy Proxy is an intelligent privacy layer for API traffic. It automatically detects and masks personally identifiable information (PII) in requests to AI services, ensuring sensitive data never leaves your control.
 
 **Key Features:**
 - 🔒 **Transparent HTTPS Proxy** - MITM interception of encrypted traffic
@@ -19,7 +19,7 @@ Yaak Privacy Proxy is an intelligent privacy layer for API traffic. It automatic
 
 ### [Chapter 1: Getting Started](01-getting-started.md)
 
-Learn how to install and configure Dataiku's Yaak Privacy Proxy, and create your first release.
+Learn how to install and configure Dataiku's Kiji Privacy Proxy, and create your first release.
 
 **Topics:**
 - Installation (macOS DMG & Linux tarball)
@@ -29,7 +29,7 @@ Learn how to install and configure Dataiku's Yaak Privacy Proxy, and create your
 - First run and testing
 - Quick start release guide
 
-**Start here if you're:** New to Yaak Privacy Proxy or want to get up and running quickly.
+**Start here if you're:** New to Kiji Privacy Proxy or want to get up and running quickly.
 
 ---
 
@@ -51,7 +51,7 @@ Set up your development environment and learn development workflows.
 
 ### [Chapter 3: Building & Deployment](03-building-deployment.md)
 
-Build Yaak Privacy Proxy from source for macOS and Linux platforms.
+Build Kiji Privacy Proxy from source for macOS and Linux platforms.
 
 **Topics:**
 - Build requirements and architecture
@@ -166,8 +166,8 @@ When updating documentation:
 
 - **Installation Issues:** See [Getting Started](01-getting-started.md#troubleshooting)
 - **Configuration Help:** See [Advanced Topics](05-advanced-topics.md)
-- **Bug Reports:** [GitHub Issues](https://github.com/hanneshapke/yaak-proxy/issues)
-- **Questions:** [GitHub Discussions](https://github.com/hanneshapke/yaak-proxy/discussions)
+- **Bug Reports:** [GitHub Issues](https://github.com/hanneshapke/kiji-proxy/issues)
+- **Questions:** [GitHub Discussions](https://github.com/hanneshapke/kiji-proxy/discussions)
 
 ### For Developers
 
@@ -188,10 +188,10 @@ See LICENSE file in the repository root.
 
 ## Project Links
 
-- **Repository:** https://github.com/hanneshapke/yaak-proxy
-- **Issues:** https://github.com/hanneshapke/yaak-proxy/issues
-- **Releases:** https://github.com/hanneshapke/yaak-proxy/releases
-- **Discussions:** https://github.com/hanneshapke/yaak-proxy/discussions
+- **Repository:** https://github.com/hanneshapke/kiji-proxy
+- **Issues:** https://github.com/hanneshapke/kiji-proxy/issues
+- **Releases:** https://github.com/hanneshapke/kiji-proxy/releases
+- **Discussions:** https://github.com/hanneshapke/kiji-proxy/discussions
 
 ---
 

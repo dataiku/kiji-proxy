@@ -1,4 +1,4 @@
-#yaak-pii-overlay {
+#kiji-pii-overlay {
   display: none;
   position: fixed;
   top: 0;
@@ -12,7 +12,7 @@
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
-#yaak-pii-modal {
+#kiji-pii-modal {
   background: #1e1e1e;
   border-radius: 12px;
   max-width: 500px;
@@ -23,7 +23,7 @@
   border: 1px solid #333;
 }
 
-#yaak-pii-header {
+#kiji-pii-header {
   background: #dc3545;
   color: white;
   padding: 16px 20px;
@@ -34,51 +34,51 @@
   gap: 10px;
 }
 
-#yaak-pii-icon {
+#kiji-pii-icon {
   font-size: 24px;
 }
 
-#yaak-pii-content {
+#kiji-pii-content {
   padding: 20px;
   color: #e0e0e0;
   max-height: 400px;
   overflow-y: auto;
 }
 
-#yaak-pii-content p {
+#kiji-pii-content p {
   margin: 0 0 12px 0;
   font-size: 14px;
 }
 
-#yaak-pii-entities {
+#kiji-pii-entities {
   background: #2a2a2a;
   border-radius: 8px;
   padding: 12px;
   margin-bottom: 16px;
 }
 
-#yaak-pii-entities ul {
+#kiji-pii-entities ul {
   margin: 0;
   padding: 0 0 0 20px;
 }
 
-#yaak-pii-entities li {
+#kiji-pii-entities li {
   margin: 8px 0;
   font-size: 13px;
   word-break: break-all;
 }
 
-#yaak-pii-entities strong {
+#kiji-pii-entities strong {
   color: #ffc107;
   font-family: monospace;
 }
 
-#yaak-pii-masked-label {
+#kiji-pii-masked-label {
   font-weight: 600;
   color: #aaa;
 }
 
-#yaak-pii-masked {
+#kiji-pii-masked {
   background: #2a2a2a;
   border-radius: 8px;
   padding: 12px;
@@ -91,7 +91,7 @@
   border: 1px solid #444;
 }
 
-#yaak-pii-actions {
+#kiji-pii-actions {
   display: flex;
   gap: 10px;
   padding: 16px 20px;
@@ -100,7 +100,7 @@
   justify-content: flex-end;
 }
 
-#yaak-pii-actions button {
+#kiji-pii-actions button {
   padding: 10px 16px;
   border-radius: 6px;
   font-size: 14px;
@@ -110,43 +110,43 @@
   transition: background 0.2s, transform 0.1s;
 }
 
-#yaak-pii-actions button:hover {
+#kiji-pii-actions button:hover {
   transform: translateY(-1px);
 }
 
-#yaak-pii-actions button:active {
+#kiji-pii-actions button:active {
   transform: translateY(0);
 }
 
-#yaak-pii-cancel {
+#kiji-pii-cancel {
   background: #444;
   color: #e0e0e0;
 }
 
-#yaak-pii-cancel:hover {
+#kiji-pii-cancel:hover {
   background: #555;
 }
 
-#yaak-pii-use-masked {
+#kiji-pii-use-masked {
   background: #0d6efd;
   color: white;
 }
 
-#yaak-pii-use-masked:hover {
+#kiji-pii-use-masked:hover {
   background: #0b5ed7;
 }
 
-#yaak-pii-send-anyway {
+#kiji-pii-send-anyway {
   background: #dc3545;
   color: white;
 }
 
-#yaak-pii-send-anyway:hover {
+#kiji-pii-send-anyway:hover {
   background: #bb2d3b;
 }
 
 /* Toast notification */
-.yaak-pii-toast {
+.kiji-pii-toast {
   position: fixed;
   top: 20px;
   right: 20px;
@@ -162,11 +162,11 @@
   transition: opacity 0.3s ease;
 }
 
-.yaak-pii-toast-hide {
+.kiji-pii-toast-hide {
   opacity: 0;
 }
 
-.yaak-pii-toast-warning {
+.kiji-pii-toast-warning {
   background: #664d03;
   color: #fff3cd;
   border: 1px solid #997404;

@@ -1,23 +1,23 @@
 # Getting Started
 
-Welcome to Dataiku's Yaak Privacy Proxy! This guide will help you get started with installation, configuration, and your first release.
+Welcome to Dataiku's Kiji Privacy Proxy! This guide will help you get started with installation, configuration, and your first release.
 
 ## Table of Contents
 
-- [What is Yaak Privacy Proxy?](#what-is-yaak-privacy-proxy)
+- [What is Kiji Privacy Proxy?](#what-is-kiji-privacy-proxy)
 - [Quick Installation](#quick-installation)
 - [Platform-Specific Installation](#platform-specific-installation)
 - [First Run](#first-run)
 - [Your First Release](#your-first-release)
 - [Next Steps](#next-steps)
 
-## What is Yaak Privacy Proxy?
+## What is Kiji Privacy Proxy?
 
-Dataiku's Yaak Privacy Proxy is a privacy-preserving proxy with integrated PII (Personally Identifiable Information) detection and masking capabilities. It intercepts HTTP/HTTPS traffic to LLM providers, automatically detects sensitive data using machine learning or regex patterns, and masks it before forwarding requests. When responses arrive, the proxy restores the original values so your application receives the expected data.
+Dataiku's Kiji Privacy Proxy is a privacy-preserving proxy with integrated PII (Personally Identifiable Information) detection and masking capabilities. It intercepts HTTP/HTTPS traffic to LLM providers, automatically detects sensitive data using machine learning or regex patterns, and masks it before forwarding requests. When responses arrive, the proxy restores the original values so your application receives the expected data.
 
 ### Supported LLM Providers
 
-Yaak Privacy Proxy supports multiple LLM providers out of the box:
+Kiji Privacy Proxy supports multiple LLM providers out of the box:
 - **OpenAI** (ChatCompletions API)
 - **Anthropic** (Messages API)
 - **Google Gemini** (GenerateContent API)
@@ -27,7 +27,7 @@ The proxy automatically detects which provider to route to based on request char
 
 ### Deployment Modes
 
-Yaak Privacy Proxy can be deployed in two ways:
+Kiji Privacy Proxy can be deployed in two ways:
 
 | Mode | Description | Platform |
 |------|-------------|----------|
@@ -55,9 +55,9 @@ The backend supports two proxy modes that can run simultaneously:
 
 ### macOS (Desktop App)
 
-1. Download the latest DMG from [Releases](https://github.com/hanneshapke/yaak-proxy/releases)
+1. Download the latest DMG from [Releases](https://github.com/hanneshapke/kiji-proxy/releases)
 2. Open the DMG file
-3. Drag "Yaak Privacy Proxy" to Applications
+3. Drag "Kiji Privacy Proxy" to Applications
 4. Launch the app
 
 The desktop app provides a GUI for configuration and monitoring. It bundles the Go backend and manages both proxy modes automatically.
@@ -66,11 +66,11 @@ The app is code-signed and notarized, so it should launch without any macOS Gate
 
 ### Linux (Standalone Backend)
 
-1. Download the latest tarball from [Releases](https://github.com/hanneshapke/yaak-proxy/releases)
+1. Download the latest tarball from [Releases](https://github.com/hanneshapke/kiji-proxy/releases)
 2. Extract:
 ```bash
-tar -xzf yaak-privacy-proxy-*-linux-amd64.tar.gz
-cd yaak-privacy-proxy-*-linux-amd64
+tar -xzf kiji-privacy-proxy-*-linux-amd64.tar.gz
+cd kiji-privacy-proxy-*-linux-amd64
 ```
 
 3. Run:
@@ -92,22 +92,22 @@ The standalone backend runs as a headless server. Configure via environment vari
 **Installation Steps:**
 
 1. **Download DMG:**
-   - Visit [Releases](https://github.com/hanneshapke/yaak-proxy/releases)
-   - Download `Yaak-Privacy-Proxy-{version}.dmg`
+   - Visit [Releases](https://github.com/hanneshapke/kiji-proxy/releases)
+   - Download `Kiji-Privacy-Proxy-{version}.dmg`
 
 2. **Install:**
    ```bash
    # Mount DMG
-   open Yaak-Privacy-Proxy-*.dmg
+   open Kiji-Privacy-Proxy-*.dmg
    
    # Drag to Applications folder
    # Or via command line:
-   cp -r "/Volumes/Yaak Privacy Proxy/Yaak Privacy Proxy.app" /Applications/
+   cp -r "/Volumes/Kiji Privacy Proxy/Kiji Privacy Proxy.app" /Applications/
    ```
 
 3. **First Launch:**
    ```bash
-   open "/Applications/Yaak Privacy Proxy.app"
+   open "/Applications/Kiji Privacy Proxy.app"
    ```
 
 **Installing CA Certificate (Required for HTTPS):**
@@ -120,13 +120,13 @@ sudo security add-trusted-cert \
   -d \
   -r trustRoot \
   -k /Library/Keychains/System.keychain \
-  ~/.yaak-proxy/certs/ca.crt
+  ~/.kiji-proxy/certs/ca.crt
 ```
 
 Or use Keychain Access GUI:
 1. Open **Keychain Access**
-2. File → Import Items → Select `~/.yaak-proxy/certs/ca.crt`
-3. Double-click "Yaak Proxy CA" certificate
+2. File → Import Items → Select `~/.kiji-proxy/certs/ca.crt`
+3. Double-click "Kiji Privacy Proxy CA" certificate
 4. Expand **Trust** → Set to **Always Trust**
 
 See [Advanced Topics: Transparent Proxy](05-advanced-topics.md#transparent-proxy-mitm) for details.
@@ -137,10 +137,10 @@ For automatic transparent proxying without setting environment variables, run th
 
 ```bash
 # Start proxy with automatic system configuration
-sudo /Applications/Yaak\ Privacy\ Proxy.app/Contents/MacOS/yaak-proxy
+sudo /Applications/Kiji\ Privacy\ Proxy.app/Contents/MacOS/kiji-proxy
 
 # Or if running from source
-sudo ./build/yaak-proxy
+sudo ./build/kiji-proxy
 ```
 
 This automatically configures your system to route `api.openai.com` and `openai.com` through the proxy. Browsers and GUI apps will work without manual configuration.
@@ -162,31 +162,31 @@ See [transparent-proxy-setup.md](transparent-proxy-setup.md) for complete detail
 1. **Download and Extract:**
    ```bash
    # Download
-   wget https://github.com/hanneshapke/yaak-proxy/releases/download/v{version}/yaak-privacy-proxy-{version}-linux-amd64.tar.gz
+   wget https://github.com/hanneshapke/kiji-proxy/releases/download/v{version}/kiji-privacy-proxy-{version}-linux-amd64.tar.gz
    
    # Verify checksum (optional)
-   wget https://github.com/hanneshapke/yaak-proxy/releases/download/v{version}/yaak-privacy-proxy-{version}-linux-amd64.tar.gz.sha256
-   sha256sum -c yaak-privacy-proxy-{version}-linux-amd64.tar.gz.sha256
+   wget https://github.com/hanneshapke/kiji-proxy/releases/download/v{version}/kiji-privacy-proxy-{version}-linux-amd64.tar.gz.sha256
+   sha256sum -c kiji-privacy-proxy-{version}-linux-amd64.tar.gz.sha256
    
    # Extract
-   tar -xzf yaak-privacy-proxy-{version}-linux-amd64.tar.gz
-   cd yaak-privacy-proxy-{version}-linux-amd64
+   tar -xzf kiji-privacy-proxy-{version}-linux-amd64.tar.gz
+   cd kiji-privacy-proxy-{version}-linux-amd64
    ```
 
 2. **Install System-Wide (Optional):**
    ```bash
    # Copy to /opt
-   sudo cp -r . /opt/yaak-privacy-proxy
+   sudo cp -r . /opt/kiji-privacy-proxy
    
    # Create service user
-   sudo useradd -r -s /bin/false yaak
-   sudo chown -R yaak:yaak /opt/yaak-privacy-proxy
+   sudo useradd -r -s /bin/false kiji
+   sudo chown -R kiji:kiji /opt/kiji-privacy-proxy
    ```
 
 3. **Configure Environment:**
    ```bash
    # Create environment file
-   sudo tee /etc/yaak-proxy.env << EOF
+   sudo tee /etc/kiji-proxy.env << EOF
    OPENAI_API_KEY=your-api-key-here
    PROXY_PORT=:8080
    LOG_PII_CHANGES=false
@@ -195,28 +195,28 @@ See [transparent-proxy-setup.md](transparent-proxy-setup.md) for complete detail
 
 4. **Install Systemd Service (Optional):**
    ```bash
-   sudo cp yaak-proxy.service /etc/systemd/system/
+   sudo cp kiji-proxy.service /etc/systemd/system/
    sudo systemctl daemon-reload
-   sudo systemctl enable yaak-proxy
-   sudo systemctl start yaak-proxy
+   sudo systemctl enable kiji-proxy
+   sudo systemctl start kiji-proxy
    
    # Check status
-   sudo systemctl status yaak-proxy
+   sudo systemctl status kiji-proxy
    ```
 
 **Installing CA Certificate (Required for HTTPS):**
 
 ```bash
 # Ubuntu/Debian
-sudo cp ~/.yaak-proxy/certs/ca.crt /usr/local/share/ca-certificates/yaak-proxy-ca.crt
+sudo cp ~/.kiji-proxy/certs/ca.crt /usr/local/share/ca-certificates/kiji-proxy-ca.crt
 sudo update-ca-certificates
 
 # RHEL/CentOS/Fedora
-sudo cp ~/.yaak-proxy/certs/ca.crt /etc/pki/ca-trust/source/anchors/yaak-proxy-ca.crt
+sudo cp ~/.kiji-proxy/certs/ca.crt /etc/pki/ca-trust/source/anchors/kiji-proxy-ca.crt
 sudo update-ca-trust
 
 # Arch Linux
-sudo cp ~/.yaak-proxy/certs/ca.crt /etc/ca-certificates/trust-source/anchors/yaak-proxy-ca.crt
+sudo cp ~/.kiji-proxy/certs/ca.crt /etc/ca-certificates/trust-source/anchors/kiji-proxy-ca.crt
 sudo trust extract-compat
 ```
 
@@ -226,7 +226,7 @@ sudo trust extract-compat
 
 1. **Launch the app:**
    ```bash
-   open "/Applications/Yaak Privacy Proxy.app"
+   open "/Applications/Kiji Privacy Proxy.app"
    ```
 
 2. **Configure via UI:**
@@ -323,8 +323,8 @@ export DB_ENABLED="false"
 # Transparent proxy settings
 export TRANSPARENT_PROXY_ENABLED="true"
 export TRANSPARENT_PROXY_PORT=":8081"
-export TRANSPARENT_PROXY_CA_PATH="~/.yaak-proxy/certs/ca.crt"
-export TRANSPARENT_PROXY_KEY_PATH="~/.yaak-proxy/certs/ca.key"
+export TRANSPARENT_PROXY_CA_PATH="~/.kiji-proxy/certs/ca.crt"
+export TRANSPARENT_PROXY_KEY_PATH="~/.kiji-proxy/certs/ca.key"
 ```
 
 **Config File Example:**
@@ -367,8 +367,8 @@ export TRANSPARENT_PROXY_KEY_PATH="~/.yaak-proxy/certs/ca.key"
   "Proxy": {
     "transparent_enabled": true,
     "proxy_port": ":8081",
-    "ca_path": "~/.yaak-proxy/certs/ca.crt",
-    "key_path": "~/.yaak-proxy/certs/ca.key",
+    "ca_path": "~/.kiji-proxy/certs/ca.crt",
+    "key_path": "~/.kiji-proxy/certs/ca.key",
     "enable_pac": true
   }
 }
@@ -382,7 +382,7 @@ export TRANSPARENT_PROXY_KEY_PATH="~/.yaak-proxy/certs/ca.key"
 
 ### Provider Detection
 
-Yaak Privacy Proxy supports multiple LLM providers (OpenAI, Anthropic, Gemini, Mistral) and automatically detects which provider to route requests to based on the proxy mode.
+Kiji Privacy Proxy supports multiple LLM providers (OpenAI, Anthropic, Gemini, Mistral) and automatically detects which provider to route requests to based on the proxy mode.
 
 **Forward Proxy Mode (default port 8080)**
 
@@ -474,7 +474,7 @@ git push origin main
 **5. Wait for Changesets Action:**
 
 After pushing to main:
-1. Go to [Actions tab](https://github.com/hanneshapke/yaak-proxy/actions)
+1. Go to [Actions tab](https://github.com/hanneshapke/kiji-proxy/actions)
 2. Find "Changesets Release" workflow
 3. Wait for completion (~1-2 minutes)
 
@@ -486,7 +486,7 @@ After pushing to main:
 
 **6. Review and Merge Version PR:**
 
-1. Go to [Pull Requests](https://github.com/hanneshapke/yaak-proxy/pulls)
+1. Go to [Pull Requests](https://github.com/hanneshapke/kiji-proxy/pulls)
 2. Find PR titled "chore: version packages"
 3. Review changes:
    - `package.json` - version updated
@@ -527,12 +527,12 @@ Both macOS and Linux builds start automatically:
 
 **9. Verify Release:**
 
-1. Go to [Releases](https://github.com/hanneshapke/yaak-proxy/releases)
+1. Go to [Releases](https://github.com/hanneshapke/kiji-proxy/releases)
 2. Find "Release v1.0.1"
 3. Verify artifacts:
-   - `Yaak-Privacy-Proxy-1.0.1.dmg`
-   - `yaak-privacy-proxy-1.0.1-linux-amd64.tar.gz`
-   - `yaak-privacy-proxy-1.0.1-linux-amd64.tar.gz.sha256`
+   - `Kiji-Privacy-Proxy-1.0.1.dmg`
+   - `kiji-privacy-proxy-1.0.1-linux-amd64.tar.gz`
+   - `kiji-privacy-proxy-1.0.1-linux-amd64.tar.gz.sha256`
 
 **10. Test the Release:**
 
@@ -540,11 +540,11 @@ Download and test on your platform:
 
 ```bash
 # macOS
-open Yaak-Privacy-Proxy-1.0.1.dmg
+open Kiji-Privacy-Proxy-1.0.1.dmg
 
 # Linux
-tar -xzf yaak-privacy-proxy-1.0.1-linux-amd64.tar.gz
-cd yaak-privacy-proxy-1.0.1-linux-amd64
+tar -xzf kiji-privacy-proxy-1.0.1-linux-amd64.tar.gz
+cd kiji-privacy-proxy-1.0.1-linux-amd64
 ./run.sh
 ```
 
@@ -552,7 +552,7 @@ Congratulations! You've created your first release.
 
 ## Next Steps
 
-Now that you have Yaak Privacy Proxy running, here's what to explore next:
+Now that you have Kiji Privacy Proxy running, here's what to explore next:
 
 ### For Users
 
@@ -624,7 +624,7 @@ export PROXY_PORT=:8081
 **"Permission denied"**
 ```bash
 # Make binary executable (Linux)
-chmod +x bin/yaak-proxy
+chmod +x bin/kiji-proxy
 ```
 
 For more troubleshooting, see [Advanced Topics: Troubleshooting](05-advanced-topics.md#troubleshooting).

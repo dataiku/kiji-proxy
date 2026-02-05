@@ -1,6 +1,6 @@
 # GitHub Actions Workflows
 
-This directory contains all CI/CD workflows for the Yaak Privacy Proxy project.
+This directory contains all CI/CD workflows for the Kiji Privacy Proxy project.
 
 ## Workflow Overview
 

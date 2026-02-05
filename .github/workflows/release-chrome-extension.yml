@@ -51,24 +51,24 @@ jobs:
       - name: Package Extension
         run: |
           cd chrome-extension
-          zip -r ../yaak-pii-guard-${{ steps.version.outputs.version }}.zip . \
+          zip -r ../kiji-pii-guard-${{ steps.version.outputs.version }}.zip . \
             -x '*.DS_Store' '*.svg' '*.git*'
           echo "Package contents:"
-          unzip -l ../yaak-pii-guard-${{ steps.version.outputs.version }}.zip
+          unzip -l ../kiji-pii-guard-${{ steps.version.outputs.version }}.zip
 
       - name: Generate SHA256 Checksum
         run: |
-          sha256sum yaak-pii-guard-${{ steps.version.outputs.version }}.zip \
-            > yaak-pii-guard-${{ steps.version.outputs.version }}.zip.sha256
-          cat yaak-pii-guard-${{ steps.version.outputs.version }}.zip.sha256
+          sha256sum kiji-pii-guard-${{ steps.version.outputs.version }}.zip \
+            > kiji-pii-guard-${{ steps.version.outputs.version }}.zip.sha256
+          cat kiji-pii-guard-${{ steps.version.outputs.version }}.zip.sha256
 
       - name: Upload as Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: yaak-pii-guard-${{ steps.version.outputs.version }}
+          name: kiji-pii-guard-${{ steps.version.outputs.version }}
           path: |
-            yaak-pii-guard-${{ steps.version.outputs.version }}.zip
-            yaak-pii-guard-${{ steps.version.outputs.version }}.zip.sha256
+            kiji-pii-guard-${{ steps.version.outputs.version }}.zip
+            kiji-pii-guard-${{ steps.version.outputs.version }}.zip.sha256
           retention-days: 90
 
       - name: Upload to GitHub Release
@@ -76,8 +76,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            yaak-pii-guard-${{ steps.version.outputs.version }}.zip
-            yaak-pii-guard-${{ steps.version.outputs.version }}.zip.sha256
+            kiji-pii-guard-${{ steps.version.outputs.version }}.zip
+            kiji-pii-guard-${{ steps.version.outputs.version }}.zip.sha256
           draft: false
           prerelease: ${{ contains(github.ref, '-beta') || contains(github.ref, '-alpha') || contains(github.ref, '-rc') }}
           fail_on_unmatched_files: true
@@ -85,10 +85,10 @@ jobs:
           body: |
 
             ### Chrome Extension
-            - **Chrome Extension**: `yaak-pii-guard-${{ steps.version.outputs.version }}.zip`
+            - **Chrome Extension**: `kiji-pii-guard-${{ steps.version.outputs.version }}.zip`
 
             **Install from zip:**
-            1. Download `yaak-pii-guard-${{ steps.version.outputs.version }}.zip`
+            1. Download `kiji-pii-guard-${{ steps.version.outputs.version }}.zip`
             2. Unzip to a folder
             3. Open `chrome://extensions/`
             4. Enable **Developer mode**
@@ -104,9 +104,9 @@ jobs:
           echo "**Version:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "**Package:**" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          ls -lh yaak-pii-guard-*.zip 2>/dev/null | awk '{print "- " $9 " (" $5 ")"}' >> $GITHUB_STEP_SUMMARY || echo "No zip found" >> $GITHUB_STEP_SUMMARY
+          ls -lh kiji-pii-guard-*.zip 2>/dev/null | awk '{print "- " $9 " (" $5 ")"}' >> $GITHUB_STEP_SUMMARY || echo "No zip found" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**SHA256:**" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          cat yaak-pii-guard-*.sha256 2>/dev/null >> $GITHUB_STEP_SUMMARY || echo "No checksum found" >> $GITHUB_STEP_SUMMARY
+          cat kiji-pii-guard-*.sha256 2>/dev/null >> $GITHUB_STEP_SUMMARY || echo "No checksum found" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY

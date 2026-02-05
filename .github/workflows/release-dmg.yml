@@ -182,7 +182,7 @@ jobs:
           for dmg in *.dmg; do
             if [ -f "$dmg" ]; then
               # Replace spaces with hyphens for cleaner filename
-              # Example: "Yaak Privacy Proxy-0.2.0.dmg" -> "Yaak-Privacy-Proxy-0.2.0.dmg"
+              # Example: "Kiji Privacy Proxy-0.2.0.dmg" -> "Kiji-Privacy-Proxy-0.2.0.dmg"
               NEW_NAME=$(echo "$dmg" | tr ' ' '-')
               if [ "$dmg" != "$NEW_NAME" ]; then
                 mv "$dmg" "$NEW_NAME"
@@ -196,7 +196,7 @@ jobs:
       - name: Upload DMG as Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: yaak-privacy-proxy-${{ steps.version.outputs.version }}-macos
+          name: kiji-privacy-proxy-${{ steps.version.outputs.version }}-macos
           path: src/frontend/release/*.dmg
           retention-days: 90
 
@@ -212,7 +212,7 @@ jobs:
           append_body: false
           generate_release_notes: true
           body: |
-            ## Yaak Privacy Proxy v${{ steps.version.outputs.version }}
+            ## Kiji Privacy Proxy v${{ steps.version.outputs.version }}
 
             ### Downloads
             - **macOS**: DMG installer (Apple Silicon and Intel) - Desktop app with UI
@@ -221,9 +221,9 @@ jobs:
             ### macOS Installation
 
             **Quick Start:**
-            1. Download `Yaak-Privacy-Proxy-${{ steps.version.outputs.version }}.dmg`
+            1. Download `Kiji-Privacy-Proxy-${{ steps.version.outputs.version }}.dmg`
             2. Open the DMG and drag to Applications
-            3. Launch "Yaak Privacy Proxy"
+            3. Launch "Kiji Privacy Proxy"
 
             **HTTPS Support - Install CA Certificate:**
 
@@ -235,13 +235,13 @@ jobs:
               -d \
               -r trustRoot \
               -k /Library/Keychains/System.keychain \
-              ~/.yaak-proxy/certs/ca.crt
+              ~/.kiji-proxy/certs/ca.crt
             ```
 
             Or use **Keychain Access**:
             1. Open Keychain Access app
-            2. File → Import Items → `~/.yaak-proxy/certs/ca.crt`
-            3. Double-click "Yaak Proxy CA" certificate
+            2. File → Import Items → `~/.kiji-proxy/certs/ca.crt`
+            3. Double-click "Kiji Privacy Proxy CA" certificate
             4. Expand **Trust** → Set to **Always Trust**
 
             ### Linux Installation
@@ -251,8 +251,8 @@ jobs:
             **Quick Start:**
             ```bash
             # Extract
-            tar -xzf yaak-privacy-proxy-${{ steps.version.outputs.version }}-linux-amd64.tar.gz
-            cd yaak-privacy-proxy-${{ steps.version.outputs.version }}-linux-amd64
+            tar -xzf kiji-privacy-proxy-${{ steps.version.outputs.version }}-linux-amd64.tar.gz
+            cd kiji-privacy-proxy-${{ steps.version.outputs.version }}-linux-amd64
 
             # Run
             ./run.sh
@@ -261,11 +261,11 @@ jobs:
             **HTTPS Support - Install CA Certificate:**
             ```bash
             # Ubuntu/Debian
-            sudo cp ~/.yaak-proxy/certs/ca.crt /usr/local/share/ca-certificates/yaak-proxy-ca.crt
+            sudo cp ~/.kiji-proxy/certs/ca.crt /usr/local/share/ca-certificates/kiji-proxy-ca.crt
             sudo update-ca-certificates
 
             # RHEL/CentOS/Fedora
-            sudo cp ~/.yaak-proxy/certs/ca.crt /etc/pki/ca-trust/source/anchors/yaak-proxy-ca.crt
+            sudo cp ~/.kiji-proxy/certs/ca.crt /etc/pki/ca-trust/source/anchors/kiji-proxy-ca.crt
             sudo update-ca-trust
             ```
 
@@ -285,9 +285,9 @@ jobs:
 
             ### Documentation
 
-            - [Getting Started Guide](https://github.com/hanneshapke/yaak-proxy/blob/main/docs/01-getting-started.md)
-            - [Development Guide](https://github.com/hanneshapke/yaak-proxy/blob/main/docs/02-development-guide.md)
-            - [Release Management](https://github.com/hanneshapke/yaak-proxy/blob/main/docs/04-release-management.md)
+            - [Getting Started Guide](https://github.com/hanneshapke/kiji-proxy/blob/main/docs/01-getting-started.md)
+            - [Development Guide](https://github.com/hanneshapke/kiji-proxy/blob/main/docs/02-development-guide.md)
+            - [Release Management](https://github.com/hanneshapke/kiji-proxy/blob/main/docs/04-release-management.md)
 
             ### What's New
             See the changelog below for details.

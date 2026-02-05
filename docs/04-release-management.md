@@ -1,6 +1,6 @@
 # Release Management
 
-This guide covers version management, release workflows, and CI/CD processes for Yaak Privacy Proxy.
+This guide covers version management, release workflows, and CI/CD processes for Kiji Privacy Proxy.
 
 ## Table of Contents
 
@@ -14,7 +14,7 @@ This guide covers version management, release workflows, and CI/CD processes for
 
 ## Overview
 
-Yaak Privacy Proxy uses [Changesets](https://github.com/changesets/changesets) for automated version management and releases. This provides:
+Kiji Privacy Proxy uses [Changesets](https://github.com/changesets/changesets) for automated version management and releases. This provides:
 
 - **Semantic Versioning:** Automatic version bumping based on change types
 - **Changelog Generation:** Auto-generated from changesets
@@ -47,7 +47,7 @@ Changesets are markdown files that describe changes and version bump type:
 
 ```markdown
 ---
-"yaak-privacy-proxy": patch
+"kiji-privacy-proxy": patch
 ---
 
 Fix PII detection for phone numbers with extensions
@@ -71,9 +71,9 @@ This launches an interactive prompt:
 
 ```
 🦋  Which packages would you like to include?
-◉ yaak-privacy-proxy
+◉ kiji-privacy-proxy
 
-🦋  Which type of change is this for yaak-privacy-proxy?
+🦋  Which type of change is this for kiji-privacy-proxy?
 ❯ patch   (bug fixes, minor changes)
   minor   (new features, backward-compatible)
   major   (breaking changes)
@@ -82,7 +82,7 @@ This launches an interactive prompt:
 › Fix PII detection for phone numbers with extensions
 
 🦋  === Summary of changesets ===
-patch: yaak-privacy-proxy
+patch: kiji-privacy-proxy
   Fix PII detection for phone numbers with extensions
 
 🦋  Is this your desired changeset? (Y/n)
@@ -94,7 +94,7 @@ Create `.changeset/my-change.md`:
 
 ```markdown
 ---
-"yaak-privacy-proxy": minor
+"kiji-privacy-proxy": minor
 ---
 
 Add support for custom PII detection rules
@@ -123,7 +123,7 @@ domain-specific PII types.
 **Good Changeset:**
 ```markdown
 ---
-"yaak-privacy-proxy": minor
+"kiji-privacy-proxy": minor
 ---
 
 Add HTTPS proxy certificate auto-trust on macOS
@@ -136,7 +136,7 @@ manual trust step for HTTPS interception.
 **Bad Changeset:**
 ```markdown
 ---
-"yaak-privacy-proxy": patch
+"kiji-privacy-proxy": patch
 ---
 
 Fix stuff
@@ -183,7 +183,7 @@ Changesets automatically creates a PR titled "chore: version packages":
 ```diff
 # package.json
 {
-  "name": "yaak-privacy-proxy",
+  "name": "kiji-privacy-proxy",
 - "version": "0.1.0",
 + "version": "0.2.0",
   ...
@@ -234,7 +234,7 @@ CI automatically:
 - Creates GitHub Release
 - Attaches artifacts
 
-Check: https://github.com/hanneshapke/yaak-proxy/releases
+Check: https://github.com/hanneshapke/kiji-proxy/releases
 
 ### Manual Release
 
@@ -300,7 +300,7 @@ Workflows trigger on:
 6. Upload artifact
 7. Create/update GitHub Release
 
-**Output:** `Yaak-Privacy-Proxy-{version}.dmg`
+**Output:** `Kiji-Privacy-Proxy-{version}.dmg`
 
 **Build Time:** 5-8 minutes (cached), 15-20 minutes (cold)
 
@@ -319,8 +319,8 @@ Workflows trigger on:
 8. Create/update GitHub Release
 
 **Output:**
-- `yaak-privacy-proxy-{version}-linux-amd64.tar.gz`
-- `yaak-privacy-proxy-{version}-linux-amd64.tar.gz.sha256`
+- `kiji-privacy-proxy-{version}-linux-amd64.tar.gz`
+- `kiji-privacy-proxy-{version}-linux-amd64.tar.gz.sha256`
 
 **Build Time:** 4-6 minutes (cached), 12-15 minutes (cold)
 
@@ -357,8 +357,8 @@ Both workflows cache:
 **Retention:** 90 days
 
 **Naming:**
-- macOS: `yaak-privacy-proxy-{version}-dmg`
-- Linux: `yaak-privacy-proxy-{version}-linux`
+- macOS: `kiji-privacy-proxy-{version}-dmg`
+- Linux: `kiji-privacy-proxy-{version}-linux`
 
 **Upload to Release:** Artifacts are automatically attached to GitHub Release
 
@@ -463,8 +463,8 @@ Version is managed in `src/frontend/package.json`:
 
 ```json
 {
-  "name": "yaak-privacy-proxy",
-  "productName": "Yaak Privacy Proxy",
+  "name": "kiji-privacy-proxy",
+  "productName": "Kiji Privacy Proxy",
   "version": "0.1.1"
 }
 ```
@@ -484,8 +484,8 @@ go build -ldflags="-X main.version=${VERSION}" ./src/backend
 
 **Binary:**
 ```bash
-./yaak-proxy --version
-# Output: Yaak Privacy Proxy version 0.1.1
+./kiji-proxy --version
+# Output: Kiji Privacy Proxy version 0.1.1
 ```
 
 **API:**
@@ -496,7 +496,7 @@ curl http://localhost:8080/version
 
 **Logs:**
 ```
-🚀 Starting Yaak Privacy Proxy v0.1.1
+🚀 Starting Kiji Privacy Proxy v0.1.1
 ```
 
 ### Development Versions
@@ -562,7 +562,7 @@ npm run version
 cat src/frontend/package.json | grep version
 
 # Check binary
-./yaak-proxy --version
+./kiji-proxy --version
 ```
 
 **Solution:**
