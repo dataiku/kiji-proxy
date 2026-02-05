@@ -2,7 +2,7 @@
   "_note": "TODO: Enable notarization by adding \"afterSign\": \"../../src/scripts/notarize.js\" to the build config (requires Developer ID Application certificate)",
   "name": "kiji-privacy-proxy",
   "productName": "Kiji Privacy Proxy",
-  "version": "0.3.6",
+  "version": "0.4.0",
   "description": "Dataiku's Kiji Privacy Proxy",
   "author": "Dataiku - Open Source Lab",
   "main": "src/electron/electron-main.js",
