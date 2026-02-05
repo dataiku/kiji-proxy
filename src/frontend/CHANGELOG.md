@@ -1,5 +1,11 @@
 # kiji-privacy-proxy
 
+## 0.4.0
+
+### Minor Changes
+
+- e0e6aa4: Namechanges along UI changes and improvments along expansion of settings.
+
 ## 0.3.6
 
 ### Patch Changes
