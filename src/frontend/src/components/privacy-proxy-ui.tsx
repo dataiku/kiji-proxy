@@ -957,8 +957,8 @@ export default function PrivacyProxyUI() {
         {/* Header */}
         <div
           className={`sticky top-0 z-40 transition-all duration-300 -mx-4 md:-mx-8 px-4 md:px-8 py-4 mb-8 ${isScrolled
-              ? "bg-white/80 backdrop-blur-md shadow-md py-2 border-b border-slate-200"
-              : "bg-transparent"
+            ? "bg-white/80 backdrop-blur-md shadow-md py-2 border-b border-slate-200"
+            : "bg-transparent"
             }`}
         >
           <div className={`flex flex-col items-center justify-center transition-all duration-300 ${isScrolled ? "scale-90" : "scale-100"}`}>
@@ -1158,16 +1158,19 @@ export default function PrivacyProxyUI() {
         {/* Diff View */}
         {maskedInput && (
           <div className="space-y-6">
-            {/* Input Diff */}
+            {/* Combined Input and Output Diff */}
             <div className="bg-white rounded-xl shadow-lg p-6">
+              {/* Input Diff */}
               <h2 className="text-xl font-semibold text-slate-800 mb-4 flex items-center gap-2">
                 <AlertCircle className="w-5 h-5 text-amber-600" />
-                Input Transformation (A → A')
+                {isElectron
+                  ? `What was sent to ${PROVIDER_NAMES[activeProvider]}`
+                  : "What was sent to the LLM: "}
               </h2>
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
                   <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
-                    <span>Original (A)</span>
+                    <span>Request submitted</span>
                     <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs rounded">
                       PII Exposed
                     </span>
@@ -1178,10 +1181,35 @@ export default function PrivacyProxyUI() {
                       __html: highlightedInputOriginalHTML,
                     }}
                   />
+                  <div className="flex justify-between items-start mt-2">
+                    <p
+                      className="text-sm font-semibold"
+                      style={{
+                        color: `rgba(220, 38, 38, ${detectedEntities.length > 0
+                          ? Math.max(0.4, detectedEntities.reduce((sum, e) => sum + (e.confidence || 0), 0) / detectedEntities.length)
+                          : 0.4})`,
+                      }}
+                    >
+                      {detectedEntities.length} PII detected
+                    </p>
+                    <div className="text-right">
+                      {detectedEntities.map((entity, idx) => (
+                        <p
+                          key={idx}
+                          className="text-sm"
+                          style={{
+                            color: `rgba(220, 38, 38, ${Math.max(0.4, entity.confidence || 0)})`,
+                          }}
+                        >
+                          {((entity.confidence || 0) * 100).toFixed(1)}% confidence
+                        </p>
+                      ))}
+                    </div>
+                  </div>
                 </div>
                 <div>
                   <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
-                    <span>Masked (A')</span>
+                    <span>Request submitted with personal information removed</span>
                     <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded">
                       PII Protected
                     </span>
@@ -1192,27 +1220,25 @@ export default function PrivacyProxyUI() {
                       __html: highlightedInputMaskedHTML,
                     }}
                   />
+                  <p className="text-sm font-semibold mt-2 text-green-600">
+                    {detectedEntities.length} PII replaced
+                  </p>
                 </div>
               </div>
-              <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                <p className="text-sm text-amber-900">
-                  <span className="font-semibold">Changes:</span>{" "}
-                  {detectedEntities.length} PII entities detected and replaced
-                  with tokens
-                </p>
-              </div>
-            </div>
 
-            {/* Output Diff */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
+
+              {/* Divider */}
+              <div className="my-6 border-t-2 border-slate-200"></div>
+
+              {/* Output Diff */}
               <h2 className="text-xl font-semibold text-slate-800 mb-4 flex items-center gap-2">
                 <AlertCircle className="w-5 h-5 text-blue-600" />
-                Output Transformation (B' → B)
+                {isElectron ? `What ${PROVIDER_NAMES[activeProvider]} returned` : "What the LLM returned"}
               </h2>
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
                   <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
-                    <span>Masked Output (B')</span>
+                    <span>Request received</span>
                     <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded">
                       From {PROVIDER_NAMES[activeProvider]}
                     </span>
@@ -1223,10 +1249,20 @@ export default function PrivacyProxyUI() {
                       __html: highlightedOutputMaskedHTML,
                     }}
                   />
+                  <p
+                    className="text-sm font-semibold mt-2"
+                    style={{
+                      color: `rgba(234, 88, 12, ${detectedEntities.length > 0
+                        ? Math.max(0.4, detectedEntities.reduce((sum, e) => sum + (e.confidence || 0), 0) / detectedEntities.length)
+                        : 0.4})`,
+                    }}
+                  >
+                    {detectedEntities.length} fake PIIs received
+                  </p>
                 </div>
                 <div>
                   <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
-                    <span>Final Output (B)</span>
+                    <span>Request received with personal information restored</span>
                     <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">
                       Restored
                     </span>
@@ -1237,19 +1273,27 @@ export default function PrivacyProxyUI() {
                       __html: highlightedOutputFinalHTML,
                     }}
                   />
+                  <p className="text-sm font-semibold mt-2 text-green-600">
+                    {detectedEntities.length} PII restored
+                  </p>
                 </div>
               </div>
-              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-sm text-blue-900">
-                  <span className="font-semibold">Changes:</span>{" "}
-                  {detectedEntities.length} tokens replaced with original PII
-                  values
-                </p>
+
+              {/* Report Misclassification Button */}
+              <div className="mt-6 flex justify-end">
+                <button
+                  onClick={handleReportMisclassification}
+                  className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-colors font-medium"
+                  title="Report incorrect PII classification"
+                >
+                  <Flag className="w-4 h-4" />
+                  Report Misclassification
+                </button>
               </div>
             </div>
 
             {/* Transformation Summary */}
-            <div className="bg-gradient-to-r from-slate-50 to-slate-100 rounded-xl shadow-lg p-6">
+            {false && (<div className="bg-gradient-to-r from-slate-50 to-slate-100 rounded-xl shadow-lg p-6">
               <h3 className="text-lg font-semibold text-slate-800 mb-4">
                 Transformation Summary
               </h3>
@@ -1295,7 +1339,7 @@ export default function PrivacyProxyUI() {
                   Report Misclassification
                 </button>
               </div>
-            </div>
+            </div>)}
           </div>
         )}
 
