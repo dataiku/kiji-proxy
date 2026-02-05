@@ -1351,6 +1351,7 @@ ipcMain.handle("set-transparent-proxy-enabled", async (event, enabled) => {
             resolve(data);
           } catch (error) {
             // Config was saved, but backend notification failed - still success
+            console.warn("Error parsing backend response:", error);
             resolve({ success: true });
           }
         });
