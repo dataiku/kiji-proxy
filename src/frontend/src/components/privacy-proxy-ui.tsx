@@ -171,6 +171,26 @@ export default function PrivacyProxyUI() {
   const isElectron =
     typeof window !== "undefined" && window.electronAPI !== undefined;
 
+  // Helper function to calculate gradient color from red (0%) to green (100%)
+  const getConfidenceColor = (confidence: number): string => {
+    // Clamp confidence between 0 and 1
+    const clampedConfidence = Math.max(0, Math.min(1, confidence));
+
+    // Interpolate from red (rgb(220, 38, 38)) to green (rgb(34, 197, 94))
+    const red = Math.round(220 - (220 - 34) * clampedConfidence);
+    const green = Math.round(38 + (197 - 38) * clampedConfidence);
+    const blue = Math.round(38 + (94 - 38) * clampedConfidence);
+
+    return `rgb(${red}, ${green}, ${blue})`;
+  };
+
+  // Calculate average confidence
+  const averageConfidence = useMemo(() => {
+    if (detectedEntities.length === 0) return 0;
+    const sum = detectedEntities.reduce((acc, entity) => acc + (entity.confidence || 0), 0);
+    return sum / detectedEntities.length;
+  }, [detectedEntities]);
+
   // Memoize highlighted text to prevent re-computation and memory explosion
   // Safety limit for text highlighting to prevent memory issues
   const MAX_HIGHLIGHT_SIZE = 50000; // 50KB max for highlighting
@@ -1159,98 +1179,129 @@ export default function PrivacyProxyUI() {
         {/* Diff View */}
         {maskedInput && (
           <div className="space-y-6">
-            {/* Input Diff */}
+            {/* Combined Input and Output Diff */}
             <div className="bg-white rounded-xl shadow-lg p-6">
+              {/* Input Diff */}
               <h2 className="text-xl font-semibold text-slate-800 mb-4 flex items-center gap-2">
                 <AlertCircle className="w-5 h-5 text-amber-600" />
-                Input Transformation (A → A')
+                {isElectron
+                  ? `What was sent to ${PROVIDER_NAMES[activeProvider]}`
+                  : "What was sent to the LLM: "}
               </h2>
               <div className="grid md:grid-cols-2 gap-4">
-                <div>
+                <div className="flex flex-col">
                   <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
-                    <span>Original (A)</span>
+                    <span>Request submitted</span>
                     <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs rounded">
                       PII Exposed
                     </span>
                   </div>
                   <div
-                    className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap"
+                    className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap flex-1"
                     dangerouslySetInnerHTML={{
                       __html: highlightedInputOriginalHTML,
                     }}
                   />
+                  <div className="flex justify-between items-center mt-2">
+                    <p className="text-sm font-semibold text-slate-700">
+                      {detectedEntities.length} PII detected
+                    </p>
+                    <p
+                      className="text-sm font-semibold"
+                      style={{
+                        color: getConfidenceColor(averageConfidence),
+                      }}
+                    >
+                      {(averageConfidence * 100).toFixed(1)}% avg confidence
+                    </p>
+                  </div>
                 </div>
-                <div>
+                <div className="flex flex-col">
                   <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
-                    <span>Masked (A')</span>
+                    <span>Request submitted with personal information removed</span>
                     <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded">
                       PII Protected
                     </span>
                   </div>
                   <div
-                    className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap"
+                    className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap flex-1"
                     dangerouslySetInnerHTML={{
                       __html: highlightedInputMaskedHTML,
                     }}
                   />
+                  <div className="mt-2">
+                    <p className="text-sm font-semibold text-green-600">
+                      {detectedEntities.length} PII replaced
+                    </p>
+                  </div>
                 </div>
               </div>
-              <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                <p className="text-sm text-amber-900">
-                  <span className="font-semibold">Changes:</span>{" "}
-                  {detectedEntities.length} PII entities detected and replaced
-                  with tokens
-                </p>
-              </div>
-            </div>
 
-            {/* Output Diff */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
+
+              {/* Divider */}
+              <div className="my-6 border-t-2 border-slate-200"></div>
+
+              {/* Output Diff */}
               <h2 className="text-xl font-semibold text-slate-800 mb-4 flex items-center gap-2">
                 <AlertCircle className="w-5 h-5 text-blue-600" />
-                Output Transformation (B' → B)
+                {isElectron ? `What ${PROVIDER_NAMES[activeProvider]} returned` : "What the LLM returned"}
               </h2>
               <div className="grid md:grid-cols-2 gap-4">
-                <div>
+                <div className="flex flex-col">
                   <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
-                    <span>Masked Output (B')</span>
+                    <span>Request received</span>
                     <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded">
                       From {PROVIDER_NAMES[activeProvider]}
                     </span>
                   </div>
                   <div
-                    className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap"
+                    className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap flex-1"
                     dangerouslySetInnerHTML={{
                       __html: highlightedOutputMaskedHTML,
                     }}
                   />
+                  <div className="mt-2">
+                    <p className="text-sm font-semibold text-slate-700">
+                      {detectedEntities.length} fake PIIs received
+                    </p>
+                  </div>
                 </div>
-                <div>
+                <div className="flex flex-col">
                   <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
-                    <span>Final Output (B)</span>
+                    <span>Request received with personal information restored</span>
                     <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">
                       Restored
                     </span>
                   </div>
                   <div
-                    className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap"
+                    className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap flex-1"
                     dangerouslySetInnerHTML={{
                       __html: highlightedOutputFinalHTML,
                     }}
                   />
+                  <div className="mt-2">
+                    <p className="text-sm font-semibold text-green-600">
+                      {detectedEntities.length} PII restored
+                    </p>
+                  </div>
                 </div>
               </div>
-              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-sm text-blue-900">
-                  <span className="font-semibold">Changes:</span>{" "}
-                  {detectedEntities.length} tokens replaced with original PII
-                  values
-                </p>
+
+              {/* Report Misclassification Button */}
+              <div className="mt-6 flex justify-end">
+                <button
+                  onClick={handleReportMisclassification}
+                  className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-colors font-medium"
+                  title="Report incorrect PII classification"
+                >
+                  <Flag className="w-4 h-4" />
+                  Report Misclassification
+                </button>
               </div>
             </div>
 
             {/* Transformation Summary */}
-            <div className="bg-gradient-to-r from-slate-50 to-slate-100 rounded-xl shadow-lg p-6">
+            {false && (<div className="bg-gradient-to-r from-slate-50 to-slate-100 rounded-xl shadow-lg p-6">
               <h3 className="text-lg font-semibold text-slate-800 mb-4">
                 Transformation Summary
               </h3>
@@ -1296,7 +1347,7 @@ export default function PrivacyProxyUI() {
                   Report Misclassification
                 </button>
               </div>
-            </div>
+            </div>)}
           </div>
         )}
 
