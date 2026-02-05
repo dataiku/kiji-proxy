@@ -55,7 +55,7 @@ export default function CACertSetupModal({
           {/* Introduction */}
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <p className="text-sm text-blue-900">
-              To intercept and analyze HTTPS traffic, Yaak Proxy uses a
+              To intercept and analyze HTTPS traffic, Kiji Privacy Proxy uses a
               self-signed Certificate Authority (CA). You must trust this
               certificate on your system and/or browsers.
             </p>
@@ -105,7 +105,8 @@ export default function CACertSetupModal({
                     {"  "}-d \<br />
                     {"  "}-r trustRoot \<br />
                     {"  "}-k /Library/Keychains/System.keychain \<br />
-                    {"  "}~/.yaak-proxy/certs/ca.crt
+                    {"  "}~/Library/Application Support/Kiji Privacy
+                    Proxy/certs/ca.crt
                   </code>
                 </div>
                 <p className="text-xs text-slate-600 mt-2">
@@ -126,7 +127,8 @@ export default function CACertSetupModal({
                     <span>
                       Double-click the certificate file:{" "}
                       <code className="bg-slate-100 px-1.5 py-0.5 rounded text-xs">
-                        ~/.yaak-proxy/certs/ca.crt
+                        ~/Library/Application Support/Kiji Privacy
+                        Proxy/certs/ca.crt
                       </code>
                     </span>
                   </li>
@@ -153,7 +155,7 @@ export default function CACertSetupModal({
                       4.
                     </span>
                     <span>
-                      Search for <strong>"Yaak Proxy CA"</strong> and
+                      Search for <strong>"Kiji Privacy Proxy CA"</strong> and
                       double-click it
                     </span>
                   </li>
@@ -267,7 +269,8 @@ export default function CACertSetupModal({
                     <span>
                       Select{" "}
                       <code className="bg-slate-100 px-1.5 py-0.5 rounded text-xs">
-                        ~/.yaak-proxy/certs/ca.crt
+                        ~/Library/Application Support/Kiji Privacy
+                        Proxy/certs/ca.crt
                       </code>
                     </span>
                   </li>
@@ -311,7 +314,8 @@ export default function CACertSetupModal({
                     <span>
                       <strong>Import</strong> CA certificate (
                       <code className="bg-slate-100 px-1.5 py-0.5 rounded text-xs">
-                        ~/.yaak-proxy/certs/ca.crt
+                        ~/Library/Application Support/Kiji Privacy
+                        Proxy/certs/ca.crt
                       </code>
                       )
                     </span>
@@ -332,7 +336,7 @@ export default function CACertSetupModal({
           {/* Documentation Link */}
           <div className="pt-2">
             <a
-              href="https://github.com/hanneshapke/yaak-proxy/blob/main/docs/01-getting-started.md#installing-ca-certificate-required-for-https"
+              href="https://github.com/hanneshapke/kiji-private/blob/main/docs/01-getting-started.md#installing-ca-certificate-required-for-https"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 hover:underline"
