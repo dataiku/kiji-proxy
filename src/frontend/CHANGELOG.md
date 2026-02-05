@@ -1,4 +1,4 @@
-# yaak-privacy-proxy
+# kiji-privacy-proxy
 
 ## 0.4.0
 

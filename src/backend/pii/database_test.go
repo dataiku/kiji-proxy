@@ -29,22 +29,21 @@ func newTestDB(t *testing.T) *SQLitePIIMappingDB {
 // --- NewSQLitePIIMappingDB tests ---
 
 func TestNewSQLitePIIMappingDB_DefaultPath(t *testing.T) {
-	tmpDir := t.TempDir()
-	// Change to tmpDir so the default "yaak.db" lands there
-	origDir, _ := os.Getwd()
-	if err := os.Chdir(tmpDir); err != nil {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() { _ = os.Chdir(origDir) }()
+	expectedPath := filepath.Join(homeDir, "Library", "Application Support", "Kiji Privacy Proxy", "kiji_privacy_proxy.db")
 
 	db, err := NewSQLitePIIMappingDB(context.Background(), DatabaseConfig{})
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 	defer db.Close()
+	defer os.Remove(expectedPath)
 
-	if _, err := os.Stat(filepath.Join(tmpDir, "yaak.db")); os.IsNotExist(err) {
-		t.Error("expected default yaak.db to be created")
+	if _, err := os.Stat(expectedPath); os.IsNotExist(err) {
+		t.Error("expected default kiji_privacy_proxy.db to be created at " + expectedPath)
 	}
 }
 
