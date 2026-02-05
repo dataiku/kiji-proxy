@@ -1298,6 +1298,79 @@ ipcMain.handle("get-model-info", async () => {
   }
 });
 
+// Transparent Proxy Settings
+ipcMain.handle("get-transparent-proxy-enabled", async () => {
+  try {
+    const storagePath = getStoragePath();
+    if (!fs.existsSync(storagePath)) {
+      return false;
+    }
+    const data = fs.readFileSync(storagePath, "utf8");
+    const config = JSON.parse(data);
+    return config.transparentProxyEnabled || false;
+  } catch (error) {
+    console.error("Error reading transparent proxy setting:", error);
+    return false;
+  }
+});
+
+ipcMain.handle("set-transparent-proxy-enabled", async (event, enabled) => {
+  try {
+    const storagePath = getStoragePath();
+    let config = {};
+
+    if (fs.existsSync(storagePath)) {
+      const data = fs.readFileSync(storagePath, "utf8");
+      config = JSON.parse(data);
+    }
+
+    config.transparentProxyEnabled = !!enabled;
+
+    fs.writeFileSync(storagePath, JSON.stringify(config, null, 2), "utf8");
+
+    // Notify the backend about the change
+    const { net } = require("electron");
+    const request = net.request({
+      method: "POST",
+      url: "http://localhost:8080/api/proxy/transparent/toggle",
+    });
+
+    request.setHeader("Content-Type", "application/json");
+
+    return new Promise((resolve) => {
+      let responseData = "";
+
+      request.on("response", (response) => {
+        response.on("data", (chunk) => {
+          responseData += chunk.toString();
+        });
+
+        response.on("end", () => {
+          try {
+            const data = JSON.parse(responseData);
+            resolve(data);
+          } catch (error) {
+            // Config was saved, but backend notification failed - still success
+            resolve({ success: true });
+          }
+        });
+      });
+
+      request.on("error", (error) => {
+        console.error("Error notifying backend:", error);
+        // Config was saved, but backend notification failed - still success
+        resolve({ success: true });
+      });
+
+      request.write(JSON.stringify({ enabled: !!enabled }));
+      request.end();
+    });
+  } catch (error) {
+    console.error("Error saving transparent proxy setting:", error);
+    return { success: false, error: error.message };
+  }
+});
+
 // Security: Prevent new window creation
 app.on("web-contents-created", (event, contents) => {
   contents.on("new-window", (event, navigationUrl) => {

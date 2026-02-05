@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { X, Server, AlertCircle, CheckCircle2, FolderOpen } from "lucide-react";
+import { X, Server, FolderOpen, Shield, AlertTriangle } from "lucide-react";
+import CACertSetupModal from "./CACertSetupModal";
 
 interface AdvancedSettingsModalProps {
   isOpen: boolean;
@@ -24,14 +25,56 @@ export default function AdvancedSettingsModal({
     text: string;
   } | null>(null);
 
+  // Transparent proxy state
+  const [transparentProxyEnabled, setTransparentProxyEnabled] = useState(false);
+  const [isTogglingProxy, setIsTogglingProxy] = useState(false);
+  const [isCACertSetupOpen, setIsCACertSetupOpen] = useState(false);
+
   const isElectron =
     typeof window !== "undefined" && window.electronAPI !== undefined;
 
   useEffect(() => {
     if (isOpen && isElectron) {
       loadModelInfo();
+      loadTransparentProxySetting();
     }
   }, [isOpen, isElectron]);
+
+  const loadTransparentProxySetting = async () => {
+    if (!window.electronAPI) return;
+
+    try {
+      const enabled = await window.electronAPI.getTransparentProxyEnabled();
+      setTransparentProxyEnabled(enabled);
+    } catch (error) {
+      console.error("Error loading transparent proxy setting:", error);
+    }
+  };
+
+  const handleToggleTransparentProxy = async () => {
+    if (!window.electronAPI) return;
+
+    const newValue = !transparentProxyEnabled;
+
+    // If enabling, show CA cert setup modal first
+    if (newValue) {
+      setIsCACertSetupOpen(true);
+    }
+
+    setIsTogglingProxy(true);
+    try {
+      const result = await window.electronAPI.setTransparentProxyEnabled(
+        newValue
+      );
+      if (result.success) {
+        setTransparentProxyEnabled(newValue);
+      }
+    } catch (error) {
+      console.error("Error toggling transparent proxy:", error);
+    } finally {
+      setIsTogglingProxy(false);
+    }
+  };
 
   const loadModelInfo = async () => {
     if (!window.electronAPI) return;
@@ -160,6 +203,42 @@ export default function AdvancedSettingsModal({
         </div>
 
         <div className="space-y-6">
+          {/* Transparent Proxy Toggle */}
+          <div>
+            <div className="flex items-center justify-between">
+              <label className="block text-sm font-semibold text-slate-700 flex items-center gap-2">
+                <Shield className="w-4 h-4" />
+                Transparent Proxy
+              </label>
+              <button
+                onClick={handleToggleTransparentProxy}
+                disabled={isTogglingProxy}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                  transparentProxyEnabled ? "bg-blue-600" : "bg-slate-300"
+                } ${isTogglingProxy ? "opacity-50 cursor-not-allowed" : ""}`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    transparentProxyEnabled ? "translate-x-6" : "translate-x-1"
+                  }`}
+                />
+              </button>
+            </div>
+            <p className="text-xs text-slate-500 mt-2">
+              Intercept HTTPS traffic system-wide for automatic PII protection.
+            </p>
+            <div className="mt-2 p-2 rounded bg-amber-50 border border-amber-200">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-amber-700">
+                  <strong>Experimental:</strong> This feature requires CA
+                  certificate installation and may affect system network
+                  settings.
+                </p>
+              </div>
+            </div>
+          </div>
+
           {/* Load Custom Yaak PII Model */}
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
@@ -247,6 +326,12 @@ export default function AdvancedSettingsModal({
           </div>
         </div>
       </div>
+
+      {/* CA Certificate Setup Modal */}
+      <CACertSetupModal
+        isOpen={isCACertSetupOpen}
+        onClose={() => setIsCACertSetupOpen(false)}
+      />
     </div>
   );
 }
