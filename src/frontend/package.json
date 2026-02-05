@@ -1,9 +1,9 @@
 {
   "_note": "TODO: Enable notarization by adding \"afterSign\": \"../../src/scripts/notarize.js\" to the build config (requires Developer ID Application certificate)",
-  "name": "yaak-privacy-proxy",
-  "productName": "Yaak Privacy Proxy",
+  "name": "kiji-privacy-proxy",
+  "productName": "Kiji Privacy Proxy",
   "version": "0.3.6",
-  "description": "Dataiku's Yaak Privacy Proxy",
+  "description": "Dataiku's Kiji Privacy Proxy",
   "author": "Dataiku - Open Source Lab",
   "main": "src/electron/electron-main.js",
   "scripts": {
@@ -63,8 +63,8 @@
     "webpack-dev-server": "^5.2.3"
   },
   "build": {
-    "appId": "com.yaak.proxy",
-    "productName": "Yaak Privacy Proxy",
+    "appId": "com.kiji.proxy",
+    "productName": "Kiji Privacy Proxy",
     "electronVersion": "28.3.3",
     "npmRebuild": false,
     "icon": "assets/icon.png",
