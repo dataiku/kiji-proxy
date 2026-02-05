@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"time"
 
-	detectors "github.com/hannes/yaak-private/src/backend/pii/detectors"
+	detectors "github.com/hannes/kiji-private/src/backend/pii/detectors"
 	_ "modernc.org/sqlite"
 )
 
@@ -90,7 +90,7 @@ type SQLitePIIMappingDB struct {
 func NewSQLitePIIMappingDB(ctx context.Context, config DatabaseConfig) (*SQLitePIIMappingDB, error) {
 	dbPath := config.Path
 	if dbPath == "" {
-		dbPath = "yaak.db"
+		dbPath = "kiji.db"
 	}
 
 	// Ensure the directory exists

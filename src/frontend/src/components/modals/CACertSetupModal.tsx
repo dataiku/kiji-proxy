@@ -105,7 +105,7 @@ export default function CACertSetupModal({
                     {"  "}-d \<br />
                     {"  "}-r trustRoot \<br />
                     {"  "}-k /Library/Keychains/System.keychain \<br />
-                    {"  "}~/.yaak-proxy/certs/ca.crt
+                    {"  "}~/.kiji-proxy/certs/ca.crt
                   </code>
                 </div>
                 <p className="text-xs text-slate-600 mt-2">
@@ -126,7 +126,7 @@ export default function CACertSetupModal({
                     <span>
                       Double-click the certificate file:{" "}
                       <code className="bg-slate-100 px-1.5 py-0.5 rounded text-xs">
-                        ~/.yaak-proxy/certs/ca.crt
+                        ~/.kiji-proxy/certs/ca.crt
                       </code>
                     </span>
                   </li>
@@ -267,7 +267,7 @@ export default function CACertSetupModal({
                     <span>
                       Select{" "}
                       <code className="bg-slate-100 px-1.5 py-0.5 rounded text-xs">
-                        ~/.yaak-proxy/certs/ca.crt
+                        ~/.kiji-proxy/certs/ca.crt
                       </code>
                     </span>
                   </li>
@@ -311,7 +311,7 @@ export default function CACertSetupModal({
                     <span>
                       <strong>Import</strong> CA certificate (
                       <code className="bg-slate-100 px-1.5 py-0.5 rounded text-xs">
-                        ~/.yaak-proxy/certs/ca.crt
+                        ~/.kiji-proxy/certs/ca.crt
                       </code>
                       )
                     </span>
@@ -332,7 +332,7 @@ export default function CACertSetupModal({
           {/* Documentation Link */}
           <div className="pt-2">
             <a
-              href="https://github.com/hanneshapke/yaak-proxy/blob/main/docs/01-getting-started.md#installing-ca-certificate-required-for-https"
+              href="https://github.com/hanneshapke/kiji-proxy/blob/main/docs/01-getting-started.md#installing-ca-certificate-required-for-https"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 hover:underline"

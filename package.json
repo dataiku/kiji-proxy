@@ -1,5 +1,5 @@
 {
-  "name": "yaak-privacy-proxy",
+  "name": "kiji-privacy-proxy",
   "productName": "Yaak Privacy Proxy",
   "version": "0.3.6",
   "description": "Dataiku's Yaak Privacy Proxy - PII detection and masking proxy for LLMs",
@@ -16,7 +16,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/dataiku/yaak-proxy"
+    "url": "https://github.com/dataiku/kiji-proxy"
   },
   "keywords": [
     "pii",

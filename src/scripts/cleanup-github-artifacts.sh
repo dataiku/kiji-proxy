@@ -8,7 +8,7 @@ set -e
 # Configuration
 DAYS_TO_KEEP=${DAYS_TO_KEEP:-7}
 OWNER=${GITHUB_OWNER:-"hanneshapke"}
-REPO=${GITHUB_REPO:-"yaak-proxy"}
+REPO=${GITHUB_REPO:-"kiji-proxy"}
 
 # Colors
 RED='\033[0;31m'

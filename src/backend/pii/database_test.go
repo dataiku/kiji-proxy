@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	detectors "github.com/hannes/yaak-private/src/backend/pii/detectors"
+	detectors "github.com/hannes/kiji-private/src/backend/pii/detectors"
 )
 
 // newTestDB creates a temporary SQLite database for testing.
@@ -30,7 +30,7 @@ func newTestDB(t *testing.T) *SQLitePIIMappingDB {
 
 func TestNewSQLitePIIMappingDB_DefaultPath(t *testing.T) {
 	tmpDir := t.TempDir()
-	// Change to tmpDir so the default "yaak.db" lands there
+	// Change to tmpDir so the default "kiji.db" lands there
 	origDir, _ := os.Getwd()
 	if err := os.Chdir(tmpDir); err != nil {
 		t.Fatal(err)
@@ -43,8 +43,8 @@ func TestNewSQLitePIIMappingDB_DefaultPath(t *testing.T) {
 	}
 	defer db.Close()
 
-	if _, err := os.Stat(filepath.Join(tmpDir, "yaak.db")); os.IsNotExist(err) {
-		t.Error("expected default yaak.db to be created")
+	if _, err := os.Stat(filepath.Join(tmpDir, "kiji.db")); os.IsNotExist(err) {
+		t.Error("expected default kiji.db to be created")
 	}
 }
 

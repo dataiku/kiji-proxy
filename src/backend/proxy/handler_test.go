@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hannes/yaak-private/src/backend/config"
-	piiServices "github.com/hannes/yaak-private/src/backend/pii"
-	pii "github.com/hannes/yaak-private/src/backend/pii/detectors"
-	"github.com/hannes/yaak-private/src/backend/processor"
-	"github.com/hannes/yaak-private/src/backend/providers"
+	"github.com/hannes/kiji-private/src/backend/config"
+	piiServices "github.com/hannes/kiji-private/src/backend/pii"
+	pii "github.com/hannes/kiji-private/src/backend/pii/detectors"
+	"github.com/hannes/kiji-private/src/backend/processor"
+	"github.com/hannes/kiji-private/src/backend/providers"
 )
 
 // --- Mock implementations ---

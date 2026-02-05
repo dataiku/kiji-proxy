@@ -1343,7 +1343,7 @@ function SafeDiagram({ visible }: { visible: boolean }) {
           fontFamily={fonts.heading}
           letterSpacing="0.06em"
         >
-          YAAK
+          KIJI
         </text>
       </g>
       <line

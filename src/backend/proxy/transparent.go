@@ -13,8 +13,8 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/hannes/yaak-private/src/backend/config"
-	"github.com/hannes/yaak-private/src/backend/providers"
+	"github.com/hannes/kiji-private/src/backend/config"
+	"github.com/hannes/kiji-private/src/backend/providers"
 )
 
 // TransparentProxy handles transparent HTTP/HTTPS proxying with PII processing

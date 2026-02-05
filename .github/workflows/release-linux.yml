@@ -121,7 +121,7 @@ jobs:
       - name: Upload Linux Archive as Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: yaak-privacy-proxy-${{ steps.version.outputs.version }}-linux-amd64
+          name: kiji-privacy-proxy-${{ steps.version.outputs.version }}-linux-amd64
           path: release/linux/*.tar.gz*
           retention-days: 90
 

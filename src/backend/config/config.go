@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/hannes/yaak-private/src/backend/providers"
+	"github.com/hannes/kiji-private/src/backend/providers"
 )
 
 // LoggingConfig holds logging configuration options
@@ -186,8 +186,8 @@ func DefaultConfig() *Config {
 
 	// Transparent proxy parameters
 	homeDir, _ := os.UserHomeDir()
-	caPath := filepath.Join(homeDir, ".yaak-proxy", "certs", "ca.crt")
-	keyPath := filepath.Join(homeDir, ".yaak-proxy", "certs", "ca.key")
+	caPath := filepath.Join(homeDir, ".kiji-proxy", "certs", "ca.crt")
+	keyPath := filepath.Join(homeDir, ".kiji-proxy", "certs", "ca.key")
 
 	return &Config{
 		Providers: ProvidersConfig{
@@ -203,7 +203,7 @@ func DefaultConfig() *Config {
 		ONNXModelDirectory: "model/quantized",
 		UIPath:             "./src/frontend/dist",
 		Database: DatabaseConfig{
-			Path:         "yaak.db",
+			Path:         "kiji.db",
 			CleanupHours: 24,
 		},
 		Logging: LoggingConfig{

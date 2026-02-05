@@ -112,12 +112,12 @@ check_executable() {
 }
 
 # Check required files
-check_executable "bin/yaak-proxy" "Binary exists and is executable"
+check_executable "bin/kiji-proxy" "Binary exists and is executable"
 check_executable "run.sh" "Run script exists and is executable"
 check_exists "lib/libonnxruntime.so.1.23.1" "ONNX Runtime library"
 check_exists "lib/libonnxruntime.so" "ONNX Runtime symlink"
 check_exists "README.txt" "README file"
-check_exists "yaak-proxy.service" "Systemd service file"
+check_exists "kiji-proxy.service" "Systemd service file"
 
 echo ""
 echo -e "${BLUE}🔍 Verifying binary embeds...${NC}"
@@ -130,7 +130,7 @@ export LD_LIBRARY_PATH="$(pwd)/lib:$LD_LIBRARY_PATH"
 
 # Start the binary in background with timeout
 echo -e "${YELLOW}Starting binary (this will run for 5 seconds)...${NC}"
-timeout 5s ./bin/yaak-proxy > /tmp/yaak-verify.log 2>&1 &
+timeout 5s ./bin/kiji-proxy > /tmp/kiji-verify.log 2>&1 &
 BINARY_PID=$!
 
 sleep 2
@@ -152,8 +152,8 @@ fi
 echo ""
 echo -e "${BLUE}🔍 Checking for embedded file extraction...${NC}"
 
-if [ -f /tmp/yaak-verify.log ]; then
-    if grep -q "Extracting embedded model files" /tmp/yaak-verify.log; then
+if [ -f /tmp/kiji-verify.log ]; then
+    if grep -q "Extracting embedded model files" /tmp/kiji-verify.log; then
         echo -e "${GREEN}✓${NC} Binary attempted to extract embedded model files"
         ((CHECKS_PASSED++))
     else
@@ -161,14 +161,14 @@ if [ -f /tmp/yaak-verify.log ]; then
     fi
 
     # Check for extracted files
-    if grep -q "Extracted:" /tmp/yaak-verify.log; then
+    if grep -q "Extracted:" /tmp/kiji-verify.log; then
         echo -e "${GREEN}✓${NC} Model files were extracted"
         ((CHECKS_PASSED++))
 
         # List extracted files
         echo ""
         echo -e "${BLUE}Extracted files:${NC}"
-        grep "Extracted:" /tmp/yaak-verify.log | sed 's/^/  /'
+        grep "Extracted:" /tmp/kiji-verify.log | sed 's/^/  /'
     else
         echo -e "${RED}✗${NC} No files were extracted"
         ((CHECKS_FAILED++))
@@ -188,7 +188,7 @@ if [ -f /tmp/yaak-verify.log ]; then
     )
 
     for file in "${TOKENIZER_FILES[@]}"; do
-        if grep -q "Extracted:.*$file" /tmp/yaak-verify.log; then
+        if grep -q "Extracted:.*$file" /tmp/kiji-verify.log; then
             echo -e "${GREEN}✓${NC} $file"
             ((CHECKS_PASSED++))
         else
@@ -220,7 +220,7 @@ if [ -f /tmp/yaak-verify.log ]; then
     # Check for errors in log
     echo ""
     echo -e "${BLUE}🔍 Checking for errors in log...${NC}"
-    if grep -i "error\|failed\|fatal" /tmp/yaak-verify.log | grep -v "Failed to get home directory"; then
+    if grep -i "error\|failed\|fatal" /tmp/kiji-verify.log | grep -v "Failed to get home directory"; then
         echo -e "${YELLOW}⚠${NC}  Warnings/errors found in log (see above)"
     else
         echo -e "${GREEN}✓${NC} No critical errors found"
@@ -231,7 +231,7 @@ fi
 # Check binary size (should be large due to embedded files)
 echo ""
 echo -e "${BLUE}🔍 Checking binary size...${NC}"
-BINARY_SIZE=$(stat -c%s "bin/yaak-proxy" 2>/dev/null || stat -f%z "bin/yaak-proxy" 2>/dev/null || echo "0")
+BINARY_SIZE=$(stat -c%s "bin/kiji-proxy" 2>/dev/null || stat -f%z "bin/kiji-proxy" 2>/dev/null || echo "0")
 BINARY_SIZE_MB=$((BINARY_SIZE / 1024 / 1024))
 
 if [ "$BINARY_SIZE_MB" -gt 50 ]; then
@@ -248,9 +248,9 @@ fi
 echo ""
 echo -e "${BLUE}🔍 Checking library dependencies...${NC}"
 if command -v ldd > /dev/null 2>&1; then
-    if ldd bin/yaak-proxy | grep -q "not found"; then
+    if ldd bin/kiji-proxy | grep -q "not found"; then
         echo -e "${RED}✗${NC} Missing library dependencies:"
-        ldd bin/yaak-proxy | grep "not found"
+        ldd bin/kiji-proxy | grep "not found"
         ((CHECKS_FAILED++))
     else
         echo -e "${GREEN}✓${NC} All library dependencies satisfied"
@@ -291,6 +291,6 @@ else
     echo "  • Tokenizer files missing: Check that model/quantized/ was copied to src/backend/"
     echo "  • Build tags missing: Ensure -tags embed was used during build"
     echo ""
-    echo "Build log available at: /tmp/yaak-verify.log"
+    echo "Build log available at: /tmp/kiji-verify.log"
     exit 1
 fi

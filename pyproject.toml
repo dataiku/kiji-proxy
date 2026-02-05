@@ -1,5 +1,5 @@
 [project]
-name = "yaak-proxy"
+name = "kiji-proxy"
 version = "0.1.0"
 description = "PII Detection and Masking Proxy - Minimal Production"
 requires-python = ">=3.11,<3.14"
@@ -73,13 +73,13 @@ labelstudio = [
 
 # All optional dependencies combined
 all = [
-    "yaak-proxy[dev,training,quantization,signing,labelstudio]",
+    "kiji-proxy[dev,training,quantization,signing,labelstudio]",
 ]
 
 [project.urls]
-Homepage = "https://github.com/yaak/pii-detection"
-Repository = "https://github.com/yaak/pii-detection"
-Documentation = "https://github.com/yaak/pii-detection/blob/main/README.md"
+Homepage = "https://github.com/kiji/pii-detection"
+Repository = "https://github.com/kiji/pii-detection"
+Documentation = "https://github.com/kiji/pii-detection/blob/main/README.md"
 
 [build-system]
 requires = ["hatchling"]

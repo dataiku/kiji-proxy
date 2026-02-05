@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	pii "github.com/hannes/yaak-private/src/backend/pii/detectors"
-	"github.com/hannes/yaak-private/src/backend/providers"
+	pii "github.com/hannes/kiji-private/src/backend/pii/detectors"
+	"github.com/hannes/kiji-private/src/backend/providers"
 )
 
 // LoggingConfig interface for logging configuration

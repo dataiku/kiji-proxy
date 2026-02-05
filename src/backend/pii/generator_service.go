@@ -4,7 +4,7 @@ import (
 	"math/rand"
 	"time"
 
-	piiGenerators "github.com/hannes/yaak-private/src/backend/pii/generators"
+	piiGenerators "github.com/hannes/kiji-private/src/backend/pii/generators"
 )
 
 // GeneratorService handles PII replacement generation

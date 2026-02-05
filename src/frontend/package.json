@@ -1,6 +1,6 @@
 {
   "_note": "TODO: Enable notarization by adding \"afterSign\": \"../../src/scripts/notarize.js\" to the build config (requires Developer ID Application certificate)",
-  "name": "yaak-privacy-proxy",
+  "name": "kiji-privacy-proxy",
   "productName": "Yaak Privacy Proxy",
   "version": "0.3.6",
   "description": "Dataiku's Yaak Privacy Proxy",
@@ -63,7 +63,7 @@
     "webpack-dev-server": "^5.2.3"
   },
   "build": {
-    "appId": "com.yaak.proxy",
+    "appId": "com.kiji.proxy",
     "productName": "Yaak Privacy Proxy",
     "electronVersion": "28.3.3",
     "npmRebuild": false,

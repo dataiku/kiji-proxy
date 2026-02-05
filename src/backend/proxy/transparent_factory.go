@@ -3,7 +3,7 @@ package proxy
 import (
 	"fmt"
 
-	"github.com/hannes/yaak-private/src/backend/config"
+	"github.com/hannes/kiji-private/src/backend/config"
 )
 
 // NewTransparentProxyFromConfig creates a transparent proxy from configuration

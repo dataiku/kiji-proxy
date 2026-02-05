@@ -11,9 +11,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hannes/yaak-private/src/backend/config"
-	"github.com/hannes/yaak-private/src/backend/providers"
-	"github.com/hannes/yaak-private/src/backend/proxy"
+	"github.com/hannes/kiji-private/src/backend/config"
+	"github.com/hannes/kiji-private/src/backend/providers"
+	"github.com/hannes/kiji-private/src/backend/proxy"
 	"golang.org/x/time/rate"
 )
 
@@ -617,7 +617,7 @@ func (s *Server) handleCACert(w http.ResponseWriter, r *http.Request) {
 	caPath := s.config.Proxy.CAPath
 	if caPath == "" {
 		homeDir, _ := os.UserHomeDir()
-		caPath = filepath.Join(homeDir, ".yaak-proxy", "certs", "ca.crt")
+		caPath = filepath.Join(homeDir, ".kiji-proxy", "certs", "ca.crt")
 	}
 
 	data, err := os.ReadFile(caPath)
@@ -627,7 +627,7 @@ func (s *Server) handleCACert(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/x-pem-file")
-	w.Header().Set("Content-Disposition", "attachment; filename=yaak-proxy-ca-cert.pem")
+	w.Header().Set("Content-Disposition", "attachment; filename=kiji-proxy-ca-cert.pem")
 	w.WriteHeader(http.StatusOK)
 	if _, err := w.Write(data); err != nil {
 		log.Printf("Failed to write CA certificate: %v", err)

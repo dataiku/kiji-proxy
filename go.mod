@@ -1,4 +1,4 @@
-module github.com/hannes/yaak-private
+module github.com/hannes/kiji-private
 
 go 1.24.0
 

@@ -15,7 +15,7 @@ echo "🔨 Building Linux Standalone Binary"
 echo "===================================="
 
 # Set build variables
-BINARY_NAME="yaak-proxy"
+BINARY_NAME="kiji-proxy"
 BUILD_DIR="build"
 RELEASE_DIR="release/linux"
 VERSION=$(cd src/frontend && node -p "require('./package.json').version" 2>/dev/null || echo "0.0.0")
@@ -203,7 +203,7 @@ echo ""
 echo "📦 Step 5: Packaging release archive..."
 echo "---------------------------------------"
 
-PACKAGE_NAME="yaak-privacy-proxy-${VERSION}-linux-amd64"
+PACKAGE_NAME="kiji-privacy-proxy-${VERSION}-linux-amd64"
 PACKAGE_DIR="${RELEASE_DIR}/${PACKAGE_NAME}"
 
 # Create package directory structure
@@ -235,11 +235,11 @@ Installation:
 -------------
 
 1. Extract this archive to your desired location:
-   tar -xzf yaak-privacy-proxy-*.tar.gz
+   tar -xzf kiji-privacy-proxy-*.tar.gz
 
 2. Add the bin directory to your PATH, or run directly:
-   cd yaak-privacy-proxy-*/
-   ./bin/yaak-proxy
+   cd kiji-privacy-proxy-*/
+   ./bin/kiji-proxy
 
 3. The proxy will start on http://localhost:8080 by default
 
@@ -264,7 +264,7 @@ Config File:
     "openai_base_url": "https://api.openai.com/v1"
   }
 
-  Run with: ./bin/yaak-proxy -config config.json
+  Run with: ./bin/kiji-proxy -config config.json
 
 Library Path:
 -------------
@@ -276,8 +276,8 @@ Use the provided run.sh script which sets the library path automatically:
 
 Or set LD_LIBRARY_PATH manually:
 
-  export LD_LIBRARY_PATH=/path/to/yaak-privacy-proxy/lib:$LD_LIBRARY_PATH
-  ./bin/yaak-proxy
+  export LD_LIBRARY_PATH=/path/to/kiji-privacy-proxy/lib:$LD_LIBRARY_PATH
+  ./bin/kiji-proxy
 
 Note: The ML model is embedded in the binary, so no additional model files
 need to be present beyond the binary and the ONNX Runtime library.
@@ -291,7 +291,7 @@ Usage:
 ------
 
 1. Start the proxy API server:
-   ./bin/yaak-proxy
+   ./bin/kiji-proxy
 
    The server will start on http://localhost:8080 (by default)
 
@@ -310,7 +310,7 @@ Usage:
 Note: This is a backend API server only. There is no web UI.
 For a graphical interface, use the macOS DMG build.
 
-For more information, visit: https://github.com/hannes/yaak-proxy
+For more information, visit: https://github.com/hannes/kiji-proxy
 
 EOF
 
@@ -325,24 +325,24 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export LD_LIBRARY_PATH="${SCRIPT_DIR}/lib:$LD_LIBRARY_PATH"
 
 # Run the proxy
-exec "${SCRIPT_DIR}/bin/yaak-proxy" "$@"
+exec "${SCRIPT_DIR}/bin/kiji-proxy" "$@"
 EOF
 
 chmod +x "$PACKAGE_DIR/run.sh"
 
 # Create systemd service file example
-cat > "$PACKAGE_DIR/yaak-proxy.service" << EOF
+cat > "$PACKAGE_DIR/kiji-proxy.service" << EOF
 [Unit]
 Description=Yaak Privacy Proxy
 After=network.target
 
 [Service]
 Type=simple
-User=yaak
-Group=yaak
-WorkingDirectory=/opt/yaak-privacy-proxy
-Environment="LD_LIBRARY_PATH=/opt/yaak-privacy-proxy/lib"
-ExecStart=/opt/yaak-privacy-proxy/bin/yaak-proxy
+User=kiji
+Group=kiji
+WorkingDirectory=/opt/kiji-privacy-proxy
+Environment="LD_LIBRARY_PATH=/opt/kiji-privacy-proxy/lib"
+ExecStart=/opt/kiji-privacy-proxy/bin/kiji-proxy
 Restart=on-failure
 RestartSec=5s
 
