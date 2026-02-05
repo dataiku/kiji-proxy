@@ -15,7 +15,7 @@ import LoggingModal from "./modals/LoggingModal";
 import AboutModal from "./modals/AboutModal";
 import MisclassificationModal from "./modals/MisclassificationModal";
 import TermsModal from "./modals/TermsModal";
-import CACertSetupModal from "./modals/CACertSetupModal";
+
 import WelcomeModal from "./modals/WelcomeModal";
 import {
   highlightTextByCharacter,
@@ -117,7 +117,7 @@ export default function PrivacyProxyUI() {
   const [isMisclassificationModalOpen, setIsMisclassificationModalOpen] =
     useState(false);
   const [isTermsOpen, setIsTermsOpen] = useState(false);
-  const [isCACertSetupOpen, setIsCACertSetupOpen] = useState(false);
+
   const [isWelcomeOpen, setIsWelcomeOpen] = useState(false);
   const [termsRequireAcceptance, setTermsRequireAcceptance] = useState(false);
   const [reportingData, setReportingData] = useState<{
@@ -265,16 +265,6 @@ export default function PrivacyProxyUI() {
         if (!accepted) {
           setTermsRequireAcceptance(true);
           setIsTermsOpen(true);
-        }
-      });
-
-      // Check if CA cert setup has been dismissed
-      window.electronAPI.getCACertSetupDismissed().then((dismissed) => {
-        if (!dismissed) {
-          // Show CA cert setup modal after a short delay (after terms if needed)
-          setTimeout(() => {
-            setIsCACertSetupOpen(true);
-          }, 1000);
         }
       });
 
@@ -551,7 +541,10 @@ export default function PrivacyProxyUI() {
   };
 
   // Extract assistant message from provider-specific response format
-  const extractAssistantMessage = (provider: ProviderType, data: ProviderResponse): string => {
+  const extractAssistantMessage = (
+    provider: ProviderType,
+    data: ProviderResponse
+  ): string => {
     try {
       switch (provider) {
         case "openai":
@@ -619,13 +612,20 @@ export default function PrivacyProxyUI() {
     console.log("[DEBUG] handleSubmit started");
     console.log(`[DEBUG] Using provider: ${activeProvider}`);
 
-    if (typeof window !== "undefined" && (window.performance as PerformanceWithMemory)?.memory) {
+    if (
+      typeof window !== "undefined" &&
+      (window.performance as PerformanceWithMemory)?.memory
+    ) {
       const mem = (window.performance as PerformanceWithMemory).memory;
       if (mem) {
         console.log("[DEBUG] Memory before request:", {
           usedJSHeapSize: `${(mem.usedJSHeapSize / 1024 / 1024).toFixed(2)} MB`,
-          totalJSHeapSize: `${(mem.totalJSHeapSize / 1024 / 1024).toFixed(2)} MB`,
-          jsHeapSizeLimit: `${(mem.jsHeapSizeLimit / 1024 / 1024).toFixed(2)} MB`,
+          totalJSHeapSize: `${(mem.totalJSHeapSize / 1024 / 1024).toFixed(
+            2
+          )} MB`,
+          jsHeapSizeLimit: `${(mem.jsHeapSizeLimit / 1024 / 1024).toFixed(
+            2
+          )} MB`,
         });
       }
     }
@@ -806,7 +806,9 @@ export default function PrivacyProxyUI() {
         const mem = (window.performance as PerformanceWithMemory).memory;
         if (mem) {
           console.log("[DEBUG] Memory after processing:", {
-            usedJSHeapSize: `${(mem.usedJSHeapSize / 1024 / 1024).toFixed(2)} MB`,
+            usedJSHeapSize: `${(mem.usedJSHeapSize / 1024 / 1024).toFixed(
+              2
+            )} MB`,
             totalJSHeapSize: `${(mem.totalJSHeapSize / 1024 / 1024).toFixed(
               2
             )} MB`,
@@ -1022,7 +1024,6 @@ export default function PrivacyProxyUI() {
             </div>
           </div>
 
-
           {/* Model Health Banner */}
           {serverHealth.status === "online" && !serverHealth.modelHealthy && (
             <div className="mt-4 p-4 bg-red-50 border-2 border-red-200 rounded-lg inline-block max-w-2xl">
@@ -1116,10 +1117,11 @@ export default function PrivacyProxyUI() {
             value={inputData}
             onChange={(e) => setInputData(e.target.value)}
             placeholder="Enter your message with sensitive information...&#10;&#10;Example: Hi, my name is John Smith and my email is john.smith@email.com. My phone is 555-123-4567.&#10;&#10;This will be processed through the real PII detection and masking pipeline."
-            className={`w-full h-32 p-4 border-2 rounded-lg focus:outline-none resize-none font-mono text-sm placeholder:text-gray-400 ${serverStatus === "offline"
-              ? "border-red-200 bg-red-50 cursor-not-allowed opacity-60"
-              : "border-slate-200 focus:border-blue-500"
-              }`}
+            className={`w-full h-32 p-4 border-2 rounded-lg focus:outline-none resize-none font-mono text-sm placeholder:text-gray-400 ${
+              serverStatus === "offline"
+                ? "border-red-200 bg-red-50 cursor-not-allowed opacity-60"
+                : "border-slate-200 focus:border-blue-500"
+            }`}
             disabled={serverStatus === "offline"}
           />
           <div className="flex gap-3 mt-4 items-center">
@@ -1151,8 +1153,6 @@ export default function PrivacyProxyUI() {
             >
               Reset
             </button>
-
-
           </div>
         </div>
 
@@ -1271,13 +1271,13 @@ export default function PrivacyProxyUI() {
                   <div className="text-2xl font-bold text-slate-800">
                     {detectedEntities.length > 0
                       ? (
-                        (detectedEntities.reduce(
-                          (sum, e) => sum + (e.confidence || 0),
-                          0
-                        ) /
-                          detectedEntities.length) *
-                        100
-                      ).toFixed(1)
+                          (detectedEntities.reduce(
+                            (sum, e) => sum + (e.confidence || 0),
+                            0
+                          ) /
+                            detectedEntities.length) *
+                          100
+                        ).toFixed(1)
                       : 0}
                     %
                   </div>
@@ -1315,8 +1315,9 @@ export default function PrivacyProxyUI() {
       <div className="fixed bottom-0 left-0 right-0 bg-slate-800 text-slate-200 px-4 py-2 flex items-center justify-between border-t border-slate-700">
         <div className="flex items-center gap-2">
           <div
-            className={`w-3 h-3 rounded-full ${serverStatus === "online" ? "bg-green-500" : "bg-red-500"
-              } ${serverStatus === "online" ? "animate-pulse" : ""}`}
+            className={`w-3 h-3 rounded-full ${
+              serverStatus === "online" ? "bg-green-500" : "bg-red-500"
+            } ${serverStatus === "online" ? "animate-pulse" : ""}`}
             title={
               serverStatus === "online" ? "Server online" : "Server offline"
             }
@@ -1326,7 +1327,8 @@ export default function PrivacyProxyUI() {
               "Server online"
             ) : (
               <span className="flex items-center gap-2">
-                Server offline - Please ensure the Go backend server is running at localhost:8080
+                Server offline - Please ensure the Go backend server is running
+                at localhost:8080
               </span>
             )}
           </span>
@@ -1399,12 +1401,6 @@ export default function PrivacyProxyUI() {
           setTermsRequireAcceptance(false);
         }}
         requireAcceptance={termsRequireAcceptance}
-      />
-
-      {/* CA Certificate Setup Modal */}
-      <CACertSetupModal
-        isOpen={isCACertSetupOpen}
-        onClose={() => setIsCACertSetupOpen(false)}
       />
 
       {/* Welcome Modal */}

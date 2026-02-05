@@ -144,4 +144,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getModelInfo: async () => {
     return await ipcRenderer.invoke("get-model-info");
   },
+
+  // Transparent proxy settings
+  getTransparentProxyEnabled: async () => {
+    return await ipcRenderer.invoke("get-transparent-proxy-enabled");
+  },
+
+  setTransparentProxyEnabled: async (enabled) => {
+    return await ipcRenderer.invoke("set-transparent-proxy-enabled", enabled);
+  },
 });
