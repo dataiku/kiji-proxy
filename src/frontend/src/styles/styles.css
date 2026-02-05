@@ -78,3 +78,30 @@
 .animate-fade-in {
   animation: fadeIn 0.3s ease-out forwards;
 }
+
+/* Always visible horizontal scrollbar for table */
+.scrollbar-always-visible {
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: #cbd5e1 #f1f5f9; /* Firefox */
+  overflow-x: auto;
+}
+
+/* Webkit browsers (Chrome, Safari, Edge, Electron) */
+.scrollbar-always-visible::-webkit-scrollbar {
+  height: 10px; /* Height of horizontal scrollbar */
+  width: 10px; /* Width of vertical scrollbar if any */
+}
+
+.scrollbar-always-visible::-webkit-scrollbar-track {
+  background: #f1f5f9; /* Light gray background */
+  border-radius: 4px;
+}
+
+.scrollbar-always-visible::-webkit-scrollbar-thumb {
+  background: #cbd5e1; /* Slate color for the thumb */
+  border-radius: 4px;
+}
+
+.scrollbar-always-visible::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8; /* Darker on hover */
+}

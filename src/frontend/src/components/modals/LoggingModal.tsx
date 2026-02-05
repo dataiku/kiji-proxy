@@ -642,7 +642,7 @@ export default function LoggingModal({
         )}
 
         {/* Table */}
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 overflow-auto scrollbar-always-visible">
           {isLoading && logs.length === 0 ? (
             <div className="flex items-center justify-center py-12">
               <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
@@ -653,8 +653,8 @@ export default function LoggingModal({
               <p className="text-lg">No log entries found</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse">
+            <div>
+              <table className="border-collapse" style={{ minWidth: '1200px' }}>
                 <thead className="bg-slate-100 sticky top-0">
                   <tr>
                     <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700 border-b border-slate-200">
