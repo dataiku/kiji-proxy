@@ -241,7 +241,7 @@ jobs:
             Or use **Keychain Access**:
             1. Open Keychain Access app
             2. File → Import Items → `~/.kiji-proxy/certs/ca.crt`
-            3. Double-click "Kiji Proxy CA" certificate
+            3. Double-click "Kiji Privacy Proxy CA" certificate
             4. Expand **Trust** → Set to **Always Trust**
 
             ### Linux Installation

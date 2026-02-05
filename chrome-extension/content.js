@@ -236,7 +236,7 @@
           "Kiji Guard Extension: API unavailable, allowing submission"
         );
         showToast(
-          "Kiji proxy server is unavailable. Message sent without PII check.",
+          "Kiji Privacy Proxy server is unavailable. Message sent without PII check.",
           "warning"
         );
         triggerSubmit();

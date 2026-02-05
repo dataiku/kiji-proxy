@@ -22,13 +22,13 @@
 
 ## Overview
 
-The Kiji PII Guard Chrome extension intercepts user input on AI chat services (ChatGPT, Claude, Gemini, etc.) and checks for personally identifiable information before submission. It communicates with the Kiji proxy backend for PII detection and presents users with options to mask, cancel, or send anyway.
+The Kiji PII Guard Chrome extension intercepts user input on AI chat services (ChatGPT, Claude, Gemini, etc.) and checks for personally identifiable information before submission. It communicates with the Kiji Privacy Proxy backend for PII detection and presents users with options to mask, cancel, or send anyway.
 
 The extension lives in the `chrome-extension/` directory at the repository root. It is plain JavaScript with no build step — the directory is directly loadable by Chrome.
 
 ## Local Development
 
-1. Start the Kiji proxy backend:
+1. Start the Kiji Privacy Proxy backend:
    ```bash
    make electron-run
    ```
@@ -67,7 +67,7 @@ chrome-extension/
 
 All settings are accessible via the extension's options page (right-click extension icon > Options):
 
-- **Backend URL** — The Kiji proxy server address (default: `http://localhost:8081`)
+- **Backend URL** — The Kiji Privacy Proxy server address (default: `http://localhost:8081`)
 - **Intercept domains** — URL match patterns where the extension is active (one per line)
 
 Default domains:

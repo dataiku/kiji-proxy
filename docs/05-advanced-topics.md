@@ -14,7 +14,7 @@ This chapter covers advanced features, security considerations, and troubleshoot
 
 ### Overview
 
-Kiji Proxy uses Man-in-the-Middle (MITM) techniques to intercept and inspect HTTPS traffic. This enables PII detection and masking for encrypted connections.
+Kiji Privacy Proxy uses Man-in-the-Middle (MITM) techniques to intercept and inspect HTTPS traffic. This enables PII detection and masking for encrypted connections.
 
 ### How MITM Proxy Works
 
@@ -27,9 +27,9 @@ Client ──[TLS]──> api.openai.com
 
 **MITM Proxy Connection:**
 ```
-Client ──[TLS]──> Kiji Proxy ──[TLS]──> api.openai.com
-         ↑                      ↑
-    Proxy's cert           Real cert
+Client ──[TLS]──> Kiji Privacy Proxy ──[TLS]──> api.openai.com
+         ↑                               ↑
+    Proxy's cert                     Real cert
 ```
 
 **Process:**
@@ -50,7 +50,7 @@ Client ──[TLS]──> Kiji Proxy ──[TLS]──> api.openai.com
 - **Purpose:** Signs all leaf certificates
 - **Validity:** 10 years
 - **Location:** `~/.kiji-proxy/certs/ca.crt`
-- **Common Name:** "Kiji Proxy CA"
+- **Common Name:** "Kiji Privacy Proxy CA"
 - **Key Type:** RSA 2048-bit
 
 **2. Leaf Certificates (Dynamic)**
@@ -88,7 +88,7 @@ security add-trusted-cert \
 1. Open **Keychain Access**
 2. File → Import Items
 3. Select `~/.kiji-proxy/certs/ca.crt`
-4. Double-click "Kiji Proxy CA"
+4. Double-click "Kiji Privacy Proxy CA"
 5. Trust → **Always Trust**
 6. Close (enter password)
 
@@ -110,7 +110,7 @@ ls /etc/ssl/certs/ | grep kiji-proxy
 ```bash
 sudo cp ~/.kiji-proxy/certs/ca.crt /etc/pki/ca-trust/source/anchors/kiji-proxy-ca.crt
 sudo update-ca-trust
-trust list | grep "Kiji Proxy CA"
+trust list | grep "Kiji Privacy Proxy CA"
 ```
 
 **Linux - Arch:**
@@ -220,10 +220,10 @@ proxy:
 **macOS:**
 ```bash
 # System keychain
-sudo security delete-certificate -c "Kiji Proxy CA" /Library/Keychains/System.keychain
+sudo security delete-certificate -c "Kiji Privacy Proxy CA" /Library/Keychains/System.keychain
 
 # User keychain
-security delete-certificate -c "Kiji Proxy CA" ~/Library/Keychains/login.keychain
+security delete-certificate -c "Kiji Privacy Proxy CA" ~/Library/Keychains/login.keychain
 ```
 
 **Linux:**
@@ -249,7 +249,7 @@ Model signing ensures the integrity and provenance of ML models. This is critica
 
 ### Signing Methods
 
-Kiji Proxy supports three methods for model signing:
+Kiji Privacy Proxy supports three methods for model signing:
 
 #### 1. Hash-Only Verification (Default, No Browser)
 

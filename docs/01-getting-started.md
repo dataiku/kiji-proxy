@@ -126,7 +126,7 @@ sudo security add-trusted-cert \
 Or use Keychain Access GUI:
 1. Open **Keychain Access**
 2. File → Import Items → Select `~/.kiji-proxy/certs/ca.crt`
-3. Double-click "Kiji Proxy CA" certificate
+3. Double-click "Kiji Privacy Proxy CA" certificate
 4. Expand **Trust** → Set to **Always Trust**
 
 See [Advanced Topics: Transparent Proxy](05-advanced-topics.md#transparent-proxy-mitm) for details.
