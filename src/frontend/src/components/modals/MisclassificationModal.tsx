@@ -131,13 +131,6 @@ export default function MisclassificationModal({
 
           <div className="flex gap-3 p-6 pt-0 border-t border-slate-100">
             <button
-              type="button"
-              onClick={handleCancel}
-              className="flex-1 px-4 py-2 border-2 border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors font-medium"
-            >
-              Cancel
-            </button>
-            <button
               type="submit"
               className="flex-1 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-colors font-medium"
             >

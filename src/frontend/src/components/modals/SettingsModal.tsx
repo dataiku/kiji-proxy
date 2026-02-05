@@ -27,27 +27,31 @@ interface ProvidersConfig {
 // Provider display information
 const PROVIDER_INFO: Record<
   ProviderType,
-  { name: string; defaultModel: string; placeholder: string }
+  { name: string; defaultModel: string; placeholder: string; helpLink: string }
 > = {
   openai: {
     name: "OpenAI",
     defaultModel: "gpt-3.5-turbo",
     placeholder: "sk-...",
+    helpLink: "https://help.openai.com/en/articles/4936850-where-do-i-find-my-openai-api-key",
   },
   anthropic: {
     name: "Anthropic",
     defaultModel: "claude-3-haiku-20240307",
     placeholder: "sk-ant-...",
+    helpLink: "https://platform.claude.com/docs/en/get-started",
   },
   gemini: {
     name: "Gemini",
     defaultModel: "gemini-flash-latest",
     placeholder: "AIza...",
+    helpLink: "https://ai.google.dev/gemini-api/docs/api-key",
   },
   mistral: {
     name: "Mistral",
     defaultModel: "mistral-small-latest",
     placeholder: "...",
+    helpLink: "https://console.mistral.ai/api-keys",
   },
 };
 
@@ -337,11 +341,10 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                           </span>
                         </div>
                         <span
-                          className={`text-xs px-2 py-1 rounded ${
-                            config?.hasApiKey
-                              ? "bg-green-100 text-green-700"
-                              : "bg-slate-100 text-slate-500"
-                          }`}
+                          className={`text-xs px-2 py-1 rounded ${config?.hasApiKey
+                            ? "bg-green-100 text-green-700"
+                            : "bg-slate-100 text-slate-500"
+                            }`}
                         >
                           {config?.hasApiKey ? "Configured" : "Not Set"}
                         </span>
@@ -352,10 +355,20 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                         <div className="px-4 pb-4 pt-2 bg-slate-50 space-y-4">
                           {/* API Key */}
                           <div>
-                            <label className="block text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
-                              <Key className="w-4 h-4" />
-                              API Key
-                            </label>
+                            <div className="flex items-center justify-between mb-2">
+                              <label className="text-sm font-medium text-slate-600 flex items-center gap-2">
+                                <Key className="w-4 h-4" />
+                                API Key
+                              </label>
+                              <a
+                                href={info.helpLink}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-blue-600 hover:text-blue-800 hover:underline transition-colors"
+                              >
+                                How do I get my {info.name} API key?
+                              </a>
+                            </div>
                             {config?.hasApiKey &&
                               !providerApiKeys[provider] && (
                                 <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 p-2 rounded mb-2">
@@ -447,11 +460,10 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             {/* Message */}
             {message && (
               <div
-                className={`flex items-center gap-2 p-3 rounded-lg ${
-                  message.type === "success"
-                    ? "bg-green-50 text-green-800 border border-green-200"
-                    : "bg-red-50 text-red-800 border border-red-200"
-                }`}
+                className={`flex items-center gap-2 p-3 rounded-lg ${message.type === "success"
+                  ? "bg-green-50 text-green-800 border border-green-200"
+                  : "bg-red-50 text-red-800 border border-red-200"
+                  }`}
               >
                 {message.type === "success" ? (
                   <CheckCircle2 className="w-5 h-5" />
