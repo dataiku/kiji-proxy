@@ -203,7 +203,7 @@ echo ""
 echo "📦 Step 5: Packaging release archive..."
 echo "---------------------------------------"
 
-PACKAGE_NAME="yaak-privacy-proxy-${VERSION}-linux-amd64"
+PACKAGE_NAME="kiji-privacy-proxy-${VERSION}-linux-amd64"
 PACKAGE_DIR="${RELEASE_DIR}/${PACKAGE_NAME}"
 
 # Create package directory structure
@@ -235,10 +235,10 @@ Installation:
 -------------
 
 1. Extract this archive to your desired location:
-   tar -xzf yaak-privacy-proxy-*.tar.gz
+   tar -xzf kiji-privacy-proxy-*.tar.gz
 
 2. Add the bin directory to your PATH, or run directly:
-   cd yaak-privacy-proxy-*/
+   cd kiji-privacy-proxy-*/
    ./bin/yaak-proxy
 
 3. The proxy will start on http://localhost:8080 by default
@@ -276,7 +276,7 @@ Use the provided run.sh script which sets the library path automatically:
 
 Or set LD_LIBRARY_PATH manually:
 
-  export LD_LIBRARY_PATH=/path/to/yaak-privacy-proxy/lib:$LD_LIBRARY_PATH
+  export LD_LIBRARY_PATH=/path/to/kiji-privacy-proxy/lib:$LD_LIBRARY_PATH
   ./bin/yaak-proxy
 
 Note: The ML model is embedded in the binary, so no additional model files
@@ -340,9 +340,9 @@ After=network.target
 Type=simple
 User=yaak
 Group=yaak
-WorkingDirectory=/opt/yaak-privacy-proxy
-Environment="LD_LIBRARY_PATH=/opt/yaak-privacy-proxy/lib"
-ExecStart=/opt/yaak-privacy-proxy/bin/yaak-proxy
+WorkingDirectory=/opt/kiji-privacy-proxy
+Environment="LD_LIBRARY_PATH=/opt/kiji-privacy-proxy/lib"
+ExecStart=/opt/kiji-privacy-proxy/bin/kiji-proxy
 Restart=on-failure
 RestartSec=5s
 

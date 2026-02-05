@@ -184,10 +184,12 @@ func DefaultConfig() *Config {
 		AdditionalHeaders: map[string]string{},
 	}
 
-	// Transparent proxy parameters
+	// Application data directory
 	homeDir, _ := os.UserHomeDir()
-	caPath := filepath.Join(homeDir, ".yaak-proxy", "certs", "ca.crt")
-	keyPath := filepath.Join(homeDir, ".yaak-proxy", "certs", "ca.key")
+	appDataDir := filepath.Join(homeDir, "Library", "Application Support", "Kiji Privacy Proxy")
+	caPath := filepath.Join(appDataDir, "certs", "ca.crt")
+	keyPath := filepath.Join(appDataDir, "certs", "ca.key")
+	dbPath := filepath.Join(appDataDir, "kiji_privacy_proxy.db")
 
 	return &Config{
 		Providers: ProvidersConfig{
@@ -203,7 +205,7 @@ func DefaultConfig() *Config {
 		ONNXModelDirectory: "model/quantized",
 		UIPath:             "./src/frontend/dist",
 		Database: DatabaseConfig{
-			Path:         "yaak.db",
+			Path:         dbPath,
 			CleanupHours: 24,
 		},
 		Logging: LoggingConfig{

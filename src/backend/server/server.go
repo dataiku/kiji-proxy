@@ -682,7 +682,7 @@ func (s *Server) handleCACert(w http.ResponseWriter, r *http.Request) {
 	caPath := s.config.Proxy.CAPath
 	if caPath == "" {
 		homeDir, _ := os.UserHomeDir()
-		caPath = filepath.Join(homeDir, ".yaak-proxy", "certs", "ca.crt")
+		caPath = filepath.Join(homeDir, "Library", "Application Support", "Kiji Privacy Proxy", "certs", "ca.crt")
 	}
 
 	data, err := os.ReadFile(caPath)
