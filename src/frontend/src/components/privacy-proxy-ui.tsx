@@ -171,6 +171,26 @@ export default function PrivacyProxyUI() {
   const isElectron =
     typeof window !== "undefined" && window.electronAPI !== undefined;
 
+  // Helper function to calculate gradient color from red (0%) to green (100%)
+  const getConfidenceColor = (confidence: number): string => {
+    // Clamp confidence between 0 and 1
+    const clampedConfidence = Math.max(0, Math.min(1, confidence));
+
+    // Interpolate from red (rgb(220, 38, 38)) to green (rgb(34, 197, 94))
+    const red = Math.round(220 - (220 - 34) * clampedConfidence);
+    const green = Math.round(38 + (197 - 38) * clampedConfidence);
+    const blue = Math.round(38 + (94 - 38) * clampedConfidence);
+
+    return `rgb(${red}, ${green}, ${blue})`;
+  };
+
+  // Calculate average confidence
+  const averageConfidence = useMemo(() => {
+    if (detectedEntities.length === 0) return 0;
+    const sum = detectedEntities.reduce((acc, entity) => acc + (entity.confidence || 0), 0);
+    return sum / detectedEntities.length;
+  }, [detectedEntities]);
+
   // Memoize highlighted text to prevent re-computation and memory explosion
   // Safety limit for text highlighting to prevent memory issues
   const MAX_HIGHLIGHT_SIZE = 50000; // 50KB max for highlighting
@@ -1181,30 +1201,18 @@ export default function PrivacyProxyUI() {
                       __html: highlightedInputOriginalHTML,
                     }}
                   />
-                  <div className="flex justify-between items-start mt-2">
+                  <div className="flex justify-between items-center mt-2">
+                    <p className="text-sm font-semibold text-slate-700">
+                      {detectedEntities.length} PII detected
+                    </p>
                     <p
                       className="text-sm font-semibold"
                       style={{
-                        color: `rgba(220, 38, 38, ${detectedEntities.length > 0
-                          ? Math.max(0.4, detectedEntities.reduce((sum, e) => sum + (e.confidence || 0), 0) / detectedEntities.length)
-                          : 0.4})`,
+                        color: getConfidenceColor(averageConfidence),
                       }}
                     >
-                      {detectedEntities.length} PII detected
+                      {(averageConfidence * 100).toFixed(1)}% avg confidence
                     </p>
-                    <div className="text-right">
-                      {detectedEntities.map((entity, idx) => (
-                        <p
-                          key={idx}
-                          className="text-sm"
-                          style={{
-                            color: `rgba(220, 38, 38, ${Math.max(0.4, entity.confidence || 0)})`,
-                          }}
-                        >
-                          {((entity.confidence || 0) * 100).toFixed(1)}% confidence
-                        </p>
-                      ))}
-                    </div>
                   </div>
                 </div>
                 <div>
@@ -1249,16 +1257,19 @@ export default function PrivacyProxyUI() {
                       __html: highlightedOutputMaskedHTML,
                     }}
                   />
-                  <p
-                    className="text-sm font-semibold mt-2"
-                    style={{
-                      color: `rgba(234, 88, 12, ${detectedEntities.length > 0
-                        ? Math.max(0.4, detectedEntities.reduce((sum, e) => sum + (e.confidence || 0), 0) / detectedEntities.length)
-                        : 0.4})`,
-                    }}
-                  >
-                    {detectedEntities.length} fake PIIs received
-                  </p>
+                  <div className="flex justify-between items-center mt-2">
+                    <p className="text-sm font-semibold text-slate-700">
+                      {detectedEntities.length} fake PIIs received
+                    </p>
+                    <p
+                      className="text-sm font-semibold"
+                      style={{
+                        color: getConfidenceColor(averageConfidence),
+                      }}
+                    >
+                      {(averageConfidence * 100).toFixed(1)}% avg confidence
+                    </p>
+                  </div>
                 </div>
                 <div>
                   <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
