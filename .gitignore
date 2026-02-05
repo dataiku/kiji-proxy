@@ -55,7 +55,7 @@ yarn-error.log*
 Thumbs.db
 
 # Build artifacts
-yaak-proxy
+kiji-proxy
 *.dmg
 *.app
 release/

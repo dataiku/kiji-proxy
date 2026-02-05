@@ -30,7 +30,7 @@ help: ## Display this help message
 
 info: ## Show project info
 	@echo "$(BLUE)Project Information$(NC)"
-	@echo "Name:    $(GREEN)yaak-pii-detection$(NC)"
+	@echo "Name:    $(GREEN)kiji-pii-detection$(NC)"
 	@echo -n "Version: $(GREEN)"
 	@cd src/frontend && node -p "require('./package.json').version" 2>/dev/null || echo "unknown"
 	@echo "$(NC)"
@@ -48,7 +48,7 @@ info: ## Show project info
 	@echo "$(BLUE)Version Information$(NC)"
 	@echo "  Version is managed in src/frontend/package.json"
 	@echo "  Backend receives version via ldflags during build"
-	@echo "  Check version: ./build/yaak-proxy --version"
+	@echo "  Check version: ./build/kiji-proxy --version"
 	@echo "  API endpoint: http://localhost:8080/version"
 	@echo ""
 	@echo "$(BLUE)Quick Commands$(NC)"
@@ -218,9 +218,9 @@ build-go: ## Build Go binary for development
 	CGO_LDFLAGS="$(CGO_LDFLAGS)" \
 	go build \
 	  -ldflags="-X main.version=$(VERSION) -extldflags '$(CGO_LDFLAGS)'" \
-	  -o build/yaak-proxy \
+	  -o build/kiji-proxy \
 	  ./src/backend
-	@echo "$(GREEN)✅ Go binary built at build/yaak-proxy (version $(VERSION))$(NC)"
+	@echo "$(GREEN)✅ Go binary built at build/kiji-proxy (version $(VERSION))$(NC)"
 
 electron-build: ## Build Electron app for production
 	@echo "$(BLUE)Building Electron app...$(NC)"
@@ -230,8 +230,8 @@ electron-build: ## Build Electron app for production
 electron-run: setup-onnx build-go electron-build ## Run Electron app (builds Go binary and frontend first)
 	@echo "$(BLUE)Preparing resources for Electron...$(NC)"
 	@mkdir -p src/frontend/resources
-	@cp build/yaak-proxy src/frontend/resources/yaak-proxy
-	@chmod +x src/frontend/resources/yaak-proxy
+	@cp build/kiji-proxy src/frontend/resources/kiji-proxy
+	@chmod +x src/frontend/resources/kiji-proxy
 	@if [ -f "build/libonnxruntime.1.23.1.dylib" ]; then \
 		cp build/libonnxruntime.1.23.1.dylib src/frontend/resources/libonnxruntime.1.23.1.dylib; \
 		echo "$(GREEN)✅ ONNX library copied to resources$(NC)"; \

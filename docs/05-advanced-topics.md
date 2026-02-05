@@ -49,7 +49,7 @@ Client ──[TLS]──> Kiji Proxy ──[TLS]──> api.openai.com
 **1. Root CA Certificate**
 - **Purpose:** Signs all leaf certificates
 - **Validity:** 10 years
-- **Location:** `~/.yaak-proxy/certs/ca.crt`
+- **Location:** `~/.kiji-proxy/certs/ca.crt`
 - **Common Name:** "Kiji Proxy CA"
 - **Key Type:** RSA 2048-bit
 
@@ -70,7 +70,7 @@ sudo security add-trusted-cert \
   -d \
   -r trustRoot \
   -k /Library/Keychains/System.keychain \
-  ~/.yaak-proxy/certs/ca.crt
+  ~/.kiji-proxy/certs/ca.crt
 ```
 
 **macOS - User Keychain:**
@@ -80,14 +80,14 @@ sudo security add-trusted-cert \
 security add-trusted-cert \
   -r trustRoot \
   -k ~/Library/Keychains/login.keychain \
-  ~/.yaak-proxy/certs/ca.crt
+  ~/.kiji-proxy/certs/ca.crt
 ```
 
 **macOS - Keychain Access GUI:**
 
 1. Open **Keychain Access**
 2. File → Import Items
-3. Select `~/.yaak-proxy/certs/ca.crt`
+3. Select `~/.kiji-proxy/certs/ca.crt`
 4. Double-click "Kiji Proxy CA"
 5. Trust → **Always Trust**
 6. Close (enter password)
@@ -96,19 +96,19 @@ security add-trusted-cert \
 
 ```bash
 # Copy to trusted certificates
-sudo cp ~/.yaak-proxy/certs/ca.crt /usr/local/share/ca-certificates/yaak-proxy-ca.crt
+sudo cp ~/.kiji-proxy/certs/ca.crt /usr/local/share/ca-certificates/kiji-proxy-ca.crt
 
 # Update certificate store
 sudo update-ca-certificates
 
 # Verify
-ls /etc/ssl/certs/ | grep yaak-proxy
+ls /etc/ssl/certs/ | grep kiji-proxy
 ```
 
 **Linux - RHEL/CentOS/Fedora:**
 
 ```bash
-sudo cp ~/.yaak-proxy/certs/ca.crt /etc/pki/ca-trust/source/anchors/yaak-proxy-ca.crt
+sudo cp ~/.kiji-proxy/certs/ca.crt /etc/pki/ca-trust/source/anchors/kiji-proxy-ca.crt
 sudo update-ca-trust
 trust list | grep "Kiji Proxy CA"
 ```
@@ -116,7 +116,7 @@ trust list | grep "Kiji Proxy CA"
 **Linux - Arch:**
 
 ```bash
-sudo cp ~/.yaak-proxy/certs/ca.crt /etc/ca-certificates/trust-source/anchors/yaak-proxy-ca.crt
+sudo cp ~/.kiji-proxy/certs/ca.crt /etc/ca-certificates/trust-source/anchors/kiji-proxy-ca.crt
 sudo trust extract-compat
 ```
 
@@ -141,7 +141,7 @@ export REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
 
 **Node.js:**
 ```bash
-export NODE_EXTRA_CA_CERTS=~/.yaak-proxy/certs/ca.crt
+export NODE_EXTRA_CA_CERTS=~/.kiji-proxy/certs/ca.crt
 ```
 
 ### Verification
@@ -229,11 +229,11 @@ security delete-certificate -c "Kiji Proxy CA" ~/Library/Keychains/login.keychai
 **Linux:**
 ```bash
 # Ubuntu/Debian
-sudo rm /usr/local/share/ca-certificates/yaak-proxy-ca.crt
+sudo rm /usr/local/share/ca-certificates/kiji-proxy-ca.crt
 sudo update-ca-certificates --fresh
 
 # RHEL/CentOS
-sudo rm /etc/pki/ca-trust/source/anchors/yaak-proxy-ca.crt
+sudo rm /etc/pki/ca-trust/source/anchors/kiji-proxy-ca.crt
 sudo update-ca-trust
 ```
 
@@ -400,7 +400,7 @@ git commit -m "Add model signing public key"
 
 ```bash
 # Add to your shell profile (~/.bashrc, ~/.zshrc)
-export MODEL_SIGNING_KEY_PATH="$HOME/yaak-proxy/model/keys/signing_key.pem"
+export MODEL_SIGNING_KEY_PATH="$HOME/kiji-proxy/model/keys/signing_key.pem"
 
 # Or use direnv for project-specific config
 echo 'export MODEL_SIGNING_KEY_PATH="$(pwd)/model/keys/signing_key.pem"' > .envrc
@@ -817,7 +817,7 @@ ls -lh build/libonnxruntime.so.1.23.1  # Should be ~21MB
 
 # Or set manually
 export LD_LIBRARY_PATH=$(pwd)/lib:$LD_LIBRARY_PATH
-./bin/yaak-proxy
+./bin/kiji-proxy
 
 # macOS
 export ONNXRUNTIME_SHARED_LIBRARY_PATH=$(pwd)/build/libonnxruntime.1.23.1.dylib
@@ -909,7 +909,7 @@ ls -lh build/tokenizers/libtokenizers.a  # Should be ~15MB
 # Use correct linker flags
 CGO_LDFLAGS="-L$(pwd)/build/tokenizers" \
 go build -ldflags="-extldflags '-L./build/tokenizers'" \
-  -o yaak-proxy ./src/backend
+  -o kiji-proxy ./src/backend
 ```
 
 ### Electron Build Issues
@@ -952,24 +952,24 @@ export PROXY_PORT=:8081
 **Permission denied:**
 
 ```bash
-chmod +x bin/yaak-proxy
-ls -lh bin/yaak-proxy  # Should show -rwxr-xr-x
+chmod +x bin/kiji-proxy
+ls -lh bin/kiji-proxy  # Should show -rwxr-xr-x
 ```
 
 **Systemd service fails:**
 
 ```bash
 # Check logs
-sudo journalctl -u yaak-proxy -n 50 --no-pager
+sudo journalctl -u kiji-proxy -n 50 --no-pager
 
 # Common fixes
-sudo nano /etc/systemd/system/yaak-proxy.service
-# Add: Environment="LD_LIBRARY_PATH=/opt/yaak-proxy/lib"
-# Add: WorkingDirectory=/opt/yaak-proxy
+sudo nano /etc/systemd/system/kiji-proxy.service
+# Add: Environment="LD_LIBRARY_PATH=/opt/kiji-proxy/lib"
+# Add: WorkingDirectory=/opt/kiji-proxy
 
 # Reload
 sudo systemctl daemon-reload
-sudo systemctl restart yaak-proxy
+sudo systemctl restart kiji-proxy
 ```
 
 ### Diagnostic Script
@@ -1106,7 +1106,7 @@ ls -la build/tokenizers/libtokenizers.a && echo "Cached" || echo "Will rebuild"
 ## Getting Help
 
 **Documentation Issues:**
-- Open issue: https://github.com/hanneshapke/yaak-proxy/issues
+- Open issue: https://github.com/hanneshapke/kiji-proxy/issues
 
 **Bug Reports:**
 - Include OS version, steps to reproduce, logs

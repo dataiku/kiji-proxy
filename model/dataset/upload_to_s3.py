@@ -60,6 +60,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Upload a directory to S3")
     parser.add_argument("--local-dir-path", type=str, required=True)
     ds_root = get_datastore_root()[0]
-    parser.add_argument("--s3-root", type=str, default=ds_root + "/yaak-pii")
+    parser.add_argument("--s3-root", type=str, default=ds_root + "/kiji-pii")
     args = parser.parse_args()
     upload_dir_to_s3(args.local_dir_path, args.s3_root)

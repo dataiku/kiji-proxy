@@ -1,25 +1,25 @@
 # Dataiku's Kiji Privacy Proxy
 
 <div align="center">
-  <img src="build/static/yaak.png" alt="Kiji Mascot" width="300">
+  <img src="build/static/kiji.png" alt="Kiji Mascot" width="300">
 
   <p>
-    <a href="https://github.com/hanneshapke/yaak-proxy/actions/workflows/release-dmg.yml">
-      <img src="https://github.com/hanneshapke/yaak-proxy/actions/workflows/release-dmg.yml/badge.svg" alt="Build MacOS">
+    <a href="https://github.com/hanneshapke/kiji-proxy/actions/workflows/release-dmg.yml">
+      <img src="https://github.com/hanneshapke/kiji-proxy/actions/workflows/release-dmg.yml/badge.svg" alt="Build MacOS">
     </a>
-    <a href="https://github.com/hanneshapke/yaak-proxy/actions/workflows/release-linux.yml">
-      <img src="https://github.com/hanneshapke/yaak-proxy/actions/workflows/release-linux.yml/badge.svg" alt="Build Linux">
+    <a href="https://github.com/hanneshapke/kiji-proxy/actions/workflows/release-linux.yml">
+      <img src="https://github.com/hanneshapke/kiji-proxy/actions/workflows/release-linux.yml/badge.svg" alt="Build Linux">
     </a>
-    <a href="https://github.com/hanneshapke/yaak-proxy/actions/workflows/lint.yml">
-      <img src="https://github.com/hanneshapke/yaak-proxy/actions/workflows/lint.yml/badge.svg" alt="Lint">
+    <a href="https://github.com/hanneshapke/kiji-proxy/actions/workflows/lint.yml">
+      <img src="https://github.com/hanneshapke/kiji-proxy/actions/workflows/lint.yml/badge.svg" alt="Lint">
     </a>
     <a href="LICENSE">
       <img src="https://img.shields.io/badge/license-Apache%20License%202.0-blue" alt="License: Apache 2.0">
     </a>
-    <!-- <a href="https://github.com/hanneshapke/yaak-proxy/stargazers">
-      <img src="https://img.shields.io/github/stars/hanneshapke/yaak-proxy?style=social" alt="GitHub Stars">
+    <!-- <a href="https://github.com/hanneshapke/kiji-proxy/stargazers">
+      <img src="https://img.shields.io/github/stars/hanneshapke/kiji-proxy?style=social" alt="GitHub Stars">
     </a> -->
-    <a href="https://github.com/hanneshapke/yaak-proxy/issues">
+    <a href="https://github.com/hanneshapke/kiji-proxy/issues">
       <img src="https://img.shields.io/badge/issues-11%20open-blue" alt="GitHub Issues">
     </a>
   </p>
@@ -69,7 +69,7 @@ When using AI services like OpenAI or Anthropic, sensitive data in your prompts 
 **macOS (Desktop App):**
 ```bash
 # Download from releases
-# https://github.com/hanneshapke/yaak-proxy/releases
+# https://github.com/hanneshapke/kiji-proxy/releases
 
 # Install
 open Kiji-Privacy-Proxy-*.dmg
@@ -79,9 +79,9 @@ open Kiji-Privacy-Proxy-*.dmg
 **Linux (Standalone Server):**
 ```bash
 # Download and extract
-wget https://github.com/hanneshapke/yaak-proxy/releases/download/v0.1.1/yaak-privacy-proxy-0.1.1-linux-amd64.tar.gz
-tar -xzf yaak-privacy-proxy-0.1.1-linux-amd64.tar.gz
-cd yaak-privacy-proxy-0.1.1-linux-amd64
+wget https://github.com/hanneshapke/kiji-proxy/releases/download/v0.1.1/kiji-privacy-proxy-0.1.1-linux-amd64.tar.gz
+tar -xzf kiji-privacy-proxy-0.1.1-linux-amd64.tar.gz
+cd kiji-privacy-proxy-0.1.1-linux-amd64
 
 # Run
 ./run.sh
@@ -92,7 +92,7 @@ cd yaak-privacy-proxy-0.1.1-linux-amd64
 *macOS (with automatic PAC):*
 ```bash
 # Start with sudo for automatic browser configuration
-sudo "/Applications/Kiji Privacy Proxy.app/Contents/MacOS/yaak-proxy"
+sudo "/Applications/Kiji Privacy Proxy.app/Contents/MacOS/kiji-proxy"
 
 # Open browser - requests to api.openai.com automatically go through proxy!
 # No configuration needed for Safari/Chrome
@@ -137,8 +137,8 @@ curl https://api.openai.com/v1/chat/completions \
 
 ```bash
 # Clone and setup
-git clone https://github.com/hanneshapke/yaak-proxy.git
-cd yaak-proxy
+git clone https://github.com/hanneshapke/kiji-proxy.git
+cd kiji-proxy
 
 # Install dependencies
 make electron-install
@@ -219,15 +219,15 @@ Complete documentation is available in [docs/README.md](docs/README.md):
 
 We welcome contributions! Here's how to help:
 
-1. **Report Issues** - Found a bug? [Open an issue](https://github.com/hanneshapke/yaak-proxy/issues)
+1. **Report Issues** - Found a bug? [Open an issue](https://github.com/hanneshapke/kiji-proxy/issues)
 2. **Submit PRs** - See [docs/02-development-guide.md](docs/02-development-guide.md) for dev setup
 3. **Improve Docs** - Documentation PRs are always welcome
-4. **Share Feedback** - [Start a discussion](https://github.com/hanneshapke/yaak-proxy/discussions)
+4. **Share Feedback** - [Start a discussion](https://github.com/hanneshapke/kiji-proxy/discussions)
 
 **Quick Contribution Guide:**
 ```bash
 # 1. Fork and clone
-git clone https://github.com/YOUR-USERNAME/yaak-proxy.git
+git clone https://github.com/YOUR-USERNAME/kiji-proxy.git
 
 # 2. Create feature branch
 git checkout -b feature/my-feature
@@ -255,7 +255,7 @@ If you find Kiji useful, here's how you can support its development:
 Click the ⭐ button at the top of this page - it helps others discover the project!
 
 ### 🐛 Report Issues & Request Features
-Found a bug or have an idea? [Open an issue](https://github.com/hanneshapke/yaak-proxy/issues)
+Found a bug or have an idea? [Open an issue](https://github.com/hanneshapke/kiji-proxy/issues)
 
 ### 📝 Contribute Code or Documentation
 Pull requests are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
@@ -316,10 +316,10 @@ See [docs/02-development-guide.md](docs/02-development-guide.md) for detailed de
 
 ## 📦 Releases
 
-Download the latest release from [GitHub Releases](https://github.com/hanneshapke/yaak-proxy/releases):
+Download the latest release from [GitHub Releases](https://github.com/hanneshapke/kiji-proxy/releases):
 
 - **macOS:** `Kiji-Privacy-Proxy-{version}.dmg` (~400MB)
-- **Linux:** `yaak-privacy-proxy-{version}-linux-amd64.tar.gz` (~150MB)
+- **Linux:** `kiji-privacy-proxy-{version}-linux-amd64.tar.gz` (~150MB)
 
 **Automated Builds:** CI/CD builds both platforms in parallel on every release tag.
 
@@ -353,8 +353,8 @@ This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENS
 
 ## 🚀 Contributors
 
-<a href="https://github.com/hanneshapke/yaak-proxy/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=hanneshapke/yaak-proxy" />
+<a href="https://github.com/hanneshapke/kiji-proxy/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=hanneshapke/kiji-proxy" />
 </a>
 
 ---
@@ -373,9 +373,9 @@ This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENS
     <strong>Made with ❤️ for privacy-conscious developers</strong>
   </p>
   <p>
-    <a href="https://github.com/hanneshapke/yaak-proxy">GitHub</a> •
-    <a href="https://github.com/hanneshapke/yaak-proxy/issues">Issues</a> •
-    <a href="https://github.com/hanneshapke/yaak-proxy/discussions">Discussions</a> •
+    <a href="https://github.com/hanneshapke/kiji-proxy">GitHub</a> •
+    <a href="https://github.com/hanneshapke/kiji-proxy/issues">Issues</a> •
+    <a href="https://github.com/hanneshapke/kiji-proxy/discussions">Discussions</a> •
     <a href="docs/README.md">Documentation</a>
   </p>
 </div>

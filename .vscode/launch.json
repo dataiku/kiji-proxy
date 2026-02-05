@@ -5,7 +5,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Launch yaak-proxy",
+      "name": "Launch kiji-proxy",
       "type": "go",
       "request": "launch",
       "program": "${workspaceFolder}/src/backend",
@@ -79,7 +79,7 @@
   "compounds": [
     {
       "name": "Launch Backend + Electron (make electron-dev)",
-      "configurations": ["Launch yaak-proxy"],
+      "configurations": ["Launch kiji-proxy"],
       "stopAll": true,
       "presentation": {
         "hidden": false,

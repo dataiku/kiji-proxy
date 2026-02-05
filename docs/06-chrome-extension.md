@@ -103,7 +103,7 @@ The GitHub Actions workflow `release-chrome-extension.yml` produces a versioned 
 
 ```bash
 cd chrome-extension
-zip -r ../yaak-pii-guard.zip . -x '*.DS_Store' '*.svg' '*.git*'
+zip -r ../kiji-pii-guard.zip . -x '*.DS_Store' '*.svg' '*.git*'
 ```
 
 ### Switch to Optional Host Permissions
@@ -248,7 +248,7 @@ To fully automate publishing, add a step to the workflow that uploads to the Chr
      if: startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-beta') && !contains(github.ref, '-alpha') && !contains(github.ref, '-rc')
      uses: mnao305/chrome-extension-upload@v5.0.0
      with:
-       file-path: yaak-pii-guard-${{ steps.version.outputs.version }}.zip
+       file-path: kiji-pii-guard-${{ steps.version.outputs.version }}.zip
        extension-id: <your-extension-id>
        client-id: ${{ secrets.CHROME_WEB_STORE_CLIENT_ID }}
        client-secret: ${{ secrets.CHROME_WEB_STORE_CLIENT_SECRET }}

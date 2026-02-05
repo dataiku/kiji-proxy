@@ -162,7 +162,7 @@ export DOUBLEWORD_API_KEY="your-key"
 ### "Module not found"
 ```bash
 # Run from project root
-cd /path/to/yaak-proxy
+cd /path/to/kiji-proxy
 python -m model.dataset.doubleword.pipeline --command=start
 ```
 
@@ -237,7 +237,7 @@ That's it!
 ## ✅ Success Checklist
 
 - [ ] API key set (`echo $DOUBLEWORD_API_KEY`)
-- [ ] Running from project root (`pwd` shows yaak-proxy)
+- [ ] Running from project root (`pwd` shows kiji-proxy)
 - [ ] Tested with small batch (`--num_samples=5`)
 - [ ] Verified output (`ls model/dataset/data_samples/annotation_samples/`)
 - [ ] Ready for production!

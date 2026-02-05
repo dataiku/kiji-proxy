@@ -22,23 +22,23 @@
   // Create modal elements
   function createModal() {
     const overlay = document.createElement("div");
-    overlay.id = "yaak-pii-overlay";
+    overlay.id = "kiji-pii-overlay";
     overlay.innerHTML = `
-      <div id="yaak-pii-modal">
-        <div id="yaak-pii-header">
-          <span id="yaak-pii-icon">&#9888;</span>
+      <div id="kiji-pii-modal">
+        <div id="kiji-pii-header">
+          <span id="kiji-pii-icon">&#9888;</span>
           <span>PII Detected</span>
         </div>
-        <div id="yaak-pii-content">
+        <div id="kiji-pii-content">
           <p>Personal information was detected in your message:</p>
-          <div id="yaak-pii-entities"></div>
-          <p id="yaak-pii-masked-label">Masked version:</p>
-          <div id="yaak-pii-masked"></div>
+          <div id="kiji-pii-entities"></div>
+          <p id="kiji-pii-masked-label">Masked version:</p>
+          <div id="kiji-pii-masked"></div>
         </div>
-        <div id="yaak-pii-actions">
-          <button id="yaak-pii-cancel">Cancel</button>
-          <button id="yaak-pii-use-masked">Use Masked Version</button>
-          <button id="yaak-pii-send-anyway">Send Anyway</button>
+        <div id="kiji-pii-actions">
+          <button id="kiji-pii-cancel">Cancel</button>
+          <button id="kiji-pii-use-masked">Use Masked Version</button>
+          <button id="kiji-pii-send-anyway">Send Anyway</button>
         </div>
       </div>
     `;
@@ -48,7 +48,7 @@
 
   // Get or create modal
   function getModal() {
-    let modal = document.getElementById("yaak-pii-overlay");
+    let modal = document.getElementById("kiji-pii-overlay");
     if (!modal) {
       modal = createModal();
     }
@@ -58,8 +58,8 @@
   // Show modal with PII information
   function showPIIModal(response, originalText, onAction) {
     const modal = getModal();
-    const entitiesDiv = document.getElementById("yaak-pii-entities");
-    const maskedDiv = document.getElementById("yaak-pii-masked");
+    const entitiesDiv = document.getElementById("kiji-pii-entities");
+    const maskedDiv = document.getElementById("kiji-pii-masked");
 
     // Build entities list using safe DOM APIs (no innerHTML)
     const ul = document.createElement("ul");
@@ -77,17 +77,17 @@
     maskedDiv.textContent = response.masked_message;
 
     // Set up button handlers
-    document.getElementById("yaak-pii-cancel").onclick = () => {
+    document.getElementById("kiji-pii-cancel").onclick = () => {
       hideModal();
       onAction("cancel");
     };
 
-    document.getElementById("yaak-pii-use-masked").onclick = () => {
+    document.getElementById("kiji-pii-use-masked").onclick = () => {
       hideModal();
       onAction("use-masked", response.masked_message);
     };
 
-    document.getElementById("yaak-pii-send-anyway").onclick = () => {
+    document.getElementById("kiji-pii-send-anyway").onclick = () => {
       hideModal();
       onAction("send-anyway");
     };
@@ -97,7 +97,7 @@
 
   // Hide modal
   function hideModal() {
-    const modal = document.getElementById("yaak-pii-overlay");
+    const modal = document.getElementById("kiji-pii-overlay");
     if (modal) {
       modal.style.display = "none";
     }
@@ -156,18 +156,18 @@
   // Show a toast notification
   function showToast(message, type = "warning") {
     // Remove any existing toast
-    const existing = document.getElementById("yaak-pii-toast");
+    const existing = document.getElementById("kiji-pii-toast");
     if (existing) existing.remove();
 
     const toast = document.createElement("div");
-    toast.id = "yaak-pii-toast";
-    toast.className = `yaak-pii-toast yaak-pii-toast-${type}`;
+    toast.id = "kiji-pii-toast";
+    toast.className = `kiji-pii-toast kiji-pii-toast-${type}`;
     toast.textContent = message;
     document.body.appendChild(toast);
 
     // Auto-dismiss after 5 seconds
     setTimeout(() => {
-      toast.classList.add("yaak-pii-toast-hide");
+      toast.classList.add("kiji-pii-toast-hide");
       setTimeout(() => toast.remove(), 300);
     }, 5000);
   }
