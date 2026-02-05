@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/hannes/yaak-private/src/backend/providers"
+	"github.com/hannes/kiji-private/src/backend/providers"
 )
 
 // LoggingConfig holds logging configuration options

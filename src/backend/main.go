@@ -14,8 +14,8 @@ import (
 	"time"
 
 	"github.com/getsentry/sentry-go"
-	"github.com/hannes/yaak-private/src/backend/config"
-	"github.com/hannes/yaak-private/src/backend/server"
+	"github.com/hannes/kiji-private/src/backend/config"
+	"github.com/hannes/kiji-private/src/backend/server"
 	"github.com/joho/godotenv"
 )
 

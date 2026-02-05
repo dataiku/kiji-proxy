@@ -11,9 +11,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hannes/yaak-private/src/backend/config"
-	"github.com/hannes/yaak-private/src/backend/providers"
-	"github.com/hannes/yaak-private/src/backend/proxy"
+	"github.com/hannes/kiji-private/src/backend/config"
+	"github.com/hannes/kiji-private/src/backend/providers"
+	"github.com/hannes/kiji-private/src/backend/proxy"
 	"golang.org/x/time/rate"
 )
 
