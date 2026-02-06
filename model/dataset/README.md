@@ -28,12 +28,17 @@ model/dataset/
 ├── data_samples/                # Generated data samples
 │   ├── samples/                 # Raw generated samples
 │   ├── reviewed_samples/        # LLM-reviewed and corrected samples
-│   └── annotation_samples/      # Label Studio-ready samples
+│   ├── annotation_samples/      # Label Studio-ready samples
+│   └── training_samples/        # Final training samples (used by training pipeline)
+│
+├── huggingface/                 # HuggingFace Hub integration
+│   ├── upload_dataset_to_hf.py   # Export dataset to HuggingFace Hub (Parquet)
+│   ├── download_dataset_from_hf.py # Import dataset from HuggingFace Hub to local JSON
+│   └── upload_model_to_hf.py    # Upload trained/quantized model to HuggingFace Hub
 │
 ├── label_utils.py               # PII label definitions and utilities
 ├── file_operations.py           # File I/O utilities
 ├── tokenization.py              # Tokenization for training samples
-├── upload_to_hf.py              # Upload samples to HuggingFace Hub
 └── upload_to_s3.py              # Upload samples to S3
 ```
 
@@ -84,16 +89,67 @@ uv run python -m model.dataset.openai.training_set --num_samples=100 --api_url=$
 uv run python -m model.dataset.openai.training_set --num_samples=1000 --max_workers=12
 ```
 
-### Upload to HuggingFace
+### HuggingFace Dataset Sharing
+
+The dataset can be shared via HuggingFace Hub as a Parquet-backed dataset. The upload script converts from the internal Label Studio format to a clean training format with `text`, `privacy_mask`, `coreferences`, `language`, and `country` columns, then creates train/test splits.
 
 ```bash
 export HF_TOKEN=hf_xxxxx
 
-# Upload as private dataset
-uv run python model/dataset/upload_to_hf.py --repo-id "username/pii-training-data"
+# Upload as private dataset (default)
+uv run python model/dataset/huggingface/upload_dataset_to_hf.py --repo-id "username/kiji-pii-training-data"
 
 # Upload as public dataset
-uv run python model/dataset/upload_to_hf.py --repo-id "username/pii-training-data" --public
+uv run python model/dataset/huggingface/upload_dataset_to_hf.py --repo-id "username/kiji-pii-training-data" --public
+
+# Custom test split ratio (default: 0.1)
+uv run python model/dataset/huggingface/upload_dataset_to_hf.py --repo-id "username/kiji-pii-training-data" --test-split-ratio 0.2
+```
+
+Consumers can load the dataset with:
+
+```python
+from datasets import load_dataset
+ds = load_dataset("username/kiji-pii-training-data")
+```
+
+To bootstrap a local training environment from a shared HuggingFace dataset:
+
+```bash
+# Download all splits to local training_samples/ directory
+uv run python model/dataset/huggingface/download_dataset_from_hf.py --repo-id "username/kiji-pii-training-data"
+
+# Download to a custom directory
+uv run python model/dataset/huggingface/download_dataset_from_hf.py --repo-id "username/kiji-pii-training-data" --output-dir path/to/output
+
+# Download only specific splits
+uv run python model/dataset/huggingface/download_dataset_from_hf.py --repo-id "username/kiji-pii-training-data" --splits train
+```
+
+This converts each row back to Label Studio JSON files that the training pipeline can consume directly.
+
+### Upload Models to HuggingFace
+
+Upload trained and/or quantized models to HuggingFace Hub with auto-generated model cards. The script supports cross-linking to show the full lineage: dataset -> trained model -> quantized model.
+
+```bash
+export HF_TOKEN=hf_xxxxx
+
+# Upload trained model (links to dataset + quantized model)
+uv run python model/dataset/huggingface/upload_model_to_hf.py \
+  --variant trained \
+  --repo-id "username/kiji-pii-model" \
+  --dataset-repo-id "username/kiji-pii-training-data" \
+  --quantized-repo-id "username/kiji-pii-model-onnx" \
+  --public
+
+# Upload quantized ONNX model (links back to trained model + dataset)
+uv run python model/dataset/huggingface/upload_model_to_hf.py \
+  --variant quantized \
+  --repo-id "username/kiji-pii-model-onnx" \
+  --trained-repo-id "username/kiji-pii-model" \
+  --dataset-repo-id "username/kiji-pii-training-data" \
+  --public
 ```
 
 ## Which Method to Use?
@@ -137,8 +193,17 @@ uv run python model/dataset/upload_to_hf.py --repo-id "username/pii-training-dat
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--repo-id` | (required) | HuggingFace repo ID (e.g., `username/dataset-name`) |
-| `--samples-dir` | `model/dataset/training_samples` | Directory containing JSON samples |
+| `--samples-dir` | `model/dataset/data_samples/training_samples` | Directory containing Label Studio JSON samples |
 | `--public` | False | Make dataset public (default: private) |
+| `--test-split-ratio` | 0.1 | Fraction of data for the test split |
+
+### Download from HuggingFace
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--repo-id` | (required) | HuggingFace repo ID (e.g., `username/dataset-name`) |
+| `--output-dir` | `model/dataset/data_samples/training_samples` | Directory to save Label Studio JSON files |
+| `--splits` | all | Which splits to download (e.g., `train test`) |
 
 ## Sample Format
 
