@@ -15,8 +15,8 @@ project_root = Path(__file__).parent.parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-from model.dataset.label_utils import LabelUtils
-from model.src.preprocessing import DatasetProcessor
+from model.dataset.label_utils import LabelUtils  # noqa: E402
+from model.src.preprocessing import DatasetProcessor  # noqa: E402
 
 # PII labels that are part of the core annotation schema (exclude coreference-only labels)
 _CORE_PII_LABELS = set(LabelUtils.STANDARD_PII_LABELS)
@@ -179,7 +179,7 @@ Synthetic multilingual dataset for training PII (Personally Identifiable Informa
 | **Samples** | {stats["total_samples"]:,} (train: {train_count:,}, test: {test_count:,}) |
 | **Languages** | {len(stats["languages"])} ({", ".join(stats["languages"].keys())}) |
 | **Countries** | {len(stats["countries"])} |
-| **PII entity types** | {sum(1 for l in stats["label_counts"] if l in _CORE_PII_LABELS)} |
+| **PII entity types** | {sum(1 for lbl in stats["label_counts"] if lbl in _CORE_PII_LABELS)} |
 | **Total entity annotations** | {stats["total_entities"]:,} (avg {stats["avg_entities"]:.1f} per sample) |
 | **Coreference clusters** | {stats["total_coref_clusters"]:,} ({stats["coref_pct"]:.0f}% of samples) |
 | **Text length** | {stats["text_len_min"]:,}–{stats["text_len_max"]:,} chars (avg {stats["text_len_avg"]:.0f}) |
@@ -323,7 +323,7 @@ def upload_to_huggingface(
     split = full_dataset.train_test_split(test_size=test_split_ratio, seed=42)
     dataset_dict = DatasetDict({"train": split["train"], "test": split["test"]})
 
-    print(f"\nDataset splits:")
+    print("\nDataset splits:")
     print(f"  train: {len(dataset_dict['train'])} samples")
     print(f"  test:  {len(dataset_dict['test'])} samples")
 
@@ -349,8 +349,8 @@ def upload_to_huggingface(
     )
 
     print(f"Done! Dataset available at: https://huggingface.co/datasets/{repo_id}")
-    print(f"\nUsage:")
-    print(f"  from datasets import load_dataset")
+    print("\nUsage:")
+    print("  from datasets import load_dataset")
     print(f'  ds = load_dataset("{repo_id}")')
 
 

@@ -15,7 +15,9 @@ project_root = Path(__file__).parent.parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-from model.dataset.labelstudio.labelstudio_format import convert_to_labelstudio
+from model.dataset.labelstudio.labelstudio_format import (
+    convert_to_labelstudio,  # noqa: E402
+)
 
 
 def download_from_huggingface(
@@ -82,9 +84,7 @@ def download_from_huggingface(
             total_saved += 1
 
     print(f"\nSaved {total_saved} samples to {output_dir}")
-    print(
-        f"Ready for training with: uv run python model/flows/training_pipeline.py run"
-    )
+    print("Ready for training with: uv run python model/flows/training_pipeline.py run")
 
 
 if __name__ == "__main__":
