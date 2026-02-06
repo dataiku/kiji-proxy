@@ -15,8 +15,9 @@ import (
 
 // Chunking constants for processing long texts
 const (
-	maxSeqLen    = 512 // Maximum tokens per chunk (DistilBERT limit)
-	chunkOverlap = 64  // Tokens of overlap between chunks for context continuity
+	maxSeqLen           = 512  // Maximum tokens per chunk (DistilBERT limit)
+	chunkOverlap        = 64   // Tokens of overlap between chunks for context continuity
+	minEntityConfidence = 0.25 // Minimum confidence threshold for entity detection
 )
 
 // tokenChunk represents a chunk of tokens for processing
@@ -312,7 +313,7 @@ func (d *ONNXModelDetectorSimple) processOutputInline(originalText string, token
 		}
 
 		// Only process tokens with reasonable confidence
-		if confidence < 0.5 {
+		if confidence < minEntityConfidence {
 			label = "O"
 		}
 
