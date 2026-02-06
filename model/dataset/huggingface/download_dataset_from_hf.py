@@ -15,8 +15,8 @@ project_root = Path(__file__).parent.parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-from model.dataset.labelstudio.labelstudio_format import (
-    convert_to_labelstudio,  # noqa: E402
+from model.dataset.labelstudio.labelstudio_format import (  # noqa: E402
+    convert_to_labelstudio,
 )
 
 
