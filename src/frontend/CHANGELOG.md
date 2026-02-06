@@ -1,5 +1,11 @@
 # kiji-privacy-proxy
 
+## 0.4.1
+
+### Patch Changes
+
+- ec0b914: Added product tour
+
 ## 0.4.0
 
 ### Minor Changes
