@@ -225,10 +225,10 @@ echo "✅ Libraries packaged (model files are embedded in binary)"
 
 # Create README
 cat > "$PACKAGE_DIR/README.txt" << 'EOF'
-Dataiku's Yaak Privacy Proxy - Linux Standalone Binary
+Dataiku's Kiji Privacy Proxy - Linux Standalone Binary
 ============================================
 
-This is a standalone version of Yaak Privacy Proxy for Linux.
+This is a standalone version of Kiji Privacy Proxy for Linux.
 It includes the Go backend API with embedded ML model (no web UI).
 
 Installation:
@@ -333,7 +333,7 @@ chmod +x "$PACKAGE_DIR/run.sh"
 # Create systemd service file example
 cat > "$PACKAGE_DIR/yaak-proxy.service" << EOF
 [Unit]
-Description=Yaak Privacy Proxy
+Description=Kiji Privacy Proxy
 After=network.target
 
 [Service]

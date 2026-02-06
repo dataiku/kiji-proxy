@@ -60,7 +60,7 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
           <div className="flex flex-col items-center text-center">
             <img src={logoImage} alt="Yaak Logo" className="w-20 h-20 mb-4" />
             <h3 className="text-2xl font-bold text-slate-800">
-              Yaak Privacy Proxy
+              Kiji Privacy Proxy
             </h3>
             <p className="text-slate-600 mt-2">
               PII Detection and Masking Proxy
@@ -82,7 +82,7 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
           {/* Description */}
           <div className="text-sm text-slate-600 space-y-2">
             <p>
-              Yaak Privacy Proxy automatically detects and masks personally
+              Kiji Privacy Proxy automatically detects and masks personally
               identifiable information (PII) in your API requests, ensuring data
               privacy when interacting with external services.
             </p>

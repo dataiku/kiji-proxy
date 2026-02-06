@@ -78,7 +78,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-echo -e "${BLUE}Yaak Privacy Proxy - Debug Mode${NC}"
+echo -e "${BLUE}Kiji Privacy Proxy - Debug Mode${NC}"
 echo "================================"
 echo ""
 echo "Configuration:"

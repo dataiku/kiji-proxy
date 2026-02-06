@@ -399,7 +399,7 @@ func (s *Server) versionHandler(w http.ResponseWriter, r *http.Request) {
 
 	response := map[string]string{
 		"version": s.version,
-		"service": "Yaak Privacy Proxy",
+		"service": "Kiji Privacy Proxy",
 	}
 
 	if err := json.NewEncoder(w).Encode(response); err != nil {

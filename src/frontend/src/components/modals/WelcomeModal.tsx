@@ -2203,7 +2203,7 @@ export default function WelcomeModal({ isOpen, onClose }: WelcomeModalProps) {
           <div className="flex items-center gap-3">
             <Shield className="w-6 h-6 text-blue-600" />
             <h2 className="text-xl font-semibold text-slate-800">
-              Welcome to Yaak Privacy Proxy
+              Welcome to Kiji Privacy Proxy
             </h2>
           </div>
           <button

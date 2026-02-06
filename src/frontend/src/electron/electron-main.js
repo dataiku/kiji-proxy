@@ -339,10 +339,10 @@ function createTray() {
     // Mark as template image for automatic dark mode adaptation
     resizedIcon.setTemplateImage(true);
     tray = new Tray(resizedIcon);
-    tray.setToolTip("Yaak Privacy Proxy");
+    tray.setToolTip("Kiji Privacy Proxy");
   } else {
     tray = new Tray(icon);
-    tray.setToolTip("Yaak Privacy Proxy");
+    tray.setToolTip("Kiji Privacy Proxy");
   }
 
   // Build context menu
