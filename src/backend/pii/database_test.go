@@ -393,6 +393,122 @@ func TestInsertLog_OpenAIResponse(t *testing.T) {
 	}
 }
 
+func TestInsertLog_PersistsModelWithoutParsedMessages(t *testing.T) {
+	db := newTestDB(t)
+	ctx := context.Background()
+
+	payload := `{"model":"mistral-small-latest","error":{"message":"bad request"}}`
+
+	err := db.InsertLog(ctx, payload, "response_original", nil, false)
+	if err != nil {
+		t.Fatalf("InsertLog failed: %v", err)
+	}
+
+	logs, err := db.GetLogs(ctx, 10, 0)
+	if err != nil {
+		t.Fatalf("GetLogs failed: %v", err)
+	}
+	if len(logs) != 1 {
+		t.Fatalf("expected 1 log, got %d", len(logs))
+	}
+
+	if logs[0]["model"] != "mistral-small-latest" {
+		t.Errorf("expected model to be persisted, got %v", logs[0]["model"])
+	}
+	if _, ok := logs[0]["messages"]; ok {
+		t.Fatalf("did not expect parsed messages for error payload")
+	}
+}
+
+func TestInsertLog_MistralResponseWithBlockContent(t *testing.T) {
+	db := newTestDB(t)
+	ctx := context.Background()
+
+	mistralResp := `{
+		"model":"mistral-small-latest",
+		"choices":[
+			{
+				"message":{
+					"role":"assistant",
+					"content":[{"type":"text","text":"Hello "},{"type":"text","text":"world"}]
+				}
+			}
+		]
+	}`
+
+	err := db.InsertLog(ctx, mistralResp, "response_original", nil, false)
+	if err != nil {
+		t.Fatalf("InsertLog failed: %v", err)
+	}
+
+	logs, err := db.GetLogs(ctx, 10, 0)
+	if err != nil {
+		t.Fatalf("GetLogs failed: %v", err)
+	}
+	if len(logs) != 1 {
+		t.Fatalf("expected 1 log, got %d", len(logs))
+	}
+
+	if logs[0]["model"] != "mistral-small-latest" {
+		t.Errorf("expected mistral model, got %v", logs[0]["model"])
+	}
+
+	messages, ok := logs[0]["messages"].([]OpenAIMessage)
+	if !ok {
+		t.Fatalf("expected messages to be []OpenAIMessage, got %T", logs[0]["messages"])
+	}
+	if len(messages) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(messages))
+	}
+	if messages[0].Role != "assistant" || messages[0].Content != "Hello world" {
+		t.Errorf("unexpected parsed message: %+v", messages[0])
+	}
+}
+
+func TestInsertLog_GeminiResponseParsesModelVersionAndMessage(t *testing.T) {
+	db := newTestDB(t)
+	ctx := context.Background()
+
+	geminiResp := `{
+		"modelVersion":"gemini-2.5-flash-preview-09-2025",
+		"candidates":[
+			{
+				"content":{
+					"parts":[{"text":"Hi"},{"text":" there"}]
+				}
+			}
+		]
+	}`
+
+	err := db.InsertLog(ctx, geminiResp, "response_original", nil, false)
+	if err != nil {
+		t.Fatalf("InsertLog failed: %v", err)
+	}
+
+	logs, err := db.GetLogs(ctx, 10, 0)
+	if err != nil {
+		t.Fatalf("GetLogs failed: %v", err)
+	}
+	if len(logs) != 1 {
+		t.Fatalf("expected 1 log, got %d", len(logs))
+	}
+
+	if logs[0]["model"] != "gemini-2.5-flash-preview-09-2025" {
+		t.Errorf("expected modelVersion to be stored as model, got %v", logs[0]["model"])
+	}
+
+	messages, ok := logs[0]["messages"].([]OpenAIMessage)
+	if !ok {
+		t.Fatalf("expected messages to be []OpenAIMessage, got %T", logs[0]["messages"])
+	}
+	if len(messages) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(messages))
+	}
+	if messages[0].Role != "assistant" || messages[0].Content != "Hi there" {
+		t.Errorf("unexpected parsed message: %+v", messages[0])
+	}
+}
+
 func TestInsertLog_TruncatesLargeMessage(t *testing.T) {
 	db := newTestDB(t)
 	ctx := context.Background()
@@ -559,10 +675,10 @@ func TestFormatDetectedPII(t *testing.T) {
 	}
 }
 
-func TestParseOpenAIFromMessage_Request(t *testing.T) {
+func TestParseMessagesFromLogMessage_Request(t *testing.T) {
 	msg := `{"model":"gpt-4","messages":[{"role":"user","content":"hello"}]}`
 
-	messages, model := parseOpenAIFromMessage(msg, "request_original")
+	messages, model := parseMessagesFromLogMessage(msg, "request_original")
 	if model != "gpt-4" {
 		t.Errorf("expected model 'gpt-4', got %q", model)
 	}
@@ -574,10 +690,10 @@ func TestParseOpenAIFromMessage_Request(t *testing.T) {
 	}
 }
 
-func TestParseOpenAIFromMessage_Response(t *testing.T) {
+func TestParseMessagesFromLogMessage_Response(t *testing.T) {
 	msg := `{"model":"gpt-4","choices":[{"message":{"role":"assistant","content":"world"}}]}`
 
-	messages, model := parseOpenAIFromMessage(msg, "response_original")
+	messages, model := parseMessagesFromLogMessage(msg, "response_original")
 	if model != "gpt-4" {
 		t.Errorf("expected model 'gpt-4', got %q", model)
 	}
@@ -589,8 +705,8 @@ func TestParseOpenAIFromMessage_Response(t *testing.T) {
 	}
 }
 
-func TestParseOpenAIFromMessage_InvalidJSON(t *testing.T) {
-	messages, model := parseOpenAIFromMessage("not json", "request_original")
+func TestParseMessagesFromLogMessage_InvalidJSON(t *testing.T) {
+	messages, model := parseMessagesFromLogMessage("not json", "request_original")
 	if model != "" {
 		t.Errorf("expected empty model, got %q", model)
 	}
@@ -599,11 +715,11 @@ func TestParseOpenAIFromMessage_InvalidJSON(t *testing.T) {
 	}
 }
 
-func TestParseOpenAIFromMessage_LegacyDirections(t *testing.T) {
+func TestParseMessagesFromLogMessage_LegacyDirections(t *testing.T) {
 	msg := `{"model":"gpt-4","messages":[{"role":"user","content":"hi"}]}`
 
 	for _, dir := range []string{"request", "In", "request_original", "request_masked"} {
-		messages, _ := parseOpenAIFromMessage(msg, dir)
+		messages, _ := parseMessagesFromLogMessage(msg, dir)
 		if len(messages) != 1 {
 			t.Errorf("direction %q: expected 1 message, got %d", dir, len(messages))
 		}
@@ -611,16 +727,16 @@ func TestParseOpenAIFromMessage_LegacyDirections(t *testing.T) {
 
 	respMsg := `{"choices":[{"message":{"role":"assistant","content":"hi"}}]}`
 	for _, dir := range []string{"response", "Out", "response_original", "response_masked"} {
-		messages, _ := parseOpenAIFromMessage(respMsg, dir)
+		messages, _ := parseMessagesFromLogMessage(respMsg, dir)
 		if len(messages) != 1 {
 			t.Errorf("direction %q: expected 1 message, got %d", dir, len(messages))
 		}
 	}
 }
 
-func TestParseOpenAIFromMessage_UnknownDirection(t *testing.T) {
+func TestParseMessagesFromLogMessage_UnknownDirection(t *testing.T) {
 	msg := `{"model":"gpt-4","messages":[{"role":"user","content":"hi"}]}`
-	messages, _ := parseOpenAIFromMessage(msg, "unknown")
+	messages, _ := parseMessagesFromLogMessage(msg, "unknown")
 	if len(messages) != 0 {
 		t.Errorf("expected 0 messages for unknown direction, got %d", len(messages))
 	}

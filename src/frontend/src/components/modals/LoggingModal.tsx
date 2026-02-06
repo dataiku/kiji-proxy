@@ -329,6 +329,28 @@ export default function LoggingModal({
     });
   };
 
+  const extractTextContent = (content: unknown): string => {
+    if (typeof content === "string") return content;
+
+    if (Array.isArray(content)) {
+      return content
+        .map((item: unknown) => extractTextContent(item))
+        .filter((text: string) => text.trim().length > 0)
+        .join("");
+    }
+
+    if (content && typeof content === "object") {
+      const contentObj = content as Record<string, unknown>;
+      if (typeof contentObj.text === "string") return contentObj.text;
+      if (Array.isArray(contentObj.parts)) {
+        return extractTextContent(contentObj.parts);
+      }
+      if (typeof contentObj.content === "string") return contentObj.content;
+    }
+
+    return "";
+  };
+
   const extractMessageFromJson = (message: string): string => {
     try {
       const parsed = JSON.parse(message);
@@ -338,7 +360,7 @@ export default function LoggingModal({
         const messages = parsed.messages
           .map((msg: Record<string, unknown>) => {
             const role = msg.role ? `[${msg.role}]` : "";
-            const content = msg.content || "";
+            const content = extractTextContent(msg.content);
             return role ? `${role} ${content}` : content;
           })
           .filter((content: string) => content.trim())
@@ -353,11 +375,10 @@ export default function LoggingModal({
             // Handle chat completion format
             if (choice.message && typeof choice.message === "object") {
               const messageObj = choice.message as Record<string, unknown>;
-              if (messageObj.content) {
-                const role = messageObj.role
-                  ? `[${messageObj.role}]`
-                  : "[assistant]";
-                return `${role} ${messageObj.content}`;
+              const content = extractTextContent(messageObj.content);
+              if (content) {
+                const role = messageObj.role ? `[${messageObj.role}]` : "[assistant]";
+                return `${role} ${content}`;
               }
             }
             // Handle legacy completion format
@@ -369,6 +390,40 @@ export default function LoggingModal({
           .filter((content: string) => content.trim())
           .join("\n\n");
         return messages || message;
+      }
+
+      // Anthropic-style response: { content: [{ type: "text", text: "..." }] }
+      if (parsed.content && Array.isArray(parsed.content)) {
+        const textBlocks = parsed.content
+          .map((block: Record<string, unknown>) => {
+            if (block.type === "text" && typeof block.text === "string") {
+              return block.text;
+            }
+            return "";
+          })
+          .filter((text: string) => text.trim());
+        if (textBlocks.length > 0) {
+          const role = parsed.role ? `[${parsed.role}]` : "[assistant]";
+          return `${role} ${textBlocks.join("")}`;
+        }
+      }
+
+      // Gemini-style response: { candidates: [{ content: { parts: [{ text: "..." }] } }] }
+      if (parsed.candidates && Array.isArray(parsed.candidates)) {
+        const messages = parsed.candidates
+          .map((candidate: Record<string, unknown>) => {
+            if (!candidate.content || typeof candidate.content !== "object") {
+              return "";
+            }
+            const contentObj = candidate.content as Record<string, unknown>;
+            const text = extractTextContent(contentObj.parts);
+            return text ? `[assistant] ${text}` : "";
+          })
+          .filter((text: string) => text.trim())
+          .join("\n\n");
+        if (messages) {
+          return messages;
+        }
       }
 
       // Return the original if we can't parse it
