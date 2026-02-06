@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-echo "🚀 Starting Yaak Proxy Development Server"
+echo "🚀 Starting Kiji Privacy Proxy Development Server"
 echo "=========================================="
 
 # # Build UI if needed
