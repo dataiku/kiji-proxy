@@ -124,6 +124,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.removeAllListeners("open-terms");
   },
 
+  // Listen for tour menu command
+  onTourOpen: (callback) => {
+    ipcRenderer.on("open-tour", callback);
+  },
+
+  // Remove tour listener
+  removeTourListener: () => {
+    ipcRenderer.removeAllListeners("open-tour");
+  },
+
   // Model directory management
   selectModelDirectory: async () => {
     return await ipcRenderer.invoke("select-model-directory");

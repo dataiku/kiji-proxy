@@ -7,6 +7,7 @@ import {
   Info,
   Menu,
   Flag,
+  HelpCircle,
 } from "lucide-react";
 import logoImage from "../../assets/logo.png";
 import yaakMascot from "../../assets/yaak.png";
@@ -23,6 +24,7 @@ import {
   highlightEntitiesByOriginal,
 } from "../utils/textHighlight";
 import { reportMisclassification } from "../utils/misclassificationReporter";
+import { useTour } from "../tour/useTour";
 
 interface PerformanceWithMemory extends Performance {
   memory?: {
@@ -119,6 +121,7 @@ export default function PrivacyProxyUI() {
   const [isTermsOpen, setIsTermsOpen] = useState(false);
 
   const [isWelcomeOpen, setIsWelcomeOpen] = useState(false);
+  const [welcomeModalJustClosed, setWelcomeModalJustClosed] = useState(false);
   const [termsRequireAcceptance, setTermsRequireAcceptance] = useState(false);
   const [reportingData, setReportingData] = useState<{
     entities: Array<{
@@ -164,6 +167,11 @@ export default function PrivacyProxyUI() {
   const [version, setVersion] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  // Product tour
+  const { startTour, isTourActive, cancelTour } = useTour(
+    welcomeModalJustClosed
+  );
+
   // Fixed Go server address - always call the Go server at this address
   const GO_SERVER_ADDRESS = "http://localhost:8080";
 
@@ -187,7 +195,10 @@ export default function PrivacyProxyUI() {
   // Calculate average confidence
   const averageConfidence = useMemo(() => {
     if (detectedEntities.length === 0) return 0;
-    const sum = detectedEntities.reduce((acc, entity) => acc + (entity.confidence || 0), 0);
+    const sum = detectedEntities.reduce(
+      (acc, entity) => acc + (entity.confidence || 0),
+      0
+    );
     return sum / detectedEntities.length;
   }, [detectedEntities]);
 
@@ -249,6 +260,13 @@ export default function PrivacyProxyUI() {
     [finalOutput, detectedEntities]
   );
 
+  // Cancel tour if processing starts
+  useEffect(() => {
+    if (isProcessing && isTourActive()) {
+      cancelTour();
+    }
+  }, [isProcessing, isTourActive, cancelTour]);
+
   // Close menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -295,6 +313,9 @@ export default function PrivacyProxyUI() {
           setTimeout(() => {
             setIsWelcomeOpen(true);
           }, 500);
+        } else {
+          // Welcome already dismissed — trigger tour auto-start check
+          setWelcomeModalJustClosed(true);
         }
       });
 
@@ -320,6 +341,13 @@ export default function PrivacyProxyUI() {
         });
       }
 
+      // Listen for tour menu command
+      if (window.electronAPI.onTourOpen) {
+        window.electronAPI.onTourOpen(() => {
+          startTour();
+        });
+      }
+
       // Cleanup
       return () => {
         if (window.electronAPI?.removeSettingsListener) {
@@ -331,10 +359,19 @@ export default function PrivacyProxyUI() {
         if (window.electronAPI?.removeTermsListener) {
           window.electronAPI.removeTermsListener();
         }
+        if (window.electronAPI?.removeTourListener) {
+          window.electronAPI.removeTourListener();
+        }
       };
     }
+
+    // In web mode, no WelcomeModal persistence — just try to start tour
+    if (!isElectron) {
+      setWelcomeModalJustClosed(true);
+    }
+
     return undefined;
-  }, [isElectron]);
+  }, [isElectron, startTour]);
 
   // Check server status periodically
   useEffect(() => {
@@ -978,15 +1015,20 @@ export default function PrivacyProxyUI() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div
-          className={`sticky top-0 z-40 transition-all duration-300 -mx-4 md:-mx-8 px-4 md:px-8 py-4 mb-8 ${isScrolled
-            ? "bg-white/80 backdrop-blur-md shadow-md py-2 border-b border-slate-200"
-            : "bg-transparent"
-            }`}
+          className={`sticky top-0 z-40 transition-all duration-300 -mx-4 md:-mx-8 px-4 md:px-8 py-4 mb-8 ${
+            isScrolled
+              ? "bg-white/80 backdrop-blur-md shadow-md py-2 border-b border-slate-200"
+              : "bg-transparent"
+          }`}
         >
           <div className="relative">
             {isElectron && (
-              <div className="absolute left-0 top-1/2 -translate-y-1/2 z-50" ref={menuRef}>
+              <div
+                className="absolute left-0 top-1/2 -translate-y-1/2 z-50"
+                ref={menuRef}
+              >
                 <button
+                  id="tour-menu-button"
                   onClick={() => setIsMenuOpen(!isMenuOpen)}
                   className="p-2 text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
                   title="Menu"
@@ -1020,19 +1062,44 @@ export default function PrivacyProxyUI() {
                         setIsAboutOpen(true);
                         setIsMenuOpen(false);
                       }}
-                      className="w-full text-left px-4 py-3 text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2 last:rounded-b-lg"
+                      className="w-full text-left px-4 py-3 text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
                     >
                       <Info className="w-4 h-4" />
                       About Yaak Proxy
+                    </button>
+                    <button
+                      onClick={() => {
+                        startTour();
+                        setIsMenuOpen(false);
+                      }}
+                      className="w-full text-left px-4 py-3 text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2 last:rounded-b-lg"
+                    >
+                      <HelpCircle className="w-4 h-4" />
+                      Start Tour
                     </button>
                   </div>
                 )}
               </div>
             )}
-            <div className={`flex flex-col items-center justify-center transition-all duration-300 ${isScrolled ? "scale-90" : "scale-100"}`}>
+            <div
+              id="tour-header"
+              className={`flex flex-col items-center justify-center transition-all duration-300 ${
+                isScrolled ? "scale-90" : "scale-100"
+              }`}
+            >
               <div className="flex items-center justify-center gap-3">
-                <img src={logoImage} alt="Yaak Logo" className={`transition-all duration-300 ${isScrolled ? "w-8 h-8" : "w-12 h-12"}`} />
-                <h1 className={`font-bold text-slate-800 transition-all duration-300 ${isScrolled ? "text-2xl" : "text-4xl"}`}>
+                <img
+                  src={logoImage}
+                  alt="Yaak Logo"
+                  className={`transition-all duration-300 ${
+                    isScrolled ? "w-8 h-8" : "w-12 h-12"
+                  }`}
+                />
+                <h1
+                  className={`font-bold text-slate-800 transition-all duration-300 ${
+                    isScrolled ? "text-2xl" : "text-4xl"
+                  }`}
+                >
                   Yaak Privacy Proxy
                 </h1>
               </div>
@@ -1091,7 +1158,10 @@ export default function PrivacyProxyUI() {
         </div>
 
         {/* Input Section */}
-        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+        <div
+          id="tour-input-section"
+          className="bg-white rounded-xl shadow-lg p-6 mb-6"
+        >
           <div className="flex items-center justify-between mb-4">
             {isElectron && (
               <div className="flex items-center gap-2">
@@ -1099,6 +1169,7 @@ export default function PrivacyProxyUI() {
                   Type your request to:
                 </label>
                 <select
+                  id="tour-provider-selector"
                   value={activeProvider}
                   onChange={async (e) => {
                     const newProvider = e.target.value as ProviderType;
@@ -1146,6 +1217,7 @@ export default function PrivacyProxyUI() {
           />
           <div className="flex gap-3 mt-4 items-center">
             <button
+              id="tour-process-button"
               onClick={handleSubmit}
               disabled={
                 !inputData.trim() || isProcessing || serverStatus === "offline"
@@ -1218,7 +1290,9 @@ export default function PrivacyProxyUI() {
                 </div>
                 <div className="flex flex-col">
                   <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
-                    <span>Request submitted with personal information removed</span>
+                    <span>
+                      Request submitted with personal information removed
+                    </span>
                     <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded">
                       PII Protected
                     </span>
@@ -1237,14 +1311,15 @@ export default function PrivacyProxyUI() {
                 </div>
               </div>
 
-
               {/* Divider */}
               <div className="my-6 border-t-2 border-slate-200"></div>
 
               {/* Output Diff */}
               <h2 className="text-xl font-semibold text-slate-800 mb-4 flex items-center gap-2">
                 <AlertCircle className="w-5 h-5 text-blue-600" />
-                {isElectron ? `What ${PROVIDER_NAMES[activeProvider]} returned` : "What the LLM returned"}
+                {isElectron
+                  ? `What ${PROVIDER_NAMES[activeProvider]} returned`
+                  : "What the LLM returned"}
               </h2>
               <div className="grid md:grid-cols-2 gap-4">
                 <div className="flex flex-col">
@@ -1268,7 +1343,9 @@ export default function PrivacyProxyUI() {
                 </div>
                 <div className="flex flex-col">
                   <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
-                    <span>Request received with personal information restored</span>
+                    <span>
+                      Request received with personal information restored
+                    </span>
                     <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">
                       Restored
                     </span>
@@ -1301,53 +1378,59 @@ export default function PrivacyProxyUI() {
             </div>
 
             {/* Transformation Summary */}
-            {false && (<div className="bg-gradient-to-r from-slate-50 to-slate-100 rounded-xl shadow-lg p-6">
-              <h3 className="text-lg font-semibold text-slate-800 mb-4">
-                Transformation Summary
-              </h3>
-              <div className="grid md:grid-cols-3 gap-4">
-                <div className="bg-white rounded-lg p-4 border-l-4 border-amber-500">
-                  <div className="text-2xl font-bold text-slate-800">
-                    {detectedEntities.length}
+            {false && (
+              <div className="bg-gradient-to-r from-slate-50 to-slate-100 rounded-xl shadow-lg p-6">
+                <h3 className="text-lg font-semibold text-slate-800 mb-4">
+                  Transformation Summary
+                </h3>
+                <div className="grid md:grid-cols-3 gap-4">
+                  <div className="bg-white rounded-lg p-4 border-l-4 border-amber-500">
+                    <div className="text-2xl font-bold text-slate-800">
+                      {detectedEntities.length}
+                    </div>
+                    <div className="text-sm text-slate-600">
+                      Entities Detected
+                    </div>
                   </div>
-                  <div className="text-sm text-slate-600">
-                    Entities Detected
+                  <div className="bg-white rounded-lg p-4 border-l-4 border-green-500">
+                    <div className="text-2xl font-bold text-slate-800">
+                      100%
+                    </div>
+                    <div className="text-sm text-slate-600">PII Protected</div>
+                  </div>
+                  <div className="bg-white rounded-lg p-4 border-l-4 border-blue-500">
+                    <div className="text-2xl font-bold text-slate-800">
+                      {detectedEntities.length > 0
+                        ? (
+                            (detectedEntities.reduce(
+                              (sum, e) => sum + (e.confidence || 0),
+                              0
+                            ) /
+                              detectedEntities.length) *
+                            100
+                          ).toFixed(1)
+                        : 0}
+                      %
+                    </div>
+                    <div className="text-sm text-slate-600">
+                      Avg. Confidence
+                    </div>
                   </div>
                 </div>
-                <div className="bg-white rounded-lg p-4 border-l-4 border-green-500">
-                  <div className="text-2xl font-bold text-slate-800">100%</div>
-                  <div className="text-sm text-slate-600">PII Protected</div>
-                </div>
-                <div className="bg-white rounded-lg p-4 border-l-4 border-blue-500">
-                  <div className="text-2xl font-bold text-slate-800">
-                    {detectedEntities.length > 0
-                      ? (
-                          (detectedEntities.reduce(
-                            (sum, e) => sum + (e.confidence || 0),
-                            0
-                          ) /
-                            detectedEntities.length) *
-                          100
-                        ).toFixed(1)
-                      : 0}
-                    %
-                  </div>
-                  <div className="text-sm text-slate-600">Avg. Confidence</div>
-                </div>
-              </div>
 
-              {/* Report Misclassification Button */}
-              <div className="mt-6 flex justify-center">
-                <button
-                  onClick={handleReportMisclassification}
-                  className="flex items-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-colors shadow-md hover:shadow-lg"
-                  title="Report incorrect PII classification"
-                >
-                  <Flag className="w-5 h-5" />
-                  Report Misclassification
-                </button>
+                {/* Report Misclassification Button */}
+                <div className="mt-6 flex justify-center">
+                  <button
+                    onClick={handleReportMisclassification}
+                    className="flex items-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-colors shadow-md hover:shadow-lg"
+                    title="Report incorrect PII classification"
+                  >
+                    <Flag className="w-5 h-5" />
+                    Report Misclassification
+                  </button>
+                </div>
               </div>
-            </div>)}
+            )}
           </div>
         )}
 
@@ -1363,7 +1446,10 @@ export default function PrivacyProxyUI() {
       </div>
 
       {/* Status Bar */}
-      <div className="fixed bottom-0 left-0 right-0 bg-slate-800 text-slate-200 px-4 py-2 flex items-center justify-between border-t border-slate-700">
+      <div
+        id="tour-status-bar"
+        className="fixed bottom-0 left-0 right-0 bg-slate-800 text-slate-200 px-4 py-2 flex items-center justify-between border-t border-slate-700"
+      >
         <div className="flex items-center gap-2">
           <div
             className={`w-3 h-3 rounded-full ${
@@ -1457,7 +1543,10 @@ export default function PrivacyProxyUI() {
       {/* Welcome Modal */}
       <WelcomeModal
         isOpen={isWelcomeOpen}
-        onClose={() => setIsWelcomeOpen(false)}
+        onClose={() => {
+          setIsWelcomeOpen(false);
+          setWelcomeModalJustClosed(true);
+        }}
       />
     </div>
   );

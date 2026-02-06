@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import "./src/styles/styles.css";
 import PrivacyProxyUI from "./src/components/privacy-proxy-ui.tsx";
 import ErrorBoundary from "./src/components/ErrorBoundary.tsx";
+import TourProvider from "./src/tour/TourProvider.tsx";
 import * as Sentry from "@sentry/electron/renderer";
 
 // Initialize Sentry for renderer process
@@ -15,6 +16,8 @@ Sentry.init({
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(
   <ErrorBoundary>
-    <PrivacyProxyUI />
+    <TourProvider>
+      <PrivacyProxyUI />
+    </TourProvider>
   </ErrorBoundary>
 );

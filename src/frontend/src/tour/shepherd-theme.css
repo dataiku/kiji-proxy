@@ -1,0 +1,93 @@
+/* Custom Shepherd.js theme matching Yaak's slate/blue design */
+
+.shepherd-element {
+  border-radius: 12px;
+  box-shadow:
+    0 20px 25px -5px rgba(0, 0, 0, 0.1),
+    0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e2e8f0;
+  max-width: 400px;
+  z-index: 60;
+}
+
+.shepherd-element .shepherd-arrow::before {
+  background: white;
+  border: 1px solid #e2e8f0;
+}
+
+.shepherd-element .shepherd-header {
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 16px 20px;
+  border-radius: 12px 12px 0 0;
+}
+
+.shepherd-element .shepherd-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.shepherd-element .shepherd-text {
+  padding: 16px 20px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #475569;
+}
+
+.shepherd-element .shepherd-cancel-icon {
+  color: #94a3b8;
+}
+
+.shepherd-element .shepherd-cancel-icon:hover {
+  color: #475569;
+}
+
+.shepherd-element .shepherd-footer {
+  padding: 12px 20px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.shepherd-element .shepherd-button {
+  background: #2563eb;
+  color: white;
+  border-radius: 8px;
+  padding: 8px 20px;
+  font-weight: 500;
+  font-size: 14px;
+  border: none;
+  transition: background-color 0.2s;
+  cursor: pointer;
+}
+
+.shepherd-element .shepherd-button:hover {
+  background: #1d4ed8;
+}
+
+.shepherd-element .shepherd-button.shepherd-button-secondary {
+  background: transparent;
+  color: #64748b;
+  border: 2px solid #cbd5e1;
+}
+
+.shepherd-element .shepherd-button.shepherd-button-secondary:hover {
+  background: #f8fafc;
+}
+
+/* Modal overlay */
+.shepherd-modal-overlay-container {
+  z-index: 55;
+}
+
+.shepherd-modal-overlay-container .shepherd-modal-overlay {
+  fill: rgba(15, 23, 42, 0.4);
+}
+
+/* Highlighted target element */
+.shepherd-target {
+  z-index: 56;
+}
+
+.shepherd-has-active-tour .shepherd-target {
+  position: relative;
+}
