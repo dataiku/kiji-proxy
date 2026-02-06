@@ -222,6 +222,34 @@ func (d *ONNXModelDetectorSimple) Detect(ctx context.Context, input DetectorInpu
 	}, nil
 }
 
+// classifyToken returns the best label and its softmax confidence for a single token's logits.
+func (d *ONNXModelDetectorSimple) classifyToken(tokenLogits []float32) (string, float64) {
+	maxProb := float64(-math.MaxFloat64)
+	bestClass := 0
+	for j, logit := range tokenLogits {
+		prob := float64(logit)
+		if prob > maxProb {
+			maxProb = prob
+			bestClass = j
+		}
+	}
+
+	classID := fmt.Sprintf("%d", bestClass)
+	label, exists := d.id2label[classID]
+	if !exists {
+		label = "O"
+	}
+
+	prob := math.Exp(maxProb)
+	var sum float64
+	for _, logit := range tokenLogits {
+		sum += math.Exp(float64(logit))
+	}
+	confidence := prob / sum
+
+	return label, confidence
+}
+
 // processOutputInline converts model output to entities (inline to avoid compilation issues)
 func (d *ONNXModelDetectorSimple) processOutputInline(originalText string, tokenIDs []uint32, offsets []tokenizers.Offset) []Entity {
 	outputData := d.outputTensor.GetData()
@@ -250,39 +278,16 @@ func (d *ONNXModelDetectorSimple) processOutputInline(originalText string, token
 		}
 		tokenLogits := outputData[startIdx:endIdx]
 
-		// Find the class with highest probability
-		maxProb := float64(-math.MaxFloat64)
-		bestClass := 0
-		for j, logit := range tokenLogits {
-			prob := float64(logit)
-			if prob > maxProb {
-				maxProb = prob
-				bestClass = j
-			}
-		}
-
-		// Convert class ID to label
-		classID := fmt.Sprintf("%d", bestClass)
-		label, exists := d.id2label[classID]
-		if !exists {
-			label = "O"
-		}
-
-		// Convert logits to probability (softmax)
-		prob := math.Exp(maxProb)
-		var sum float64
-		for _, logit := range tokenLogits {
-			sum += math.Exp(float64(logit))
-		}
-		confidence := prob / sum
+		// Classify this token
+		label, confidence := d.classifyToken(tokenLogits)
 
 		// Log token details
 		tokenText := ""
 		if i < len(offsets) && offsets[i][0] < uint(len(originalText)) && offsets[i][1] <= uint(len(originalText)) {
 			tokenText = originalText[offsets[i][0]:offsets[i][1]]
 		}
-		fmt.Printf("[ONNX Model Response] Token %d: id=%d text=%q offset=(%d,%d) bestClass=%d label=%q confidence=%.4f maxLogit=%.4f\n",
-			i, tokenIDs[i], tokenText, offsets[i][0], offsets[i][1], bestClass, label, confidence, maxProb)
+		fmt.Printf("[ONNX Model Response] Token %d: id=%d text=%q offset=(%d,%d) label=%q confidence=%.4f\n",
+			i, tokenIDs[i], tokenText, offsets[i][0], offsets[i][1], label, confidence)
 
 		// Log top-3 predictions for non-O tokens to help debug misclassifications
 		if label != "O" || confidence < 0.8 {
