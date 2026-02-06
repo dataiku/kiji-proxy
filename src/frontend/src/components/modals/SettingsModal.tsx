@@ -9,6 +9,8 @@ import {
   CheckCircle2,
   Cpu,
   Settings2,
+  Lock,
+  Unlock,
 } from "lucide-react";
 import AdvancedSettingsModal from "./AdvancedSettingsModal";
 
@@ -27,27 +29,31 @@ interface ProvidersConfig {
 // Provider display information
 const PROVIDER_INFO: Record<
   ProviderType,
-  { name: string; defaultModel: string; placeholder: string }
+  { name: string; defaultModel: string; placeholder: string; helpLink: string }
 > = {
   openai: {
     name: "OpenAI",
     defaultModel: "gpt-3.5-turbo",
     placeholder: "sk-...",
+    helpLink: "https://help.openai.com/en/articles/4936850-where-do-i-find-my-openai-api-key",
   },
   anthropic: {
     name: "Anthropic",
     defaultModel: "claude-3-haiku-20240307",
     placeholder: "sk-ant-...",
+    helpLink: "https://platform.claude.com/docs/en/get-started",
   },
   gemini: {
     name: "Gemini",
     defaultModel: "gemini-flash-latest",
     placeholder: "AIza...",
+    helpLink: "https://ai.google.dev/gemini-api/docs/api-key",
   },
   mistral: {
     name: "Mistral",
     defaultModel: "mistral-small-latest",
     placeholder: "...",
+    helpLink: "https://console.mistral.ai/api-keys",
   },
 };
 
@@ -86,6 +92,16 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [expandedProvider, setExpandedProvider] = useState<ProviderType | null>(
     null
   );
+
+  // Track which providers have their API key unlocked (visible/editable)
+  const [unlockedProviders, setUnlockedProviders] = useState<
+    Record<ProviderType, boolean>
+  >({
+    openai: false,
+    anthropic: false,
+    gemini: false,
+    mistral: false,
+  });
 
   // Form state for each provider (API key inputs and model overrides)
   const [providerApiKeys, setProviderApiKeys] = useState<
@@ -258,6 +274,13 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     }
   };
 
+  const toggleProviderLock = (provider: ProviderType) => {
+    setUnlockedProviders((prev) => ({
+      ...prev,
+      [provider]: !prev[provider],
+    }));
+  };
+
   const toggleProviderExpansion = (provider: ProviderType) => {
     setExpandedProvider(expandedProvider === provider ? null : provider);
   };
@@ -337,11 +360,10 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                           </span>
                         </div>
                         <span
-                          className={`text-xs px-2 py-1 rounded ${
-                            config?.hasApiKey
-                              ? "bg-green-100 text-green-700"
-                              : "bg-slate-100 text-slate-500"
-                          }`}
+                          className={`text-xs px-2 py-1 rounded ${config?.hasApiKey
+                            ? "bg-green-100 text-green-700"
+                            : "bg-slate-100 text-slate-500"
+                            }`}
                         >
                           {config?.hasApiKey ? "Configured" : "Not Set"}
                         </span>
@@ -352,41 +374,73 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                         <div className="px-4 pb-4 pt-2 bg-slate-50 space-y-4">
                           {/* API Key */}
                           <div>
-                            <label className="block text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
-                              <Key className="w-4 h-4" />
-                              API Key
-                            </label>
-                            {config?.hasApiKey &&
-                              !providerApiKeys[provider] && (
-                                <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 p-2 rounded mb-2">
-                                  <CheckCircle2 className="w-4 h-4" />
-                                  <span>API key is configured</span>
-                                </div>
+                            {/* Header row with label, lock toggle, and clear button */}
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <label className="text-sm font-medium text-slate-600 flex items-center gap-2">
+                                  <Key className="w-4 h-4" />
+                                  {info.name} API Key
+                                </label>
+                                {config?.hasApiKey && (
+                                  <button
+                                    onClick={() => toggleProviderLock(provider)}
+                                    className="p-1 rounded hover:bg-slate-200 transition-colors"
+                                    title={unlockedProviders[provider] ? "Lock API key" : "Unlock to edit"}
+                                  >
+                                    {unlockedProviders[provider] ? (
+                                      <Unlock className="w-4 h-4 text-orange-500" />
+                                    ) : (
+                                      <Lock className="w-4 h-4 text-slate-500" />
+                                    )}
+                                  </button>
+                                )}
+                              </div>
+                              {config?.hasApiKey && (
+                                <button
+                                  onClick={() => handleClearApiKey(provider)}
+                                  className="text-sm text-orange-500 hover:text-orange-600 transition-colors font-medium"
+                                >
+                                  Clear my key
+                                </button>
                               )}
-                            <input
-                              type="password"
-                              value={providerApiKeys[provider]}
-                              onChange={(e) =>
-                                setProviderApiKeys((prev) => ({
-                                  ...prev,
-                                  [provider]: e.target.value,
-                                }))
-                              }
-                              placeholder={
-                                config?.hasApiKey
-                                  ? "Enter new API key to update"
-                                  : `Enter your ${info.name} API key (${info.placeholder})`
-                              }
-                              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:border-blue-500 focus:outline-none font-mono text-sm placeholder:text-gray-400"
-                            />
-                            {config?.hasApiKey && (
-                              <button
-                                onClick={() => handleClearApiKey(provider)}
-                                className="text-sm text-red-600 hover:text-red-700 transition-colors mt-1"
-                              >
-                                Clear API key
-                              </button>
-                            )}
+                            </div>
+
+                            {/* Input field - only editable when unlocked or no key exists */}
+                            <div className="relative">
+                              <input
+                                type={unlockedProviders[provider] ? "text" : "password"}
+                                value={providerApiKeys[provider]}
+                                onChange={(e) =>
+                                  setProviderApiKeys((prev) => ({
+                                    ...prev,
+                                    [provider]: e.target.value,
+                                  }))
+                                }
+                                disabled={config?.hasApiKey && !unlockedProviders[provider]}
+                                placeholder={
+                                  config?.hasApiKey
+                                    ? (unlockedProviders[provider] ? "Enter new API key to update" : "API key is configured (unlock to edit)")
+                                    : `Enter your ${info.name} API key (${info.placeholder})`
+                                }
+                                className={`w-full px-3 py-2 border rounded-lg focus:border-blue-500 focus:outline-none font-mono text-sm placeholder:text-gray-400 ${config?.hasApiKey && !unlockedProviders[provider]
+                                  ? "bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed"
+                                  : "border-slate-300 bg-white"
+                                  }`}
+                              />
+                              {config?.hasApiKey && !unlockedProviders[provider] && (
+                                <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-green-500" />
+                              )}
+                            </div>
+
+                            {/* Help link */}
+                            <a
+                              href={info.helpLink}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 hover:underline transition-colors mt-1"
+                            >
+                              How to get your {info.name} API key?
+                            </a>
                           </div>
 
                           {/* Model Override */}
@@ -447,11 +501,10 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             {/* Message */}
             {message && (
               <div
-                className={`flex items-center gap-2 p-3 rounded-lg ${
-                  message.type === "success"
-                    ? "bg-green-50 text-green-800 border border-green-200"
-                    : "bg-red-50 text-red-800 border border-red-200"
-                }`}
+                className={`flex items-center gap-2 p-3 rounded-lg ${message.type === "success"
+                  ? "bg-green-50 text-green-800 border border-green-200"
+                  : "bg-red-50 text-red-800 border border-red-200"
+                  }`}
               >
                 {message.type === "success" ? (
                   <CheckCircle2 className="w-5 h-5" />
