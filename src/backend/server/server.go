@@ -399,7 +399,7 @@ func (s *Server) versionHandler(w http.ResponseWriter, r *http.Request) {
 
 	response := map[string]string{
 		"version": s.version,
-		"service": "Yaak Privacy Proxy",
+		"service": "Kiji Privacy Proxy",
 	}
 
 	if err := json.NewEncoder(w).Encode(response); err != nil {
@@ -692,7 +692,7 @@ func (s *Server) handleCACert(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/x-pem-file")
-	w.Header().Set("Content-Disposition", "attachment; filename=yaak-proxy-ca-cert.pem")
+	w.Header().Set("Content-Disposition", "attachment; filename=kiji-proxy-ca-cert.pem")
 	w.WriteHeader(http.StatusOK)
 	if _, err := w.Write(data); err != nil {
 		log.Printf("Failed to write CA certificate: %v", err)

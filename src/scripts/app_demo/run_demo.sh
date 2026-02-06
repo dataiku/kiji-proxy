@@ -6,7 +6,7 @@ set -e
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 echo "Building demo Docker image..."
-docker build -f "$SCRIPT_DIR/Dockerfile.demo" -t yaak-proxy-demo "$SCRIPT_DIR"
+docker build -f "$SCRIPT_DIR/Dockerfile.demo" -t kiji-proxy-demo "$SCRIPT_DIR"
 
 echo ""
 echo "Starting demo server on http://localhost:8888"
@@ -20,4 +20,4 @@ echo ""
 echo "Press Ctrl+C to stop the demo server"
 echo ""
 
-docker run --rm -p 8888:8888 --name yaak-demo yaak-proxy-demo
+docker run --rm -p 8888:8888 --name kiji-demo kiji-proxy-demo

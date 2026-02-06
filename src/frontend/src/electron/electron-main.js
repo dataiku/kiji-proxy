@@ -46,7 +46,7 @@ const getGoBinaryPath = () => {
       "..",
       "..",
       "build",
-      "yaak-proxy"
+      "kiji-proxy"
     );
     console.log("[DEBUG] Development mode - checking for binary at:", devPath);
     if (fs.existsSync(devPath)) {
@@ -67,7 +67,7 @@ const getGoBinaryPath = () => {
   if (process.platform === "darwin") {
     // app.getAppPath() returns the path to the app bundle's Contents/Resources/app.asar or Contents/Resources/app
     const resourcesPath = process.resourcesPath || app.getAppPath();
-    const binaryPath = path.join(resourcesPath, "resources", "yaak-proxy");
+    const binaryPath = path.join(resourcesPath, "resources", "kiji-proxy");
 
     console.log("[DEBUG] Checking primary path:", binaryPath);
     // If not found, try alternative paths
@@ -77,7 +77,7 @@ const getGoBinaryPath = () => {
     }
 
     // Try without 'resources' subdirectory (if resources are at root)
-    const altPath = path.join(resourcesPath, "yaak-proxy");
+    const altPath = path.join(resourcesPath, "kiji-proxy");
     console.log("[DEBUG] Checking alternative path:", altPath);
     if (fs.existsSync(altPath)) {
       console.log("[DEBUG] ✅ Binary found at:", altPath);
@@ -101,7 +101,7 @@ const getGoBinaryPath = () => {
 
   // For other platforms or if not found
   const resourcesPath = process.resourcesPath || app.getAppPath();
-  const finalPath = path.join(resourcesPath, "resources", "yaak-proxy");
+  const finalPath = path.join(resourcesPath, "resources", "kiji-proxy");
   console.log(
     "[DEBUG] ⚠️ Binary not found, returning default path:",
     finalPath
@@ -339,22 +339,22 @@ function createTray() {
     // Mark as template image for automatic dark mode adaptation
     resizedIcon.setTemplateImage(true);
     tray = new Tray(resizedIcon);
-    tray.setToolTip("Yaak Privacy Proxy");
+    tray.setToolTip("Kiji Privacy Proxy");
   } else {
     tray = new Tray(icon);
-    tray.setToolTip("Yaak Privacy Proxy");
+    tray.setToolTip("Kiji Privacy Proxy");
   }
 
   // Build context menu
   const contextMenu = Menu.buildFromTemplate([
     {
-      label: "Open Yaak Proxy",
+      label: "Open Kiji Privacy Proxy",
       click: () => {
         showMainWindow();
       },
     },
     {
-      label: "About Yaak Proxy",
+      label: "About Kiji Privacy Proxy",
       click: () => {
         showMainWindow();
         // Send IPC to open about dialog after a short delay to ensure window is ready
@@ -394,7 +394,7 @@ function createTray() {
       label: "Documentation",
       click: () => {
         require("electron").shell.openExternal(
-          "https://github.com/hanneshapke/yaak-proxy/blob/main/docs/README.md"
+          "https://github.com/hanneshapke/kiji-proxy/blob/main/docs/README.md"
         );
       },
     },
@@ -402,7 +402,7 @@ function createTray() {
       label: "File a Bug Report",
       click: () => {
         require("electron").shell.openExternal(
-          "https://github.com/hanneshapke/yaak-proxy/issues/new?template=10_bug_report.yml"
+          "https://github.com/hanneshapke/kiji-proxy/issues/new?template=10_bug_report.yml"
         );
       },
     },
@@ -410,7 +410,7 @@ function createTray() {
       label: "Request a Feature",
       click: () => {
         require("electron").shell.openExternal(
-          "https://github.com/hanneshapke/yaak-proxy/discussions/new/choose"
+          "https://github.com/hanneshapke/kiji-proxy/discussions/new/choose"
         );
       },
     },
@@ -424,7 +424,7 @@ function createTray() {
     },
     { type: "separator" },
     {
-      label: "Quit Yaak Proxy",
+      label: "Quit Kiji Privacy Proxy",
       click: () => {
         app.quit();
       },
@@ -632,7 +632,7 @@ function createMenu() {
       label: "Help",
       submenu: [
         {
-          label: "About Yaak Proxy",
+          label: "About Kiji Privacy Proxy",
           click: () => {
             if (mainWindow) {
               mainWindow.webContents.send("open-about");
@@ -736,7 +736,7 @@ app.whenReady().then(() => {
 // Keep app running in menu bar even when all windows are closed
 app.on("window-all-closed", () => {
   // Don't quit - the tray icon keeps the app running
-  // Users must explicitly choose "Quit Yaak Proxy" from the tray menu
+  // Users must explicitly choose "Quit Kiji Privacy Proxy" from the tray menu
 });
 
 // Handle app quitting

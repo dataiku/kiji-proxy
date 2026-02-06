@@ -9,7 +9,7 @@ import {
   Flag,
 } from "lucide-react";
 import logoImage from "../../assets/logo.png";
-import yaakMascot from "../../assets/yaak.png";
+import kijiMascot from "../../assets/yaak.png";
 import SettingsModal from "./modals/SettingsModal";
 import LoggingModal from "./modals/LoggingModal";
 import AboutModal from "./modals/AboutModal";
@@ -187,7 +187,10 @@ export default function PrivacyProxyUI() {
   // Calculate average confidence
   const averageConfidence = useMemo(() => {
     if (detectedEntities.length === 0) return 0;
-    const sum = detectedEntities.reduce((acc, entity) => acc + (entity.confidence || 0), 0);
+    const sum = detectedEntities.reduce(
+      (acc, entity) => acc + (entity.confidence || 0),
+      0
+    );
     return sum / detectedEntities.length;
   }, [detectedEntities]);
 
@@ -962,7 +965,7 @@ export default function PrivacyProxyUI() {
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center animate-fade-in">
           <div className="flex flex-col items-center gap-4">
             <img
-              src={yaakMascot}
+              src={kijiMascot}
               alt="Yaak mascot"
               className="w-32 h-32 animate-bounce-slow drop-shadow-2xl"
             />
@@ -978,14 +981,18 @@ export default function PrivacyProxyUI() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div
-          className={`sticky top-0 z-40 transition-all duration-300 -mx-4 md:-mx-8 px-4 md:px-8 py-4 mb-8 ${isScrolled
-            ? "bg-white/80 backdrop-blur-md shadow-md py-2 border-b border-slate-200"
-            : "bg-transparent"
-            }`}
+          className={`sticky top-0 z-40 transition-all duration-300 -mx-4 md:-mx-8 px-4 md:px-8 py-4 mb-8 ${
+            isScrolled
+              ? "bg-white/80 backdrop-blur-md shadow-md py-2 border-b border-slate-200"
+              : "bg-transparent"
+          }`}
         >
           <div className="relative">
             {isElectron && (
-              <div className="absolute left-0 top-1/2 -translate-y-1/2 z-50" ref={menuRef}>
+              <div
+                className="absolute left-0 top-1/2 -translate-y-1/2 z-50"
+                ref={menuRef}
+              >
                 <button
                   onClick={() => setIsMenuOpen(!isMenuOpen)}
                   className="p-2 text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
@@ -1023,17 +1030,31 @@ export default function PrivacyProxyUI() {
                       className="w-full text-left px-4 py-3 text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2 last:rounded-b-lg"
                     >
                       <Info className="w-4 h-4" />
-                      About Yaak Proxy
+                      About Kiji Privacy Proxy
                     </button>
                   </div>
                 )}
               </div>
             )}
-            <div className={`flex flex-col items-center justify-center transition-all duration-300 ${isScrolled ? "scale-90" : "scale-100"}`}>
+            <div
+              className={`flex flex-col items-center justify-center transition-all duration-300 ${
+                isScrolled ? "scale-90" : "scale-100"
+              }`}
+            >
               <div className="flex items-center justify-center gap-3">
-                <img src={logoImage} alt="Yaak Logo" className={`transition-all duration-300 ${isScrolled ? "w-8 h-8" : "w-12 h-12"}`} />
-                <h1 className={`font-bold text-slate-800 transition-all duration-300 ${isScrolled ? "text-2xl" : "text-4xl"}`}>
-                  Yaak Privacy Proxy
+                <img
+                  src={logoImage}
+                  alt="Yaak Logo"
+                  className={`transition-all duration-300 ${
+                    isScrolled ? "w-8 h-8" : "w-12 h-12"
+                  }`}
+                />
+                <h1
+                  className={`font-bold text-slate-800 transition-all duration-300 ${
+                    isScrolled ? "text-2xl" : "text-4xl"
+                  }`}
+                >
+                  Kiji Privacy Proxy
                 </h1>
               </div>
               {!isScrolled && (
@@ -1218,7 +1239,9 @@ export default function PrivacyProxyUI() {
                 </div>
                 <div className="flex flex-col">
                   <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
-                    <span>Request submitted with personal information removed</span>
+                    <span>
+                      Request submitted with personal information removed
+                    </span>
                     <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded">
                       PII Protected
                     </span>
@@ -1237,14 +1260,15 @@ export default function PrivacyProxyUI() {
                 </div>
               </div>
 
-
               {/* Divider */}
               <div className="my-6 border-t-2 border-slate-200"></div>
 
               {/* Output Diff */}
               <h2 className="text-xl font-semibold text-slate-800 mb-4 flex items-center gap-2">
                 <AlertCircle className="w-5 h-5 text-blue-600" />
-                {isElectron ? `What ${PROVIDER_NAMES[activeProvider]} returned` : "What the LLM returned"}
+                {isElectron
+                  ? `What ${PROVIDER_NAMES[activeProvider]} returned`
+                  : "What the LLM returned"}
               </h2>
               <div className="grid md:grid-cols-2 gap-4">
                 <div className="flex flex-col">
@@ -1268,7 +1292,9 @@ export default function PrivacyProxyUI() {
                 </div>
                 <div className="flex flex-col">
                   <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
-                    <span>Request received with personal information restored</span>
+                    <span>
+                      Request received with personal information restored
+                    </span>
                     <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">
                       Restored
                     </span>
@@ -1301,60 +1327,66 @@ export default function PrivacyProxyUI() {
             </div>
 
             {/* Transformation Summary */}
-            {false && (<div className="bg-gradient-to-r from-slate-50 to-slate-100 rounded-xl shadow-lg p-6">
-              <h3 className="text-lg font-semibold text-slate-800 mb-4">
-                Transformation Summary
-              </h3>
-              <div className="grid md:grid-cols-3 gap-4">
-                <div className="bg-white rounded-lg p-4 border-l-4 border-amber-500">
-                  <div className="text-2xl font-bold text-slate-800">
-                    {detectedEntities.length}
+            {false && (
+              <div className="bg-gradient-to-r from-slate-50 to-slate-100 rounded-xl shadow-lg p-6">
+                <h3 className="text-lg font-semibold text-slate-800 mb-4">
+                  Transformation Summary
+                </h3>
+                <div className="grid md:grid-cols-3 gap-4">
+                  <div className="bg-white rounded-lg p-4 border-l-4 border-amber-500">
+                    <div className="text-2xl font-bold text-slate-800">
+                      {detectedEntities.length}
+                    </div>
+                    <div className="text-sm text-slate-600">
+                      Entities Detected
+                    </div>
                   </div>
-                  <div className="text-sm text-slate-600">
-                    Entities Detected
+                  <div className="bg-white rounded-lg p-4 border-l-4 border-green-500">
+                    <div className="text-2xl font-bold text-slate-800">
+                      100%
+                    </div>
+                    <div className="text-sm text-slate-600">PII Protected</div>
+                  </div>
+                  <div className="bg-white rounded-lg p-4 border-l-4 border-blue-500">
+                    <div className="text-2xl font-bold text-slate-800">
+                      {detectedEntities.length > 0
+                        ? (
+                            (detectedEntities.reduce(
+                              (sum, e) => sum + (e.confidence || 0),
+                              0
+                            ) /
+                              detectedEntities.length) *
+                            100
+                          ).toFixed(1)
+                        : 0}
+                      %
+                    </div>
+                    <div className="text-sm text-slate-600">
+                      Avg. Confidence
+                    </div>
                   </div>
                 </div>
-                <div className="bg-white rounded-lg p-4 border-l-4 border-green-500">
-                  <div className="text-2xl font-bold text-slate-800">100%</div>
-                  <div className="text-sm text-slate-600">PII Protected</div>
-                </div>
-                <div className="bg-white rounded-lg p-4 border-l-4 border-blue-500">
-                  <div className="text-2xl font-bold text-slate-800">
-                    {detectedEntities.length > 0
-                      ? (
-                          (detectedEntities.reduce(
-                            (sum, e) => sum + (e.confidence || 0),
-                            0
-                          ) /
-                            detectedEntities.length) *
-                          100
-                        ).toFixed(1)
-                      : 0}
-                    %
-                  </div>
-                  <div className="text-sm text-slate-600">Avg. Confidence</div>
-                </div>
-              </div>
 
-              {/* Report Misclassification Button */}
-              <div className="mt-6 flex justify-center">
-                <button
-                  onClick={handleReportMisclassification}
-                  className="flex items-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-colors shadow-md hover:shadow-lg"
-                  title="Report incorrect PII classification"
-                >
-                  <Flag className="w-5 h-5" />
-                  Report Misclassification
-                </button>
+                {/* Report Misclassification Button */}
+                <div className="mt-6 flex justify-center">
+                  <button
+                    onClick={handleReportMisclassification}
+                    className="flex items-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-colors shadow-md hover:shadow-lg"
+                    title="Report incorrect PII classification"
+                  >
+                    <Flag className="w-5 h-5" />
+                    Report Misclassification
+                  </button>
+                </div>
               </div>
-            </div>)}
+            )}
           </div>
         )}
 
         {/* Info Footer */}
         <div className="mt-8 text-center text-sm text-slate-500">
           <p>
-            Yaak Privacy Proxy - Made by Dataiku's Open Source Lab
+            Kiji Privacy Proxy - Made by 575 Lab - Dataiku's Open Source Office
             {version && (
               <span className="ml-2 text-xs text-slate-400">v{version}</span>
             )}

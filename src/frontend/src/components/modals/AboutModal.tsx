@@ -42,7 +42,7 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
           <div className="flex items-center gap-3">
             <Info className="w-6 h-6 text-blue-600" />
             <h2 className="text-xl font-semibold text-slate-800">
-              About Yaak Proxy
+              About Kiji Privacy Proxy
             </h2>
           </div>
           <button
@@ -60,7 +60,7 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
           <div className="flex flex-col items-center text-center">
             <img src={logoImage} alt="Yaak Logo" className="w-20 h-20 mb-4" />
             <h3 className="text-2xl font-bold text-slate-800">
-              Yaak Privacy Proxy
+              Kiji Privacy Proxy
             </h3>
             <p className="text-slate-600 mt-2">
               PII Detection and Masking Proxy
@@ -82,7 +82,7 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
           {/* Description */}
           <div className="text-sm text-slate-600 space-y-2">
             <p>
-              Yaak Privacy Proxy automatically detects and masks personally
+              Kiji Privacy Proxy automatically detects and masks personally
               identifiable information (PII) in your API requests, ensuring data
               privacy when interacting with external services.
             </p>
@@ -91,7 +91,7 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
           {/* Links */}
           <div className="space-y-2">
             <a
-              href="https://github.com/hannes/yaak-proxy/"
+              href="https://github.com/dataiku/kiji-proxy/"
               target="_blank"
               rel="noopener noreferrer"
               className="block text-sm text-blue-600 hover:text-blue-700 hover:underline"
@@ -99,7 +99,7 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
               View on GitHub →
             </a>
             <a
-              href="https://github.com/hanneshapke/yaak-proxy/blob/main/docs/README.md"
+              href="https://github.com/hanneshapke/kiji-proxy/blob/main/docs/README.md"
               target="_blank"
               rel="noopener noreferrer"
               className="block text-sm text-blue-600 hover:text-blue-700 hover:underline"
@@ -107,7 +107,7 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
               Documentation →
             </a>
             <a
-              href="https://github.com/hanneshapke/yaak-proxy/issues/new?template=10_bug_report.yml"
+              href="https://github.com/hanneshapke/kiji-proxy/issues/new?template=10_bug_report.yml"
               target="_blank"
               rel="noopener noreferrer"
               className="block text-sm text-blue-600 hover:text-blue-700 hover:underline"
@@ -115,7 +115,7 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
               File a Bug Report →
             </a>
             <a
-              href="https://github.com/hanneshapke/yaak-proxy/discussions/new/choose"
+              href="https://github.com/hanneshapke/kiji-proxy/discussions/new/choose"
               target="_blank"
               rel="noopener noreferrer"
               className="block text-sm text-blue-600 hover:text-blue-700 hover:underline"
@@ -129,7 +129,7 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
               Email us →
             </a>
             <a
-              href="https://github.com/hannes/yaak-private/blob/main/LICENSE"
+              href="https://github.com/dataiku/kiji-proxy/blob/main/LICENSE"
               target="_blank"
               rel="noopener noreferrer"
               className="block text-sm text-blue-600 hover:text-blue-700 hover:underline"
@@ -147,8 +147,8 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
           {/* Copyright */}
           <div className="pt-4 border-t border-slate-200 text-center">
             <p className="text-xs text-slate-500">
-              © {new Date().getFullYear()} Dataiku Open Source Lab. All rights
-              reserved.
+              © {new Date().getFullYear()} 575 Lab - Dataiku's Open Source
+              Office. All rights reserved.
             </p>
           </div>
         </div>
