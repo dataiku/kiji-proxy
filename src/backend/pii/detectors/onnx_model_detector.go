@@ -15,8 +15,9 @@ import (
 
 // Chunking constants for processing long texts
 const (
-	maxSeqLen    = 512 // Maximum tokens per chunk (DistilBERT limit)
-	chunkOverlap = 64  // Tokens of overlap between chunks for context continuity
+	maxSeqLen           = 512  // Maximum tokens per chunk (DistilBERT limit)
+	chunkOverlap        = 64   // Tokens of overlap between chunks for context continuity
+	minEntityConfidence = 0.25 // Minimum confidence threshold for entity detection
 )
 
 // tokenChunk represents a chunk of tokens for processing
@@ -221,6 +222,34 @@ func (d *ONNXModelDetectorSimple) Detect(ctx context.Context, input DetectorInpu
 	}, nil
 }
 
+// classifyToken returns the best label and its softmax confidence for a single token's logits.
+func (d *ONNXModelDetectorSimple) classifyToken(tokenLogits []float32) (string, float64) {
+	maxProb := float64(-math.MaxFloat64)
+	bestClass := 0
+	for j, logit := range tokenLogits {
+		prob := float64(logit)
+		if prob > maxProb {
+			maxProb = prob
+			bestClass = j
+		}
+	}
+
+	classID := fmt.Sprintf("%d", bestClass)
+	label, exists := d.id2label[classID]
+	if !exists {
+		label = "O"
+	}
+
+	prob := math.Exp(maxProb)
+	var sum float64
+	for _, logit := range tokenLogits {
+		sum += math.Exp(float64(logit))
+	}
+	confidence := prob / sum
+
+	return label, confidence
+}
+
 // processOutputInline converts model output to entities (inline to avoid compilation issues)
 func (d *ONNXModelDetectorSimple) processOutputInline(originalText string, tokenIDs []uint32, offsets []tokenizers.Offset) []Entity {
 	outputData := d.outputTensor.GetData()
@@ -232,6 +261,8 @@ func (d *ONNXModelDetectorSimple) processOutputInline(originalText string, token
 		numTokens = len(offsets)
 	}
 
+	fmt.Printf("[ONNX Model Response] Processing %d tokens, output tensor size: %d, numPIILabels: %d\n", numTokens, len(outputData), d.numPIILabels)
+
 	// Group consecutive tokens with same label (B-PREFIX, I-PREFIX pattern)
 	var currentEntity *Entity
 	var currentTokens []int
@@ -242,38 +273,52 @@ func (d *ONNXModelDetectorSimple) processOutputInline(originalText string, token
 		startIdx := i * d.numPIILabels
 		endIdx := (i + 1) * d.numPIILabels
 		if endIdx > len(outputData) {
+			fmt.Printf("[ONNX Model Response] Token %d: out of bounds (startIdx=%d, endIdx=%d, outputLen=%d)\n", i, startIdx, endIdx, len(outputData))
 			break // Reached end of output data
 		}
 		tokenLogits := outputData[startIdx:endIdx]
 
-		// Find the class with highest probability
-		maxProb := float64(-math.MaxFloat64)
-		bestClass := 0
-		for j, logit := range tokenLogits {
-			prob := float64(logit)
-			if prob > maxProb {
-				maxProb = prob
-				bestClass = j
+		// Classify this token
+		label, confidence := d.classifyToken(tokenLogits)
+
+		// Log token details
+		tokenText := ""
+		if i < len(offsets) && offsets[i][0] < uint(len(originalText)) && offsets[i][1] <= uint(len(originalText)) {
+			tokenText = originalText[offsets[i][0]:offsets[i][1]]
+		}
+		fmt.Printf("[ONNX Model Response] Token %d: id=%d text=%q offset=(%d,%d) label=%q confidence=%.4f\n",
+			i, tokenIDs[i], tokenText, offsets[i][0], offsets[i][1], label, confidence)
+
+		// Log top-3 predictions for non-O tokens to help debug misclassifications
+		if label != "O" || confidence < 0.8 {
+			type logitEntry struct {
+				classID int
+				label   string
+				logit   float32
 			}
+			var top []logitEntry
+			for j, logit := range tokenLogits {
+				cID := fmt.Sprintf("%d", j)
+				cLabel, ok := d.id2label[cID]
+				if !ok {
+					cLabel = fmt.Sprintf("UNKNOWN_%d", j)
+				}
+				top = append(top, logitEntry{j, cLabel, logit})
+			}
+			sort.Slice(top, func(a, b int) bool { return top[a].logit > top[b].logit })
+			n := 3
+			if len(top) < n {
+				n = len(top)
+			}
+			fmt.Printf("[ONNX Model Response]   Top-%d predictions: ", n)
+			for k := 0; k < n; k++ {
+				fmt.Printf("%s(id=%d logit=%.4f) ", top[k].label, top[k].classID, top[k].logit)
+			}
+			fmt.Println()
 		}
-
-		// Convert class ID to label
-		classID := fmt.Sprintf("%d", bestClass)
-		label, exists := d.id2label[classID]
-		if !exists {
-			label = "O"
-		}
-
-		// Convert logits to probability (softmax)
-		prob := math.Exp(maxProb)
-		var sum float64
-		for _, logit := range tokenLogits {
-			sum += math.Exp(float64(logit))
-		}
-		confidence := prob / sum
 
 		// Only process tokens with reasonable confidence
-		if confidence < 0.5 {
+		if confidence < minEntityConfidence {
 			label = "O"
 		}
 
@@ -320,6 +365,12 @@ func (d *ONNXModelDetectorSimple) processOutputInline(originalText string, token
 	if currentEntity != nil {
 		d.finalizeEntity(currentEntity, currentTokens, originalText, offsets)
 		entities = append(entities, *currentEntity)
+	}
+
+	fmt.Printf("[ONNX Model Response] Extracted %d entities from chunk:\n", len(entities))
+	for i, e := range entities {
+		fmt.Printf("[ONNX Model Response]   Entity %d: label=%q text=%q pos=(%d,%d) confidence=%.4f\n",
+			i, e.Label, e.Text, e.StartPos, e.EndPos, e.Confidence)
 	}
 
 	return entities
