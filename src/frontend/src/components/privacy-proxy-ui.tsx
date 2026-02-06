@@ -9,7 +9,7 @@ import {
   Flag,
 } from "lucide-react";
 import logoImage from "../../assets/logo.png";
-import kijiMascot from "../../assets/kiji.png";
+import kijiMascot from "../../assets/yaak.png";
 import SettingsModal from "./modals/SettingsModal";
 import LoggingModal from "./modals/LoggingModal";
 import AboutModal from "./modals/AboutModal";
