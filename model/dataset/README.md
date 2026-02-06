@@ -38,8 +38,7 @@ model/dataset/
 │
 ├── label_utils.py               # PII label definitions and utilities
 ├── file_operations.py           # File I/O utilities
-├── tokenization.py              # Tokenization for training samples
-└── upload_to_s3.py              # Upload samples to S3
+└── tokenization.py              # Tokenization for training samples
 ```
 
 ## Quick Start
