@@ -9,7 +9,7 @@ import {
   Flag,
 } from "lucide-react";
 import logoImage from "../../assets/logo.png";
-import yaakMascot from "../../assets/yaak.png";
+import kijiMascot from "../../assets/kiji.png";
 import SettingsModal from "./modals/SettingsModal";
 import LoggingModal from "./modals/LoggingModal";
 import AboutModal from "./modals/AboutModal";
@@ -965,7 +965,7 @@ export default function PrivacyProxyUI() {
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center animate-fade-in">
           <div className="flex flex-col items-center gap-4">
             <img
-              src={yaakMascot}
+              src={kijiMascot}
               alt="Yaak mascot"
               className="w-32 h-32 animate-bounce-slow drop-shadow-2xl"
             />

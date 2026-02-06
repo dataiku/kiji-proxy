@@ -11,7 +11,7 @@ echo "🔨 Building single self-contained binary"
 echo "=========================================="
 
 # Set build variables
-BINARY_NAME="yaak-proxy"
+BINARY_NAME="kiji-proxy"
 BUILD_DIR="build"
 DIST_DIR="build/dist"
 MAIN_FILE="src/backend/main.go"
@@ -94,9 +94,6 @@ ONNX_LIB_PATH=""
 if [ -f "build/$ONNX_LIB_NAME" ]; then
     # Check build/ folder first
     ONNX_LIB_PATH="build/$ONNX_LIB_NAME"
-elif [ -f "/Users/hannes/Private/yaak-proxy/.venv/lib/python3.13/site-packages/onnxruntime/capi/$ONNX_LIB_NAME" ]; then
-    # Fallback to hardcoded path (for backwards compatibility)
-    ONNX_LIB_PATH="/Users/hannes/Private/yaak-proxy/.venv/lib/python3.13/site-packages/onnxruntime/capi/$ONNX_LIB_NAME"
 elif [ -d ".venv" ]; then
     # Try to find in .venv
     FOUND_LIB=$(find .venv -name "libonnxruntime*.dylib" | head -1)
@@ -130,7 +127,7 @@ cat > "$DIST_ROOT/run.sh" << 'EOF'
 export ONNXRUNTIME_SHARED_LIBRARY_PATH="./libonnxruntime.1.23.1.dylib"
 
 # Run the binary
-./yaak-proxy "$@"
+./kiji-proxy "$@"
 EOF
 
 chmod +x "$DIST_ROOT/run.sh"
@@ -148,7 +145,7 @@ This is a self-contained distribution of Yaak Proxy with embedded UI and all dep
 - ✅ All Go dependencies statically linked
 
 ## Files:
-- `yaak-proxy`: The main executable with embedded UI and model files
+- `kiji-proxy`: The main executable with embedded UI and model files
 - `libonnxruntime.1.23.1.dylib`: ONNX Runtime shared library
 - `quantized/`: ONNX model files (for ONNX runtime access)
 - `run.sh`: Startup script
@@ -161,7 +158,7 @@ This is a self-contained distribution of Yaak Proxy with embedded UI and all dep
 Or run directly:
 ```bash
 export ONNXRUNTIME_SHARED_LIBRARY_PATH="./libonnxruntime.1.23.1.dylib"
-./yaak-proxy
+./kiji-proxy
 ```
 
 ## Requirements:

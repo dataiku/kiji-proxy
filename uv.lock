@@ -4687,7 +4687,7 @@ wheels = [
 ]
 
 [[package]]
-name = "yaak-proxy"
+name = "kiji-proxy"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

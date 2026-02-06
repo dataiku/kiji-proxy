@@ -91,7 +91,7 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
           {/* Links */}
           <div className="space-y-2">
             <a
-              href="https://github.com/hannes/yaak-proxy/"
+              href="https://github.com/dataiku/kiji-proxy/"
               target="_blank"
               rel="noopener noreferrer"
               className="block text-sm text-blue-600 hover:text-blue-700 hover:underline"
@@ -99,7 +99,7 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
               View on GitHub →
             </a>
             <a
-              href="https://github.com/hanneshapke/yaak-proxy/blob/main/docs/README.md"
+              href="https://github.com/hanneshapke/kiji-proxy/blob/main/docs/README.md"
               target="_blank"
               rel="noopener noreferrer"
               className="block text-sm text-blue-600 hover:text-blue-700 hover:underline"
@@ -107,7 +107,7 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
               Documentation →
             </a>
             <a
-              href="https://github.com/hanneshapke/yaak-proxy/issues/new?template=10_bug_report.yml"
+              href="https://github.com/hanneshapke/kiji-proxy/issues/new?template=10_bug_report.yml"
               target="_blank"
               rel="noopener noreferrer"
               className="block text-sm text-blue-600 hover:text-blue-700 hover:underline"
@@ -115,7 +115,7 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
               File a Bug Report →
             </a>
             <a
-              href="https://github.com/hanneshapke/yaak-proxy/discussions/new/choose"
+              href="https://github.com/hanneshapke/kiji-proxy/discussions/new/choose"
               target="_blank"
               rel="noopener noreferrer"
               className="block text-sm text-blue-600 hover:text-blue-700 hover:underline"
@@ -129,7 +129,7 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
               Email us →
             </a>
             <a
-              href="https://github.com/hannes/yaak-private/blob/main/LICENSE"
+              href="https://github.com/dataiku/kiji-proxy/blob/main/LICENSE"
               target="_blank"
               rel="noopener noreferrer"
               className="block text-sm text-blue-600 hover:text-blue-700 hover:underline"

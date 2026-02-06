@@ -692,7 +692,7 @@ func (s *Server) handleCACert(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/x-pem-file")
-	w.Header().Set("Content-Disposition", "attachment; filename=yaak-proxy-ca-cert.pem")
+	w.Header().Set("Content-Disposition", "attachment; filename=kiji-proxy-ca-cert.pem")
 	w.WriteHeader(http.StatusOK)
 	if _, err := w.Write(data); err != nil {
 		log.Printf("Failed to write CA certificate: %v", err)

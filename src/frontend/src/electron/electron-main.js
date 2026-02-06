@@ -46,7 +46,7 @@ const getGoBinaryPath = () => {
       "..",
       "..",
       "build",
-      "yaak-proxy"
+      "kiji-proxy"
     );
     console.log("[DEBUG] Development mode - checking for binary at:", devPath);
     if (fs.existsSync(devPath)) {
@@ -67,7 +67,7 @@ const getGoBinaryPath = () => {
   if (process.platform === "darwin") {
     // app.getAppPath() returns the path to the app bundle's Contents/Resources/app.asar or Contents/Resources/app
     const resourcesPath = process.resourcesPath || app.getAppPath();
-    const binaryPath = path.join(resourcesPath, "resources", "yaak-proxy");
+    const binaryPath = path.join(resourcesPath, "resources", "kiji-proxy");
 
     console.log("[DEBUG] Checking primary path:", binaryPath);
     // If not found, try alternative paths
@@ -77,7 +77,7 @@ const getGoBinaryPath = () => {
     }
 
     // Try without 'resources' subdirectory (if resources are at root)
-    const altPath = path.join(resourcesPath, "yaak-proxy");
+    const altPath = path.join(resourcesPath, "kiji-proxy");
     console.log("[DEBUG] Checking alternative path:", altPath);
     if (fs.existsSync(altPath)) {
       console.log("[DEBUG] ✅ Binary found at:", altPath);
@@ -101,7 +101,7 @@ const getGoBinaryPath = () => {
 
   // For other platforms or if not found
   const resourcesPath = process.resourcesPath || app.getAppPath();
-  const finalPath = path.join(resourcesPath, "resources", "yaak-proxy");
+  const finalPath = path.join(resourcesPath, "resources", "kiji-proxy");
   console.log(
     "[DEBUG] ⚠️ Binary not found, returning default path:",
     finalPath
@@ -394,7 +394,7 @@ function createTray() {
       label: "Documentation",
       click: () => {
         require("electron").shell.openExternal(
-          "https://github.com/hanneshapke/yaak-proxy/blob/main/docs/README.md"
+          "https://github.com/hanneshapke/kiji-proxy/blob/main/docs/README.md"
         );
       },
     },
@@ -402,7 +402,7 @@ function createTray() {
       label: "File a Bug Report",
       click: () => {
         require("electron").shell.openExternal(
-          "https://github.com/hanneshapke/yaak-proxy/issues/new?template=10_bug_report.yml"
+          "https://github.com/hanneshapke/kiji-proxy/issues/new?template=10_bug_report.yml"
         );
       },
     },
@@ -410,7 +410,7 @@ function createTray() {
       label: "Request a Feature",
       click: () => {
         require("electron").shell.openExternal(
-          "https://github.com/hanneshapke/yaak-proxy/discussions/new/choose"
+          "https://github.com/hanneshapke/kiji-proxy/discussions/new/choose"
         );
       },
     },

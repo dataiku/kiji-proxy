@@ -13,7 +13,7 @@ exports.default = async function notarizing(context) {
 
   console.log(`Notarizing ${appPath}...`);
   await notarize({
-    appBundleId: "com.yaak.proxy",
+    appBundleId: "com.kiji.proxy",
     appPath,
     appleId: process.env.APPLE_ID,
     appleIdPassword: process.env.APPLE_APP_SPECIFIC_PASSWORD,
