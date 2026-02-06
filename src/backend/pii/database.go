@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	detectors "github.com/hannes/kiji-private/src/backend/pii/detectors"
@@ -54,6 +55,9 @@ const (
 	MaxLogMessageSize = 50 * 1024 // 50KB per message
 	// DefaultMaxMappingEntries is the default maximum number of PII mappings to retain
 	DefaultMaxMappingEntries = 10000
+
+	roleAssistant = "assistant"
+	roleUser      = "user"
 )
 
 // LoggingDB defines the interface for logging operations
@@ -306,37 +310,35 @@ func (s *SQLitePIIMappingDB) InsertLog(ctx context.Context, message string, dire
 		return fmt.Errorf("failed to marshal detected PII: %w", err)
 	}
 
-	// Try to parse as OpenAI message format
-	messages, model := parseOpenAIFromMessage(message, direction)
+	// Parse provider-specific message structures for better log display.
+	messages, model := parseMessagesFromLogMessage(message, direction)
 
 	blockedInt := 0
 	if blocked {
 		blockedInt = 1
 	}
 
+	var messagesValue interface{}
 	if len(messages) > 0 {
 		messagesJSON, err := json.Marshal(messages)
 		if err != nil {
 			return fmt.Errorf("failed to marshal messages: %w", err)
 		}
+		messagesValue = string(messagesJSON)
+	}
 
-		query := `
-		INSERT INTO logs (timestamp, direction, message, messages, model, detected_pii, blocked)
-		VALUES (datetime('now'), ?, ?, ?, ?, ?, ?)
-		`
-		_, err = s.db.ExecContext(ctx, query, direction, message, string(messagesJSON), model, string(detectedPIIJSON), blockedInt)
-		if err != nil {
-			return fmt.Errorf("failed to insert log: %w", err)
-		}
-	} else {
-		query := `
-		INSERT INTO logs (timestamp, direction, message, detected_pii, blocked)
-		VALUES (datetime('now'), ?, ?, ?, ?)
-		`
-		_, err = s.db.ExecContext(ctx, query, direction, message, string(detectedPIIJSON), blockedInt)
-		if err != nil {
-			return fmt.Errorf("failed to insert log: %w", err)
-		}
+	var modelValue interface{}
+	if model != "" {
+		modelValue = model
+	}
+
+	query := `
+	INSERT INTO logs (timestamp, direction, message, messages, model, detected_pii, blocked)
+	VALUES (datetime('now'), ?, ?, ?, ?, ?, ?)
+	`
+	_, err = s.db.ExecContext(ctx, query, direction, message, messagesValue, modelValue, string(detectedPIIJSON), blockedInt)
+	if err != nil {
+		return fmt.Errorf("failed to insert log: %w", err)
 	}
 
 	if s.debugMode {
@@ -450,8 +452,195 @@ func formatDetectedPII(entries []LogEntry) string {
 	return result
 }
 
-// parseOpenAIFromMessage attempts to parse OpenAI message structure from JSON
-func parseOpenAIFromMessage(message string, direction string) ([]OpenAIMessage, string) {
+func parseMessageContent(content interface{}) string {
+	switch value := content.(type) {
+	case string:
+		return value
+	case []interface{}:
+		parts := make([]string, 0, len(value))
+		for _, item := range value {
+			text := parseMessageContent(item)
+			if text != "" {
+				parts = append(parts, text)
+			}
+		}
+		return strings.Join(parts, "")
+	case map[string]interface{}:
+		if text, ok := value["text"].(string); ok {
+			return text
+		}
+		if text, ok := value["content"].(string); ok {
+			return text
+		}
+		if parts, ok := value["parts"].([]interface{}); ok {
+			return parseMessageContent(parts)
+		}
+		return ""
+	default:
+		return ""
+	}
+}
+
+func extractModelFromLogPayload(data map[string]interface{}) string {
+	if model, ok := data["model"].(string); ok && model != "" {
+		return model
+	}
+	if modelVersion, ok := data["modelVersion"].(string); ok && modelVersion != "" {
+		return modelVersion
+	}
+
+	originalResponse, ok := data["original_response"].(map[string]interface{})
+	if !ok {
+		return ""
+	}
+
+	if model, ok := originalResponse["model"].(string); ok && model != "" {
+		return model
+	}
+	if modelVersion, ok := originalResponse["modelVersion"].(string); ok && modelVersion != "" {
+		return modelVersion
+	}
+
+	return ""
+}
+
+func parseRequestMessages(data map[string]interface{}) []OpenAIMessage {
+	var messages []OpenAIMessage
+
+	// OpenAI / Mistral / Anthropic request shape
+	if msgsInterface, ok := data["messages"].([]interface{}); ok {
+		for _, msgInterface := range msgsInterface {
+			msgMap, ok := msgInterface.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			msg := OpenAIMessage{Role: roleUser}
+			if role, ok := msgMap["role"].(string); ok && role != "" {
+				msg.Role = role
+			}
+			msg.Content = parseMessageContent(msgMap["content"])
+			if msg.Role != "" || msg.Content != "" {
+				messages = append(messages, msg)
+			}
+		}
+	}
+
+	// Gemini request shape
+	if len(messages) == 0 {
+		if contents, ok := data["contents"].([]interface{}); ok {
+			for _, contentInterface := range contents {
+				contentMap, ok := contentInterface.(map[string]interface{})
+				if !ok {
+					continue
+				}
+
+				msg := OpenAIMessage{Role: roleUser}
+				if role, ok := contentMap["role"].(string); ok && role != "" {
+					msg.Role = role
+				}
+				msg.Content = parseMessageContent(contentMap["parts"])
+				if msg.Role != "" || msg.Content != "" {
+					messages = append(messages, msg)
+				}
+			}
+		}
+	}
+
+	return messages
+}
+
+func parseResponseMessages(data map[string]interface{}) []OpenAIMessage {
+	var messages []OpenAIMessage
+
+	// OpenAI / Mistral response shape
+	if choices, ok := data["choices"].([]interface{}); ok {
+		for _, choiceInterface := range choices {
+			choiceMap, ok := choiceInterface.(map[string]interface{})
+			if !ok {
+				continue
+			}
+
+			if msgMap, ok := choiceMap["message"].(map[string]interface{}); ok {
+				msg := OpenAIMessage{Role: roleAssistant}
+				if role, ok := msgMap["role"].(string); ok && role != "" {
+					msg.Role = role
+				}
+				msg.Content = parseMessageContent(msgMap["content"])
+				if msg.Role != "" || msg.Content != "" {
+					messages = append(messages, msg)
+				}
+				continue
+			}
+
+			// Legacy text completion fallback.
+			if text, ok := choiceMap["text"].(string); ok && text != "" {
+				messages = append(messages, OpenAIMessage{
+					Role:    roleAssistant,
+					Content: text,
+				})
+			}
+		}
+	}
+
+	// Anthropic response shape
+	if len(messages) == 0 {
+		if content, ok := data["content"].([]interface{}); ok {
+			parts := make([]string, 0, len(content))
+			for _, item := range content {
+				itemMap, ok := item.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				itemType, _ := itemMap["type"].(string)
+				if itemType != "text" {
+					continue
+				}
+				if text, ok := itemMap["text"].(string); ok && text != "" {
+					parts = append(parts, text)
+				}
+			}
+			if len(parts) > 0 {
+				role := roleAssistant
+				if parsedRole, ok := data["role"].(string); ok && parsedRole != "" {
+					role = parsedRole
+				}
+				messages = append(messages, OpenAIMessage{
+					Role:    role,
+					Content: strings.Join(parts, ""),
+				})
+			}
+		}
+	}
+
+	// Gemini response shape
+	if len(messages) == 0 {
+		if candidates, ok := data["candidates"].([]interface{}); ok {
+			for _, candidateInterface := range candidates {
+				candidateMap, ok := candidateInterface.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				contentMap, ok := candidateMap["content"].(map[string]interface{})
+				if !ok {
+					continue
+				}
+				text := parseMessageContent(contentMap["parts"])
+				if text == "" {
+					continue
+				}
+				messages = append(messages, OpenAIMessage{
+					Role:    roleAssistant,
+					Content: text,
+				})
+			}
+		}
+	}
+
+	return messages
+}
+
+// parseMessagesFromLogMessage parses request/response payloads from supported providers.
+func parseMessagesFromLogMessage(message string, direction string) ([]OpenAIMessage, string) {
 	const MaxMessageSize = 10 * 1024 * 1024
 	if len(message) > MaxMessageSize {
 		return nil, ""
@@ -462,10 +651,7 @@ func parseOpenAIFromMessage(message string, direction string) ([]OpenAIMessage, 
 		return nil, ""
 	}
 
-	model := ""
-	if m, ok := data["model"].(string); ok {
-		model = m
-	}
+	model := extractModelFromLogPayload(data)
 
 	messages := []OpenAIMessage{}
 
@@ -476,37 +662,9 @@ func parseOpenAIFromMessage(message string, direction string) ([]OpenAIMessage, 
 		direction == "response_original" || direction == "response_masked"
 
 	if isRequest {
-		if msgsInterface, ok := data["messages"].([]interface{}); ok {
-			for _, msgInterface := range msgsInterface {
-				if msgMap, ok := msgInterface.(map[string]interface{}); ok {
-					msg := OpenAIMessage{}
-					if role, ok := msgMap["role"].(string); ok {
-						msg.Role = role
-					}
-					if content, ok := msgMap["content"].(string); ok {
-						msg.Content = content
-					}
-					messages = append(messages, msg)
-				}
-			}
-		}
+		messages = parseRequestMessages(data)
 	} else if isResponse {
-		if choicesInterface, ok := data["choices"].([]interface{}); ok {
-			for _, choiceInterface := range choicesInterface {
-				if choiceMap, ok := choiceInterface.(map[string]interface{}); ok {
-					if msgInterface, ok := choiceMap["message"].(map[string]interface{}); ok {
-						msg := OpenAIMessage{}
-						if role, ok := msgInterface["role"].(string); ok {
-							msg.Role = role
-						}
-						if content, ok := msgInterface["content"].(string); ok {
-							msg.Content = content
-						}
-						messages = append(messages, msg)
-					}
-				}
-			}
-		}
+		messages = parseResponseMessages(data)
 	}
 
 	return messages, model
