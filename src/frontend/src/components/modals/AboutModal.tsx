@@ -42,7 +42,7 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
           <div className="flex items-center gap-3">
             <Info className="w-6 h-6 text-blue-600" />
             <h2 className="text-xl font-semibold text-slate-800">
-              About Yaak Proxy
+              About Kiji Privacy Proxy
             </h2>
           </div>
           <button
@@ -147,8 +147,8 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
           {/* Copyright */}
           <div className="pt-4 border-t border-slate-200 text-center">
             <p className="text-xs text-slate-500">
-              © {new Date().getFullYear()} Dataiku Open Source Lab. All rights
-              reserved.
+              © {new Date().getFullYear()} 575 Lab - Dataiku's Open Source
+              Office. All rights reserved.
             </p>
           </div>
         </div>

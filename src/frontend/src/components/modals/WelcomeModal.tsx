@@ -2035,7 +2035,7 @@ function PIIEntities() {
       />
 
       <PaneTitle
-        subtitle="Yaak automatically detects and masks a wide range of sensitive information."
+        subtitle="Kiji automatically detects and masks a wide range of sensitive information."
         visible={visible}
       >
         <GradientText gradient={gradients.blueToPurple}>

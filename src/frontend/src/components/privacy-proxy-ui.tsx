@@ -1030,7 +1030,7 @@ export default function PrivacyProxyUI() {
                       className="w-full text-left px-4 py-3 text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2 last:rounded-b-lg"
                     >
                       <Info className="w-4 h-4" />
-                      About Yaak Proxy
+                      About Kiji Privacy Proxy
                     </button>
                   </div>
                 )}
@@ -1386,7 +1386,7 @@ export default function PrivacyProxyUI() {
         {/* Info Footer */}
         <div className="mt-8 text-center text-sm text-slate-500">
           <p>
-            Kiji Privacy Proxy - Made by Dataiku's Open Source Lab
+            Kiji Privacy Proxy - Made by 575 Lab - Dataiku's Open Source Office
             {version && (
               <span className="ml-2 text-xs text-slate-400">v{version}</span>
             )}

@@ -348,13 +348,13 @@ function createTray() {
   // Build context menu
   const contextMenu = Menu.buildFromTemplate([
     {
-      label: "Open Yaak Proxy",
+      label: "Open Kiji Privacy Proxy",
       click: () => {
         showMainWindow();
       },
     },
     {
-      label: "About Yaak Proxy",
+      label: "About Kiji Privacy Proxy",
       click: () => {
         showMainWindow();
         // Send IPC to open about dialog after a short delay to ensure window is ready
@@ -424,7 +424,7 @@ function createTray() {
     },
     { type: "separator" },
     {
-      label: "Quit Yaak Proxy",
+      label: "Quit Kiji Privacy Proxy",
       click: () => {
         app.quit();
       },
@@ -632,7 +632,7 @@ function createMenu() {
       label: "Help",
       submenu: [
         {
-          label: "About Yaak Proxy",
+          label: "About Kiji Privacy Proxy",
           click: () => {
             if (mainWindow) {
               mainWindow.webContents.send("open-about");
@@ -736,7 +736,7 @@ app.whenReady().then(() => {
 // Keep app running in menu bar even when all windows are closed
 app.on("window-all-closed", () => {
   // Don't quit - the tray icon keeps the app running
-  // Users must explicitly choose "Quit Yaak Proxy" from the tray menu
+  // Users must explicitly choose "Quit Kiji Privacy Proxy" from the tray menu
 });
 
 // Handle app quitting

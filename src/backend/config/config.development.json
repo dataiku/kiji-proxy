@@ -32,8 +32,8 @@
   "Proxy": {
     "transparent_enabled": true,
     "proxy_port": ":8081",
-    "ca_path": "",
-    "key_path": "",
+    "ca_path": "~/Library/Application Support/Kiji Privacy Proxy/certs/ca.crt",
+    "key_path": "~/Library/Application Support/Kiji Privacy Proxy/certs/ca.key",
     "enable_pac": true
   }
 }
