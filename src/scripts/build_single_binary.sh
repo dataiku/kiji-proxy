@@ -134,9 +134,9 @@ chmod +x "$DIST_ROOT/run.sh"
 
 # Create a README
 cat > "$DIST_ROOT/README.md" << 'EOF'
-# Yaak Proxy - Single Binary Distribution
+# Kiji Privacy Proxy - Single Binary Distribution
 
-This is a self-contained distribution of Yaak Proxy with embedded UI and all dependencies.
+This is a self-contained distribution of Kiji Privacy Proxy with embedded UI and all dependencies.
 
 ## Features:
 - ✅ Embedded UI (no external UI server needed)

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Stop development environment
-echo "🛑 Stopping Yaak Proxy Development Server..."
+echo "🛑 Stopping Kiji Proxy Development Server..."
 
 # Find and kill the Go process
 GO_PID=$(pgrep -f "go run src/backend/main.go")

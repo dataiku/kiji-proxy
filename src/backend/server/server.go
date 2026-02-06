@@ -177,7 +177,7 @@ func NewServerWithEmbedded(cfg *config.Config, uiFS, modelFS fs.FS, version stri
 
 // Start starts the HTTP server
 func (s *Server) Start() error {
-	log.Printf("Starting Yaak proxy service on port %s", s.config.ProxyPort)
+	log.Printf("Starting Kiji Privacy Proxy service on port %s", s.config.ProxyPort)
 	log.Printf("Forward OpenAI requests to: %s", s.config.Providers.OpenAIProviderConfig.APIDomain)
 	log.Printf("Forward Anthropic requests to: %s", s.config.Providers.AnthropicProviderConfig.APIDomain)
 	log.Printf("Forward Gemini requests to: %s", s.config.Providers.GeminiProviderConfig.APIDomain)
@@ -372,7 +372,7 @@ func (s *Server) healthCheck(w http.ResponseWriter, r *http.Request) {
 
 	response := map[string]interface{}{
 		"status":        status,
-		"service":       "Yaak Proxy Service",
+		"service":       "Kiji Privacy Proxy Service",
 		"model_healthy": modelHealthy,
 	}
 

@@ -239,11 +239,11 @@ export default function AdvancedSettingsModal({
             </div>
           </div>
 
-          {/* Load Custom Yaak PII Model */}
+          {/* Load Custom Kiji PII Model */}
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
               <Server className="w-4 h-4" />
-              Load Custom Yaak PII Model
+              Load Custom Kiji PII Model
             </label>
 
             {/* Current Model Info */}

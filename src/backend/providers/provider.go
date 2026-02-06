@@ -95,7 +95,7 @@ func (p *Providers) GetProviderFromPath(host string, path string, body *[]byte, 
 			2. request subpath
 
 		Notes:
-		- the "provider" field is specific to the Yaak proxy, and must be stripped from
+		- the "provider" field is specific to the Kiji Privacy Proxy, and must be stripped from
 			the body (as most LLM providers will fail when unexpected fields are present).
 		- some LLM providers share a subpath (e.g. OpenAI and Mistral); for such cases,
 			the provider that is selected is based on p.DefaultProviders.
