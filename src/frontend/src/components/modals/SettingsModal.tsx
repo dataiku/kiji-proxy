@@ -9,7 +9,6 @@ import {
   CheckCircle2,
   Cpu,
   Settings2,
-  FolderOpen,
   Lock,
   Unlock,
 } from "lucide-react";
