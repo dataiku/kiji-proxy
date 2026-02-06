@@ -418,7 +418,7 @@ const workflowSteps = [
   {
     number: "01",
     title: "Send Request",
-    description: "Your app sends a request to the Yaak proxy",
+    description: "Your app sends a request to the Kiji Privacy Proxy",
     icon: (
       <svg viewBox="0 0 40 40" fill="none" style={{ width: 40, height: 40 }}>
         <rect
@@ -1728,7 +1728,7 @@ function DataPipeline({ visible }: { visible: boolean }) {
    PANE COMPONENTS
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function WhyYaak() {
+function WhyKiji() {
   const [visible, setVisible] = useState(false);
   useEffect(() => {
     const t = setTimeout(() => setVisible(true), 150);
@@ -1763,7 +1763,7 @@ function WhyYaak() {
       <div style={{ marginBottom: 6 }}>
         <SectionHeader
           color={colors.red}
-          label="Without Yaak"
+          label="Without Kiji"
           visible={visible}
           delay={0.15}
         />
@@ -1825,7 +1825,7 @@ function WhyYaak() {
       <div style={{ marginBottom: 16 }}>
         <SectionHeader
           color={colors.green}
-          label="With Yaak"
+          label="With Kiji"
           visible={visible}
           delay={0.5}
         />
@@ -1901,7 +1901,7 @@ function WhyYaak() {
   );
 }
 
-function YaakWorkflow() {
+function KijiWorkflow() {
   const [animated, setAnimated] = useState(false);
   useEffect(() => {
     const t = setTimeout(() => setAnimated(true), 100);
@@ -1922,7 +1922,7 @@ function YaakWorkflow() {
       />
 
       <PaneTitle
-        subtitle="Yaak acts as a transparent proxy between your app and AI services."
+        subtitle="Kiji Privacy Proxy acts as a transparent proxy between your app and AI services."
         visible={animated}
       >
         <GradientText>How It Works</GradientText>
@@ -2219,12 +2219,12 @@ export default function WelcomeModal({ isOpen, onClose }: WelcomeModalProps) {
           <div style={{ position: "relative" }}>
             {/* Invisible spacer: always rendered to lock container height to tallest pane */}
             <div aria-hidden style={{ visibility: "hidden" }}>
-              <WhyYaak />
+              <WhyKiji />
             </div>
             {/* Active pane rendered absolutely on top */}
             <div style={{ position: "absolute", top: 0, left: 0, right: 0 }}>
-              {currentPane === 0 && <WhyYaak />}
-              {currentPane === 1 && <YaakWorkflow />}
+              {currentPane === 0 && <WhyKiji />}
+              {currentPane === 1 && <KijiWorkflow />}
               {currentPane === 2 && <WhatHappensToYourData />}
               {currentPane === 3 && <PIIEntities />}
             </div>
