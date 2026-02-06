@@ -632,6 +632,15 @@ function createMenu() {
       label: "Help",
       submenu: [
         {
+          label: "Start Tour",
+          click: () => {
+            if (mainWindow) {
+              mainWindow.webContents.send("open-tour");
+            }
+          },
+        },
+        { type: "separator" },
+        {
           label: "About Kiji Privacy Proxy",
           click: () => {
             if (mainWindow) {

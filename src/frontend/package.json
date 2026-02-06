@@ -29,7 +29,8 @@
     "http-proxy-middleware": "^2.0.6",
     "lucide-react": "^0.263.1",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "react-shepherd": "^6.1.9"
   },
   "devDependencies": {
     "@babel/core": "^7.22.0",
@@ -37,6 +38,7 @@
     "@babel/preset-react": "^7.22.0",
     "@babel/preset-typescript": "^7.22.0",
     "@changesets/cli": "^2.27.1",
+    "@electron/notarize": "^3.1.1",
     "@tailwindcss/postcss": "^4.1.18",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
@@ -45,7 +47,6 @@
     "autoprefixer": "^10.4.23",
     "babel-loader": "^9.1.0",
     "css-loader": "^6.8.0",
-    "@electron/notarize": "^3.1.1",
     "electron": "^40.1.0",
     "electron-builder": "^26.7.0",
     "eslint": "^9.39.2",

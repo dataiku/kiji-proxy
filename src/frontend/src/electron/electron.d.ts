@@ -82,6 +82,8 @@ interface ElectronAPI {
   removeAboutListener: () => void;
   onTermsOpen: (callback: () => void) => void;
   removeTermsListener: () => void;
+  onTourOpen: (callback: () => void) => void;
+  removeTourListener: () => void;
 }
 
 interface Window {
