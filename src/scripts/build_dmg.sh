@@ -19,7 +19,7 @@ echo "🔨 Building DMG with Go Binary and Electron App (GitHub Workflow Compati
 echo "============================================================================="
 
 # Set build variables
-BINARY_NAME="yaak-proxy"
+BINARY_NAME="kiji-proxy"
 BUILD_DIR="build"
 ELECTRON_DIR="src/frontend"
 RESOURCES_DIR="$ELECTRON_DIR/resources"
@@ -310,7 +310,7 @@ GOMAXPROCS=$PARALLEL_JOBS \
 go build \
   -tags embed \
   -ldflags="-s -w -X main.version=$VERSION -extldflags '-L./build/tokenizers'" \
-  -o build/yaak-proxy \
+  -o build/kiji-proxy \
   ./src/backend
 
 if [ $? -ne 0 ]; then
@@ -318,15 +318,15 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-echo "✅ Go binary created: build/yaak-proxy"
+echo "✅ Go binary created: build/kiji-proxy"
 
 echo ""
 echo "📦 Step 10: Preparing Electron resources..."
 echo "-------------------------------------------"
 
 mkdir -p src/frontend/resources
-cp build/yaak-proxy src/frontend/resources/yaak-proxy
-chmod +x src/frontend/resources/yaak-proxy
+cp build/kiji-proxy src/frontend/resources/kiji-proxy
+chmod +x src/frontend/resources/kiji-proxy
 
 # Copy ONNX library if it exists (to root of resources for easier access)
 if [ -f "build/libonnxruntime.1.23.1.dylib" ] || [ -L "build/libonnxruntime.1.23.1.dylib" ]; then

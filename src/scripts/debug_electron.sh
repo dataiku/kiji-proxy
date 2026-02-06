@@ -78,7 +78,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-echo -e "${BLUE}Yaak Privacy Proxy - Debug Mode${NC}"
+echo -e "${BLUE}Kiji Privacy Proxy - Debug Mode${NC}"
 echo "================================"
 echo ""
 echo "Configuration:"
@@ -106,8 +106,8 @@ if [ "$REBUILD" = true ]; then
     # Copy resources
     echo -e "${YELLOW}Preparing resources...${NC}"
     mkdir -p src/frontend/resources
-    cp build/yaak-proxy src/frontend/resources/yaak-proxy
-    chmod +x src/frontend/resources/yaak-proxy
+    cp build/kiji-proxy src/frontend/resources/kiji-proxy
+    chmod +x src/frontend/resources/kiji-proxy
 
     if [ -f "build/libonnxruntime.1.23.1.dylib" ]; then
         cp build/libonnxruntime.1.23.1.dylib src/frontend/resources/libonnxruntime.1.23.1.dylib
@@ -160,8 +160,8 @@ export ELECTRON_ENABLE_STACK_DUMPING=1
 # Memory monitoring in background
 (
     while true; do
-        if pgrep -f "Electron.*yaak" > /dev/null; then
-            PID=$(pgrep -f "Electron.*yaak" | head -1)
+        if pgrep -f "Electron.*kiji" > /dev/null; then
+            PID=$(pgrep -f "Electron.*kiji" | head -1)
             if [ -n "$PID" ]; then
                 # macOS memory stats
                 if command -v ps > /dev/null; then

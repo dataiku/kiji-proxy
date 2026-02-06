@@ -197,4 +197,4 @@ See LICENSE file in the repository root.
 
 **Documentation Version:** 1.0.0  
 **Last Updated:** 2026-01-06  
-**Maintained By:** Dataiku's Open Source Lab
+**Maintained By:** 575 Lab, Dataiku's Open Source Office

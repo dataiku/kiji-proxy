@@ -10,7 +10,7 @@ import {
   HelpCircle,
 } from "lucide-react";
 import logoImage from "../../assets/logo.png";
-import yaakMascot from "../../assets/yaak.png";
+import kijiMascot from "../../assets/yaak.png";
 import SettingsModal from "./modals/SettingsModal";
 import LoggingModal from "./modals/LoggingModal";
 import AboutModal from "./modals/AboutModal";
@@ -999,7 +999,7 @@ export default function PrivacyProxyUI() {
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center animate-fade-in">
           <div className="flex flex-col items-center gap-4">
             <img
-              src={yaakMascot}
+              src={kijiMascot}
               alt="Yaak mascot"
               className="w-32 h-32 animate-bounce-slow drop-shadow-2xl"
             />
@@ -1065,7 +1065,7 @@ export default function PrivacyProxyUI() {
                       className="w-full text-left px-4 py-3 text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
                     >
                       <Info className="w-4 h-4" />
-                      About Yaak Proxy
+                      About Kiji Privacy Proxy
                     </button>
                     <button
                       onClick={() => {
@@ -1100,7 +1100,7 @@ export default function PrivacyProxyUI() {
                     isScrolled ? "text-2xl" : "text-4xl"
                   }`}
                 >
-                  Yaak Privacy Proxy
+                  Kiji Privacy Proxy
                 </h1>
               </div>
               {!isScrolled && (
@@ -1437,7 +1437,7 @@ export default function PrivacyProxyUI() {
         {/* Info Footer */}
         <div className="mt-8 text-center text-sm text-slate-500">
           <p>
-            Yaak Privacy Proxy - Made by Dataiku's Open Source Lab
+            Kiji Privacy Proxy - Made by 575 Lab - Dataiku's Open Source Office
             {version && (
               <span className="ml-2 text-xs text-slate-400">v{version}</span>
             )}

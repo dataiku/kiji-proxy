@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# clear_logs.sh - Clear logs and PII mappings from the Yaak Privacy Proxy
+# clear_logs.sh - Clear logs and PII mappings from the Kiji Privacy Proxy
 #
 # This script clears the in-memory or database logs and PII mappings via the API endpoint.
 # Useful for freeing up memory when running the proxy for extended periods.
@@ -69,7 +69,7 @@ while [[ $# -gt 0 ]]; do
         --help|-h)
             echo "Usage: $0 [--host HOST] [--port PORT] [--force] [--logs-only] [--mappings-only] [--stats]"
             echo ""
-            echo "Clear logs and PII mappings from the Yaak Privacy Proxy."
+            echo "Clear logs and PII mappings from the Kiji Privacy Proxy."
             echo ""
             echo "Options:"
             echo "  --host HOST         Server host (default: localhost)"
@@ -100,7 +100,7 @@ LOGS_ENDPOINT="${BASE_URL}/logs"
 MAPPINGS_ENDPOINT="${BASE_URL}/mappings"
 STATS_ENDPOINT="${BASE_URL}/stats"
 
-echo -e "${YELLOW}Yaak Privacy Proxy - Storage Management${NC}"
+echo -e "${YELLOW}Kiji Privacy Proxy - Storage Management${NC}"
 echo "========================================"
 echo ""
 
@@ -110,7 +110,7 @@ if ! curl -s --connect-timeout 5 "${BASE_URL}/health" > /dev/null 2>&1; then
     echo -e "${RED}FAILED${NC}"
     echo ""
     echo "Could not connect to the server at ${BASE_URL}"
-    echo "Make sure the Yaak Privacy Proxy is running."
+    echo "Make sure the Kiji Privacy Proxy is running."
     exit 1
 fi
 echo -e "${GREEN}OK${NC}"
