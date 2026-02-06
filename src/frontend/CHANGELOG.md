@@ -1,5 +1,11 @@
 # kiji-privacy-proxy
 
+## 0.4.2
+
+### Patch Changes
+
+- 0829d60: Correcting logs for many providers
+
 ## 0.4.1
 
 ### Patch Changes
