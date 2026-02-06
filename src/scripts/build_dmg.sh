@@ -471,7 +471,7 @@ if [ -n "${CSC_LINK:-}" ]; then
     echo "   Notarization was handled by afterSign hook (if credentials were provided)"
 else
     echo "⚠️  App was NOT signed with a Developer ID certificate (ad-hoc only)"
-    echo "   Users may see 'damaged app' warning — fix with: xattr -cr /Applications/Yaak\\ Privacy\\ Proxy.app"
+    echo "   Users may see 'damaged app' warning — fix with: xattr -cr /Applications/Kiji\\ Privacy\\ Proxy.app"
 fi
 
 cd "$PROJECT_ROOT"
@@ -513,7 +513,7 @@ else
     echo "🔧 Ad-hoc signed (no Developer ID certificate)"
     echo "   If users see 'Privacy Proxy is damaged' error:"
     echo "   1. Right-click → Open → Open (recommended)"
-    echo "   2. Or run: xattr -cr /Applications/Yaak\\ Privacy\\ Proxy.app"
+    echo "   2. Or run: xattr -cr /Applications/Kiji\\ Privacy\\ Proxy.app"
 fi
 echo ""
 echo "💡 Speed Tips:"

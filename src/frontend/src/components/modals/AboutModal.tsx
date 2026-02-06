@@ -99,7 +99,7 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
               View on GitHub →
             </a>
             <a
-              href="https://github.com/hanneshapke/kiji-proxy/blob/main/docs/README.md"
+              href="https://github.com/dataiku/kiji-proxy/blob/main/docs/README.md"
               target="_blank"
               rel="noopener noreferrer"
               className="block text-sm text-blue-600 hover:text-blue-700 hover:underline"
@@ -107,7 +107,7 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
               Documentation →
             </a>
             <a
-              href="https://github.com/hanneshapke/kiji-proxy/issues/new?template=10_bug_report.yml"
+              href="https://github.com/dataiku/kiji-proxy/issues/new?template=10_bug_report.yml"
               target="_blank"
               rel="noopener noreferrer"
               className="block text-sm text-blue-600 hover:text-blue-700 hover:underline"
@@ -115,7 +115,7 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
               File a Bug Report →
             </a>
             <a
-              href="https://github.com/hanneshapke/kiji-proxy/discussions/new/choose"
+              href="https://github.com/dataiku/kiji-proxy/discussions/new/choose"
               target="_blank"
               rel="noopener noreferrer"
               className="block text-sm text-blue-600 hover:text-blue-700 hover:underline"
@@ -123,7 +123,7 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
               Request a Feature →
             </a>
             <a
-              href="mailto:opensource@dataiku.com?subject=[Yaak Proxy User]"
+              href="mailto:opensource@dataiku.com?subject=[Kiji Privacy Proxy User]"
               className="block text-sm text-blue-600 hover:text-blue-700 hover:underline"
             >
               Email us →

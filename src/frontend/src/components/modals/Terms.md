@@ -1,4 +1,4 @@
-# Terms of Use
+# Kiji Privacy Proxy - Terms of Use
 
 ## License
 
