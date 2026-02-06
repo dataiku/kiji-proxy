@@ -177,21 +177,47 @@ class LabelUtils:
         "STREET",
     ]
 
-    # Languages and their associated countries for dataset generation
+    # Languages with ISO 639-1 codes and associated countries for dataset generation
+    LANGUAGES: ClassVar[dict[str, dict]] = {
+        "English": {
+            "code": "en",
+            "countries": [
+                "United States",
+                "United Kingdom",
+                "Canada",
+                "Australia",
+                "Ireland",
+                "New Zealand",
+            ],
+        },
+        "German": {
+            "code": "de",
+            "countries": ["Germany", "Austria", "Switzerland"],
+        },
+        "French": {
+            "code": "fr",
+            "countries": ["France", "Belgium", "Canada", "Switzerland", "Luxembourg"],
+        },
+        "Spanish": {
+            "code": "es",
+            "countries": ["Spain", "Mexico", "Argentina", "Colombia", "Peru", "Chile"],
+        },
+        "Dutch": {
+            "code": "nl",
+            "countries": ["Netherlands", "Belgium"],
+        },
+        "Danish": {
+            "code": "da",
+            "countries": ["Denmark"],
+        },
+    }
+
+    # Derived lookups for convenience
     LANGUAGES_COUNTRIES: ClassVar[dict[str, list[str]]] = {
-        "English": [
-            "United States",
-            "United Kingdom",
-            "Canada",
-            "Australia",
-            "Ireland",
-            "New Zealand",
-        ],
-        "German": ["Germany", "Austria", "Switzerland"],
-        "French": ["France", "Belgium", "Canada", "Switzerland", "Luxembourg"],
-        "Spanish": ["Spain", "Mexico", "Argentina", "Colombia", "Peru", "Chile"],
-        "Dutch": ["Netherlands", "Belgium"],
-        "Danish": ["Denmark"],
+        lang: info["countries"] for lang, info in LANGUAGES.items()
+    }
+    LANGUAGE_CODES: ClassVar[dict[str, str]] = {
+        lang: info["code"] for lang, info in LANGUAGES.items()
     }
 
     @classmethod
