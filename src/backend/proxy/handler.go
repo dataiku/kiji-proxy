@@ -59,6 +59,21 @@ func (h *Handler) GetModelError() error {
 	return h.modelManager.GetLastError()
 }
 
+// SetEntityConfidenceThreshold updates the PII detection confidence threshold
+func (h *Handler) SetEntityConfidenceThreshold(threshold float64) {
+	if h.modelManager != nil {
+		h.modelManager.SetEntityConfidenceThreshold(threshold)
+	}
+}
+
+// GetEntityConfidenceThreshold returns the current PII detection confidence threshold
+func (h *Handler) GetEntityConfidenceThreshold() float64 {
+	if h.modelManager == nil {
+		return 0.25
+	}
+	return h.modelManager.GetEntityConfidenceThreshold()
+}
+
 // GetModelInfo returns information about the current model state
 func (h *Handler) GetModelInfo() map[string]interface{} {
 	if h.modelManager == nil {

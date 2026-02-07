@@ -7,6 +7,7 @@ import (
 type Detector interface {
 	GetName() string
 	Detect(ctx context.Context, input DetectorInput) (DetectorOutput, error)
+	SetEntityConfidenceThreshold(threshold float64)
 	Close() error
 }
 

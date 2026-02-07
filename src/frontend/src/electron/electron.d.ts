@@ -67,6 +67,12 @@ interface ElectronAPI {
     enabled: boolean
   ) => Promise<{ success: boolean; error?: string }>;
 
+  // PII detection confidence threshold
+  getEntityConfidence: () => Promise<number>;
+  setEntityConfidence: (
+    confidence: number
+  ) => Promise<{ success: boolean; error?: string }>;
+
   // Platform and version info
   platform: string;
   versions: {

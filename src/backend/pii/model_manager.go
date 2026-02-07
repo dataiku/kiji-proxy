@@ -13,11 +13,12 @@ import (
 
 // ModelManager manages PII model lifecycle with thread-safe hot reload capability
 type ModelManager struct {
-	mu              sync.RWMutex
-	currentDetector pii.Detector
-	modelDirectory  string
-	isHealthy       bool
-	lastError       error
+	mu                        sync.RWMutex
+	currentDetector           pii.Detector
+	modelDirectory            string
+	isHealthy                 bool
+	lastError                 error
+	entityConfidenceThreshold float64
 }
 
 // ModelConfig holds paths to required model files
@@ -30,8 +31,9 @@ type ModelConfig struct {
 // NewModelManager creates a new model manager and initializes with the given directory
 func NewModelManager(directory string) (*ModelManager, error) {
 	mm := &ModelManager{
-		modelDirectory: directory,
-		isHealthy:      false,
+		modelDirectory:            directory,
+		isHealthy:                 false,
+		entityConfidenceThreshold: 0.25,
 	}
 
 	// Perform initial load - don't fail if model can't load, just mark as unhealthy
@@ -109,8 +111,9 @@ func (mm *ModelManager) ReloadModel(newDirectory string) error {
 		return fmt.Errorf("model validation failed: %w", err)
 	}
 
-	// Step 4: Swap detectors atomically (critical section)
+	// Step 4: Apply stored confidence threshold and swap detectors atomically
 	mm.mu.Lock()
+	newDetector.SetEntityConfidenceThreshold(mm.entityConfidenceThreshold)
 	oldDetector := mm.currentDetector
 	mm.currentDetector = newDetector
 	mm.modelDirectory = newDirectory
@@ -146,14 +149,32 @@ func (mm *ModelManager) GetLastError() error {
 	return mm.lastError
 }
 
+// SetEntityConfidenceThreshold updates the confidence threshold on the model manager and current detector
+func (mm *ModelManager) SetEntityConfidenceThreshold(threshold float64) {
+	mm.mu.Lock()
+	defer mm.mu.Unlock()
+	mm.entityConfidenceThreshold = threshold
+	if mm.currentDetector != nil {
+		mm.currentDetector.SetEntityConfidenceThreshold(threshold)
+	}
+}
+
+// GetEntityConfidenceThreshold returns the current confidence threshold
+func (mm *ModelManager) GetEntityConfidenceThreshold() float64 {
+	mm.mu.RLock()
+	defer mm.mu.RUnlock()
+	return mm.entityConfidenceThreshold
+}
+
 // GetInfo returns information about the current model state
 func (mm *ModelManager) GetInfo() map[string]interface{} {
 	mm.mu.RLock()
 	defer mm.mu.RUnlock()
 
 	info := map[string]interface{}{
-		"directory": mm.modelDirectory,
-		"healthy":   mm.isHealthy,
+		"directory":  mm.modelDirectory,
+		"healthy":    mm.isHealthy,
+		"confidence": mm.entityConfidenceThreshold,
 	}
 
 	if mm.lastError != nil {

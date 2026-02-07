@@ -30,6 +30,9 @@ export default function AdvancedSettingsModal({
   const [isTogglingProxy, setIsTogglingProxy] = useState(false);
   const [isCACertSetupOpen, setIsCACertSetupOpen] = useState(false);
 
+  // PII detection confidence state
+  const [entityConfidence, setEntityConfidence] = useState(0.25);
+
   const isElectron =
     typeof window !== "undefined" && window.electronAPI !== undefined;
 
@@ -37,6 +40,7 @@ export default function AdvancedSettingsModal({
     if (isOpen && isElectron) {
       loadModelInfo();
       loadTransparentProxySetting();
+      loadEntityConfidence();
     }
   }, [isOpen, isElectron]);
 
@@ -48,6 +52,28 @@ export default function AdvancedSettingsModal({
       setTransparentProxyEnabled(enabled);
     } catch (error) {
       console.error("Error loading transparent proxy setting:", error);
+    }
+  };
+
+  const loadEntityConfidence = async () => {
+    if (!window.electronAPI) return;
+
+    try {
+      const confidence = await window.electronAPI.getEntityConfidence();
+      setEntityConfidence(confidence);
+    } catch (error) {
+      console.error("Error loading entity confidence:", error);
+    }
+  };
+
+  const handleSetEntityConfidence = async (confidence: number) => {
+    if (!window.electronAPI) return;
+
+    setEntityConfidence(confidence);
+    try {
+      await window.electronAPI.setEntityConfidence(confidence);
+    } catch (error) {
+      console.error("Error setting entity confidence:", error);
     }
   };
 
@@ -237,6 +263,40 @@ export default function AdvancedSettingsModal({
                 </p>
               </div>
             </div>
+          </div>
+
+          {/* PII Detection Sensitivity */}
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
+              <Shield className="w-4 h-4" />
+              PII Detection Sensitivity
+            </label>
+            <div className="flex rounded-lg border-2 border-slate-200 overflow-hidden">
+              {(
+                [
+                  { label: "Low", value: 0.1 },
+                  { label: "Medium", value: 0.25 },
+                  { label: "High", value: 0.5 },
+                ] as const
+              ).map(({ label, value }) => (
+                <button
+                  key={value}
+                  onClick={() => handleSetEntityConfidence(value)}
+                  className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
+                    entityConfidence === value
+                      ? "bg-blue-600 text-white"
+                      : "bg-slate-50 text-slate-700 hover:bg-slate-100"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-slate-500 mt-2">
+              Controls how aggressively PII is detected. Low catches more
+              potential PII but may have false positives. High is more precise
+              but may miss some PII.
+            </p>
           </div>
 
           {/* Load Custom Kiji PII Model */}
