@@ -375,6 +375,15 @@ func (d *ONNXModelDetectorSimple) processOutputInline(originalText string, token
 		entities = append(entities, *currentEntity)
 	}
 
+	// Filter out entities with empty text (e.g. from special tokens like [CLS]/[SEP])
+	filtered := entities[:0]
+	for _, e := range entities {
+		if e.Text != "" {
+			filtered = append(filtered, e)
+		}
+	}
+	entities = filtered
+
 	fmt.Printf("[ONNX Model Response] Extracted %d entities from chunk:\n", len(entities))
 	for i, e := range entities {
 		fmt.Printf("[ONNX Model Response]   Entity %d: label=%q text=%q pos=(%d,%d) confidence=%.4f\n",

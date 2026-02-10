@@ -12,7 +12,6 @@ import {
   Lock,
   Unlock,
 } from "lucide-react";
-import AdvancedSettingsModal from "./AdvancedSettingsModal";
 
 type ProviderType = "openai" | "anthropic" | "gemini" | "mistral";
 
@@ -68,9 +67,14 @@ const PROVIDER_ORDER: ProviderType[] = [
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onOpenAdvancedSettings: () => void;
 }
 
-export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
+export default function SettingsModal({
+  isOpen,
+  onClose,
+  onOpenAdvancedSettings,
+}: SettingsModalProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<{
@@ -122,9 +126,6 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     gemini: "",
     mistral: "",
   });
-
-  // Advanced settings modal state
-  const [isAdvancedSettingsOpen, setIsAdvancedSettingsOpen] = useState(false);
 
   const isElectron =
     typeof window !== "undefined" && window.electronAPI !== undefined;
@@ -498,7 +499,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             {/* Advanced Settings Link */}
             <div
               onClick={() => {
-                setIsAdvancedSettingsOpen(true);
+                onOpenAdvancedSettings();
                 onClose();
               }}
               className="border-2 border-slate-200 rounded-lg p-4 hover:border-slate-300 hover:bg-slate-50 transition-colors cursor-pointer"
@@ -560,12 +561,6 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           </div>
         )}
       </div>
-
-      {/* Advanced Settings Modal */}
-      <AdvancedSettingsModal
-        isOpen={isAdvancedSettingsOpen}
-        onClose={() => setIsAdvancedSettingsOpen(false)}
-      />
     </div>
   );
 }

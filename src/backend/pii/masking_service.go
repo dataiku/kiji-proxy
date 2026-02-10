@@ -86,6 +86,9 @@ func (s *MaskingService) MaskText(text string, logPrefix string) MaskedResult {
 	// Replace PII with masked text and create mapping
 	for _, entity := range entities {
 		originalText := entity.Text
+		if originalText == "" {
+			continue
+		}
 		maskedEntityText := s.generator.GenerateReplacement(entity.Label, originalText)
 
 		// Store mapping for restoration
