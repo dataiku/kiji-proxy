@@ -21,6 +21,7 @@ Sentry.init({
 });
 
 let mainWindow;
+let splashWindow = null;
 let goProcess = null;
 let tray = null;
 
@@ -308,6 +309,46 @@ const stopGoBinary = () => {
   }
 };
 
+// Wait for the Go backend to be ready by polling the health endpoint
+const waitForBackend = async (maxRetries = 30, retryInterval = 500) => {
+  const { net } = require("electron");
+  const healthUrl = "http://localhost:8080/health";
+
+  console.log("[DEBUG] Waiting for backend to be ready...");
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await net.fetch(healthUrl);
+      if (response.status === 200) {
+        console.log(
+          `[DEBUG] ✅ Backend ready after ${attempt} attempt(s) (~${
+            attempt * retryInterval
+          }ms)`
+        );
+        return true;
+      }
+      console.log(
+        `[DEBUG] Backend responded with status ${response.status}, attempt ${attempt}/${maxRetries}`
+      );
+    } catch (error) {
+      console.log(
+        `[DEBUG] Backend not reachable (attempt ${attempt}/${maxRetries}): ${error.message}`
+      );
+    }
+
+    if (attempt < maxRetries) {
+      await new Promise((resolve) => setTimeout(resolve, retryInterval));
+    }
+  }
+
+  console.error(
+    `[DEBUG] ❌ Backend failed to become ready after ${maxRetries} attempts (~${
+      maxRetries * retryInterval
+    }ms)`
+  );
+  return false;
+};
+
 // Show or create main window
 function showMainWindow() {
   if (mainWindow) {
@@ -318,6 +359,119 @@ function showMainWindow() {
     mainWindow.focus();
   } else {
     createWindow();
+  }
+}
+
+// Create splash window shown during backend startup
+function createSplashWindow() {
+  const iconPath = path.join(__dirname, "..", "..", "assets", "yaak.png");
+  let imgSrc = "";
+  try {
+    const imgData = fs.readFileSync(iconPath);
+    imgSrc = `data:image/png;base64,${imgData.toString("base64")}`;
+  } catch {
+    // Fallback: no image, just show spinner
+  }
+
+  const splashHtml = `
+    <html>
+    <head>
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+          background: transparent;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          height: 100vh;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          -webkit-app-region: drag;
+        }
+        .container {
+          background: rgba(15, 23, 42, 0.92);
+          backdrop-filter: blur(12px);
+          border-radius: 20px;
+          padding: 40px 50px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 20px;
+        }
+        .mascot {
+          width: 100px;
+          height: 100px;
+          animation: bounce 1.5s ease-in-out infinite;
+          filter: drop-shadow(0 10px 15px rgba(0, 0, 0, 0.3));
+        }
+        .status {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        .spinner {
+          width: 18px;
+          height: 18px;
+          border: 2.5px solid rgba(148, 163, 184, 0.3);
+          border-top-color: #60a5fa;
+          border-radius: 50%;
+          animation: spin 0.8s linear infinite;
+        }
+        .text {
+          color: #cbd5e1;
+          font-size: 14px;
+          font-weight: 500;
+          letter-spacing: 0.02em;
+        }
+        @keyframes bounce {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-20px); }
+        }
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        ${imgSrc ? `<img class="mascot" src="${imgSrc}" alt="" />` : ""}
+        <div class="status">
+          <div class="spinner"></div>
+          <span class="text">Starting up...</span>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  splashWindow = new BrowserWindow({
+    width: 300,
+    height: 280,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    center: true,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+    },
+  });
+
+  splashWindow.loadURL(
+    `data:text/html;charset=utf-8,${encodeURIComponent(splashHtml)}`
+  );
+
+  splashWindow.on("closed", () => {
+    splashWindow = null;
+  });
+}
+
+// Close and destroy the splash window
+function closeSplashWindow() {
+  if (splashWindow && !splashWindow.isDestroyed()) {
+    splashWindow.close();
+    splashWindow = null;
   }
 }
 
@@ -474,6 +628,39 @@ function createWindow() {
   console.log("[DEBUG] Loading UI from Go backend at:", startUrl);
   console.log("[DEBUG] __dirname:", __dirname);
 
+  // Retry loading the page if it fails (safety net in case backend becomes
+  // temporarily unreachable after the initial waitForBackend() check)
+  let loadRetries = 0;
+  const MAX_LOAD_RETRIES = 3;
+
+  mainWindow.webContents.on(
+    "did-fail-load",
+    (_event, errorCode, errorDescription) => {
+      console.error(
+        `[DEBUG] ❌ Page failed to load: ${errorDescription} (code: ${errorCode})`
+      );
+
+      if (loadRetries < MAX_LOAD_RETRIES) {
+        loadRetries++;
+        const retryDelay = 1000 * loadRetries;
+        console.log(
+          `[DEBUG] Retrying load in ${retryDelay}ms (attempt ${loadRetries}/${MAX_LOAD_RETRIES})...`
+        );
+        setTimeout(() => {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.loadURL(startUrl).catch((err) => {
+              console.error("[DEBUG] Retry loadURL failed:", err.message);
+            });
+          }
+        }, retryDelay);
+      } else {
+        console.error(
+          "[DEBUG] Max retries reached. Backend may not be running."
+        );
+      }
+    }
+  );
+
   console.log("[DEBUG] Attempting to load URL:", startUrl);
   mainWindow.loadURL(startUrl).catch((err) => {
     console.error("[DEBUG] ❌ Failed to load URL:", startUrl);
@@ -487,6 +674,7 @@ function createWindow() {
     createMenu();
 
     mainWindow.show();
+    closeSplashWindow();
 
     // On macOS, focus the app to ensure menu bar is visible
     if (process.platform === "darwin") {
@@ -501,8 +689,8 @@ function createWindow() {
 
   // Inject CSS workaround when DOM is ready
   mainWindow.webContents.on("dom-ready", () => {
-    // WORKAROUND: Remove existing link tag and create a new one with proper attributes
-    // This forces the browser to load the CSS properly
+    // WORKAROUND: Reload stylesheet with cache-busting to ensure CSS loads properly.
+    // Important: only remove the old stylesheet AFTER the new one has loaded.
     mainWindow.webContents
       .executeJavaScript(
         `
@@ -511,17 +699,16 @@ function createWindow() {
         if (existingLink) {
           const cssUrl = existingLink.href;
 
-          // Remove the existing link
-          existingLink.remove();
-
-          // Create a new link with explicit attributes
           const newLink = document.createElement('link');
           newLink.rel = 'stylesheet';
           newLink.type = 'text/css';
-          newLink.href = cssUrl + '?t=' + Date.now(); // Add timestamp to bust cache
+          newLink.href = cssUrl + '?t=' + Date.now();
 
-          newLink.onerror = function(err) {
-            // Fallback: Use XMLHttpRequest instead of fetch
+          newLink.onload = function() {
+            existingLink.remove();
+          };
+
+          newLink.onerror = function() {
             const xhr = new XMLHttpRequest();
             xhr.open('GET', cssUrl, true);
             xhr.onload = function() {
@@ -530,6 +717,7 @@ function createWindow() {
                 styleTag.textContent = xhr.responseText;
                 styleTag.id = 'injected-css';
                 document.head.appendChild(styleTag);
+                existingLink.remove();
               }
             };
             xhr.send();
@@ -699,42 +887,32 @@ function createMenu() {
 }
 
 // This method will be called when Electron has finished initialization
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   // Launch the Go binary backend first
   launchGoBinary();
 
   // Create the system tray icon
   createTray();
 
-  // Monitor memory usage periodically (disabled)
-  // setInterval(() => {
-  //   const memUsage = process.memoryUsage();
-  //   console.log("[Memory Monitor]", {
-  //     heapUsed: `${(memUsage.heapUsed / 1024 / 1024).toFixed(2)} MB`,
-  //     heapTotal: `${(memUsage.heapTotal / 1024 / 1024).toFixed(2)} MB`,
-  //     rss: `${(memUsage.rss / 1024 / 1024).toFixed(2)} MB`,
-  //     external: `${(memUsage.external / 1024 / 1024).toFixed(2)} MB`,
-  //   });
-  // }, 5000); // Log every 5 seconds
+  // Show splash screen while backend starts up
+  createSplashWindow();
 
-  // Wait a moment for the backend to start, then create the window
-  // Note: createMenu() is called inside createWindow's ready-to-show handler
-  setTimeout(() => {
-    createWindow();
-  }, 1000);
+  // Wait for backend to be ready before creating window
+  await waitForBackend();
+  createWindow();
 
-  app.on("activate", () => {
+  app.on("activate", async () => {
     // On macOS, re-create a window when the dock icon is clicked
     if (BrowserWindow.getAllWindows().length === 0) {
       // Ensure backend is running
       if (!goProcess) {
         launchGoBinary();
-        setTimeout(() => {
-          createWindow();
-        }, 1000);
+        await waitForBackend();
       } else {
-        createWindow();
+        // Process exists but might not be listening yet
+        await waitForBackend(10, 500);
       }
+      createWindow();
     } else if (mainWindow) {
       // If window exists but is hidden, show it
       showMainWindow();
