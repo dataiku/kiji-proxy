@@ -169,7 +169,8 @@ export default function PrivacyProxyUI() {
 
   // Product tour
   const { startTour, isTourActive, cancelTour } = useTour(
-    welcomeModalJustClosed
+    welcomeModalJustClosed,
+    !termsRequireAcceptance
   );
 
   // Fixed Go server address - always call the Go server at this address

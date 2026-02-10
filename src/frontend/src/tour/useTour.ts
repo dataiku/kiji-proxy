@@ -1,11 +1,17 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useShepherd } from "react-shepherd";
 import { getTourSteps } from "./tourSteps";
 import { tourOptions } from "./tourOptions";
 
+const isElectron =
+  typeof window !== "undefined" && window.electronAPI !== undefined;
+
 const TOUR_COMPLETED_KEY = "yaak-tour-completed";
 
-function isTourCompleted(): boolean {
+async function loadTourCompleted(): Promise<boolean> {
+  if (isElectron && window.electronAPI) {
+    return window.electronAPI.getTourCompleted();
+  }
   try {
     return localStorage.getItem(TOUR_COMPLETED_KEY) === "true";
   } catch {
@@ -13,7 +19,11 @@ function isTourCompleted(): boolean {
   }
 }
 
-function setTourCompleted(completed: boolean): void {
+function saveTourCompleted(completed: boolean): void {
+  if (isElectron && window.electronAPI) {
+    window.electronAPI.setTourCompleted(completed);
+    return;
+  }
   try {
     localStorage.setItem(TOUR_COMPLETED_KEY, String(completed));
   } catch {
@@ -29,10 +39,25 @@ interface TourInstance {
   addSteps: (steps: ReturnType<typeof getTourSteps>) => void;
 }
 
-export function useTour(welcomeModalJustClosed: boolean) {
+export function useTour(
+  welcomeModalJustClosed: boolean,
+  termsAccepted: boolean
+) {
   const Shepherd = useShepherd();
   const tourRef = useRef<TourInstance | null>(null);
   const hasAutoStarted = useRef(false);
+  const [tourCompleted, setTourCompleted] = useState<boolean | null>(null);
+
+  // Load tour-completed state on mount
+  useEffect(() => {
+    loadTourCompleted().then(setTourCompleted);
+  }, []);
+
+  // Mark tour as completed and persist
+  const markTourCompleted = useCallback(() => {
+    setTourCompleted(true);
+    saveTourCompleted(true);
+  }, []);
 
   // Create or retrieve the tour instance
   const getTour = useCallback((): TourInstance => {
@@ -40,19 +65,20 @@ export function useTour(welcomeModalJustClosed: boolean) {
       const tour = new Shepherd.Tour(tourOptions) as unknown as TourInstance;
       tour.addSteps(getTourSteps());
 
-      tour.on("complete", () => setTourCompleted(true));
-      tour.on("cancel", () => setTourCompleted(true));
+      tour.on("complete", () => markTourCompleted());
+      tour.on("cancel", () => markTourCompleted());
 
       tourRef.current = tour;
     }
     return tourRef.current;
-  }, [Shepherd]);
+  }, [Shepherd, markTourCompleted]);
 
-  // Auto-start after WelcomeModal closes (first time only)
+  // Auto-start after WelcomeModal closes and terms are accepted (first time only)
   useEffect(() => {
     if (
       welcomeModalJustClosed &&
-      !isTourCompleted() &&
+      termsAccepted &&
+      tourCompleted === false &&
       !hasAutoStarted.current
     ) {
       hasAutoStarted.current = true;
@@ -62,7 +88,7 @@ export function useTour(welcomeModalJustClosed: boolean) {
       return () => clearTimeout(timer);
     }
     return undefined;
-  }, [welcomeModalJustClosed, getTour]);
+  }, [welcomeModalJustClosed, termsAccepted, tourCompleted, getTour]);
 
   // Manual start (from menu) — always works regardless of completion state
   const startTour = useCallback(() => {

@@ -1171,6 +1171,42 @@ ipcMain.handle("set-welcome-dismissed", async (event, dismissed) => {
   }
 });
 
+ipcMain.handle("get-tour-completed", async () => {
+  try {
+    const storagePath = getStoragePath();
+    if (!fs.existsSync(storagePath)) {
+      return false;
+    }
+
+    const data = fs.readFileSync(storagePath, "utf8");
+    const config = JSON.parse(data);
+    return config.tourCompleted || false;
+  } catch (error) {
+    console.error("Error reading tour completed flag:", error);
+    return false;
+  }
+});
+
+ipcMain.handle("set-tour-completed", async (event, completed) => {
+  try {
+    const storagePath = getStoragePath();
+    let config = {};
+
+    if (fs.existsSync(storagePath)) {
+      const data = fs.readFileSync(storagePath, "utf8");
+      config = JSON.parse(data);
+    }
+
+    config.tourCompleted = !!completed;
+
+    fs.writeFileSync(storagePath, JSON.stringify(config, null, 2), "utf8");
+    return { success: true };
+  } catch (error) {
+    console.error("Error saving tour completed flag:", error);
+    return { success: false, error: error.message };
+  }
+});
+
 // Model directory management
 ipcMain.handle("select-model-directory", async () => {
   const { dialog } = require("electron");

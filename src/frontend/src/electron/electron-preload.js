@@ -134,6 +134,15 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.removeAllListeners("open-tour");
   },
 
+  // Tour completed flag
+  getTourCompleted: async () => {
+    return await ipcRenderer.invoke("get-tour-completed");
+  },
+
+  setTourCompleted: async (completed) => {
+    return await ipcRenderer.invoke("set-tour-completed", completed);
+  },
+
   // Model directory management
   selectModelDirectory: async () => {
     return await ipcRenderer.invoke("select-model-directory");
