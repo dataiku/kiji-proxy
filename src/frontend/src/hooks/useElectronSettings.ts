@@ -12,8 +12,7 @@ export function useElectronSettings(
   isElectron: boolean,
   callbacks: ModalCallbacks
 ) {
-  const [activeProvider, setActiveProvider] =
-    useState<ProviderType>("openai");
+  const [activeProvider, setActiveProvider] = useState<ProviderType>("openai");
   const [providersConfig, setProvidersConfig] = useState<ProvidersConfig>({
     activeProvider: "openai",
     providers: {
@@ -45,30 +44,19 @@ export function useElectronSettings(
         config.activeProvider
       );
       setApiKey(key);
-
-      if (key) {
-        console.log(
-          `API key loaded for ${config.activeProvider} (length: ${key.length})`
-        );
-      } else {
-        console.log(`No API key found for ${config.activeProvider}`);
-      }
     } catch (error) {
       console.error("Error loading settings:", error);
     }
   }, []);
 
-  const switchProvider = useCallback(
-    async (newProvider: ProviderType) => {
-      setActiveProvider(newProvider);
-      if (window.electronAPI) {
-        await window.electronAPI.setActiveProvider(newProvider);
-        const key = await window.electronAPI.getProviderApiKey(newProvider);
-        setApiKey(key);
-      }
-    },
-    []
-  );
+  const switchProvider = useCallback(async (newProvider: ProviderType) => {
+    setActiveProvider(newProvider);
+    if (window.electronAPI) {
+      await window.electronAPI.setActiveProvider(newProvider);
+      const key = await window.electronAPI.getProviderApiKey(newProvider);
+      setApiKey(key);
+    }
+  }, []);
 
   // Load settings on mount and listen for Electron menu commands
   useEffect(() => {

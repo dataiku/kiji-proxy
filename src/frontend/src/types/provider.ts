@@ -28,14 +28,6 @@ export const PROVIDER_NAMES: Record<ProviderType, string> = {
   mistral: "Mistral",
 };
 
-export interface PerformanceWithMemory extends Performance {
-  memory?: {
-    jsHeapSizeLimit: number;
-    totalJSHeapSize: number;
-    usedJSHeapSize: number;
-  };
-}
-
 export interface ContentBlock {
   type: string;
   text: string;

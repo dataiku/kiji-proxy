@@ -3,7 +3,6 @@ import type {
   ProviderType,
   DetectedEntity,
   PiiEntityForProcessing,
-  PerformanceWithMemory,
 } from "../types/provider";
 import {
   getGoServerAddress,
@@ -135,24 +134,6 @@ export function useProxySubmit({
 
     setIsProcessing(true);
 
-    const startTime = performance.now();
-    console.log("[DEBUG] handleSubmit started");
-    console.log(`[DEBUG] Using provider: ${activeProvider}`);
-
-    if (
-      typeof window !== "undefined" &&
-      (window.performance as PerformanceWithMemory)?.memory
-    ) {
-      const mem = (window.performance as PerformanceWithMemory).memory;
-      if (mem) {
-        console.log("[DEBUG] Memory before request:", {
-          usedJSHeapSize: `${(mem.usedJSHeapSize / 1024 / 1024).toFixed(2)} MB`,
-          totalJSHeapSize: `${(mem.totalJSHeapSize / 1024 / 1024).toFixed(2)} MB`,
-          jsHeapSizeLimit: `${(mem.jsHeapSizeLimit / 1024 / 1024).toFixed(2)} MB`,
-        });
-      }
-    }
-
     try {
       const customModel =
         providersConfig.providers[activeProvider]?.model || "";
@@ -172,17 +153,7 @@ export function useProxySubmit({
 
       if (isElectron && apiKey) {
         headers = buildHeaders(activeProvider, apiKey);
-        console.log(
-          `Sending request to ${activeProvider} with API key (length: ${apiKey.length})`
-        );
-      } else if (isElectron && !apiKey) {
-        console.warn(
-          `No API key available for ${activeProvider} - request will likely fail`
-        );
       }
-
-      console.log("[DEBUG] Starting fetch request");
-      const fetchStart = performance.now();
 
       const response = await fetch(apiUrl, {
         method: "POST",
@@ -190,25 +161,12 @@ export function useProxySubmit({
         body: JSON.stringify(requestBody),
       });
 
-      console.log(
-        `[DEBUG] Fetch completed in ${(performance.now() - fetchStart).toFixed(2)}ms`
-      );
-
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      console.log("[DEBUG] Parsing JSON response");
-      const jsonStart = performance.now();
       const data = await response.json();
-      console.log(
-        `[DEBUG] JSON parsed in ${(performance.now() - jsonStart).toFixed(2)}ms`
-      );
-      console.log(
-        `[DEBUG] Response size: ${JSON.stringify(data).length} bytes`
-      );
 
-      console.log(`[DEBUG] Extracting assistant message for ${activeProvider}`);
       let assistantMessage = extractAssistantMessage(activeProvider, data);
 
       const MAX_RESPONSE_SIZE = 500000;
@@ -226,9 +184,6 @@ export function useProxySubmit({
       let transformedEntities: DetectedEntity[] = [];
 
       if (data.x_pii_details) {
-        console.log("[DEBUG] Processing PII details");
-        const piiStart = performance.now();
-
         maskedInputText = data.x_pii_details.masked_message || "";
         maskedOutputText = data.x_pii_details.masked_response || "";
 
@@ -249,10 +204,8 @@ export function useProxySubmit({
             "\n\n... [Masked output truncated - too large]";
         }
 
-        const entityCount = data.x_pii_details.pii_entities?.length || 0;
-        console.log(`[DEBUG] Transforming ${entityCount} PII entities`);
-
         if (data.x_pii_details.pii_entities) {
+          const entityCount = data.x_pii_details.pii_entities.length;
           const MAX_ENTITIES = 500;
           const entitiesToProcess =
             entityCount > MAX_ENTITIES
@@ -274,53 +227,20 @@ export function useProxySubmit({
             })
           );
         }
-
-        console.log(
-          `[DEBUG] PII details processed in ${(performance.now() - piiStart).toFixed(2)}ms`
-        );
-      } else {
-        console.log("[DEBUG] No PII details in response");
       }
-
-      console.log("[DEBUG] Clearing response object from memory");
 
       setFinalOutput(assistantMessage);
       setMaskedInput(maskedInputText);
       setMaskedOutput(maskedOutputText);
       setDetectedEntities(transformedEntities);
-
-      console.log("[DEBUG] State updated, response object can be GC'd");
-
-      console.log(
-        `[DEBUG] handleSubmit completed successfully in ${(performance.now() - startTime).toFixed(2)}ms`
-      );
-
-      if (
-        typeof window !== "undefined" &&
-        (window.performance as PerformanceWithMemory)?.memory
-      ) {
-        const mem = (window.performance as PerformanceWithMemory).memory;
-        if (mem) {
-          console.log("[DEBUG] Memory after processing:", {
-            usedJSHeapSize: `${(mem.usedJSHeapSize / 1024 / 1024).toFixed(2)} MB`,
-            totalJSHeapSize: `${(mem.totalJSHeapSize / 1024 / 1024).toFixed(2)} MB`,
-            jsHeapSizeLimit: `${(mem.jsHeapSizeLimit / 1024 / 1024).toFixed(2)} MB`,
-          });
-        }
-      }
     } catch (error) {
-      console.error("[DEBUG] Error in handleSubmit:", error);
       console.error(
-        "Error calling OpenAI proxy endpoint:",
+        "Error calling proxy endpoint:",
         error instanceof Error ? error.message : String(error)
       );
       alert(`Error: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
-      console.log("[DEBUG] Setting isProcessing to false");
       setIsProcessing(false);
-      console.log(
-        `[DEBUG] Total handleSubmit time: ${(performance.now() - startTime).toFixed(2)}ms`
-      );
     }
   }, [inputData, activeProvider, providersConfig, apiKey, isElectron]);
 

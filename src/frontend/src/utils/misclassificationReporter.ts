@@ -74,15 +74,8 @@ export async function reportMisclassification(
       fingerprint: ["misclassification", report.modelVersion || "unknown"],
     });
 
-    console.log("Misclassification report sent to Sentry, Event ID:", eventId);
-    console.log("Report details:", {
-      entities: report.detectedEntities.length,
-      hasComment: !!report.userComment,
-      model: report.modelVersion,
-    });
-
-    // Note: flush is handled by the main process in Electron
-    // Events are sent asynchronously by the SDK
+    // eventId available if needed for support reference
+    void eventId;
   } catch (error) {
     console.error("Failed to send misclassification report:", error);
   }
