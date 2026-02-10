@@ -9,6 +9,9 @@ import { DEFAULT_MODELS } from "../types/provider";
 export const GO_SERVER_ADDRESS = "http://localhost:8080";
 export const GO_SERVER_PORT = 8080;
 
+export const isElectron =
+  typeof window !== "undefined" && window.electronAPI !== undefined;
+
 export function getGoServerAddress(isElectron: boolean): string {
   if (isElectron) {
     return GO_SERVER_ADDRESS;

@@ -10,7 +10,7 @@ import {
   Trash2,
   AlertTriangle,
 } from "lucide-react";
-import { apiUrl } from "../../utils/providerHelpers";
+import { apiUrl, isElectron } from "../../utils/providerHelpers";
 
 interface OpenAIMessage {
   role: string;
@@ -167,9 +167,6 @@ export default function LoggingModal({
       setIsLoading(true);
       setError(null);
       try {
-        // Determine the API URL
-        const isElectron =
-          typeof window !== "undefined" && window.electronAPI !== undefined;
         const offset = pageNum * pageSize;
         const logsUrl = `${apiUrl(
           "/logs",
@@ -297,9 +294,6 @@ export default function LoggingModal({
     setError(null);
 
     try {
-      const isElectron =
-        typeof window !== "undefined" && window.electronAPI !== undefined;
-
       const response = await fetch(apiUrl("/logs", isElectron), {
         method: "DELETE",
       });

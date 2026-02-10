@@ -1,5 +1,6 @@
 import { useState, useEffect, CSSProperties, ReactNode } from "react";
 import { X, Shield, ChevronLeft, ChevronRight } from "lucide-react";
+import { isElectron } from "../../utils/providerHelpers";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    THEME CONSTANTS
@@ -2175,9 +2176,6 @@ interface WelcomeModalProps {
 export default function WelcomeModal({ isOpen, onClose }: WelcomeModalProps) {
   const [dontShowAgain, setDontShowAgain] = useState(false);
   const [currentPane, setCurrentPane] = useState(0);
-
-  const isElectron =
-    typeof window !== "undefined" && window.electronAPI !== undefined;
 
   if (!isOpen) return null;
 

@@ -23,13 +23,13 @@ import { useServerHealth } from "../hooks/useServerHealth";
 import { useElectronSettings } from "../hooks/useElectronSettings";
 import { useMisclassificationReport } from "../hooks/useMisclassificationReport";
 import { useProxySubmit } from "../hooks/useProxySubmit";
-import { getConfidenceColor, GO_SERVER_PORT } from "../utils/providerHelpers";
+import {
+  getConfidenceColor,
+  GO_SERVER_PORT,
+  isElectron,
+} from "../utils/providerHelpers";
 import type { ProviderType, LogEntry } from "../types/provider";
 import { PROVIDER_NAMES } from "../types/provider";
-
-// Detect if running in Electron
-const isElectron =
-  typeof window !== "undefined" && window.electronAPI !== undefined;
 
 export default function PrivacyProxyUI() {
   // UI toggle state (simple enough to stay in the component)
