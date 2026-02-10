@@ -15,9 +15,10 @@ import (
 
 // Chunking constants for processing long texts
 const (
-	maxSeqLen           = 512  // Maximum tokens per chunk (DistilBERT limit)
-	chunkOverlap        = 64   // Tokens of overlap between chunks for context continuity
-	minEntityConfidence = 0.25 // Minimum confidence threshold for entity detection
+	maxSeqLen    = 512 // Maximum tokens per chunk (DistilBERT limit)
+	chunkOverlap = 64  // Tokens of overlap between chunks for context continuity
+
+	defaultEntityConfidenceThreshold = 0.25 // Default minimum confidence threshold for entity detection
 )
 
 // tokenChunk represents a chunk of tokens for processing
@@ -31,16 +32,17 @@ type tokenChunk struct {
 
 // ONNXModelDetectorSimple implements DetectorClass using an internal ONNX model
 type ONNXModelDetectorSimple struct {
-	tokenizer     *tokenizers.Tokenizer
-	session       *onnxruntime.AdvancedSession
-	inputTensor   *onnxruntime.Tensor[int64]
-	maskTensor    *onnxruntime.Tensor[int64]
-	outputTensor  *onnxruntime.Tensor[float32]
-	id2label      map[string]string
-	label2id      map[string]int
-	corefID2Label map[string]string
-	numPIILabels  int
-	modelPath     string
+	tokenizer                 *tokenizers.Tokenizer
+	session                   *onnxruntime.AdvancedSession
+	inputTensor               *onnxruntime.Tensor[int64]
+	maskTensor                *onnxruntime.Tensor[int64]
+	outputTensor              *onnxruntime.Tensor[float32]
+	id2label                  map[string]string
+	label2id                  map[string]int
+	corefID2Label             map[string]string
+	numPIILabels              int
+	modelPath                 string
+	entityConfidenceThreshold float64
 }
 
 // NewONNXModelDetectorSimple creates a new ONNX model detector
@@ -148,12 +150,13 @@ func NewONNXModelDetectorSimple(modelPath string, tokenizerPath string) (*ONNXMo
 	fmt.Printf("Loaded %d PII labels (expected 49)\n", numPIILabels)
 
 	detector := &ONNXModelDetectorSimple{
-		tokenizer:     tk,
-		id2label:      config.PII.ID2Label,
-		label2id:      config.PII.Label2ID,
-		corefID2Label: config.Coref.ID2Label,
-		numPIILabels:  numPIILabels,
-		modelPath:     modelPath,
+		tokenizer:                 tk,
+		id2label:                  config.PII.ID2Label,
+		label2id:                  config.PII.Label2ID,
+		corefID2Label:             config.Coref.ID2Label,
+		numPIILabels:              numPIILabels,
+		modelPath:                 modelPath,
+		entityConfidenceThreshold: defaultEntityConfidenceThreshold,
 	}
 
 	// Initialize tensors and session will be done on first use
@@ -163,6 +166,11 @@ func NewONNXModelDetectorSimple(modelPath string, tokenizerPath string) (*ONNXMo
 // GetName returns the name of this detector
 func (d *ONNXModelDetectorSimple) GetName() string {
 	return "onnx_model_detector_simple"
+}
+
+// SetEntityConfidenceThreshold updates the minimum confidence threshold for entity detection
+func (d *ONNXModelDetectorSimple) SetEntityConfidenceThreshold(threshold float64) {
+	d.entityConfidenceThreshold = threshold
 }
 
 // Detect processes the input and returns detected entities
@@ -318,7 +326,7 @@ func (d *ONNXModelDetectorSimple) processOutputInline(originalText string, token
 		}
 
 		// Only process tokens with reasonable confidence
-		if confidence < minEntityConfidence {
+		if confidence < d.entityConfidenceThreshold {
 			label = "O"
 		}
 
@@ -366,6 +374,15 @@ func (d *ONNXModelDetectorSimple) processOutputInline(originalText string, token
 		d.finalizeEntity(currentEntity, currentTokens, originalText, offsets)
 		entities = append(entities, *currentEntity)
 	}
+
+	// Filter out entities with empty text (e.g. from special tokens like [CLS]/[SEP])
+	filtered := entities[:0]
+	for _, e := range entities {
+		if e.Text != "" {
+			filtered = append(filtered, e)
+		}
+	}
+	entities = filtered
 
 	fmt.Printf("[ONNX Model Response] Extracted %d entities from chunk:\n", len(entities))
 	for i, e := range entities {

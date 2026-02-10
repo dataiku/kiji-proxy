@@ -231,6 +231,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/proxy/ca-cert", s.handleCACert)
 	mux.HandleFunc("/api/proxy/transparent/toggle", s.handleTransparentProxyToggle)
 	mux.HandleFunc("/api/pii/check", s.handlePIICheck)
+	mux.HandleFunc("/api/pii/confidence", s.handlePIIConfidence)
 
 	// Add provider endpoints
 	mux.Handle(providers.ProviderSubpathOpenAI, s.handler) // same as Mistral
@@ -335,6 +336,8 @@ func (s *Server) startTransparentProxy() {
 			s.handleCACert(w, r)
 		case "/api/pii/check":
 			s.handlePIICheck(w, r)
+		case "/api/pii/confidence":
+			s.handlePIIConfidence(w, r)
 		default:
 			// All other HTTP/HTTPS requests go to transparent proxy
 			s.transparentProxy.ServeHTTP(w, r)
@@ -621,6 +624,54 @@ func (s *Server) handlePIICheck(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		log.Printf("Failed to encode PII check response: %v", err)
 		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
+}
+
+// handlePIIConfidence handles GET/POST /api/pii/confidence requests
+func (s *Server) handlePIIConfidence(w http.ResponseWriter, r *http.Request) {
+	s.corsHandler(w, r)
+
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		confidence := s.handler.GetEntityConfidenceThreshold()
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(map[string]interface{}{
+			"confidence": confidence,
+		}); err != nil {
+			log.Printf("Failed to encode PII confidence response: %v", err)
+		}
+
+	case http.MethodPost:
+		var req struct {
+			Confidence float64 `json:"confidence"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request", http.StatusBadRequest)
+			return
+		}
+		if req.Confidence < 0.05 || req.Confidence > 0.95 {
+			http.Error(w, "Confidence must be between 0.05 and 0.95", http.StatusBadRequest)
+			return
+		}
+
+		s.handler.SetEntityConfidenceThreshold(req.Confidence)
+		log.Printf("PII entity confidence threshold updated: %.2f", req.Confidence)
+
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(map[string]interface{}{
+			"success":    true,
+			"confidence": req.Confidence,
+		}); err != nil {
+			log.Printf("Failed to encode PII confidence response: %v", err)
+		}
+
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
 }
 

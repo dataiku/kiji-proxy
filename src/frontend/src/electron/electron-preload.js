@@ -163,4 +163,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
   setTransparentProxyEnabled: async (enabled) => {
     return await ipcRenderer.invoke("set-transparent-proxy-enabled", enabled);
   },
+
+  // PII detection confidence threshold
+  getEntityConfidence: async () => {
+    return await ipcRenderer.invoke("get-entity-confidence");
+  },
+
+  setEntityConfidence: async (confidence) => {
+    return await ipcRenderer.invoke("set-entity-confidence", confidence);
+  },
 });

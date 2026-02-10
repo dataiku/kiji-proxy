@@ -1381,6 +1381,78 @@ ipcMain.handle("set-transparent-proxy-enabled", async (event, enabled) => {
   }
 });
 
+// PII Detection Confidence Threshold
+ipcMain.handle("get-entity-confidence", async () => {
+  try {
+    const storagePath = getStoragePath();
+    if (!fs.existsSync(storagePath)) {
+      return 0.25;
+    }
+    const data = fs.readFileSync(storagePath, "utf8");
+    const config = JSON.parse(data);
+    return config.entityConfidence ?? 0.25;
+  } catch (error) {
+    console.error("Error reading entity confidence:", error);
+    return 0.25;
+  }
+});
+
+ipcMain.handle("set-entity-confidence", async (event, confidence) => {
+  try {
+    const storagePath = getStoragePath();
+    let config = {};
+
+    if (fs.existsSync(storagePath)) {
+      const data = fs.readFileSync(storagePath, "utf8");
+      config = JSON.parse(data);
+    }
+
+    config.entityConfidence = confidence;
+
+    fs.writeFileSync(storagePath, JSON.stringify(config, null, 2), "utf8");
+
+    // Notify the backend about the change
+    const { net } = require("electron");
+    const request = net.request({
+      method: "POST",
+      url: "http://localhost:8080/api/pii/confidence",
+    });
+
+    request.setHeader("Content-Type", "application/json");
+
+    return new Promise((resolve) => {
+      let responseData = "";
+
+      request.on("response", (response) => {
+        response.on("data", (chunk) => {
+          responseData += chunk.toString();
+        });
+
+        response.on("end", () => {
+          try {
+            const data = JSON.parse(responseData);
+            resolve(data);
+          } catch (error) {
+            console.warn("Error parsing backend response:", error);
+            resolve({ success: true });
+          }
+        });
+      });
+
+      request.on("error", (error) => {
+        console.error("Error notifying backend:", error);
+        resolve({ success: true });
+      });
+
+      request.write(JSON.stringify({ confidence }));
+      request.end();
+    });
+  } catch (error) {
+    console.error("Error saving entity confidence:", error);
+    return { success: false, error: error.message };
+  }
+});
+
 // Security: Prevent new window creation
 app.on("web-contents-created", (event, contents) => {
   contents.on("new-window", (event, navigationUrl) => {

@@ -12,7 +12,6 @@ import {
   Lock,
   Unlock,
 } from "lucide-react";
-import AdvancedSettingsModal from "./AdvancedSettingsModal";
 
 type ProviderType = "openai" | "anthropic" | "gemini" | "mistral";
 
@@ -35,7 +34,8 @@ const PROVIDER_INFO: Record<
     name: "OpenAI",
     defaultModel: "gpt-3.5-turbo",
     placeholder: "sk-...",
-    helpLink: "https://help.openai.com/en/articles/4936850-where-do-i-find-my-openai-api-key",
+    helpLink:
+      "https://help.openai.com/en/articles/4936850-where-do-i-find-my-openai-api-key",
   },
   anthropic: {
     name: "Anthropic",
@@ -67,9 +67,14 @@ const PROVIDER_ORDER: ProviderType[] = [
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onOpenAdvancedSettings: () => void;
 }
 
-export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
+export default function SettingsModal({
+  isOpen,
+  onClose,
+  onOpenAdvancedSettings,
+}: SettingsModalProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<{
@@ -121,9 +126,6 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     gemini: "",
     mistral: "",
   });
-
-  // Advanced settings modal state
-  const [isAdvancedSettingsOpen, setIsAdvancedSettingsOpen] = useState(false);
 
   const isElectron =
     typeof window !== "undefined" && window.electronAPI !== undefined;
@@ -360,10 +362,11 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                           </span>
                         </div>
                         <span
-                          className={`text-xs px-2 py-1 rounded ${config?.hasApiKey
-                            ? "bg-green-100 text-green-700"
-                            : "bg-slate-100 text-slate-500"
-                            }`}
+                          className={`text-xs px-2 py-1 rounded ${
+                            config?.hasApiKey
+                              ? "bg-green-100 text-green-700"
+                              : "bg-slate-100 text-slate-500"
+                          }`}
                         >
                           {config?.hasApiKey ? "Configured" : "Not Set"}
                         </span>
@@ -385,7 +388,11 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                   <button
                                     onClick={() => toggleProviderLock(provider)}
                                     className="p-1 rounded hover:bg-slate-200 transition-colors"
-                                    title={unlockedProviders[provider] ? "Lock API key" : "Unlock to edit"}
+                                    title={
+                                      unlockedProviders[provider]
+                                        ? "Lock API key"
+                                        : "Unlock to edit"
+                                    }
                                   >
                                     {unlockedProviders[provider] ? (
                                       <Unlock className="w-4 h-4 text-orange-500" />
@@ -408,7 +415,11 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                             {/* Input field - only editable when unlocked or no key exists */}
                             <div className="relative">
                               <input
-                                type={unlockedProviders[provider] ? "text" : "password"}
+                                type={
+                                  unlockedProviders[provider]
+                                    ? "text"
+                                    : "password"
+                                }
                                 value={providerApiKeys[provider]}
                                 onChange={(e) =>
                                   setProviderApiKeys((prev) => ({
@@ -416,20 +427,28 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                     [provider]: e.target.value,
                                   }))
                                 }
-                                disabled={config?.hasApiKey && !unlockedProviders[provider]}
+                                disabled={
+                                  config?.hasApiKey &&
+                                  !unlockedProviders[provider]
+                                }
                                 placeholder={
                                   config?.hasApiKey
-                                    ? (unlockedProviders[provider] ? "Enter new API key to update" : "API key is configured (unlock to edit)")
+                                    ? unlockedProviders[provider]
+                                      ? "Enter new API key to update"
+                                      : "API key is configured (unlock to edit)"
                                     : `Enter your ${info.name} API key (${info.placeholder})`
                                 }
-                                className={`w-full px-3 py-2 border rounded-lg focus:border-blue-500 focus:outline-none font-mono text-sm placeholder:text-gray-400 ${config?.hasApiKey && !unlockedProviders[provider]
-                                  ? "bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed"
-                                  : "border-slate-300 bg-white"
-                                  }`}
+                                className={`w-full px-3 py-2 border rounded-lg focus:border-blue-500 focus:outline-none font-mono text-sm placeholder:text-gray-400 ${
+                                  config?.hasApiKey &&
+                                  !unlockedProviders[provider]
+                                    ? "bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed"
+                                    : "border-slate-300 bg-white"
+                                }`}
                               />
-                              {config?.hasApiKey && !unlockedProviders[provider] && (
-                                <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-green-500" />
-                              )}
+                              {config?.hasApiKey &&
+                                !unlockedProviders[provider] && (
+                                  <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-green-500" />
+                                )}
                             </div>
 
                             {/* Help link */}
@@ -479,7 +498,10 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
             {/* Advanced Settings Link */}
             <div
-              onClick={() => setIsAdvancedSettingsOpen(true)}
+              onClick={() => {
+                onOpenAdvancedSettings();
+                onClose();
+              }}
               className="border-2 border-slate-200 rounded-lg p-4 hover:border-slate-300 hover:bg-slate-50 transition-colors cursor-pointer"
             >
               <div className="flex items-center justify-between">
@@ -501,10 +523,11 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             {/* Message */}
             {message && (
               <div
-                className={`flex items-center gap-2 p-3 rounded-lg ${message.type === "success"
-                  ? "bg-green-50 text-green-800 border border-green-200"
-                  : "bg-red-50 text-red-800 border border-red-200"
-                  }`}
+                className={`flex items-center gap-2 p-3 rounded-lg ${
+                  message.type === "success"
+                    ? "bg-green-50 text-green-800 border border-green-200"
+                    : "bg-red-50 text-red-800 border border-red-200"
+                }`}
               >
                 {message.type === "success" ? (
                   <CheckCircle2 className="w-5 h-5" />
@@ -538,12 +561,6 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           </div>
         )}
       </div>
-
-      {/* Advanced Settings Modal */}
-      <AdvancedSettingsModal
-        isOpen={isAdvancedSettingsOpen}
-        onClose={() => setIsAdvancedSettingsOpen(false)}
-      />
     </div>
   );
 }

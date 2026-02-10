@@ -12,6 +12,7 @@ import {
 import logoImage from "../../assets/logo.png";
 import kijiMascot from "../../assets/yaak.png";
 import SettingsModal from "./modals/SettingsModal";
+import AdvancedSettingsModal from "./modals/AdvancedSettingsModal";
 import LoggingModal from "./modals/LoggingModal";
 import AboutModal from "./modals/AboutModal";
 import MisclassificationModal from "./modals/MisclassificationModal";
@@ -114,6 +115,7 @@ export default function PrivacyProxyUI() {
     Array<{ type: string; original: string; token: string; confidence: number }>
   >([]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isAdvancedSettingsOpen, setIsAdvancedSettingsOpen] = useState(false);
   const [isLoggingOpen, setIsLoggingOpen] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [isMisclassificationModalOpen, setIsMisclassificationModalOpen] =
@@ -1504,6 +1506,13 @@ export default function PrivacyProxyUI() {
           setIsSettingsOpen(false);
           loadSettings(); // Reload settings after closing
         }}
+        onOpenAdvancedSettings={() => setIsAdvancedSettingsOpen(true)}
+      />
+
+      {/* Advanced Settings Modal */}
+      <AdvancedSettingsModal
+        isOpen={isAdvancedSettingsOpen}
+        onClose={() => setIsAdvancedSettingsOpen(false)}
       />
 
       {/* Logging Modal */}

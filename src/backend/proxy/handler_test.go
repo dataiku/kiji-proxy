@@ -25,8 +25,9 @@ type mockDetector struct {
 	entities []pii.Entity
 }
 
-func (d *mockDetector) GetName() string { return "mock" }
-func (d *mockDetector) Close() error    { return nil }
+func (d *mockDetector) GetName() string                        { return "mock" }
+func (d *mockDetector) Close() error                           { return nil }
+func (d *mockDetector) SetEntityConfidenceThreshold(_ float64) {}
 func (d *mockDetector) Detect(_ context.Context, input pii.DetectorInput) (pii.DetectorOutput, error) {
 	return pii.DetectorOutput{
 		Text:     input.Text,
