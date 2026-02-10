@@ -43,7 +43,7 @@ export default function PrivacyProxyUI() {
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Settings & provider state
-  const settings = useElectronSettings(isElectron, {
+  const settings = useElectronSettings({
     onSettingsOpen: () => setIsSettingsOpen(true),
     onAboutOpen: () => setIsAboutOpen(true),
     onTermsOpen: () => {},

@@ -41,7 +41,7 @@ export default function AdvancedSettingsModal({
       loadTransparentProxySetting();
       loadEntityConfidence();
     }
-  }, [isOpen, isElectron]);
+  }, [isOpen]);
 
   const loadTransparentProxySetting = async () => {
     if (!window.electronAPI) return;

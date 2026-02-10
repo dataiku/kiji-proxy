@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import type { ProviderType, ProvidersConfig } from "../types/provider";
+import { isElectron } from "../utils/providerHelpers";
 
 interface ModalCallbacks {
   onSettingsOpen: () => void;
@@ -8,10 +9,7 @@ interface ModalCallbacks {
   onTourStart: () => void;
 }
 
-export function useElectronSettings(
-  isElectron: boolean,
-  callbacks: ModalCallbacks
-) {
+export function useElectronSettings(callbacks: ModalCallbacks) {
   const [activeProvider, setActiveProvider] = useState<ProviderType>("openai");
   const [providersConfig, setProvidersConfig] = useState<ProvidersConfig>({
     activeProvider: "openai",
@@ -26,27 +24,33 @@ export function useElectronSettings(
   const [termsRequireAcceptance, setTermsRequireAcceptance] = useState(false);
   const [isTermsOpen, setIsTermsOpen] = useState(false);
   const [isWelcomeOpen, setIsWelcomeOpen] = useState(false);
-  const [welcomeModalJustClosed, setWelcomeModalJustClosed] = useState(false);
+  // In web mode, skip welcome modal persistence — start as if already closed
+  const [welcomeModalJustClosed, setWelcomeModalJustClosed] = useState(
+    !isElectron
+  );
 
   // Keep callbacks in a ref so IPC listeners always call the latest version
   const callbacksRef = useRef(callbacks);
-  callbacksRef.current = callbacks;
+  useEffect(() => {
+    callbacksRef.current = callbacks;
+  });
 
-  const loadSettings = useCallback(async () => {
+  const loadSettings = useCallback(() => {
     if (!window.electronAPI) return;
 
-    try {
-      const config = await window.electronAPI.getProvidersConfig();
-      setProvidersConfig(config);
-      setActiveProvider(config.activeProvider);
-
-      const key = await window.electronAPI.getProviderApiKey(
-        config.activeProvider
-      );
-      setApiKey(key);
-    } catch (error) {
-      console.error("Error loading settings:", error);
-    }
+    window.electronAPI
+      .getProvidersConfig()
+      .then((config) => {
+        setProvidersConfig(config);
+        setActiveProvider(config.activeProvider);
+        return window.electronAPI!.getProviderApiKey(config.activeProvider);
+      })
+      .then((key) => {
+        setApiKey(key);
+      })
+      .catch((error) => {
+        console.error("Error loading settings:", error);
+      });
   }, []);
 
   const switchProvider = useCallback(async (newProvider: ProviderType) => {
@@ -121,13 +125,8 @@ export function useElectronSettings(
       };
     }
 
-    // In web mode, no WelcomeModal persistence — just try to start tour
-    if (!isElectron) {
-      setWelcomeModalJustClosed(true);
-    }
-
     return undefined;
-  }, [isElectron, loadSettings]);
+  }, [loadSettings]);
 
   const closeTerms = useCallback(() => {
     setIsTermsOpen(false);

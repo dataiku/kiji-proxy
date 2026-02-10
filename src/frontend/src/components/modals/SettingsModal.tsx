@@ -132,7 +132,7 @@ export default function SettingsModal({
     if (isOpen && isElectron) {
       loadSettings();
     }
-  }, [isOpen, isElectron]);
+  }, [isOpen]);
 
   const loadSettings = async () => {
     if (!window.electronAPI) return;
