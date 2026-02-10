@@ -48,6 +48,12 @@ interface ElectronAPI {
   setWelcomeDismissed: (
     dismissed: boolean
   ) => Promise<{ success: boolean; error?: string }>;
+  // Tour completed flag
+  getTourCompleted: () => Promise<boolean>;
+  setTourCompleted: (
+    completed: boolean
+  ) => Promise<{ success: boolean; error?: string }>;
+
   // Model directory settings
   getModelDirectory: () => Promise<string | null>;
   setModelDirectory: (
