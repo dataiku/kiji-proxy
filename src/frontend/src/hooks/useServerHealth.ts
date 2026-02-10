@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { apiUrl } from "../utils/providerHelpers";
 
 interface ServerHealth {
   status: "online" | "offline";
@@ -20,14 +21,10 @@ export function useServerHealth(isElectron: boolean) {
   useEffect(() => {
     const checkServerStatus = async () => {
       try {
-        const url =
-          isElectron && window.electronAPI
-            ? "http://localhost:8080"
-            : "http://localhost:8080";
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 2000);
 
-        const response = await fetch(`${url}/health`, {
+        const response = await fetch(apiUrl("/health", isElectron), {
           method: "GET",
           signal: controller.signal,
         });
@@ -60,11 +57,7 @@ export function useServerHealth(isElectron: boolean) {
 
     const loadModelSignature = async () => {
       try {
-        const apiUrl = isElectron
-          ? "http://localhost:8080/api/model/security"
-          : "/api/model/security";
-
-        const response = await fetch(apiUrl);
+        const response = await fetch(apiUrl("/api/model/security", isElectron));
         if (response.ok) {
           const data = await response.json();
           const hash = data.hash;
@@ -79,11 +72,7 @@ export function useServerHealth(isElectron: boolean) {
 
     const loadVersion = async () => {
       try {
-        const apiUrl = isElectron
-          ? "http://localhost:8080/version"
-          : "/version";
-
-        const response = await fetch(apiUrl);
+        const response = await fetch(apiUrl("/version", isElectron));
         if (response.ok) {
           const data = await response.json();
           if (data.version) {

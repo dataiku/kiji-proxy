@@ -23,7 +23,7 @@ import { useServerHealth } from "../hooks/useServerHealth";
 import { useElectronSettings } from "../hooks/useElectronSettings";
 import { useMisclassificationReport } from "../hooks/useMisclassificationReport";
 import { useProxySubmit } from "../hooks/useProxySubmit";
-import { getConfidenceColor } from "../utils/providerHelpers";
+import { getConfidenceColor, GO_SERVER_PORT } from "../utils/providerHelpers";
 import type { ProviderType, LogEntry } from "../types/provider";
 import { PROVIDER_NAMES } from "../types/provider";
 
@@ -594,7 +594,7 @@ export default function PrivacyProxyUI() {
             ) : (
               <span className="flex items-center gap-2">
                 Server offline - Please ensure the Go backend server is running
-                at localhost:8080
+                at localhost:{GO_SERVER_PORT}
               </span>
             )}
           </span>

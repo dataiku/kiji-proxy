@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { X, Info } from "lucide-react";
 import logoImage from "../../../assets/logo.png";
 import TermsModal from "./TermsModal";
+import { GO_SERVER_ADDRESS } from "../../utils/providerHelpers";
 
 interface AboutModalProps {
   isOpen: boolean;
@@ -16,7 +17,7 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
     if (isOpen) {
       const loadVersion = async () => {
         try {
-          const response = await fetch("http://localhost:8080/version");
+          const response = await fetch(`${GO_SERVER_ADDRESS}/version`);
           if (response.ok) {
             const data = await response.json();
             setVersion(data.version || "Unknown");

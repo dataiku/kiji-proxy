@@ -10,6 +10,7 @@ import {
   Trash2,
   AlertTriangle,
 } from "lucide-react";
+import { apiUrl } from "../../utils/providerHelpers";
 
 interface OpenAIMessage {
   role: string;
@@ -25,14 +26,14 @@ interface PIIEntity {
 interface LogEntry {
   id: string;
   direction:
-  | "request_original"
-  | "request_masked"
-  | "response_masked"
-  | "response_original"
-  | "request"
-  | "response"
-  | "In"
-  | "Out";
+    | "request_original"
+    | "request_masked"
+    | "response_masked"
+    | "response_original"
+    | "request"
+    | "response"
+    | "In"
+    | "Out";
   message?: string;
   messages?: OpenAIMessage[];
   formatted_messages?: string;
@@ -124,20 +125,20 @@ export default function LoggingModal({
     // We treat each group as a single item for sorting purposes, using its latest timestamp
     // wrapper objects to help sorting
     type SortableItem =
-      | { type: 'group'; logs: LogEntry[]; latestTimestamp: number }
-      | { type: 'single'; log: LogEntry; latestTimestamp: number };
+      | { type: "group"; logs: LogEntry[]; latestTimestamp: number }
+      | { type: "single"; log: LogEntry; latestTimestamp: number };
 
     const sortableItems: SortableItem[] = [
-      ...sortedGroups.map(g => ({
-        type: 'group' as const,
+      ...sortedGroups.map((g) => ({
+        type: "group" as const,
         logs: g,
-        latestTimestamp: Math.max(...g.map(l => l.timestamp.getTime()))
+        latestTimestamp: Math.max(...g.map((l) => l.timestamp.getTime())),
       })),
-      ...singles.map(l => ({
-        type: 'single' as const,
+      ...singles.map((l) => ({
+        type: "single" as const,
         log: l,
-        latestTimestamp: l.timestamp.getTime()
-      }))
+        latestTimestamp: l.timestamp.getTime(),
+      })),
     ];
 
     // 4. Sort all items by latest timestamp descending
@@ -145,8 +146,8 @@ export default function LoggingModal({
 
     // 5. Flatten
     const flattened: LogEntry[] = [];
-    sortableItems.forEach(item => {
-      if (item.type === 'group') {
+    sortableItems.forEach((item) => {
+      if (item.type === "group") {
         flattened.push(...item.logs);
       } else {
         flattened.push(item.log);
@@ -170,12 +171,12 @@ export default function LoggingModal({
         const isElectron =
           typeof window !== "undefined" && window.electronAPI !== undefined;
         const offset = pageNum * pageSize;
-        const baseUrl = isElectron
-          ? "http://localhost:8080/logs" // Direct call to main server in Electron
-          : "/logs"; // Proxied call in web mode
-        const apiUrl = `${baseUrl}?limit=${pageSize}&offset=${offset}`;
+        const logsUrl = `${apiUrl(
+          "/logs",
+          isElectron
+        )}?limit=${pageSize}&offset=${offset}`;
 
-        const response = await fetch(apiUrl);
+        const response = await fetch(logsUrl);
 
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
@@ -202,10 +203,14 @@ export default function LoggingModal({
 
             // Extract transaction_id if present in the message
             let transactionId: string | undefined;
-            if (typeof log.message === 'string') {
+            if (typeof log.message === "string") {
               try {
                 const parsed = JSON.parse(log.message);
-                if (parsed && typeof parsed === 'object' && '_transaction_id' in parsed) {
+                if (
+                  parsed &&
+                  typeof parsed === "object" &&
+                  "_transaction_id" in parsed
+                ) {
                   transactionId = parsed._transaction_id;
                 }
               } catch {
@@ -253,9 +258,12 @@ export default function LoggingModal({
         );
 
         setLogs((prev) => {
-          const combined = pageNum === 0 ? transformedLogs : [...prev, ...transformedLogs];
+          const combined =
+            pageNum === 0 ? transformedLogs : [...prev, ...transformedLogs];
           // Remove duplicates just in case, though backend shouldn't return overlap
-          const unique = Array.from(new Map(combined.map(item => [item.id, item])).values());
+          const unique = Array.from(
+            new Map(combined.map((item) => [item.id, item])).values()
+          );
           return sortLogs(unique);
         });
 
@@ -291,9 +299,8 @@ export default function LoggingModal({
     try {
       const isElectron =
         typeof window !== "undefined" && window.electronAPI !== undefined;
-      const baseUrl = isElectron ? "http://localhost:8080/logs" : "/logs";
 
-      const response = await fetch(baseUrl, {
+      const response = await fetch(apiUrl("/logs", isElectron), {
         method: "DELETE",
       });
 
@@ -377,7 +384,9 @@ export default function LoggingModal({
               const messageObj = choice.message as Record<string, unknown>;
               const content = extractTextContent(messageObj.content);
               if (content) {
-                const role = messageObj.role ? `[${messageObj.role}]` : "[assistant]";
+                const role = messageObj.role
+                  ? `[${messageObj.role}]`
+                  : "[assistant]";
                 return `${role} ${content}`;
               }
             }
@@ -520,9 +529,12 @@ export default function LoggingModal({
   const getProviderFromModel = (model?: string): string => {
     if (!model) return "Provider";
     const modelLower = model.toLowerCase();
-    if (modelLower.includes("gpt") || modelLower.includes("openai")) return "OpenAI";
-    if (modelLower.includes("claude") || modelLower.includes("anthropic")) return "Anthropic";
-    if (modelLower.includes("gemini") || modelLower.includes("google")) return "Gemini";
+    if (modelLower.includes("gpt") || modelLower.includes("openai"))
+      return "OpenAI";
+    if (modelLower.includes("claude") || modelLower.includes("anthropic"))
+      return "Anthropic";
+    if (modelLower.includes("gemini") || modelLower.includes("google"))
+      return "Gemini";
     if (modelLower.includes("mistral")) return "Mistral";
     return "Provider";
   };
@@ -531,7 +543,8 @@ export default function LoggingModal({
     const providerName = getProviderFromModel(model);
     if (direction === "request_original") return "Request (Original)";
     if (direction === "request_masked") return `Request (To ${providerName})`;
-    if (direction === "response_masked") return `Response (From ${providerName})`;
+    if (direction === "response_masked")
+      return `Response (From ${providerName})`;
     if (direction === "response_original") return "Response (Restored)";
     if (direction === "request" || direction === "In") return "Request";
     if (direction === "response" || direction === "Out") return "Response";
@@ -655,14 +668,16 @@ export default function LoggingModal({
           </div>
           <button
             onClick={() => setShowFullJson(!showFullJson)}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${showFullJson ? "bg-blue-600" : "bg-slate-300"
-              }`}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+              showFullJson ? "bg-blue-600" : "bg-slate-300"
+            }`}
             role="switch"
             aria-checked={showFullJson}
           >
             <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${showFullJson ? "translate-x-6" : "translate-x-1"
-                }`}
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                showFullJson ? "translate-x-6" : "translate-x-1"
+              }`}
             />
           </button>
           <div className="flex items-center gap-3">
@@ -709,7 +724,7 @@ export default function LoggingModal({
             </div>
           ) : (
             <div>
-              <table className="border-collapse" style={{ minWidth: '1200px' }}>
+              <table className="border-collapse" style={{ minWidth: "1200px" }}>
                 <thead className="bg-slate-100 sticky top-0">
                   <tr>
                     <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700 border-b border-slate-200">
@@ -769,13 +784,14 @@ export default function LoggingModal({
                             </div>
                           )}
                           <pre
-                            className={`font-mono text-xs whitespace-pre-wrap break-words ${showFullJson && isJson(log.message)
-                              ? "bg-slate-50 p-2 rounded border border-slate-200"
-                              : (log.messages && log.messages.length > 0) ||
-                                isJson(log.message)
+                            className={`font-mono text-xs whitespace-pre-wrap break-words ${
+                              showFullJson && isJson(log.message)
+                                ? "bg-slate-50 p-2 rounded border border-slate-200"
+                                : (log.messages && log.messages.length > 0) ||
+                                  isJson(log.message)
                                 ? "p-2 rounded bg-gradient-to-br from-blue-50 to-slate-50 border border-blue-100"
                                 : ""
-                              }`}
+                            }`}
                           >
                             {formatMessage(log, showFullJson)}
                           </pre>
@@ -786,10 +802,11 @@ export default function LoggingModal({
                       </td>
                       <td className="px-4 py-3 text-sm">
                         <span
-                          className={`px-2 py-1 rounded text-xs font-medium ${log.blocked
-                            ? "bg-red-100 text-red-700"
-                            : "bg-green-100 text-green-700"
-                            }`}
+                          className={`px-2 py-1 rounded text-xs font-medium ${
+                            log.blocked
+                              ? "bg-red-100 text-red-700"
+                              : "bg-green-100 text-green-700"
+                          }`}
                         >
                           {log.blocked ? "Yes" : "No"}
                         </span>
@@ -806,10 +823,11 @@ export default function LoggingModal({
                               <button
                                 onClick={() => onReportMisclassification(log)}
                                 disabled={!hasPII}
-                                className={`flex items-center gap-1 px-2 py-1 rounded transition-colors ${!hasPII
-                                  ? "text-slate-300 cursor-not-allowed"
-                                  : "text-amber-600 hover:text-amber-700 hover:bg-amber-50"
-                                  }`}
+                                className={`flex items-center gap-1 px-2 py-1 rounded transition-colors ${
+                                  !hasPII
+                                    ? "text-slate-300 cursor-not-allowed"
+                                    : "text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                                }`}
                                 title={
                                   !hasPII
                                     ? "No PII detected in this log"
