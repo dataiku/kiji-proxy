@@ -1,12 +1,17 @@
 import { useState, useCallback } from "react";
-import type { DetectedEntity, LogEntry, PIIEntity } from "../types/provider";
+import type {
+  DetectedEntity,
+  LogEntry,
+  PIIEntity,
+  ReportSource,
+} from "../types/provider";
 import { reportMisclassification } from "../utils/misclassificationReporter";
 
 interface ReportingData {
   entities: DetectedEntity[];
   originalInput: string;
   maskedInput: string;
-  source: string;
+  source: ReportSource;
   modelVersion?: string;
 }
 

@@ -64,6 +64,8 @@ export interface PIIEntity {
   confidence?: number;
 }
 
+export type ReportSource = "main" | "log";
+
 export interface DetectedEntity {
   type: string;
   original: string;
@@ -71,9 +73,19 @@ export interface DetectedEntity {
   confidence: number;
 }
 
+export type LogDirection =
+  | "request_original"
+  | "request_masked"
+  | "response_masked"
+  | "response_original"
+  | "request"
+  | "response"
+  | "In"
+  | "Out";
+
 export interface LogEntry {
   id: string;
-  direction: string;
+  direction: LogDirection | string;
   message?: string;
   messages?: Array<{ role: string; content: string }>;
   formatted_messages?: string;
@@ -82,4 +94,5 @@ export interface LogEntry {
   detectedPIIRaw?: PIIEntity[];
   blocked: boolean;
   timestamp: Date;
+  transactionId?: string;
 }

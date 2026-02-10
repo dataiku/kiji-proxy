@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import {
   X,
   FileText,
@@ -10,40 +10,15 @@ import {
   Trash2,
   AlertTriangle,
 } from "lucide-react";
-import { apiUrl, isElectron } from "../../utils/providerHelpers";
-
-interface OpenAIMessage {
-  role: string;
-  content: string;
-}
-
-interface PIIEntity {
-  pii_type: string;
-  original_pii: string;
-  confidence?: number;
-}
-
-interface LogEntry {
-  id: string;
-  direction:
-    | "request_original"
-    | "request_masked"
-    | "response_masked"
-    | "response_original"
-    | "request"
-    | "response"
-    | "In"
-    | "Out";
-  message?: string;
-  messages?: OpenAIMessage[];
-  formatted_messages?: string;
-  model?: string;
-  detectedPII: string; // Human-readable formatted string for display
-  detectedPIIRaw?: PIIEntity[]; // Raw JSON array from backend for reporting
-  blocked: boolean;
-  timestamp: Date;
-  transactionId?: string;
-}
+import type { LogEntry } from "../../types/provider";
+import { useLogs } from "../../hooks/useLogs";
+import {
+  formatTimestamp,
+  formatMessage,
+  isJson,
+  getDirectionLabel,
+  getRowBackground,
+} from "../../utils/logFormatters";
 
 interface LoggingModalProps {
   isOpen: boolean;
@@ -51,524 +26,44 @@ interface LoggingModalProps {
   onReportMisclassification?: (logEntry: LogEntry) => void;
 }
 
+const MAX_PAGE_SIZE = 500;
+
+function getDirectionIcon(direction: string) {
+  if (
+    direction === "request_original" ||
+    direction === "request" ||
+    direction === "In"
+  ) {
+    return <ArrowDownCircle className="w-4 h-4 text-blue-600" />;
+  }
+  if (direction === "request_masked") {
+    return <ArrowDownCircle className="w-4 h-4 text-purple-600" />;
+  }
+  if (direction === "response_masked") {
+    return <ArrowUpCircle className="w-4 h-4 text-orange-600" />;
+  }
+  return <ArrowUpCircle className="w-4 h-4 text-green-600" />;
+}
+
 export default function LoggingModal({
   isOpen,
   onClose,
   onReportMisclassification,
 }: LoggingModalProps) {
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isClearing, setIsClearing] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showFullJson, setShowFullJson] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [page, setPage] = useState(0);
-  const [hasMore, setHasMore] = useState(true);
-  const [total, setTotal] = useState(0);
-  const pageSize = 50;
-  const maxPageSize = 500; // Server-enforced maximum
 
-  // Load logs when modal opens
-  useEffect(() => {
-    if (isOpen) {
-      setPage(0);
-      setLogs([]);
-      setError(null);
-      loadLogs(0);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
-
-  const sortLogs = (logsToSort: LogEntry[]): LogEntry[] => {
-    // 1. Group logs by transactionId
-    const groups: { [key: string]: LogEntry[] } = {};
-    const singles: LogEntry[] = [];
-
-    logsToSort.forEach((log) => {
-      if (log.transactionId) {
-        if (!groups[log.transactionId]) {
-          groups[log.transactionId] = [];
-        }
-        groups[log.transactionId].push(log);
-      } else {
-        singles.push(log);
-      }
-    });
-
-    // 2. Sort within groups
-    const sortedGroups: LogEntry[][] = Object.values(groups).map((group) => {
-      return group.sort((a, b) => {
-        const order = [
-          "request_original",
-          "request_masked",
-          "response_masked",
-          "response_original",
-        ];
-
-        // Define indices for sorting, mapping other types to -1 or a low priority
-        const aIndex = order.indexOf(a.direction);
-        const bIndex = order.indexOf(b.direction);
-
-        // If both are in the known order list, sort by that order
-        if (aIndex !== -1 && bIndex !== -1) {
-          return aIndex - bIndex;
-        }
-
-        // If one is known and the other isn't, known comes first (or however appropriate)
-        // Actually, if we want strict ordering, we should stick to the list.
-        // If unknown types, maybe fall back to timestamp.
-        return a.timestamp.getTime() - b.timestamp.getTime();
-      });
-    });
-
-    // 3. Create a list of "items" to sort (groups vs singles)
-    // We treat each group as a single item for sorting purposes, using its latest timestamp
-    // wrapper objects to help sorting
-    type SortableItem =
-      | { type: "group"; logs: LogEntry[]; latestTimestamp: number }
-      | { type: "single"; log: LogEntry; latestTimestamp: number };
-
-    const sortableItems: SortableItem[] = [
-      ...sortedGroups.map((g) => ({
-        type: "group" as const,
-        logs: g,
-        latestTimestamp: Math.max(...g.map((l) => l.timestamp.getTime())),
-      })),
-      ...singles.map((l) => ({
-        type: "single" as const,
-        log: l,
-        latestTimestamp: l.timestamp.getTime(),
-      })),
-    ];
-
-    // 4. Sort all items by latest timestamp descending
-    sortableItems.sort((a, b) => b.latestTimestamp - a.latestTimestamp);
-
-    // 5. Flatten
-    const flattened: LogEntry[] = [];
-    sortableItems.forEach((item) => {
-      if (item.type === "group") {
-        flattened.push(...item.logs);
-      } else {
-        flattened.push(item.log);
-      }
-    });
-
-    return flattened;
-  };
-
-  const loadLogs = useCallback(
-    async (pageNum: number) => {
-      // If we have already loaded all logs, don't load more
-      // BUT, if we are purely relying on hasMore, that's fine.
-      // We need to be careful not to fetch page 1 if page 0 returned everything.
-      if (!hasMore && pageNum > 0) return;
-
-      setIsLoading(true);
-      setError(null);
-      try {
-        const offset = pageNum * pageSize;
-        const logsUrl = `${apiUrl(
-          "/logs",
-          isElectron
-        )}?limit=${pageSize}&offset=${offset}`;
-
-        const response = await fetch(logsUrl);
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
-
-        setTotal(data.total || 0);
-        // data.logs.length can be less than pageSize if it's the last page
-        setHasMore(data.logs && data.logs.length === pageSize);
-
-        // Transform the API response to match LogEntry format
-        const transformedLogs: LogEntry[] = (data.logs || []).map(
-          (log: Record<string, unknown>) => {
-            // Parse timestamp - handle both string and Date formats
-            let timestamp: Date;
-            if (typeof log.timestamp === "string") {
-              timestamp = new Date(log.timestamp);
-            } else if (log.timestamp instanceof Date) {
-              timestamp = log.timestamp;
-            } else {
-              timestamp = new Date();
-            }
-
-            // Extract transaction_id if present in the message
-            let transactionId: string | undefined;
-            if (typeof log.message === "string") {
-              try {
-                const parsed = JSON.parse(log.message);
-                if (
-                  parsed &&
-                  typeof parsed === "object" &&
-                  "_transaction_id" in parsed
-                ) {
-                  transactionId = parsed._transaction_id;
-                }
-              } catch {
-                // Ignore parsing errors
-              }
-            }
-
-            // Format detected_pii for display
-            let formattedPII = "None";
-            const rawPII = log.detected_pii;
-            let typedRawPII: PIIEntity[] | undefined;
-
-            if (rawPII && Array.isArray(rawPII) && rawPII.length > 0) {
-              // Type guard to ensure it's PIIEntity[]
-              typedRawPII = rawPII as PIIEntity[];
-              formattedPII = typedRawPII
-                .map(
-                  (entity: PIIEntity) =>
-                    `${entity.pii_type}: ${entity.original_pii}`
-                )
-                .join(", ");
-            } else if (typeof rawPII === "string" && rawPII !== "None") {
-              // Backend is returning a string instead of JSON array
-              // This shouldn't happen with new backend, but handle it as fallback
-              formattedPII = rawPII;
-              typedRawPII = undefined;
-            }
-
-            const entry: LogEntry = {
-              id: String(log.id),
-              direction: (log.direction as LogEntry["direction"]) || "Unknown",
-              message: log.message as string | undefined,
-              messages: log.messages as OpenAIMessage[] | undefined,
-              formatted_messages: log.formatted_messages as string | undefined,
-              model: log.model as string | undefined,
-              detectedPII: formattedPII,
-              detectedPIIRaw: typedRawPII, // Keep raw JSON for reporting
-              blocked: (log.blocked as boolean) || false,
-              timestamp: timestamp,
-              transactionId: transactionId,
-            };
-
-            return entry;
-          }
-        );
-
-        setLogs((prev) => {
-          const combined =
-            pageNum === 0 ? transformedLogs : [...prev, ...transformedLogs];
-          // Remove duplicates just in case, though backend shouldn't return overlap
-          const unique = Array.from(
-            new Map(combined.map((item) => [item.id, item])).values()
-          );
-          return sortLogs(unique);
-        });
-
-        setPage(pageNum);
-      } catch (err) {
-        console.error("Error loading logs:", err);
-
-        const errorMessage =
-          err instanceof Error ? err.message : "Failed to load logs";
-        setError(errorMessage);
-
-        // Only clear logs on first page error
-        if (pageNum === 0) {
-          setLogs([]);
-        }
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [hasMore, pageSize]
-  );
-
-  const handleLoadMore = () => {
-    if (!isLoading && hasMore) {
-      loadLogs(page + 1);
-    }
-  };
-
-  const handleClearLogs = async () => {
-    setIsClearing(true);
-    setError(null);
-
-    try {
-      const response = await fetch(apiUrl("/logs", isElectron), {
-        method: "DELETE",
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      // Reset state after successful clear
-      setLogs([]);
-      setTotal(0);
-      setPage(0);
-      setHasMore(false);
-      setShowClearConfirm(false);
-    } catch (err) {
-      console.error("Error clearing logs:", err);
-      const errorMessage =
-        err instanceof Error ? err.message : "Failed to clear logs";
-      setError(errorMessage);
-    } finally {
-      setIsClearing(false);
-    }
-  };
-
-  const formatTimestamp = (date: Date) => {
-    return date.toLocaleString("en-US", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: false,
-    });
-  };
-
-  const extractTextContent = (content: unknown): string => {
-    if (typeof content === "string") return content;
-
-    if (Array.isArray(content)) {
-      return content
-        .map((item: unknown) => extractTextContent(item))
-        .filter((text: string) => text.trim().length > 0)
-        .join("");
-    }
-
-    if (content && typeof content === "object") {
-      const contentObj = content as Record<string, unknown>;
-      if (typeof contentObj.text === "string") return contentObj.text;
-      if (Array.isArray(contentObj.parts)) {
-        return extractTextContent(contentObj.parts);
-      }
-      if (typeof contentObj.content === "string") return contentObj.content;
-    }
-
-    return "";
-  };
-
-  const extractMessageFromJson = (message: string): string => {
-    try {
-      const parsed = JSON.parse(message);
-
-      // Check if it's an OpenAI chat completion request (In message)
-      if (parsed.messages && Array.isArray(parsed.messages)) {
-        const messages = parsed.messages
-          .map((msg: Record<string, unknown>) => {
-            const role = msg.role ? `[${msg.role}]` : "";
-            const content = extractTextContent(msg.content);
-            return role ? `${role} ${content}` : content;
-          })
-          .filter((content: string) => content.trim())
-          .join("\n\n");
-        return messages || message;
-      }
-
-      // Check if it's an OpenAI response (Out message)
-      if (parsed.choices && Array.isArray(parsed.choices)) {
-        const messages = parsed.choices
-          .map((choice: Record<string, unknown>) => {
-            // Handle chat completion format
-            if (choice.message && typeof choice.message === "object") {
-              const messageObj = choice.message as Record<string, unknown>;
-              const content = extractTextContent(messageObj.content);
-              if (content) {
-                const role = messageObj.role
-                  ? `[${messageObj.role}]`
-                  : "[assistant]";
-                return `${role} ${content}`;
-              }
-            }
-            // Handle legacy completion format
-            if (choice.text) {
-              return `[completion] ${choice.text}`;
-            }
-            return "";
-          })
-          .filter((content: string) => content.trim())
-          .join("\n\n");
-        return messages || message;
-      }
-
-      // Anthropic-style response: { content: [{ type: "text", text: "..." }] }
-      if (parsed.content && Array.isArray(parsed.content)) {
-        const textBlocks = parsed.content
-          .map((block: Record<string, unknown>) => {
-            if (block.type === "text" && typeof block.text === "string") {
-              return block.text;
-            }
-            return "";
-          })
-          .filter((text: string) => text.trim());
-        if (textBlocks.length > 0) {
-          const role = parsed.role ? `[${parsed.role}]` : "[assistant]";
-          return `${role} ${textBlocks.join("")}`;
-        }
-      }
-
-      // Gemini-style response: { candidates: [{ content: { parts: [{ text: "..." }] } }] }
-      if (parsed.candidates && Array.isArray(parsed.candidates)) {
-        const messages = parsed.candidates
-          .map((candidate: Record<string, unknown>) => {
-            if (!candidate.content || typeof candidate.content !== "object") {
-              return "";
-            }
-            const contentObj = candidate.content as Record<string, unknown>;
-            const text = extractTextContent(contentObj.parts);
-            return text ? `[assistant] ${text}` : "";
-          })
-          .filter((text: string) => text.trim())
-          .join("\n\n");
-        if (messages) {
-          return messages;
-        }
-      }
-
-      // Return the original if we can't parse it
-      return message;
-    } catch (_error) {
-      // Not JSON or parsing failed, return as-is
-      return message;
-    }
-  };
-
-  const formatStructuredMessages = (messages: OpenAIMessage[]): string => {
-    return messages.map((msg) => `[${msg.role}] ${msg.content}`).join("\n\n");
-  };
-
-  const formatMessage = (log: LogEntry, useFullJson: boolean): string => {
-    if (!useFullJson) {
-      // Messages Only mode - prefer structured messages
-      if (log.messages && log.messages.length > 0) {
-        const formatted = formatStructuredMessages(log.messages);
-        if (formatted.length > 5000) {
-          return (
-            formatted.substring(0, 5000) +
-            "\n\n... [Message truncated for display]"
-          );
-        }
-        return formatted;
-      }
-
-      // Fall back to extracting from JSON message
-      if (log.message) {
-        const extracted = extractMessageFromJson(log.message);
-        if (extracted.length > 5000) {
-          return (
-            extracted.substring(0, 5000) +
-            "\n\n... [Message truncated for display]"
-          );
-        }
-        return extracted;
-      }
-
-      return "No message content";
-    }
-
-    // Full JSON mode - pretty-print the entire JSON
-    if (log.message) {
-      try {
-        const parsed = JSON.parse(log.message);
-        const formatted = JSON.stringify(parsed, null, 2);
-        if (formatted.length > 10000) {
-          return (
-            formatted.substring(0, 10000) +
-            "\n\n... [JSON truncated for display]"
-          );
-        }
-        return formatted;
-      } catch {
-        // Not valid JSON, show as-is with truncation
-        if (log.message && log.message.length > 5000) {
-          return (
-            log.message.substring(0, 5000) +
-            "\n\n... [Message truncated for display]"
-          );
-        }
-        return log.message || "No message content";
-      }
-    }
-
-    // If no raw message but we have structured messages, show them
-    if (log.messages && log.messages.length > 0) {
-      const formatted = formatStructuredMessages(log.messages);
-      if (formatted.length > 5000) {
-        return (
-          formatted.substring(0, 5000) +
-          "\n\n... [Message truncated for display]"
-        );
-      }
-      return formatted;
-    }
-
-    return "No message content";
-  };
-
-  const isJson = (message?: string): boolean => {
-    if (!message) return false;
-    try {
-      JSON.parse(message);
-      return true;
-    } catch {
-      return false;
-    }
-  };
-
-  // Infer provider name from model string
-  const getProviderFromModel = (model?: string): string => {
-    if (!model) return "Provider";
-    const modelLower = model.toLowerCase();
-    if (modelLower.includes("gpt") || modelLower.includes("openai"))
-      return "OpenAI";
-    if (modelLower.includes("claude") || modelLower.includes("anthropic"))
-      return "Anthropic";
-    if (modelLower.includes("gemini") || modelLower.includes("google"))
-      return "Gemini";
-    if (modelLower.includes("mistral")) return "Mistral";
-    return "Provider";
-  };
-
-  const getDirectionLabel = (direction: string, model?: string): string => {
-    const providerName = getProviderFromModel(model);
-    if (direction === "request_original") return "Request (Original)";
-    if (direction === "request_masked") return `Request (To ${providerName})`;
-    if (direction === "response_masked")
-      return `Response (From ${providerName})`;
-    if (direction === "response_original") return "Response (Restored)";
-    if (direction === "request" || direction === "In") return "Request";
-    if (direction === "response" || direction === "Out") return "Response";
-    return direction;
-  };
-
-  const getDirectionIcon = (direction: string) => {
-    if (
-      direction === "request_original" ||
-      direction === "request" ||
-      direction === "In"
-    ) {
-      return <ArrowDownCircle className="w-4 h-4 text-blue-600" />;
-    }
-    if (direction === "request_masked") {
-      return <ArrowDownCircle className="w-4 h-4 text-purple-600" />;
-    }
-    if (direction === "response_masked") {
-      return <ArrowUpCircle className="w-4 h-4 text-orange-600" />;
-    }
-    return <ArrowUpCircle className="w-4 h-4 text-green-600" />;
-  };
-
-  const getRowBackground = (direction: string): string => {
-    if (direction === "request_original") return "bg-blue-50";
-    if (direction === "request_masked") return "bg-purple-50";
-    if (direction === "response_masked") return "bg-orange-50";
-    if (direction === "response_original") return "bg-green-50";
-    return "";
-  };
+  const {
+    logs,
+    isLoading,
+    isClearing,
+    error,
+    hasMore,
+    total,
+    handleLoadMore,
+    handleClearLogs,
+    retry,
+  } = useLogs(isOpen);
 
   if (!isOpen) return null;
 
@@ -599,7 +94,10 @@ export default function LoggingModal({
                 Cancel
               </button>
               <button
-                onClick={handleClearLogs}
+                onClick={async () => {
+                  await handleClearLogs();
+                  setShowClearConfirm(false);
+                }}
                 disabled={isClearing}
                 className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center gap-2 disabled:opacity-50"
               >
@@ -694,10 +192,7 @@ export default function LoggingModal({
               <strong>Error loading logs:</strong> {error}
             </div>
             <button
-              onClick={() => {
-                setError(null);
-                loadLogs(0);
-              }}
+              onClick={retry}
               className="text-red-600 hover:text-red-800 text-sm font-medium"
             >
               Retry
@@ -874,7 +369,7 @@ export default function LoggingModal({
                 <span className="ml-2 text-slate-400">(more available)</span>
               )}
             </p>
-            {total > maxPageSize && (
+            {total > MAX_PAGE_SIZE && (
               <p className="text-xs text-amber-600 flex items-center gap-1">
                 <AlertTriangle className="w-3 h-3" />
                 Large log count detected. Consider clearing old logs to improve
