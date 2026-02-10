@@ -450,28 +450,56 @@ unset APPLE_APP_SPECIFIC_PASSWORD
 unset APPLE_TEAM_ID
 
 if [ -z "${CSC_LINK:-}" ]; then
-    echo "⚠️  No CSC_LINK set — code signing disabled (ad-hoc only)"
-    CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder
+    echo "⚠️  No CSC_LINK set — building app bundle first, then re-signing..."
+
+    # Step 1: Build the .app only (--dir skips DMG creation)
+    CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --dir
+    if [ $? -ne 0 ]; then
+        echo "❌ electron-builder app build failed!"
+        exit 1
+    fi
+
+    # Step 2: Re-sign the .app with a consistent ad-hoc identity.
+    # Without this, the main binary and Electron Framework have mismatched
+    # Team IDs and macOS refuses to launch the app.
+    echo ""
+    echo "📦 Step 12: Ad-hoc re-signing app bundle..."
+    echo "--------------------------------------------"
+    APP_BUNDLE=$(find release -name "*.app" -maxdepth 2 | head -1)
+    if [ -n "$APP_BUNDLE" ]; then
+        codesign --force --deep --sign - "$APP_BUNDLE"
+        echo "✅ App bundle re-signed with consistent ad-hoc identity"
+    else
+        echo "⚠️  Could not find .app bundle to re-sign"
+    fi
+
+    # Step 3: Build the DMG from the re-signed .app
+    echo ""
+    echo "📦 Step 13: Creating DMG from signed app..."
+    echo "--------------------------------------------"
+    CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --prepackaged "$APP_BUNDLE"
+    if [ $? -ne 0 ]; then
+        echo "❌ DMG creation failed!"
+        exit 1
+    fi
 else
     echo "✅ CSC_LINK detected — signing with Developer ID certificate"
     npx electron-builder
-fi
-
-if [ $? -ne 0 ]; then
-    echo "❌ electron-builder packaging failed!"
-    exit 1
+    if [ $? -ne 0 ]; then
+        echo "❌ electron-builder packaging failed!"
+        exit 1
+    fi
 fi
 
 echo ""
-echo "📦 Step 12: Code signing summary..."
+echo "📦 Step 14: Code signing summary..."
 echo "-----------------------------------"
 
 if [ -n "${CSC_LINK:-}" ]; then
     echo "✅ App was signed with Developer ID certificate by electron-builder"
     echo "   Notarization was handled by afterSign hook (if credentials were provided)"
 else
-    echo "⚠️  App was NOT signed with a Developer ID certificate (ad-hoc only)"
-    echo "   Users may see 'damaged app' warning — fix with: xattr -cr /Applications/Kiji\\ Privacy\\ Proxy.app"
+    echo "✅ App was ad-hoc signed with consistent identity and packaged into DMG"
 fi
 
 cd "$PROJECT_ROOT"
