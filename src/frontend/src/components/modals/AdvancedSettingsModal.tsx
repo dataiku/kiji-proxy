@@ -32,6 +32,7 @@ export default function AdvancedSettingsModal({
 
   // PII detection confidence state
   const [entityConfidence, setEntityConfidence] = useState(0.25);
+  const [confidenceSaved, setConfidenceSaved] = useState(false);
 
   const isElectron =
     typeof window !== "undefined" && window.electronAPI !== undefined;
@@ -72,6 +73,8 @@ export default function AdvancedSettingsModal({
     setEntityConfidence(confidence);
     try {
       await window.electronAPI.setEntityConfidence(confidence);
+      setConfidenceSaved(true);
+      setTimeout(() => setConfidenceSaved(false), 2000);
     } catch (error) {
       console.error("Error setting entity confidence:", error);
     }
@@ -297,6 +300,9 @@ export default function AdvancedSettingsModal({
               potential PII but may have false positives. High is more precise
               but may miss some PII.
             </p>
+            {confidenceSaved && (
+              <p className="text-xs text-green-600 mt-1">Setting saved.</p>
+            )}
           </div>
 
           {/* Load Custom Kiji PII Model */}
