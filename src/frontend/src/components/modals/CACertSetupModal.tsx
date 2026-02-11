@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { X, ShieldCheck, Terminal, Chrome, ExternalLink } from "lucide-react";
+import { isElectron } from "../../utils/providerHelpers";
 
 interface CACertSetupModalProps {
   isOpen: boolean;
@@ -12,9 +13,6 @@ export default function CACertSetupModal({
 }: CACertSetupModalProps) {
   const [dontShowAgain, setDontShowAgain] = useState(false);
   const [currentTab, setCurrentTab] = useState<"system" | "browsers">("system");
-
-  const isElectron =
-    typeof window !== "undefined" && window.electronAPI !== undefined;
 
   if (!isOpen) return null;
 

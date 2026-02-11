@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { X, FileText } from "lucide-react";
 import DOMPurify from "dompurify";
 import termsMarkdown from "./Terms.md";
+import { isElectron } from "../../utils/providerHelpers";
 
 interface TermsModalProps {
   isOpen: boolean;
@@ -15,8 +16,6 @@ export default function TermsModal({
   requireAcceptance = false,
 }: TermsModalProps) {
   const [hasAccepted, setHasAccepted] = useState(false);
-  const isElectron =
-    typeof window !== "undefined" && window.electronAPI !== undefined;
 
   const termsHtml = useMemo(() => {
     // Convert markdown to HTML

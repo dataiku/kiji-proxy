@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { X, Server, FolderOpen, Shield, AlertTriangle } from "lucide-react";
 import CACertSetupModal from "./CACertSetupModal";
+import { isElectron } from "../../utils/providerHelpers";
 
 interface AdvancedSettingsModalProps {
   isOpen: boolean;
@@ -34,16 +35,13 @@ export default function AdvancedSettingsModal({
   const [entityConfidence, setEntityConfidence] = useState(0.25);
   const [confidenceSaved, setConfidenceSaved] = useState(false);
 
-  const isElectron =
-    typeof window !== "undefined" && window.electronAPI !== undefined;
-
   useEffect(() => {
     if (isOpen && isElectron) {
       loadModelInfo();
       loadTransparentProxySetting();
       loadEntityConfidence();
     }
-  }, [isOpen, isElectron]);
+  }, [isOpen]);
 
   const loadTransparentProxySetting = async () => {
     if (!window.electronAPI) return;

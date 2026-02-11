@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { isElectron } from "../../utils/providerHelpers";
 import {
   X,
   Save,
@@ -127,14 +128,11 @@ export default function SettingsModal({
     mistral: "",
   });
 
-  const isElectron =
-    typeof window !== "undefined" && window.electronAPI !== undefined;
-
   useEffect(() => {
     if (isOpen && isElectron) {
       loadSettings();
     }
-  }, [isOpen, isElectron]);
+  }, [isOpen]);
 
   const loadSettings = async () => {
     if (!window.electronAPI) return;

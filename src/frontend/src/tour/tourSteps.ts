@@ -1,7 +1,5 @@
 import type { StepOptions } from "shepherd.js";
-
-const isElectron =
-  typeof window !== "undefined" && window.electronAPI !== undefined;
+import { isElectron } from "../utils/providerHelpers";
 
 export function getTourSteps(): StepOptions[] {
   const steps: StepOptions[] = [
@@ -98,7 +96,7 @@ export function getTourSteps(): StepOptions[] {
         },
       ],
       cancelIcon: { enabled: true },
-    },
+    }
   );
 
   if (isElectron) {

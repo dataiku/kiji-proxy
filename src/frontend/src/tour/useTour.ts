@@ -2,9 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useShepherd } from "react-shepherd";
 import { getTourSteps } from "./tourSteps";
 import { tourOptions } from "./tourOptions";
-
-const isElectron =
-  typeof window !== "undefined" && window.electronAPI !== undefined;
+import { isElectron } from "../utils/providerHelpers";
 
 const TOUR_COMPLETED_KEY = "yaak-tour-completed";
 

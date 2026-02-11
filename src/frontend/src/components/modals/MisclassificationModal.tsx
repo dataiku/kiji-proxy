@@ -1,21 +1,15 @@
 import React, { useState } from "react";
 import { X, Flag, AlertCircle } from "lucide-react";
-
-interface Entity {
-  type: string;
-  original: string;
-  token: string;
-  confidence: number;
-}
+import type { DetectedEntity, ReportSource } from "../../types/provider";
 
 interface MisclassificationModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (comment: string) => void;
-  entities?: Entity[];
+  entities?: DetectedEntity[];
   originalInput?: string;
   maskedInput?: string;
-  source?: string; // "main" or "log"
+  source?: ReportSource;
 }
 
 export default function MisclassificationModal({
