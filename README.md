@@ -1,7 +1,7 @@
 # Dataiku's Kiji Privacy Proxy
 
 <div align="center">
-  <img src="src/frontend/assets/kiji_proxy.svg" alt="Kiji Mascot" width="300">
+  <img src="src/frontend/assets/kiji_proxy_inverted.png" alt="Kiji Privacy Proxy" width="300">
 
   <p>
     <a href="https://github.com/dataiku/kiji-proxy/actions/workflows/release-dmg.yml"><img src="https://github.com/dataiku/kiji-proxy/actions/workflows/release-dmg.yml/badge.svg" alt="Build MacOS"></a>
