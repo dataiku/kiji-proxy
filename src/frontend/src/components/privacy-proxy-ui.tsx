@@ -9,8 +9,8 @@ import {
   Flag,
   HelpCircle,
 } from "lucide-react";
-import logoImage from "../../assets/logo.png";
-import kijiMascot from "../../assets/yaak.png";
+import logoImage from "../../assets/kiji_proxy.svg";
+import kijiMascot from "../../assets/kiji_proxy.svg";
 import SettingsModal from "./modals/SettingsModal";
 import AdvancedSettingsModal from "./modals/AdvancedSettingsModal";
 import LoggingModal from "./modals/LoggingModal";
@@ -566,7 +566,16 @@ export default function PrivacyProxyUI() {
         {/* Info Footer */}
         <div className="mt-8 text-center text-sm text-slate-500">
           <p>
-            Kiji Privacy Proxy - Made by 575 Lab - Dataiku's Open Source Office
+            Kiji Privacy Proxy - Made by{" "}
+            <a
+              href="https://www.dataiku.com/company/dataiku-for-the-future/open-source/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 hover:text-blue-700 hover:underline"
+            >
+              575 Lab
+            </a>{" "}
+            - Dataiku's Open Source Office
             {version && (
               <span className="ml-2 text-xs text-slate-400">v{version}</span>
             )}

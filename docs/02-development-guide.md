@@ -38,7 +38,7 @@ This guide covers setting up your development environment, debugging workflows, 
 
 ```bash
 # 1. Clone repository
-git clone https://github.com/hanneshapke/kiji-proxy.git
+git clone https://github.com/dataiku/kiji-proxy.git
 cd kiji-proxy
 
 # 2. Pull model files

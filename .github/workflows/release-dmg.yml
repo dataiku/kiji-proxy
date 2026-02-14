@@ -285,9 +285,9 @@ jobs:
 
             ### Documentation
 
-            - [Getting Started Guide](https://github.com/hanneshapke/kiji-proxy/blob/main/docs/01-getting-started.md)
-            - [Development Guide](https://github.com/hanneshapke/kiji-proxy/blob/main/docs/02-development-guide.md)
-            - [Release Management](https://github.com/hanneshapke/kiji-proxy/blob/main/docs/04-release-management.md)
+            - [Getting Started Guide](https://github.com/dataiku/kiji-proxy/blob/main/docs/01-getting-started.md)
+            - [Development Guide](https://github.com/dataiku/kiji-proxy/blob/main/docs/02-development-guide.md)
+            - [Release Management](https://github.com/dataiku/kiji-proxy/blob/main/docs/04-release-management.md)
 
             ### What's New
             See the changelog below for details.
