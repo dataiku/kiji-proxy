@@ -364,11 +364,13 @@ function showMainWindow() {
 
 // Create splash window shown during backend startup
 function createSplashWindow() {
-  const iconPath = path.join(__dirname, "..", "..", "assets", "yaak.png");
+  const iconPath = path.join(__dirname, "..", "..", "assets", "kiji_proxy.svg");
   let imgSrc = "";
   try {
-    const imgData = fs.readFileSync(iconPath);
-    imgSrc = `data:image/png;base64,${imgData.toString("base64")}`;
+    const imgData = fs.readFileSync(iconPath, "utf-8");
+    imgSrc = `data:image/svg+xml;base64,${Buffer.from(imgData).toString(
+      "base64"
+    )}`;
   } catch {
     // Fallback: no image, just show spinner
   }

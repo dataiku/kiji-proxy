@@ -4,7 +4,7 @@ import { getTourSteps } from "./tourSteps";
 import { tourOptions } from "./tourOptions";
 import { isElectron } from "../utils/providerHelpers";
 
-const TOUR_COMPLETED_KEY = "yaak-tour-completed";
+const TOUR_COMPLETED_KEY = "kiji-tour-completed";
 
 async function loadTourCompleted(): Promise<boolean> {
   if (isElectron && window.electronAPI) {

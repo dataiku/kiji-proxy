@@ -1,7 +1,7 @@
 # Dataiku's Kiji Privacy Proxy
 
 <div align="center">
-  <img src="build/static/yaak.png" alt="Kiji Mascot" width="300">
+  <img src="build/static/kiji_proxy.svg" alt="Kiji Mascot" width="300">
 
   <p>
     <a href="https://github.com/hanneshapke/kiji-proxy/actions/workflows/release-dmg.yml">
