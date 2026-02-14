@@ -13,9 +13,6 @@
     <a href="https://github.com/dataiku/kiji-proxy/actions/workflows/lint-and-test.yml">
       <img src="https://github.com/dataiku/kiji-proxy/actions/workflows/lint-and-test.yml/badge.svg" alt="Lint & Test">
     </a>
-    <a href="LICENSE">
-      <img src="https://img.shields.io/badge/license-Apache%20License%202.0-blue" alt="License: Apache 2.0">
-    </a>
     <a href="https://github.com/dataiku/kiji-proxy/stargazers">
       <img src="https://img.shields.io/github/stars/dataiku/kiji-proxy?style=social" alt="GitHub Stars">
     </a>
@@ -35,6 +32,9 @@
     <img src="https://img.shields.io/badge/privacy-first-green" alt="Privacy First">
     <img src="https://img.shields.io/badge/contributions-welcome-brightgreen" alt="Contributions Welcome">
     <img src="https://img.shields.io/badge/PRs-welcome-brightgreen" alt="PRs Welcome">
+    <a href="LICENSE">
+      <img src="https://img.shields.io/badge/license-Apache%20License%202.0-blue" alt="License: Apache 2.0">
+    </a>
   </p>
 </div>
 
