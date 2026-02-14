@@ -32,7 +32,7 @@ Built by [575 Lab](https://www.dataiku.com/company/dataiku-for-the-future/open-s
 
 ---
 
-## 🎯 Why Kiji?
+## 🎯 Why Kiji Privacy Proxy?
 
 When using AI services like OpenAI or Anthropic, sensitive data in your prompts gets sent to external servers. Kiji solves this by:
 
