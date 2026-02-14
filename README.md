@@ -4,21 +4,12 @@
   <img src="src/frontend/assets/kiji_proxy.svg" alt="Kiji Mascot" width="300">
 
   <p>
-    <a href="https://github.com/dataiku/kiji-proxy/actions/workflows/release-dmg.yml">
-        <img src="https://github.com/dataiku/kiji-proxy/actions/workflows/release-dmg.yml/badge.svg" alt="Build MacOS">
-    </a>
-    <a href="https://github.com/dataiku/kiji-proxy/actions/workflows/release-linux.yml">
-      <img src="https://github.com/dataiku/kiji-proxy/actions/workflows/release-linux.yml/badge.svg" alt="Build Linux">
-    </a>
-    <a href="https://github.com/dataiku/kiji-proxy/actions/workflows/lint-and-test.yml">
-      <img src="https://github.com/dataiku/kiji-proxy/actions/workflows/lint-and-test.yml/badge.svg" alt="Lint & Test">
-    </a>
-    <a href="https://github.com/dataiku/kiji-proxy/stargazers">
-      <img src="https://img.shields.io/github/stars/dataiku/kiji-proxy?style=social" alt="GitHub Stars">
-    </a>
-    <a href="https://github.com/dataiku/kiji-proxy/issues">
-      <img src="https://img.shields.io/github/issues/dataiku/kiji-proxy" alt="GitHub Issues">
-    </a>
+    <a href="https://github.com/dataiku/kiji-proxy/actions/workflows/release-dmg.yml"><img src="https://github.com/dataiku/kiji-proxy/actions/workflows/release-dmg.yml/badge.svg" alt="Build MacOS"></a>
+    <a href="https://github.com/dataiku/kiji-proxy/actions/workflows/release-linux.yml"><img src="https://github.com/dataiku/kiji-proxy/actions/workflows/release-linux.yml/badge.svg" alt="Build Linux"></a>
+    <a href="https://github.com/dataiku/kiji-proxy/actions/workflows/lint-and-test.yml"><img src="https://github.com/dataiku/kiji-proxy/actions/workflows/lint-and-test.yml/badge.svg" alt="Lint & Test"></a>
+    <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%20License%202.0-blue" alt="License: Apache 2.0"></a>
+    <a href="https://github.com/dataiku/kiji-proxy/stargazers"><img src="https://img.shields.io/github/stars/dataiku/kiji-proxy?style=social" alt="GitHub Stars"></a>
+    <a href="https://github.com/dataiku/kiji-proxy/issues"><img src="https://img.shields.io/github/issues/dataiku/kiji-proxy" alt="GitHub Issues"></a>
   </p>
 
   <p>
@@ -32,9 +23,6 @@
     <img src="https://img.shields.io/badge/privacy-first-green" alt="Privacy First">
     <img src="https://img.shields.io/badge/contributions-welcome-brightgreen" alt="Contributions Welcome">
     <img src="https://img.shields.io/badge/PRs-welcome-brightgreen" alt="PRs Welcome">
-    <a href="LICENSE">
-      <img src="https://img.shields.io/badge/license-Apache%20License%202.0-blue" alt="License: Apache 2.0">
-    </a>
   </p>
 </div>
 
