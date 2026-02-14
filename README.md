@@ -10,8 +10,8 @@
     <a href="https://github.com/dataiku/kiji-proxy/actions/workflows/release-linux.yml">
       <img src="https://github.com/dataiku/kiji-proxy/actions/workflows/release-linux.yml/badge.svg" alt="Build Linux">
     </a>
-    <a href="https://github.com/dataiku/kiji-proxy/actions/workflows/lint.yml">
-      <img src="https://github.com/dataiku/kiji-proxy/actions/workflows/lint.yml/badge.svg" alt="Lint">
+    <a href="https://github.com/dataiku/kiji-proxy/actions/workflows/lint-and-test.yml">
+      <img src="https://github.com/dataiku/kiji-proxy/actions/workflows/lint-and-test.yml/badge.svg" alt="Lint & Test">
     </a>
     <a href="LICENSE">
       <img src="https://img.shields.io/badge/license-Apache%20License%202.0-blue" alt="License: Apache 2.0">
