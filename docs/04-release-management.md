@@ -234,7 +234,7 @@ CI automatically:
 - Creates GitHub Release
 - Attaches artifacts
 
-Check: https://github.com/hanneshapke/kiji-proxy/releases
+Check: https://github.com/dataiku/kiji-proxy/releases
 
 ### Manual Release
 
