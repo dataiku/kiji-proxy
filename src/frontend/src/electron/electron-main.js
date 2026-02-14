@@ -6,10 +6,12 @@ const {
   nativeImage,
   ipcMain,
   safeStorage,
+  dialog,
 } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const { spawn } = require("child_process");
+const { autoUpdater } = require("electron-updater");
 const isDev = process.env.NODE_ENV === "development";
 
 // Initialize Sentry for error tracking
@@ -18,6 +20,34 @@ Sentry.init({
   dsn: "https://d7ad4213601549253c0d313b271f83cf@o4510660510679040.ingest.de.sentry.io/4510660556095568",
   environment: isDev ? "development" : "production",
   tracesSampleRate: 1.0,
+});
+
+// Configure auto-updater (only in production)
+autoUpdater.autoDownload = true;
+autoUpdater.autoInstallOnAppQuit = true;
+
+autoUpdater.on("update-available", (info) => {
+  console.log(`[AutoUpdater] Update available: v${info.version}`);
+});
+
+autoUpdater.on("update-downloaded", (info) => {
+  console.log(`[AutoUpdater] Update downloaded: v${info.version}`);
+  dialog
+    .showMessageBox({
+      type: "info",
+      title: "Update Ready",
+      message: `Version ${info.version} has been downloaded. Restart now to apply the update?`,
+      buttons: ["Restart", "Later"],
+    })
+    .then((result) => {
+      if (result.response === 0) {
+        autoUpdater.quitAndInstall();
+      }
+    });
+});
+
+autoUpdater.on("error", (err) => {
+  console.error("[AutoUpdater] Error:", err);
 });
 
 let mainWindow;
@@ -900,6 +930,14 @@ app.whenReady().then(async () => {
   // Wait for backend to be ready before creating window
   await waitForBackend();
   createWindow();
+
+  // Check for updates after launch (production only)
+  if (!isDev) {
+    autoUpdater.checkForUpdatesAndNotify();
+
+    // Re-check for updates every hour for long-running sessions
+    setInterval(() => autoUpdater.checkForUpdates(), 60 * 60 * 1000);
+  }
 
   app.on("activate", async () => {
     // On macOS, re-create a window when the dock icon is clicked
