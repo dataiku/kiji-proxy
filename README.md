@@ -333,6 +333,8 @@ See [docs/05-advanced-topics.md#security-best-practices](docs/05-advanced-topics
 
 ## 📄 License
 
+Copyright (c) 2026 Dataiku SAS
+
 This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENSE) file for details.
 
 ---
