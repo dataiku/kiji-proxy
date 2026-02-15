@@ -193,18 +193,24 @@ jobs:
             fi
           done
 
-      - name: Upload DMG as Artifact
+      - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: kiji-privacy-proxy-${{ steps.version.outputs.version }}-macos
-          path: src/frontend/release/*.dmg
+          path: |
+            src/frontend/release/*.dmg
+            src/frontend/release/*.zip
+            src/frontend/release/latest-mac.yml
           retention-days: 90
 
       - name: Upload to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.create_release == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          files: src/frontend/release/*.dmg
+          files: |
+            src/frontend/release/*.dmg
+            src/frontend/release/*.zip
+            src/frontend/release/latest-mac.yml
           draft: false
           prerelease: ${{ contains(github.ref, '-beta') || contains(github.ref, '-alpha') || contains(github.ref, '-rc') }}
           fail_on_unmatched_files: true
