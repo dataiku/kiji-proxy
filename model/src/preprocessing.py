@@ -309,7 +309,7 @@ class DatasetProcessor:
                 skipped_count += 1
 
         # Print statistics
-        logging.info(f"\n📊 Preprocessing Summary:")
+        logging.info("\n📊 Preprocessing Summary:")
         logging.info(f"  Files processed:              {len(json_files):,}")
         logging.info(f"  Available for training:        {converted_count:,}")
         if non_standard_count > 0:

@@ -303,7 +303,7 @@ def export_to_onnx(
     if tokenizer_json_path.exists():
         import json
 
-        with open(tokenizer_json_path, "r") as f:
+        with open(tokenizer_json_path) as f:
             tok_data = json.load(f)
         if tok_data.get("truncation") is not None:
             tok_data["truncation"] = None
