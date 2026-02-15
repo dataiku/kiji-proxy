@@ -21,7 +21,7 @@ class LabelUtils:
             "chance": 0.5,
             "hints": [
                 "Consider different name lengths and phonetic variety",
-                "Geographic origins (East Asian, South Asian, African, European, Latin American, Middle Eastern, etc.)",
+                "Geographic origins (American, East Asian, South Asian, African, European, Latin American, Middle Eastern, etc.)",
                 "Common and uncommon names within each culture",
                 "Gender presentation",
                 f"Correct surname example: {correct_surname}",
