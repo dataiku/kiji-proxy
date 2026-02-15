@@ -30,6 +30,10 @@
 
 Built by [575 Lab](https://www.dataiku.com/company/dataiku-for-the-future/open-source/) - Dataiku's Open Source Office.
 
+<div align="center">
+  <img src="src/frontend/assets/ui_screenshot.png" alt="Kiji Privacy Proxy UI" height="600">
+</div>
+
 ---
 
 ## 🎯 Why Kiji Privacy Proxy?
@@ -141,14 +145,6 @@ make electron
 ```
 
 **See full documentation:** [docs/README.md](docs/README.md)
-
----
-
-## 🖥️ Screenshot
-
-<div align="center">
-  <img src="build/static/ui-screenshot.png" alt="Privacy Proxy Service UI" height="600">
-</div>
 
 ---
 
