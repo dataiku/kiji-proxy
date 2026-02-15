@@ -85,6 +85,7 @@ model/keys/**
 *.sig
 
 # Dataset folders
+model/dataset/data_samples/
 model/dataset/data_samples/samples/
 model/dataset/data_samples/reviewed_samples/
 model/dataset/data_samples/annotation_samples/

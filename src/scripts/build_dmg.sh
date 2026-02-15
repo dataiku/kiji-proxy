@@ -460,15 +460,36 @@ if [ -z "${CSC_LINK:-}" ]; then
     fi
 
     # Step 2: Re-sign the .app with a consistent ad-hoc identity.
-    # Without this, the main binary and Electron Framework have mismatched
-    # Team IDs and macOS refuses to launch the app.
+    # Must sign inside-out (frameworks first, then app) to avoid Team ID mismatches.
+    # --deep is deprecated and produces broken signatures on modern macOS.
     echo ""
     echo "📦 Step 12: Ad-hoc re-signing app bundle..."
     echo "--------------------------------------------"
     APP_BUNDLE=$(find release -name "*.app" -maxdepth 2 | head -1)
     if [ -n "$APP_BUNDLE" ]; then
-        codesign --force --deep --sign - "$APP_BUNDLE"
-        echo "✅ App bundle re-signed with consistent ad-hoc identity"
+        # Sign all nested frameworks and helpers first (inside-out)
+        find "$APP_BUNDLE/Contents/Frameworks" -type f -perm +111 -o -name "*.dylib" | while read -r binary; do
+            codesign --force --sign - "$binary" 2>/dev/null || true
+        done
+        # Sign framework bundles
+        find "$APP_BUNDLE/Contents/Frameworks" -name "*.framework" -maxdepth 1 | while read -r fw; do
+            codesign --force --sign - "$fw" 2>/dev/null || true
+        done
+        # Sign helper apps
+        find "$APP_BUNDLE/Contents/Frameworks" -name "*.app" | while read -r helper; do
+            codesign --force --sign - "$helper" 2>/dev/null || true
+        done
+        # Sign the Go binary in Resources
+        if [ -f "$APP_BUNDLE/Contents/Resources/kiji-proxy" ]; then
+            codesign --force --sign - "$APP_BUNDLE/Contents/Resources/kiji-proxy"
+        fi
+        # Sign the ONNX library
+        if [ -f "$APP_BUNDLE/Contents/Resources/libonnxruntime.1.23.1.dylib" ]; then
+            codesign --force --sign - "$APP_BUNDLE/Contents/Resources/libonnxruntime.1.23.1.dylib"
+        fi
+        # Finally sign the top-level app bundle
+        codesign --force --sign - "$APP_BUNDLE"
+        echo "✅ App bundle re-signed with consistent ad-hoc identity (inside-out)"
     else
         echo "⚠️  Could not find .app bundle to re-sign"
     fi
