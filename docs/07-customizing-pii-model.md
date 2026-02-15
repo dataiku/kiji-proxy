@@ -133,7 +133,7 @@ Regardless of how you generated your data, you should review it in Label Studio 
 uv sync --extra labelstudio
 
 # Start Label Studio
-uv run label-studio start
+uv run --extra labelstudio python -m label_studio.server start
 ```
 
 Label Studio will open in your browser at `http://localhost:8080`.
@@ -161,8 +161,7 @@ export LABEL_STUDIO_API_KEY='your-api-key'   # From Label Studio > Account & Set
 export LABEL_STUDIO_PROJECT_ID='your-project-id'  # From the project URL (e.g., /projects/3/)
 
 # Import annotation samples
-cd model/dataset/labelstudio
-python import_predictions.py
+uv run python model/dataset/labelstudio/import_predictions.py
 ```
 
 The script imports all JSON files from `model/dataset/data_samples/annotation_samples/` with their pre-annotations, so you can review and correct them rather than labeling from scratch.
@@ -186,11 +185,25 @@ After reviewing, export the corrected annotations to the training samples direct
 export LABEL_STUDIO_API_KEY='your-api-key'
 export LABEL_STUDIO_PROJECT_ID='your-project-id'
 
-cd model/dataset/labelstudio
-python export_annotations.py
+uv run model/dataset/labelstudio/python export_annotations.py
 ```
 
 The exported samples are saved to `model/dataset/data_samples/training_samples/` in the format the training pipeline expects.
+
+### Analyze your dataset
+
+Before training, you can inspect the composition of your dataset using the analysis script. It auto-detects the file format and works with any of the sample directories:
+
+```bash
+# Analyze reviewed samples (default)
+uv run python model/dataset/analyze_dataset.py
+
+# Analyze a specific directory
+uv run python model/dataset/analyze_dataset.py \
+  --samples-dir model/dataset/data_samples/annotation_samples
+```
+
+The report includes language and country distributions, PII label frequencies, entity count statistics, text length metrics, coreference coverage, and the most common co-occurring label pairs. This is useful for spotting imbalances (e.g., underrepresented languages or missing entity types) before committing to a training run.
 
 ## Training the model with Metaflow
 
@@ -205,12 +218,16 @@ Edit `model/flows/training_config.toml` to adjust training parameters:
 name = "distilbert-base-cased"
 
 [training]
-num_epochs = 15
-batch_size = 16
-learning_rate = 3e-5
+num_epochs = 30
+batch_size = 4
+learning_rate = 2e-5
+warmup_steps = 500          # Gradual LR ramp-up to stabilize early training
+weight_decay = 0.01         # L2 regularization strength
+
+# Early stopping settings
 early_stopping_enabled = true
-early_stopping_patience = 3
-early_stopping_threshold = 0.01
+early_stopping_patience = 3    # Number of epochs with no improvement before stopping
+early_stopping_threshold = 0.005  # Minimum improvement (0.5%) to qualify
 
 [paths]
 training_samples_dir = "model/dataset/data_samples/training_samples"
@@ -218,14 +235,15 @@ output_dir = "model/trained"
 
 [pipeline]
 skip_export = true        # true if you already exported from Label Studio manually
-skip_quantization = false  # ONNX quantization (Linux only)
+skip_quantization = false  # ONNX quantization
 skip_signing = false       # Cryptographic model signing
 ```
 
 Key settings:
 - **`skip_export`**: Set to `true` if you already exported from Label Studio (Step 2). Set to `false` to have the pipeline export directly from Label Studio (requires `labelstudio.project_id` and `LABEL_STUDIO_API_KEY`).
-- **`skip_quantization`**: ONNX quantization only works on Linux. Set to `true` on macOS.
+- **`skip_quantization`**: Set to `true` to skip ONNX quantization.
 - **`training_samples_dir`**: Points to the directory containing your reviewed training samples.
+- **`early_stopping_patience`**: Evaluation runs once per epoch. With patience of 3, training stops after 3 consecutive epochs with no F1 improvement.
 
 ### Run the pipeline
 
@@ -234,10 +252,6 @@ Key settings:
 ./model/flows/run_training.sh
 
 # Or run directly with uv
-uv run --extra training --extra signing \
-  python model/flows/training_pipeline.py run
-
-# With ONNX quantization (Linux only)
 uv run --extra training --extra quantization --extra signing \
   python model/flows/training_pipeline.py run
 
@@ -251,7 +265,7 @@ The pipeline executes the following steps:
 2. **Preprocess data** - Loads JSON samples, tokenizes text, aligns labels
 3. **Train model** - Multi-task learning for PII detection and coreference resolution
 4. **Evaluate model** - Runs inference on test cases and reports metrics
-5. **Quantize model** - Exports to ONNX and applies quantization (Linux only)
+5. **Quantize model** - Exports to ONNX and applies dynamic quantization
 6. **Sign model** - Generates a cryptographic signature for integrity verification
 
 <!-- Screenshot: Terminal output showing Metaflow pipeline steps completing -->
@@ -351,7 +365,7 @@ Here is a complete walkthrough of adding a new `MEDICAL_RECORD_NUMBER` entity ty
 4. **Review in Label Studio**:
    ```bash
    uv sync --extra labelstudio
-   uv run label-studio start
+   uv run --extra labelstudio python -m label_studio.server start
    # Create a project, import data, review annotations, export
    ```
 
