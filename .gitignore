@@ -59,6 +59,7 @@ kiji-proxy
 *.dmg
 *.app
 release/
+build/
 
 # Logs
 *.log

@@ -90,23 +90,23 @@ Generated samples are saved to `model/dataset/data_samples/annotation_samples/`.
 
 ### Option 2: Use a HuggingFace dataset
 
-You can bootstrap your training data from an existing HuggingFace dataset. The public dataset `dataiku/kiji-pii-training-data` contains pre-labeled samples ready for training or further annotation.
+You can bootstrap your training data from an existing HuggingFace dataset. The public dataset [`DataikuNLP/kiji-pii-training-data`](https://huggingface.co/datasets/DataikuNLP/kiji-pii-training-data) contains pre-labeled samples ready for training or further annotation.
 
 Download and convert the dataset to local Label Studio JSON files:
 
 ```bash
 # Download all splits to the default training_samples directory
 uv run python model/dataset/huggingface/download_dataset_from_hf.py \
-  --repo-id "dataiku/kiji-pii-training-data"
+  --repo-id "DataikuNLP/kiji-pii-training-data"
 
 # Download to a custom directory
 uv run python model/dataset/huggingface/download_dataset_from_hf.py \
-  --repo-id "dataiku/kiji-pii-training-data" \
+  --repo-id "DataikuNLP/kiji-pii-training-data" \
   --output-dir path/to/output
 
 # Download only specific splits
 uv run python model/dataset/huggingface/download_dataset_from_hf.py \
-  --repo-id "dataiku/kiji-pii-training-data" \
+  --repo-id "DataikuNLP/kiji-pii-training-data" \
   --splits train
 ```
 
@@ -119,7 +119,7 @@ export HF_TOKEN=hf_xxxxx
 
 uv run python model/dataset/huggingface/upload_dataset_to_hf.py \
   --repo-id "your-org/kiji-pii-training-data" \
-  --public
+  --public --create-repo
 ```
 
 ## Reviewing data in Label Studio
@@ -288,6 +288,18 @@ model/
 └── quantized.sig     # Cryptographic signature
 ```
 
+### Pre-trained models on HuggingFace
+
+The official Kiji models and training data are published on HuggingFace:
+
+| Resource | HuggingFace Repo |
+|----------|-----------------|
+| Training dataset | [`DataikuNLP/kiji-pii-training-data`](https://huggingface.co/datasets/DataikuNLP/kiji-pii-training-data) |
+| Trained model (SafeTensors) | [`DataikuNLP/kiji-pii-model`](https://huggingface.co/DataikuNLP/kiji-pii-model) |
+| Quantized model (ONNX) | [`DataikuNLP/kiji-pii-model-onnx`](https://huggingface.co/DataikuNLP/kiji-pii-model-onnx) |
+
+You can use the quantized ONNX model directly with the Kiji app by downloading it and pointing to the directory in Advanced Settings.
+
 ### Upload your model to HuggingFace (optional)
 
 Share your trained model via HuggingFace Hub:
@@ -295,12 +307,12 @@ Share your trained model via HuggingFace Hub:
 ```bash
 export HF_TOKEN=hf_xxxxx
 
-# Upload the quantized ONNX model
+# Upload the quantized ONNX model (add --create-repo to create the repo)
 uv run python model/dataset/huggingface/upload_model_to_hf.py \
   --variant quantized \
   --repo-id "your-org/kiji-pii-model-onnx" \
   --dataset-repo-id "your-org/kiji-pii-training-data" \
-  --public
+  --public --create-repo
 ```
 
 ## Loading your custom model in the app

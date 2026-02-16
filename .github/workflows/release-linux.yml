@@ -40,7 +40,7 @@ jobs:
           go-version: "1.21"
 
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
         with:
           toolchain: stable
 
@@ -127,15 +127,14 @@ jobs:
 
       - name: Upload to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.create_release == 'true'
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            release/linux/*.tar.gz
-            release/linux/*.tar.gz.sha256
-          fail_on_unmatched_files: true
-          append_body: true
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Upload Linux archives to release using GitHub CLI
+          gh release upload "${{ github.ref_name }}" \
+            release/linux/*.tar.gz \
+            release/linux/*.tar.gz.sha256 \
+            --clobber
 
       - name: Upload Release Summary
         if: always()

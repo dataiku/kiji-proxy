@@ -394,6 +394,7 @@ def upload_model_to_huggingface(
     dataset_repo_id: str | None = None,
     trained_repo_id: str | None = None,
     quantized_repo_id: str | None = None,
+    do_create_repo: bool = False,
 ):
     """
     Upload a PII detection model to HuggingFace Hub.
@@ -409,6 +410,7 @@ def upload_model_to_huggingface(
         dataset_repo_id: Optional HF dataset repo ID to link in the model card
         trained_repo_id: Optional HF trained model repo ID (for quantized variant lineage)
         quantized_repo_id: Optional HF quantized model repo ID (for trained variant cross-link)
+        do_create_repo: Whether to create the repo if it doesn't exist (requires create permissions)
     """
     token = os.environ.get("HF_TOKEN")
     if not token:
@@ -472,16 +474,19 @@ def upload_model_to_huggingface(
     readme_existed = readme_path.exists()
     readme_path.write_text(card)
 
-    # Create the repo if it doesn't exist yet
+    # Optionally create the repo (requires create permissions on the org)
     allow_patterns = model_files + ["README.md"]
-    print(f"\nPushing to {repo_id} (private={private})...")
-    create_repo(
-        repo_id=repo_id,
-        repo_type="model",
-        token=token,
-        private=private,
-        exist_ok=True,
-    )
+    if do_create_repo:
+        create_repo(
+            repo_id=repo_id,
+            repo_type="model",
+            token=token,
+            private=private,
+            exist_ok=True,
+        )
+        print(f"Created/verified repo: {repo_id}")
+
+    print(f"\nPushing to {repo_id}...")
     upload_folder(
         folder_path=model_dir,
         repo_id=repo_id,
@@ -526,6 +531,11 @@ if __name__ == "__main__":
         help="Make the model public (default: private)",
     )
     parser.add_argument(
+        "--create-repo",
+        action="store_true",
+        help="Create the repo if it doesn't exist (requires create permissions on the org)",
+    )
+    parser.add_argument(
         "--base-model",
         default="distilbert-base-cased",
         help="Base model name for fine-tuning (default: distilbert-base-cased)",
@@ -557,4 +567,5 @@ if __name__ == "__main__":
         dataset_repo_id=args.dataset_repo_id,
         trained_repo_id=args.trained_repo_id,
         quantized_repo_id=args.quantized_repo_id,
+        do_create_repo=args.create_repo,
     )
