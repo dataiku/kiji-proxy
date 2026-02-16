@@ -151,7 +151,7 @@ make electron
 ## ✨ Key Features
 
 - **16+ PII Types Detected** - Email, phone, SSN, credit cards, IP addresses, URLs, and more
-- **ML-Powered** - DistilBERT transformer model with ONNX Runtime
+- **ML-Powered** - DistilBERT transformer model with ONNX Runtime ([model](https://huggingface.co/DataikuNLP/kiji-pii-model-onnx), [dataset](https://huggingface.co/datasets/DataikuNLP/kiji-pii-training-data))
 - **Automatic Configuration** - PAC (Proxy Auto-Config) for zero-setup browser integration on macOS
 - **Real-Time Processing** - Sub-100ms latency for most requests
 - **Thread-Safe** - Handles concurrent requests with isolated mappings
@@ -177,6 +177,20 @@ Complete documentation is available in [docs/README.md](docs/README.md):
 - [VSCode Debugging](docs/02-development-guide.md#vscode-debugging)
 - [Build for macOS](docs/03-building-deployment.md#building-for-macos)
 - [Build for Linux](docs/03-building-deployment.md#building-for-linux)
+
+---
+
+## 🤗 HuggingFace Models & Data
+
+The PII detection model and training data are published on HuggingFace:
+
+| Resource | Link |
+|----------|------|
+| Quantized ONNX model | [`DataikuNLP/kiji-pii-model-onnx`](https://huggingface.co/DataikuNLP/kiji-pii-model-onnx) |
+| Trained SafeTensors model | [`DataikuNLP/kiji-pii-model`](https://huggingface.co/DataikuNLP/kiji-pii-model) |
+| Training dataset | [`DataikuNLP/kiji-pii-training-data`](https://huggingface.co/datasets/DataikuNLP/kiji-pii-training-data) |
+
+You can train your own model or fine-tune the existing one. See [Customizing the PII Model](docs/07-customizing-pii-model.md) for the full workflow.
 
 ---
 

@@ -95,11 +95,14 @@ The dataset can be shared via HuggingFace Hub as a Parquet-backed dataset. The u
 ```bash
 export HF_TOKEN=hf_xxxxx
 
-# Upload as private dataset (default)
+# Upload to an existing repo (write permissions only)
 uv run python model/dataset/huggingface/upload_dataset_to_hf.py --repo-id "username/kiji-pii-training-data"
 
+# Create the repo and upload (requires create permissions on the org)
+uv run python model/dataset/huggingface/upload_dataset_to_hf.py --repo-id "username/kiji-pii-training-data" --create-repo
+
 # Upload as public dataset
-uv run python model/dataset/huggingface/upload_dataset_to_hf.py --repo-id "username/kiji-pii-training-data" --public
+uv run python model/dataset/huggingface/upload_dataset_to_hf.py --repo-id "username/kiji-pii-training-data" --public --create-repo
 
 # Custom test split ratio (default: 0.1)
 uv run python model/dataset/huggingface/upload_dataset_to_hf.py --repo-id "username/kiji-pii-training-data" --test-split-ratio 0.2
@@ -134,21 +137,20 @@ Upload trained and/or quantized models to HuggingFace Hub with auto-generated mo
 ```bash
 export HF_TOKEN=hf_xxxxx
 
-# Upload trained model (links to dataset + quantized model)
+# Upload trained model to an existing repo (write permissions only)
 uv run python model/dataset/huggingface/upload_model_to_hf.py \
   --variant trained \
   --repo-id "username/kiji-pii-model" \
   --dataset-repo-id "username/kiji-pii-training-data" \
-  --quantized-repo-id "username/kiji-pii-model-onnx" \
-  --public
+  --quantized-repo-id "username/kiji-pii-model-onnx"
 
-# Upload quantized ONNX model (links back to trained model + dataset)
+# Upload quantized ONNX model, creating the repo if needed
 uv run python model/dataset/huggingface/upload_model_to_hf.py \
   --variant quantized \
   --repo-id "username/kiji-pii-model-onnx" \
   --trained-repo-id "username/kiji-pii-model" \
   --dataset-repo-id "username/kiji-pii-training-data" \
-  --public
+  --public --create-repo
 ```
 
 ## Which Method to Use?
@@ -194,6 +196,7 @@ uv run python model/dataset/huggingface/upload_model_to_hf.py \
 | `--repo-id` | (required) | HuggingFace repo ID (e.g., `username/dataset-name`) |
 | `--samples-dir` | `model/dataset/data_samples/training_samples` | Directory containing Label Studio JSON samples |
 | `--public` | False | Make dataset public (default: private) |
+| `--create-repo` | False | Create the repo if it doesn't exist (requires create permissions on the org) |
 | `--test-split-ratio` | 0.1 | Fraction of data for the test split |
 
 ### Download from HuggingFace

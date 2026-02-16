@@ -278,6 +278,7 @@ def upload_to_huggingface(
     repo_id: str | None = None,
     private: bool = True,
     test_split_ratio: float = 0.1,
+    create_repo: bool = False,
 ):
     """
     Convert Label Studio samples to clean format and push to HuggingFace Hub.
@@ -290,6 +291,7 @@ def upload_to_huggingface(
         repo_id: HuggingFace repo ID (e.g., "username/kiji-pii-training-data")
         private: Whether to make the repo private
         test_split_ratio: Fraction of data for the test split (default 0.1)
+        create_repo: Whether to create the repo if it doesn't exist (requires create permissions)
     """
     token = os.environ.get("HF_TOKEN")
     if not token:
@@ -327,9 +329,15 @@ def upload_to_huggingface(
     print(f"  train: {len(dataset_dict['train'])} samples")
     print(f"  test:  {len(dataset_dict['test'])} samples")
 
+    # Optionally create the repo (requires create permissions on the org)
+    api = HfApi(token=token)
+    if create_repo:
+        api.create_repo(repo_id, repo_type="dataset", private=private, exist_ok=True)
+        print(f"Created/verified repo: {repo_id}")
+
     # Push to Hub (creates Parquet files automatically)
     print(f"\nPushing to {repo_id} (private={private})...")
-    dataset_dict.push_to_hub(repo_id, private=private, token=token)
+    dataset_dict.push_to_hub(repo_id, token=token)
 
     # Generate and upload dataset card
     print("Generating dataset card...")
@@ -340,7 +348,6 @@ def upload_to_huggingface(
         train_count=len(dataset_dict["train"]),
         test_count=len(dataset_dict["test"]),
     )
-    api = HfApi(token=token)
     api.upload_file(
         path_or_fileobj=card.encode(),
         path_in_repo="README.md",
@@ -376,6 +383,11 @@ if __name__ == "__main__":
         help="Make the dataset public (default: private)",
     )
     parser.add_argument(
+        "--create-repo",
+        action="store_true",
+        help="Create the repo if it doesn't exist (requires create permissions on the org)",
+    )
+    parser.add_argument(
         "--test-split-ratio",
         type=float,
         default=0.1,
@@ -389,4 +401,5 @@ if __name__ == "__main__":
         repo_id=args.repo_id,
         private=not args.public,
         test_split_ratio=args.test_split_ratio,
+        create_repo=args.create_repo,
     )
