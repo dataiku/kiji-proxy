@@ -15,4 +15,4 @@ Thank you to everyone who has contributed to Kiji Privacy Proxy!
 
 ---
 
-Want to contribute? See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+Want to contribute? See [Contributing](README.md#-contributing) for guidelines.

@@ -15,7 +15,7 @@
   <p>
     <img src="https://img.shields.io/badge/go-%3E%3D1.21-00ADD8?logo=go" alt="Go Version">
     <img src="https://img.shields.io/badge/node-%3E%3D20-339933?logo=node.js&logoColor=white" alt="Node Version">
-    <img src="https://img.shields.io/badge/python-%3E%3D3.11-3776AB?logo=python&logoColor=white" alt="Python Version">
+    <img src="https://img.shields.io/badge/python-%3E%3D3.13-3776AB?logo=python&logoColor=white" alt="Python Version">
     <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey" alt="Platform">
   </p>
 
@@ -73,9 +73,9 @@ open Kiji-Privacy-Proxy-*.dmg
 **Linux (Standalone Server):**
 ```bash
 # Download and extract
-wget https://github.com/dataiku/kiji-proxy/releases/download/v0.1.1/kiji-privacy-proxy-0.1.1-linux-amd64.tar.gz
-tar -xzf kiji-privacy-proxy-0.1.1-linux-amd64.tar.gz
-cd kiji-privacy-proxy-0.1.1-linux-amd64
+wget https://github.com/dataiku/kiji-proxy/releases/download/vX.Y.Z/kiji-privacy-proxy-X.Y.Z-linux-amd64.tar.gz
+tar -xzf kiji-privacy-proxy-X.Y.Z-linux-amd64.tar.gz
+cd kiji-privacy-proxy-X.Y.Z-linux-amd64
 
 # Run
 ./run.sh
@@ -209,6 +209,7 @@ We welcome contributions! Here's how to help:
 2. **Submit PRs** - See [docs/02-development-guide.md](docs/02-development-guide.md) for dev setup
 3. **Improve Docs** - Documentation PRs are always welcome
 4. **Share Feedback** - [Start a discussion](https://github.com/dataiku/kiji-proxy/discussions)
+5. **Join our Slack** - [Slack Community](https://join.slack.com/t/dataiku-opensource/shared_invite/zt-3o6yq14rp-FTtAHZYhyru~jLZ~S6xPLA)
 
 **Quick Contribution Guide:**
 ```bash
@@ -271,7 +272,7 @@ Pull requests are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines
 
 - **Go 1.21+** with CGO enabled
 - **Node.js 20+**
-- **Python 3.11+**
+- **Python 3.13**
 - **Rust toolchain**
 
 ### Quick Setup
@@ -364,6 +365,7 @@ This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENS
     <a href="https://github.com/dataiku/kiji-proxy">GitHub</a> •
     <a href="https://github.com/dataiku/kiji-proxy/issues">Issues</a> •
     <a href="https://github.com/dataiku/kiji-proxy/discussions">Discussions</a> •
+    <a href="https://join.slack.com/t/dataiku-opensource/shared_invite/zt-3o6yq14rp-FTtAHZYhyru~jLZ~S6xPLA">Slack</a> •
     <a href="docs/README.md">Documentation</a>
   </p>
 </div>

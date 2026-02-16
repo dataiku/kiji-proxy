@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 license = {text = "Apache 2.0"}
 authors = [
-    {name = "575 Lab - Dataiku's Open Source Office"},
+    {name = "575 Lab - Dataiku's Open Source Office", email = "opensource@dataiku.com"},
 ]
 
 # Minimal production dependencies - only what's absolutely necessary
