@@ -166,8 +166,8 @@ When updating documentation:
 
 - **Installation Issues:** See [Getting Started](01-getting-started.md#troubleshooting)
 - **Configuration Help:** See [Advanced Topics](05-advanced-topics.md)
-- **Bug Reports:** [GitHub Issues](https://github.com/hanneshapke/kiji-proxy/issues)
-- **Questions:** [GitHub Discussions](https://github.com/hanneshapke/kiji-proxy/discussions)
+- **Bug Reports:** [GitHub Issues](https://github.com/dataiku/kiji-proxy/issues)
+- **Questions:** [GitHub Discussions](https://github.com/dataiku/kiji-proxy/discussions)
 
 ### For Developers
 
@@ -188,10 +188,10 @@ See LICENSE file in the repository root.
 
 ## Project Links
 
-- **Repository:** https://github.com/hanneshapke/kiji-proxy
-- **Issues:** https://github.com/hanneshapke/kiji-proxy/issues
-- **Releases:** https://github.com/hanneshapke/kiji-proxy/releases
-- **Discussions:** https://github.com/hanneshapke/kiji-proxy/discussions
+- **Repository:** https://github.com/dataiku/kiji-proxy
+- **Issues:** https://github.com/dataiku/kiji-proxy/issues
+- **Releases:** https://github.com/dataiku/kiji-proxy/releases
+- **Discussions:** https://github.com/dataiku/kiji-proxy/discussions
 
 ---
 

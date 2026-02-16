@@ -43,7 +43,7 @@ echo "Running training pipeline..."
 echo ""
 
 # Run from project root
-uv run --extra training --extra signing \
+uv run --extra training --extra quantization --extra signing \
     python model/flows/training_pipeline.py $CONFIG_FLAG run $EXTRA_ARGS
 
 echo ""
