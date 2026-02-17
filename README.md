@@ -136,6 +136,7 @@ cd kiji-proxy
 
 # Install dependencies
 make electron-install
+make setup-onnx
 
 # Run with debugger (VSCode)
 # Press F5
