@@ -1,4 +1,10 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.13"
+# dependencies = [
+#   "kiji-proxy[training]"
+# ]
+# ///
 """Upload trained or quantized PII detection model to HuggingFace Hub with a model card."""
 
 import json

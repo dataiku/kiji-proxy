@@ -1,4 +1,10 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.13"
+# dependencies = [
+#   "kiji-proxy[training]"
+# ]
+# ///
 """Analyze annotated PII datasets and print comprehensive statistics.
 
 Works with both simplified format (samples/, reviewed_samples/) and
