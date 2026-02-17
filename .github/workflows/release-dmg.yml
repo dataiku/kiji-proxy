@@ -76,12 +76,12 @@ jobs:
           cache-dependency-path: src/frontend/package-lock.json
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4.2.0
         with:
           enable-cache: true
 
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
         with:
           toolchain: stable
 
@@ -202,97 +202,115 @@ jobs:
 
       - name: Upload to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.create_release == 'true'
-        uses: softprops/action-gh-release@v2
-        with:
-          files: src/frontend/release/*.dmg
-          draft: false
-          prerelease: ${{ contains(github.ref, '-beta') || contains(github.ref, '-alpha') || contains(github.ref, '-rc') }}
-          fail_on_unmatched_files: true
-          make_latest: true
-          append_body: false
-          generate_release_notes: true
-          body: |
-            ## Kiji Privacy Proxy v${{ steps.version.outputs.version }}
-
-            ### Downloads
-            - **macOS**: DMG installer (Apple Silicon and Intel) - Desktop app with UI
-            - **Linux**: Standalone binary archive (amd64) - API server only (no UI)
-
-            ### macOS Installation
-
-            **Quick Start:**
-            1. Download `Kiji-Privacy-Proxy-${{ steps.version.outputs.version }}.dmg`
-            2. Open the DMG and drag to Applications
-            3. Launch "Kiji Privacy Proxy"
-
-            **HTTPS Support - Install CA Certificate:**
-
-            For HTTPS interception to work, you must trust the proxy's CA certificate:
-
-            ```bash
-            # System-wide trust (recommended)
-            sudo security add-trusted-cert \
-              -d \
-              -r trustRoot \
-              -k /Library/Keychains/System.keychain \
-              ~/.kiji-proxy/certs/ca.crt
-            ```
-
-            Or use **Keychain Access**:
-            1. Open Keychain Access app
-            2. File → Import Items → `~/.kiji-proxy/certs/ca.crt`
-            3. Double-click "Kiji Privacy Proxy CA" certificate
-            4. Expand **Trust** → Set to **Always Trust**
-
-            ### Linux Installation
-
-            **Note:** Linux build is API-only (no desktop UI). Access via HTTP endpoints.
-
-            **Quick Start:**
-            ```bash
-            # Extract
-            tar -xzf kiji-privacy-proxy-${{ steps.version.outputs.version }}-linux-amd64.tar.gz
-            cd kiji-privacy-proxy-${{ steps.version.outputs.version }}-linux-amd64
-
-            # Run
-            ./run.sh
-            ```
-
-            **HTTPS Support - Install CA Certificate:**
-            ```bash
-            # Ubuntu/Debian
-            sudo cp ~/.kiji-proxy/certs/ca.crt /usr/local/share/ca-certificates/kiji-proxy-ca.crt
-            sudo update-ca-certificates
-
-            # RHEL/CentOS/Fedora
-            sudo cp ~/.kiji-proxy/certs/ca.crt /etc/pki/ca-trust/source/anchors/kiji-proxy-ca.crt
-            sudo update-ca-trust
-            ```
-
-            **Configuration:**
-            ```bash
-            # Set API key
-            export OPENAI_API_KEY="your-key-here"
-
-            # Check health
-            curl http://localhost:8080/health
-
-            # Test proxy
-            curl -x http://localhost:8080 https://api.openai.com/v1/models
-            ```
-
-            See included `README.txt` for systemd service setup and advanced configuration.
-
-            ### Documentation
-
-            - [Getting Started Guide](https://github.com/dataiku/kiji-proxy/blob/main/docs/01-getting-started.md)
-            - [Development Guide](https://github.com/dataiku/kiji-proxy/blob/main/docs/02-development-guide.md)
-            - [Release Management](https://github.com/dataiku/kiji-proxy/blob/main/docs/04-release-management.md)
-
-            ### What's New
-            See the changelog below for details.
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Determine if prerelease
+          IS_PRERELEASE=""
+          if [[ "${{ github.ref }}" == *"-beta"* ]] || [[ "${{ github.ref }}" == *"-alpha"* ]] || [[ "${{ github.ref }}" == *"-rc"* ]]; then
+            IS_PRERELEASE="--prerelease"
+          fi
+
+          # Create release notes
+          cat > release_notes.md << 'EOF'
+          ## Kiji Privacy Proxy v${{ steps.version.outputs.version }}
+
+          ### Downloads
+          - **macOS**: DMG installer (Apple Silicon and Intel) - Desktop app with UI
+          - **Linux**: Standalone binary archive (amd64) - API server only (no UI)
+
+          ### macOS Installation
+
+          **Quick Start:**
+          1. Download `Kiji-Privacy-Proxy-${{ steps.version.outputs.version }}.dmg`
+          2. Open the DMG and drag to Applications
+          3. Launch "Kiji Privacy Proxy"
+
+          **HTTPS Support - Install CA Certificate:**
+
+          For HTTPS interception to work, you must trust the proxy's CA certificate:
+
+          ```bash
+          # System-wide trust (recommended)
+          sudo security add-trusted-cert \
+            -d \
+            -r trustRoot \
+            -k /Library/Keychains/System.keychain \
+            ~/.kiji-proxy/certs/ca.crt
+          ```
+
+          Or use **Keychain Access**:
+          1. Open Keychain Access app
+          2. File → Import Items → `~/.kiji-proxy/certs/ca.crt`
+          3. Double-click "Kiji Privacy Proxy CA" certificate
+          4. Expand **Trust** → Set to **Always Trust**
+
+          ### Linux Installation
+
+          **Note:** Linux build is API-only (no desktop UI). Access via HTTP endpoints.
+
+          **Quick Start:**
+          ```bash
+          # Extract
+          tar -xzf kiji-privacy-proxy-${{ steps.version.outputs.version }}-linux-amd64.tar.gz
+          cd kiji-privacy-proxy-${{ steps.version.outputs.version }}-linux-amd64
+
+          # Run
+          ./run.sh
+          ```
+
+          **HTTPS Support - Install CA Certificate:**
+          ```bash
+          # Ubuntu/Debian
+          sudo cp ~/.kiji-proxy/certs/ca.crt /usr/local/share/ca-certificates/kiji-proxy-ca.crt
+          sudo update-ca-certificates
+
+          # RHEL/CentOS/Fedora
+          sudo cp ~/.kiji-proxy/certs/ca.crt /etc/pki/ca-trust/source/anchors/kiji-proxy-ca.crt
+          sudo update-ca-trust
+          ```
+
+          **Configuration:**
+          ```bash
+          # Set API key
+          export OPENAI_API_KEY="your-key-here"
+
+          # Check health
+          curl http://localhost:8080/health
+
+          # Test proxy
+          curl -x http://localhost:8080 https://api.openai.com/v1/models
+          ```
+
+          See included `README.txt` for systemd service setup and advanced configuration.
+
+          ### Documentation
+
+          - [Getting Started Guide](https://github.com/hanneshapke/kiji-proxy/blob/main/docs/01-getting-started.md)
+          - [Development Guide](https://github.com/hanneshapke/kiji-proxy/blob/main/docs/02-development-guide.md)
+          - [Release Management](https://github.com/hanneshapke/kiji-proxy/blob/main/docs/04-release-management.md)
+
+          ### What's New
+          See the changelog below for details.
+          EOF
+
+          # Upload DMG files to release using GitHub CLI
+          gh release upload "${{ github.ref_name }}" \
+            src/frontend/release/*.dmg \
+            --clobber
+
+          # Create or update release with notes and auto-generated changelog
+          gh release create "${{ github.ref_name }}" \
+            --title "Kiji Privacy Proxy v${{ steps.version.outputs.version }}" \
+            --notes-file release_notes.md \
+            --generate-notes \
+            --latest \
+            $IS_PRERELEASE \
+            || gh release edit "${{ github.ref_name }}" \
+               --title "Kiji Privacy Proxy v${{ steps.version.outputs.version }}" \
+               --notes-file release_notes.md \
+               --latest \
+               $IS_PRERELEASE
 
       - name: Upload Release Summary
         if: always()

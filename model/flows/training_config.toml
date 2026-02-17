@@ -33,7 +33,7 @@ subsample_count = 0
 [pipeline]
 # Skip Label Studio export and use existing data from paths.training_samples_dir
 skip_export = true
-# Skip ONNX quantization (only works on Linux)
+# Skip ONNX quantization
 skip_quantization = false
 # Skip model signing
 skip_signing = false

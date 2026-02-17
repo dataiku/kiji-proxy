@@ -15,7 +15,7 @@
   <p>
     <img src="https://img.shields.io/badge/go-%3E%3D1.21-00ADD8?logo=go" alt="Go Version">
     <img src="https://img.shields.io/badge/node-%3E%3D20-339933?logo=node.js&logoColor=white" alt="Node Version">
-    <img src="https://img.shields.io/badge/python-%3E%3D3.11-3776AB?logo=python&logoColor=white" alt="Python Version">
+    <img src="https://img.shields.io/badge/python-%3E%3D3.13-3776AB?logo=python&logoColor=white" alt="Python Version">
     <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey" alt="Platform">
   </p>
 
@@ -73,9 +73,9 @@ open Kiji-Privacy-Proxy-*.dmg
 **Linux (Standalone Server):**
 ```bash
 # Download and extract
-wget https://github.com/dataiku/kiji-proxy/releases/download/v0.1.1/kiji-privacy-proxy-0.1.1-linux-amd64.tar.gz
-tar -xzf kiji-privacy-proxy-0.1.1-linux-amd64.tar.gz
-cd kiji-privacy-proxy-0.1.1-linux-amd64
+wget https://github.com/dataiku/kiji-proxy/releases/download/vX.Y.Z/kiji-privacy-proxy-X.Y.Z-linux-amd64.tar.gz
+tar -xzf kiji-privacy-proxy-X.Y.Z-linux-amd64.tar.gz
+cd kiji-privacy-proxy-X.Y.Z-linux-amd64
 
 # Run
 ./run.sh
@@ -152,7 +152,7 @@ make electron
 ## ✨ Key Features
 
 - **16+ PII Types Detected** - Email, phone, SSN, credit cards, IP addresses, URLs, and more
-- **ML-Powered** - DistilBERT transformer model with ONNX Runtime
+- **ML-Powered** - DistilBERT transformer model with ONNX Runtime ([model](https://huggingface.co/DataikuNLP/kiji-pii-model-onnx), [dataset](https://huggingface.co/datasets/DataikuNLP/kiji-pii-training-data))
 - **Automatic Configuration** - PAC (Proxy Auto-Config) for zero-setup browser integration on macOS
 - **Real-Time Processing** - Sub-100ms latency for most requests
 - **Thread-Safe** - Handles concurrent requests with isolated mappings
@@ -178,6 +178,20 @@ Complete documentation is available in [docs/README.md](docs/README.md):
 - [VSCode Debugging](docs/02-development-guide.md#vscode-debugging)
 - [Build for macOS](docs/03-building-deployment.md#building-for-macos)
 - [Build for Linux](docs/03-building-deployment.md#building-for-linux)
+
+---
+
+## 🤗 HuggingFace Models & Data
+
+The PII detection model and training data are published on HuggingFace:
+
+| Resource | Link |
+|----------|------|
+| Quantized ONNX model | [`DataikuNLP/kiji-pii-model-onnx`](https://huggingface.co/DataikuNLP/kiji-pii-model-onnx) |
+| Trained SafeTensors model | [`DataikuNLP/kiji-pii-model`](https://huggingface.co/DataikuNLP/kiji-pii-model) |
+| Training dataset | [`DataikuNLP/kiji-pii-training-data`](https://huggingface.co/datasets/DataikuNLP/kiji-pii-training-data) |
+
+You can train your own model or fine-tune the existing one. See [Customizing the PII Model](docs/07-customizing-pii-model.md) for the full workflow.
 
 ---
 
@@ -210,6 +224,7 @@ We welcome contributions! Here's how to help:
 2. **Submit PRs** - See [docs/02-development-guide.md](docs/02-development-guide.md) for dev setup
 3. **Improve Docs** - Documentation PRs are always welcome
 4. **Share Feedback** - [Start a discussion](https://github.com/dataiku/kiji-proxy/discussions)
+5. **Join our Slack** - [Slack Community](https://join.slack.com/t/dataiku-opensource/shared_invite/zt-3o6yq14rp-FTtAHZYhyru~jLZ~S6xPLA)
 
 **Quick Contribution Guide:**
 ```bash
@@ -272,7 +287,7 @@ Pull requests are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines
 
 - **Go 1.21+** with CGO enabled
 - **Node.js 20+**
-- **Python 3.11+**
+- **Python 3.13**
 - **Rust toolchain**
 
 ### Quick Setup
@@ -334,6 +349,8 @@ See [docs/05-advanced-topics.md#security-best-practices](docs/05-advanced-topics
 
 ## 📄 License
 
+Copyright (c) 2026 Dataiku SAS
+
 This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENSE) file for details.
 
 ---
@@ -363,6 +380,7 @@ This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENS
     <a href="https://github.com/dataiku/kiji-proxy">GitHub</a> •
     <a href="https://github.com/dataiku/kiji-proxy/issues">Issues</a> •
     <a href="https://github.com/dataiku/kiji-proxy/discussions">Discussions</a> •
+    <a href="https://join.slack.com/t/dataiku-opensource/shared_invite/zt-3o6yq14rp-FTtAHZYhyru~jLZ~S6xPLA">Slack</a> •
     <a href="docs/README.md">Documentation</a>
   </p>
 </div>

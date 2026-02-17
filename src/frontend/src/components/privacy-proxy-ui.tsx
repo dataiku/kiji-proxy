@@ -70,6 +70,7 @@ export default function PrivacyProxyUI() {
     maskedInput,
     isProcessing,
     detectedEntities,
+    responseDetectedEntities,
     averageConfidence,
     highlightedInputOriginalHTML,
     highlightedInputMaskedHTML,
@@ -448,7 +449,7 @@ export default function PrivacyProxyUI() {
                     />
                     <div className="mt-2">
                       <p className="text-sm font-semibold text-green-600">
-                        {detectedEntities.length} PII replaced
+                        {responseDetectedEntities.length} fake PIIs received
                       </p>
                     </div>
                   </div>
@@ -492,7 +493,7 @@ export default function PrivacyProxyUI() {
                     />
                     <div className="mt-2">
                       <p className="text-sm font-semibold text-green-600">
-                        {detectedEntities.length} PII restored
+                        {responseDetectedEntities.length} PII restored
                       </p>
                     </div>
                   </div>
