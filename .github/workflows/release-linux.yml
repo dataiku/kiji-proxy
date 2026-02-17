@@ -62,19 +62,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
 
-      - name: Cache Rust/Cargo
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            build/tokenizers/target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
-
       - name: Cache tokenizers library
         uses: actions/cache@v4
         with:
