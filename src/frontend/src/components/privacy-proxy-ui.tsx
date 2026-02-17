@@ -40,6 +40,9 @@ export default function PrivacyProxyUI() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [showModelTooltip, setShowModelTooltip] = useState(false);
+  const [activeResultTab, setActiveResultTab] = useState<
+    "request" | "response"
+  >("request");
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Settings & provider state
@@ -367,118 +370,135 @@ export default function PrivacyProxyUI() {
           <div className="space-y-6">
             {/* Combined Input and Output Diff */}
             <div className="bg-white rounded-xl shadow-lg p-6">
-              {/* Input Diff */}
-              <h2 className="text-xl font-semibold text-slate-800 mb-4 flex items-center gap-2">
-                <AlertCircle className="w-5 h-5 text-amber-600" />
-                {isElectron
-                  ? `What was sent to ${
-                      PROVIDER_NAMES[settings.activeProvider]
-                    }`
-                  : "What was sent to the LLM: "}
-              </h2>
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="flex flex-col">
-                  <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
-                    <span>Request submitted</span>
-                    <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs rounded">
-                      PII Exposed
-                    </span>
-                  </div>
-                  <div
-                    className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap flex-1"
-                    dangerouslySetInnerHTML={{
-                      __html: highlightedInputOriginalHTML,
-                    }}
-                  />
-                  <div className="flex justify-between items-center mt-2">
-                    <p className="text-sm font-semibold text-slate-700">
-                      {detectedEntities.length} PII detected
-                    </p>
-                    <p
-                      className="text-sm font-semibold"
-                      style={{
-                        color: getConfidenceColor(averageConfidence),
+              {/* Tabs */}
+              <div className="flex border-b border-slate-200 mb-4">
+                <button
+                  onClick={() => setActiveResultTab("request")}
+                  className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                    activeResultTab === "request"
+                      ? "border-amber-500 text-amber-700"
+                      : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+                  }`}
+                >
+                  <AlertCircle className="w-4 h-4" />
+                  {isElectron
+                    ? `What was sent to ${
+                        PROVIDER_NAMES[settings.activeProvider]
+                      }`
+                    : "What was sent to the LLM"}
+                </button>
+                <button
+                  onClick={() => setActiveResultTab("response")}
+                  className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                    activeResultTab === "response"
+                      ? "border-blue-500 text-blue-700"
+                      : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+                  }`}
+                >
+                  <AlertCircle className="w-4 h-4" />
+                  {isElectron
+                    ? `What ${PROVIDER_NAMES[settings.activeProvider]} returned`
+                    : "What the LLM returned"}
+                </button>
+              </div>
+
+              {/* Request Tab */}
+              {activeResultTab === "request" && (
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div className="flex flex-col">
+                    <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
+                      <span>Request submitted</span>
+                      <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs rounded">
+                        PII Exposed
+                      </span>
+                    </div>
+                    <div
+                      className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap flex-1"
+                      dangerouslySetInnerHTML={{
+                        __html: highlightedInputOriginalHTML,
                       }}
-                    >
-                      {(averageConfidence * 100).toFixed(1)}% avg confidence
-                    </p>
+                    />
+                    <div className="flex justify-between items-center mt-2">
+                      <p className="text-sm font-semibold text-slate-700">
+                        {detectedEntities.length} PII detected
+                      </p>
+                      <p
+                        className="text-sm font-semibold"
+                        style={{
+                          color: getConfidenceColor(averageConfidence),
+                        }}
+                      >
+                        {(averageConfidence * 100).toFixed(1)}% avg confidence
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-col">
+                    <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
+                      <span>
+                        Request submitted with personal information removed
+                      </span>
+                      <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded">
+                        PII Protected
+                      </span>
+                    </div>
+                    <div
+                      className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap flex-1"
+                      dangerouslySetInnerHTML={{
+                        __html: highlightedInputMaskedHTML,
+                      }}
+                    />
+                    <div className="mt-2">
+                      <p className="text-sm font-semibold text-green-600">
+                        {responseDetectedEntities.length} fake PIIs received
+                      </p>
+                    </div>
                   </div>
                 </div>
-                <div className="flex flex-col">
-                  <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
-                    <span>
-                      Request submitted with personal information removed
-                    </span>
-                    <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded">
-                      PII Protected
-                    </span>
-                  </div>
-                  <div
-                    className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap flex-1"
-                    dangerouslySetInnerHTML={{
-                      __html: highlightedInputMaskedHTML,
-                    }}
-                  />
-                  <div className="mt-2">
-                    <p className="text-sm font-semibold text-green-600">
-                      {detectedEntities.length} PII replaced
-                    </p>
-                  </div>
-                </div>
-              </div>
+              )}
 
-              {/* Divider */}
-              <div className="my-6 border-t-2 border-slate-200"></div>
-
-              {/* Output Diff */}
-              <h2 className="text-xl font-semibold text-slate-800 mb-4 flex items-center gap-2">
-                <AlertCircle className="w-5 h-5 text-blue-600" />
-                {isElectron
-                  ? `What ${PROVIDER_NAMES[settings.activeProvider]} returned`
-                  : "What the LLM returned"}
-              </h2>
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="flex flex-col">
-                  <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
-                    <span>Request received</span>
-                    <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded">
-                      From {PROVIDER_NAMES[settings.activeProvider]}
-                    </span>
+              {/* Response Tab */}
+              {activeResultTab === "response" && (
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div className="flex flex-col">
+                    <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
+                      <span>Response received</span>
+                      <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded">
+                        From {PROVIDER_NAMES[settings.activeProvider]}
+                      </span>
+                    </div>
+                    <div
+                      className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap flex-1"
+                      dangerouslySetInnerHTML={{
+                        __html: highlightedOutputMaskedHTML,
+                      }}
+                    />
+                    <div className="mt-2">
+                      <p className="text-sm font-semibold text-slate-700">
+                        {detectedEntities.length} fake PIIs received
+                      </p>
+                    </div>
                   </div>
-                  <div
-                    className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap flex-1"
-                    dangerouslySetInnerHTML={{
-                      __html: highlightedOutputMaskedHTML,
-                    }}
-                  />
-                  <div className="mt-2">
-                    <p className="text-sm font-semibold text-slate-700">
-                      {responseDetectedEntities.length} fake PIIs received
-                    </p>
-                  </div>
-                </div>
-                <div className="flex flex-col">
-                  <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
-                    <span>
-                      Request received with personal information restored
-                    </span>
-                    <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">
-                      Restored
-                    </span>
-                  </div>
-                  <div
-                    className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap flex-1"
-                    dangerouslySetInnerHTML={{
-                      __html: highlightedOutputFinalHTML,
-                    }}
-                  />
-                  <div className="mt-2">
-                    <p className="text-sm font-semibold text-green-600">
-                      {responseDetectedEntities.length} PII restored
-                    </p>
+                  <div className="flex flex-col">
+                    <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
+                      <span>Response with personal information restored</span>
+                      <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">
+                        Restored
+                      </span>
+                    </div>
+                    <div
+                      className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap flex-1"
+                      dangerouslySetInnerHTML={{
+                        __html: highlightedOutputFinalHTML,
+                      }}
+                    />
+                    <div className="mt-2">
+                      <p className="text-sm font-semibold text-green-600">
+                        {responseDetectedEntities.length} PII restored
+                      </p>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
               {/* Report Misclassification Button */}
               <div className="mt-6 flex justify-end">
