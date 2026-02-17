@@ -117,7 +117,7 @@
       "entitlementsInherit": "assets/entitlements.mac.plist",
       "minimumSystemVersion": "10.13"
     },
-    "afterPack": "../../build/scripts/remove-locales.js",
+    "afterPack": "../../src/scripts/remove-locales.js",
     "dmg": {
       "title": "${productName} ${version}",
       "background": "assets/dmg-background.png",
