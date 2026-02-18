@@ -1,9 +1,7 @@
 #!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.13"
-# dependencies = [
-#   "kiji-proxy[training]"
-# ]
+# dependencies = []
 # ///
 """Analyze annotated PII datasets and print comprehensive statistics.
 
