@@ -180,7 +180,7 @@ func (p *Providers) GetProviderFromHost(host string, logPrefix string) (*Provide
 		provider = p.MistralProvider
 	default:
 		log.Printf("%s [Provider] provider could not be determined from host '%s'.", logPrefix, host)
-		return &provider, fmt.Errorf("provider could not be determined from host: '%s'.", host)
+		return &provider, fmt.Errorf("provider could not be determined from host: '%s'", host)
 	}
 
 	log.Printf("%s [Provider] '%s' provider detected from host '%s'.", logPrefix, provider.GetName(), host)
