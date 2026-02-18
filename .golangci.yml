@@ -1,12 +1,10 @@
-# golangci-lint configuration
-# Compatible with CI v1.64.2
-
-
+version: "2"
 
 run:
   timeout: 5m
 
 linters:
+  default: none
   enable:
     - errcheck
     - govet
@@ -30,7 +28,7 @@ issues:
   exclude-rules:
     - path: _test\.go
       linters:
-        - gomnd
+        - mnd
         - funlen
         - gocyclo
         - goconst
