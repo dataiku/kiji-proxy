@@ -77,21 +77,3 @@ updates:
       go-dependencies:
         patterns:
           - "*"
-
-  # Cargo - Rust dependencies (tokenizers)
-  - package-ecosystem: "cargo"
-    directory: "/build/tokenizers"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-    commit-message:
-      prefix: "deps"
-      include: "scope"
-    labels:
-      - "dependencies"
-      - "rust"
-    groups:
-      rust-dependencies:
-        patterns:
-          - "*"

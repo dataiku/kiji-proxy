@@ -40,7 +40,7 @@ func (p *OpenAIProvider) GetBaseURL(useHttps bool) string {
 func (p *OpenAIProvider) ExtractRequestText(data map[string]interface{}) (string, error) {
 	messages, ok := data["messages"].([]interface{})
 	if !ok {
-		return "", fmt.Errorf("No messages field in OpenAI request")
+		return "", fmt.Errorf("no messages field in OpenAI request")
 	}
 
 	var result strings.Builder
@@ -59,7 +59,7 @@ func (p *OpenAIProvider) ExtractRequestText(data map[string]interface{}) (string
 func (p *OpenAIProvider) ExtractResponseText(data map[string]interface{}) (string, error) {
 	choices, ok := data["choices"].([]interface{})
 	if !ok || len(choices) == 0 {
-		return "", fmt.Errorf("No choices in OpenAI response")
+		return "", fmt.Errorf("no choices in OpenAI response")
 	}
 
 	var result strings.Builder
@@ -116,10 +116,10 @@ func (p *OpenAIProvider) RestoreMaskedResponse(maskedResponse map[string]interfa
 	// Iterate over all 'choices' contained in 'maskedRequest' (as OpenAI can return more than one).
 	choices, ok := maskedResponse["choices"].([]interface{})
 	if !ok || len(choices) == 0 {
-		return fmt.Errorf("No choices in OpenAI response.")
+		return fmt.Errorf("no choices in OpenAI response")
 	}
 
-	err := fmt.Errorf("No PII to reverse in OpenAI response 'choices' field.")
+	err := fmt.Errorf("no PII to reverse in OpenAI response 'choices' field")
 	for i := range choices {
 		choice := choices[i].(map[string]interface{})
 

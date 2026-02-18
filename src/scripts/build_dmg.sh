@@ -86,76 +86,39 @@ else
 fi
 
 echo ""
-echo "📦 Step 3: Restoring build files from git (if needed)..."
+echo "📦 Step 3: Downloading tokenizers library (if needed)..."
 echo "--------------------------------------------------------"
 
-# Create build directories if they don't exist
+TOKENIZERS_VERSION="1.23.0"
+TOKENIZERS_PLATFORM="darwin-arm64"
+TOKENIZERS_FILE="libtokenizers.${TOKENIZERS_PLATFORM}.tar.gz"
+TOKENIZERS_URL="https://github.com/daulet/tokenizers/releases/download/v${TOKENIZERS_VERSION}/${TOKENIZERS_FILE}"
+
 mkdir -p build/tokenizers
-mkdir -p build/scripts
-
-# Restore tokenizers library from git if missing
-if [ ! -f "build/tokenizers/libtokenizers.a" ] && git ls-tree -r HEAD --name-only | grep -q "build/tokenizers/libtokenizers.a"; then
-    echo "Restoring libtokenizers.a from git..."
-    cd build/tokenizers
-    git checkout HEAD -- .
-    cd "$PROJECT_ROOT"
-fi
-
-# Restore build scripts from git if missing
-if [ ! -f "build/scripts/remove-locales.js" ] && git ls-tree -r HEAD --name-only | grep -q "build/scripts/remove-locales.js"; then
-    echo "Restoring build scripts from git..."
-    cd build/scripts
-    git checkout HEAD -- .
-    cd "$PROJECT_ROOT"
-fi
-
-echo ""
-echo "📦 Step 4: Building tokenizers library (if needed)..."
-echo "-----------------------------------------------------"
-
 cd build/tokenizers
 
 if [ -f "libtokenizers.a" ]; then
     echo "✅ Using existing libtokenizers.a (cached)"
-    echo "Running ranlib to ensure archive has proper index..."
     ranlib libtokenizers.a
-elif [ -f "libtokenizers.darwin-arm64.tar.gz" ]; then
-    echo "Extracting pre-built library..."
-    tar -xzf libtokenizers.darwin-arm64.tar.gz
-    echo "Running ranlib to ensure archive has proper index..."
-    ranlib libtokenizers.a
-elif [ -f "Makefile" ]; then
-    echo "Building with Makefile (parallel jobs: $PARALLEL_JOBS)..."
-    make build -j$PARALLEL_JOBS || cargo build --release --jobs $PARALLEL_JOBS
-    if [ -f "target/release/libtokenizers.a" ]; then
-        cp target/release/libtokenizers.a ./libtokenizers.a
-        echo "Running ranlib to ensure archive has proper index..."
-        ranlib libtokenizers.a
-    fi
 else
-    echo "Building with cargo (parallel jobs: $PARALLEL_JOBS)..."
-    if command -v cargo >/dev/null 2>&1; then
-        cargo build --release --jobs $PARALLEL_JOBS
-        if [ -f "target/release/libtokenizers.a" ]; then
-            cp target/release/libtokenizers.a ./libtokenizers.a
-            echo "Running ranlib to ensure archive has proper index..."
-            ranlib libtokenizers.a
-        fi
-    else
-        echo "⚠️  Cargo not found, skipping tokenizers build"
-    fi
-fi
+    echo "Downloading tokenizers library from $TOKENIZERS_URL..."
+    curl -L -o "$TOKENIZERS_FILE" "$TOKENIZERS_URL"
+    tar -xzf "$TOKENIZERS_FILE"
+    rm -f "$TOKENIZERS_FILE"
 
-if [ ! -f "libtokenizers.a" ]; then
-    echo "❌ Failed to obtain libtokenizers.a"
-    echo "💡 Try: mkdir -p build/tokenizers && cd build/tokenizers && git checkout HEAD -- ."
-    exit 1
+    if [ ! -f "libtokenizers.a" ]; then
+        echo "❌ Failed to obtain libtokenizers.a"
+        exit 1
+    fi
+
+    ranlib libtokenizers.a
+    echo "✅ Tokenizers library downloaded and extracted"
 fi
 
 cd "$PROJECT_ROOT"
 
 echo ""
-echo "📦 Step 5: Installing Electron dependencies..."
+echo "📦 Step 4: Installing Electron dependencies..."
 echo "----------------------------------------------"
 
 cd "$ELECTRON_DIR"
@@ -175,7 +138,7 @@ else
 fi
 
 echo ""
-echo "📦 Step 6: Building Electron app..."
+echo "📦 Step 5: Building Electron app..."
 echo "-----------------------------------"
 
 npm run build:electron
@@ -190,7 +153,7 @@ echo "✅ Electron app built successfully"
 cd "$PROJECT_ROOT"
 
 echo ""
-echo "📦 Step 7: Verifying LFS files are downloaded..."
+echo "📦 Step 6: Verifying LFS files are downloaded..."
 echo "-----------------------------------------------"
 
 # Check if model file exists
@@ -248,7 +211,7 @@ for file in tokenizer.json vocab.txt model_manifest.json; do
 done
 
 echo ""
-echo "📦 Step 8: Preparing files for Go embedding..."
+echo "📦 Step 7: Preparing files for Go embedding..."
 echo "----------------------------------------------"
 
 # Copy frontend/dist files to src/backend/frontend/dist/ for embedding
@@ -294,7 +257,7 @@ else
 fi
 
 echo ""
-echo "📦 Step 9: Building Go binary..."
+echo "📦 Step 8: Building Go binary..."
 echo "--------------------------------"
 
 # Extract version from package.json
@@ -321,7 +284,7 @@ fi
 echo "✅ Go binary created: build/kiji-proxy"
 
 echo ""
-echo "📦 Step 10: Preparing Electron resources..."
+echo "📦 Step 9: Preparing Electron resources..."
 echo "-------------------------------------------"
 
 mkdir -p src/frontend/resources
@@ -405,7 +368,7 @@ if [ -d "src/frontend/resources/model/quantized" ]; then
 fi
 
 echo ""
-echo "📦 Step 11: Packaging Electron app (DMG)..."
+echo "📦 Step 10: Packaging Electron app (DMG)..."
 echo "--------------------------------------------"
 
 cd src/frontend
@@ -463,40 +426,32 @@ if [ -z "${CSC_LINK:-}" ]; then
     # Must sign inside-out (frameworks first, then app) to avoid Team ID mismatches.
     # --deep is deprecated and produces broken signatures on modern macOS.
     echo ""
-    echo "📦 Step 12: Ad-hoc re-signing app bundle..."
+    echo "📦 Step 11: Ad-hoc re-signing app bundle..."
     echo "--------------------------------------------"
     APP_BUNDLE=$(find release -name "*.app" -maxdepth 2 | head -1)
     if [ -n "$APP_BUNDLE" ]; then
-        # Sign all nested frameworks and helpers first (inside-out)
-        find "$APP_BUNDLE/Contents/Frameworks" -type f -perm +111 -o -name "*.dylib" | while read -r binary; do
-            codesign --force --sign - "$binary" 2>/dev/null || true
-        done
-        # Sign framework bundles
-        find "$APP_BUNDLE/Contents/Frameworks" -name "*.framework" -maxdepth 1 | while read -r fw; do
-            codesign --force --sign - "$fw" 2>/dev/null || true
-        done
-        # Sign helper apps
-        find "$APP_BUNDLE/Contents/Frameworks" -name "*.app" | while read -r helper; do
-            codesign --force --sign - "$helper" 2>/dev/null || true
-        done
-        # Sign the Go binary in Resources
-        if [ -f "$APP_BUNDLE/Contents/Resources/kiji-proxy" ]; then
-            codesign --force --sign - "$APP_BUNDLE/Contents/Resources/kiji-proxy"
+        # Sign individual components first (innermost to outermost)
+        # --deep is unreliable for dylibs and extra binaries in Resources/
+        RESOURCES_DIR="$APP_BUNDLE/Contents/Resources"
+
+        # Sign dylibs
+        find "$RESOURCES_DIR" -name "*.dylib" -exec codesign --force --sign - {} \;
+
+        # Sign the Go backend binary
+        if [ -f "$RESOURCES_DIR/kiji-proxy" ]; then
+            codesign --force --sign - "$RESOURCES_DIR/kiji-proxy"
         fi
-        # Sign the ONNX library
-        if [ -f "$APP_BUNDLE/Contents/Resources/libonnxruntime.1.23.1.dylib" ]; then
-            codesign --force --sign - "$APP_BUNDLE/Contents/Resources/libonnxruntime.1.23.1.dylib"
-        fi
-        # Finally sign the top-level app bundle
-        codesign --force --sign - "$APP_BUNDLE"
-        echo "✅ App bundle re-signed with consistent ad-hoc identity (inside-out)"
+
+        # Sign the full app bundle last
+        codesign --force --deep --sign - "$APP_BUNDLE"
+        echo "✅ App bundle re-signed with consistent ad-hoc identity"
     else
         echo "⚠️  Could not find .app bundle to re-sign"
     fi
 
     # Step 3: Build the DMG from the re-signed .app
     echo ""
-    echo "📦 Step 13: Creating DMG from signed app..."
+    echo "📦 Step 12: Creating DMG from signed app..."
     echo "--------------------------------------------"
     CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --prepackaged "$APP_BUNDLE"
     if [ $? -ne 0 ]; then
@@ -513,7 +468,7 @@ else
 fi
 
 echo ""
-echo "📦 Step 14: Code signing summary..."
+echo "📦 Step 13: Code signing summary..."
 echo "-----------------------------------"
 
 if [ -n "${CSC_LINK:-}" ]; then
