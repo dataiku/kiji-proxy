@@ -52,31 +52,31 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           lfs: true
           fetch-depth: 0
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: "1.21"
           cache: false
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.13"
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "20"
           cache: "npm"
           cache-dependency-path: package-lock.json
 
       - name: Install uv
-        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4.2.0
+        uses: astral-sh/setup-uv@eac588ad8def6316056a12d4907a9d4d84ff7a3b # v7.3.0
         with:
           enable-cache: true
 
@@ -86,7 +86,7 @@ jobs:
           toolchain: stable
 
       - name: Cache LFS objects
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .git/lfs
           key: lfs-${{ runner.os }}-${{ hashFiles('.gitattributes') }}
@@ -94,13 +94,13 @@ jobs:
             lfs-${{ runner.os }}-
 
       - name: Cache tokenizers library
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: build/tokenizers/libtokenizers.a
           key: ${{ runner.os }}-tokenizers-v1.23.0-prebuilt-v2
 
       - name: Cache ONNX Runtime library
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: build/libonnxruntime.*.dylib
           key: ${{ runner.os }}-onnx-1.23.1
@@ -179,7 +179,7 @@ jobs:
           done
 
       - name: Upload DMG as Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: kiji-privacy-proxy-${{ steps.version.outputs.version }}-macos
           path: src/frontend/release/*.dmg
