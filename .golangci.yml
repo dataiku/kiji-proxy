@@ -24,6 +24,17 @@ linters:
     - unparam
     - whitespace
 
+  settings:
+    gosec:
+      excludes:
+        - G101 # False positive on config field names matching "secret" patterns
+        - G115 # Safe integer conversions (e.g., rune('A' + smallInt))
+        - G117 # False positive on struct fields matching secret patterns
+        - G703 # Path traversal — expected in proxy serving CA certs
+        - G704 # SSRF — expected in proxy forwarding requests
+        - G705 # XSS — expected in proxy forwarding response bodies
+        - G706 # Log injection — expected in proxy logging request paths
+
   exclusions:
     presets:
       - comments

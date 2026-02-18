@@ -41,7 +41,7 @@ func (p *AnthropicProvider) ExtractRequestText(data map[string]interface{}) (str
 	// Anthropic uses same "messages" format as OpenAI
 	messages, ok := data["messages"].([]interface{})
 	if !ok {
-		return "", fmt.Errorf("No 'messages' field in Anthropic request.")
+		return "", fmt.Errorf("no 'messages' field in Anthropic request")
 	}
 
 	var result strings.Builder
@@ -61,7 +61,7 @@ func (p *AnthropicProvider) ExtractResponseText(data map[string]interface{}) (st
 	// Iterate over all entries in the 'content' field of the Anthropic response that have type='text'.
 	content, ok := data["content"].([]interface{})
 	if !ok || len(content) == 0 {
-		return "", fmt.Errorf("No content in Anthropic response.")
+		return "", fmt.Errorf("no content in Anthropic response")
 	}
 
 	var result strings.Builder
@@ -116,10 +116,10 @@ func (p *AnthropicProvider) RestoreMaskedResponse(maskedResponse map[string]inte
 	// Iterate over all entries in the 'content' field of the Anthropic response that have type='text'.
 	content, ok := maskedResponse["content"].([]interface{})
 	if !ok || len(content) == 0 {
-		return fmt.Errorf("No content in Anthropic response.")
+		return fmt.Errorf("no content in Anthropic response")
 	}
 
-	err := fmt.Errorf("No PII to reverse in Anthropic response 'content' field.")
+	err := fmt.Errorf("no PII to reverse in Anthropic response 'content' field")
 	for i := range content {
 		item := content[i].(map[string]interface{})
 
