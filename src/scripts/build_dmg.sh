@@ -423,8 +423,8 @@ if [ -z "${CSC_LINK:-}" ]; then
     fi
 
     # Step 2: Re-sign the .app with a consistent ad-hoc identity.
-    # Without this, the main binary and Electron Framework have mismatched
-    # Team IDs and macOS refuses to launch the app.
+    # Must sign inside-out (frameworks first, then app) to avoid Team ID mismatches.
+    # --deep is deprecated and produces broken signatures on modern macOS.
     echo ""
     echo "📦 Step 11: Ad-hoc re-signing app bundle..."
     echo "--------------------------------------------"

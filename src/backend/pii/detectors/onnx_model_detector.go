@@ -182,7 +182,9 @@ func (d *ONNXModelDetectorSimple) Detect(ctx context.Context, input DetectorInpu
 		}
 	}
 
-	// Tokenize input with offsets to get character positions
+	// Tokenize input with offsets to get character positions.
+	// Note: truncation is disabled in tokenizer.json (set to null) so that
+	// long texts are not silently truncated. We handle chunking ourselves.
 	encoding := d.tokenizer.EncodeWithOptions(input.Text, true, tokenizers.WithReturnOffsets())
 	tokenIDs := encoding.IDs
 
@@ -547,7 +549,9 @@ func (d *ONNXModelDetectorSimple) Close() error {
 	return nil
 }
 
-// chunkTokens splits tokens into overlapping chunks for processing long texts
+// chunkTokens splits tokens into overlapping chunks for processing long texts.
+// Truncation is disabled in tokenizer.json so the tokenizer returns all tokens;
+// this function handles splitting them into model-sized chunks.
 func chunkTokens(tokenIDs []uint32, offsets []tokenizers.Offset) []tokenChunk {
 	numTokens := len(tokenIDs)
 

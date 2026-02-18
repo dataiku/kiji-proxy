@@ -135,9 +135,10 @@ class DatasetProcessor:
                 if "value" in item:
                     entity_id = item["id"]
                     value = item.get("value", {})
+                    labels = value.get("labels", [])
                     entities[entity_id] = {
                         "text": value.get("text", ""),
-                        "label": value.get("labels", [None])[0],
+                        "label": labels[0] if labels else None,
                         "start": value.get("start"),
                         "end": value.get("end"),
                     }
@@ -176,14 +177,15 @@ class DatasetProcessor:
 
                 main_entity = entities[main_entity_id]
 
-                # Add main entity to privacy_mask
+                # Add main entity to privacy_mask (skip if no label, e.g. coreference span markers)
                 if main_entity_id not in processed_entities:
-                    privacy_mask.append(
-                        {
-                            "value": main_entity["text"],
-                            "label": main_entity["label"],
-                        }
-                    )
+                    if main_entity["label"]:
+                        privacy_mask.append(
+                            {
+                                "value": main_entity["text"],
+                                "label": main_entity["label"],
+                            }
+                        )
                     processed_entities.add(main_entity_id)
 
                 # Build coreference cluster with mentions
@@ -206,7 +208,7 @@ class DatasetProcessor:
 
             # Add remaining entities (not part of coreferences) to privacy_mask
             for entity_id, entity in entities.items():
-                if entity_id not in processed_entities:
+                if entity_id not in processed_entities and entity["label"]:
                     privacy_mask.append(
                         {
                             "value": entity["text"],
@@ -227,10 +229,42 @@ class DatasetProcessor:
             logging.debug(f"Failed to convert Label Studio sample in {file_name}: {e}")
             return None
 
+    # Coreference marker labels used in Label Studio annotations.
+    # These are not PII entities and should not trigger non-standard label filtering.
+    _COREFERENCE_LABELS = {"PRONOUN", "REFERENCE", "MENTION", "pronoun", "reference"}
+
+    def _has_non_standard_labels(self, sample: dict) -> bool:
+        """
+        Check if a converted sample contains non-standard NER labels.
+
+        Samples with labels outside STANDARD_PII_LABELS would confuse the model
+        during training and should be skipped entirely. Coreference marker labels
+        (PRONOUN, REFERENCE, MENTION) are ignored since they are not NER entities.
+
+        Args:
+            sample: Converted training format sample with 'privacy_mask'
+
+        Returns:
+            True if any entity in privacy_mask has a non-standard label
+        """
+        standard_labels = set(LabelUtils.STANDARD_PII_LABELS)
+        for entity in sample.get("privacy_mask", []):
+            label = entity.get("label")
+            if (
+                label
+                and label not in standard_labels
+                and label not in self._COREFERENCE_LABELS
+            ):
+                return True
+        return False
+
     def load_training_samples(self) -> list[dict]:
         """
         Load training samples from local JSON files.
         Supports the Label Studio format.
+
+        Samples containing non-standard NER labels are skipped entirely
+        to avoid confusing the model during training.
 
         Returns:
             List of training samples
@@ -248,6 +282,7 @@ class DatasetProcessor:
         # Track conversion statistics
         converted_count = 0
         skipped_count = 0
+        non_standard_count = 0
 
         for json_file in json_files:
             try:
@@ -258,11 +293,13 @@ class DatasetProcessor:
                 converted = self.convert_labelstudio_to_training_format(
                     sample, file_name=json_file.name
                 )
-                if converted:
+                if converted is None:
+                    skipped_count += 1
+                elif self._has_non_standard_labels(converted):
+                    non_standard_count += 1
+                else:
                     samples.append(converted)
                     converted_count += 1
-                else:
-                    skipped_count += 1
 
             except json.JSONDecodeError as e:
                 logging.warning(f"⚠️  JSON decode error in {json_file.name}: {e}")
@@ -272,9 +309,13 @@ class DatasetProcessor:
                 skipped_count += 1
 
         # Print statistics
-        logging.info(f"✅ Loaded {converted_count} training samples")
+        logging.info("\n📊 Preprocessing Summary:")
+        logging.info(f"  Files processed:              {len(json_files):,}")
+        logging.info(f"  Available for training:        {converted_count:,}")
+        if non_standard_count > 0:
+            logging.info(f"  Skipped (non-standard labels): {non_standard_count:,}")
         if skipped_count > 0:
-            logging.info(f"⚠️  Skipped {skipped_count} files")
+            logging.info(f"  Skipped (conversion errors):   {skipped_count:,}")
 
         if len(samples) == 0:
             raise ValueError(

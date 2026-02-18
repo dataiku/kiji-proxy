@@ -5,14 +5,17 @@
 name = "distilbert-base-cased"
 
 [training]
-num_epochs = 15
-batch_size = 16
-learning_rate = 3e-5
+num_epochs = 30
+batch_size = 4
+learning_rate = 2e-5
+
+warmup_steps = 500        # Gradual LR ramp-up to stabilize early training
+weight_decay = 0.01       # L2 regularization strength
 
 # Early stopping settings
 early_stopping_enabled = true
-early_stopping_patience = 3  # Number of eval steps with no improvement before stopping
-early_stopping_threshold = 0.01  # Minimum improvement (1%) to qualify as improvement
+early_stopping_patience = 3   # Number of epochs with no improvement before stopping
+early_stopping_threshold = 0.005  # Minimum improvement (0.5%) to qualify as improvement
 
 [paths]
 # Directory containing JSON training samples (relative to working directory or absolute)
