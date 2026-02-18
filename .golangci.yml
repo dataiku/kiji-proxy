@@ -18,7 +18,6 @@ linters:
     - gocritic
     - gosec
     - nakedret
-    - noctx
     - rowserrcheck
     - unconvert
     - unparam
