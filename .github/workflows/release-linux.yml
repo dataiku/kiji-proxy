@@ -29,13 +29,13 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           lfs: true
           fetch-depth: 0
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: "1.21"
 
@@ -45,7 +45,7 @@ jobs:
           toolchain: stable
 
       - name: Cache LFS objects
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .git/lfs
           key: lfs-${{ runner.os }}-${{ hashFiles('.gitattributes') }}
@@ -53,7 +53,7 @@ jobs:
             lfs-${{ runner.os }}-
 
       - name: Cache Go modules
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/go/pkg/mod
@@ -63,13 +63,13 @@ jobs:
             ${{ runner.os }}-go-
 
       - name: Cache tokenizers library
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: build/tokenizers/libtokenizers.a
           key: ${{ runner.os }}-tokenizers-v1.23.0-prebuilt-v2
 
       - name: Cache ONNX Runtime library
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             build/libonnxruntime.so.1.23.1
@@ -106,7 +106,7 @@ jobs:
           ./src/scripts/build_linux.sh
 
       - name: Upload Linux Archive as Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: kiji-privacy-proxy-${{ steps.version.outputs.version }}-linux-amd64
           path: release/linux/*.tar.gz*
