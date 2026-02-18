@@ -11,8 +11,6 @@ This pipeline orchestrates:
 
 Usage:
     # Run locally (with uv extras)
-    uv run --extra training --extra signing python model/flows/training_pipeline.py run
-    # If on linux VM, we can do quantization too:
     uv run --extra training --extra quantization --extra signing python model/flows/training_pipeline.py run
 
     # Custom config file
@@ -24,7 +22,6 @@ Usage:
 
 import json
 import os
-import sys
 import time
 import tomllib
 from datetime import datetime
@@ -134,6 +131,9 @@ class PIITrainingPipeline(FlowSpec):
                 "training_samples_dir", "model/dataset/data_samples/training_samples"
             ),
             output_dir=cfg.get("paths", {}).get("output_dir", "model/trained"),
+            warmup_steps=training_cfg.get("warmup_steps", 200),
+            weight_decay=training_cfg.get("weight_decay", 0.01),
+            eval_steps=training_cfg.get("eval_steps", 500),
             early_stopping_enabled=training_cfg.get("early_stopping_enabled", True),
             early_stopping_patience=training_cfg.get("early_stopping_patience", 3),
             early_stopping_threshold=training_cfg.get("early_stopping_threshold", 0.01),
@@ -327,15 +327,7 @@ class PIITrainingPipeline(FlowSpec):
             f"Avg inference: {self.avg_inference_time_ms:.2f}ms ({1000 / self.avg_inference_time_ms:.0f} texts/sec)"
         )
 
-        self.is_linux = sys.platform == "linux"
-        if not self.is_linux:
-            print("Skipping ONNX quantization on Mac or Windows")
-            self.quantized_model_path = None
-            self.quantized_model = None
-
-        self.next(
-            {True: self.quantize_model, False: self.sign_model}, condition="is_linux"
-        )
+        self.next(self.quantize_model)
 
     # @pypi(packages=QUANTIZATION_PACKAGES, python="3.13")
     # @kubernetes(memory=10000, cpu=6)

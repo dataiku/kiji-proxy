@@ -1,4 +1,8 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.13"
+# dependencies = []
+# ///
 """Download a PII dataset from HuggingFace Hub and save as local Label Studio JSON files."""
 
 import hashlib

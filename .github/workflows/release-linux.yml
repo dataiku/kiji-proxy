@@ -29,23 +29,23 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           lfs: true
           fetch-depth: 0
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: "1.21"
 
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
         with:
           toolchain: stable
 
       - name: Cache LFS objects
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .git/lfs
           key: lfs-${{ runner.os }}-${{ hashFiles('.gitattributes') }}
@@ -53,7 +53,7 @@ jobs:
             lfs-${{ runner.os }}-
 
       - name: Cache Go modules
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/go/pkg/mod
@@ -62,27 +62,14 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
 
-      - name: Cache Rust/Cargo
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            build/tokenizers/target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
-
       - name: Cache tokenizers library
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: build/tokenizers/libtokenizers.a
           key: ${{ runner.os }}-tokenizers-v1.23.0-prebuilt-v2
 
       - name: Cache ONNX Runtime library
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             build/libonnxruntime.so.1.23.1
@@ -119,7 +106,7 @@ jobs:
           ./src/scripts/build_linux.sh
 
       - name: Upload Linux Archive as Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: kiji-privacy-proxy-${{ steps.version.outputs.version }}-linux-amd64
           path: release/linux/*.tar.gz*
@@ -127,15 +114,14 @@ jobs:
 
       - name: Upload to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.create_release == 'true'
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            release/linux/*.tar.gz
-            release/linux/*.tar.gz.sha256
-          fail_on_unmatched_files: true
-          append_body: true
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Upload Linux archives to release using GitHub CLI
+          gh release upload "${{ github.ref_name }}" \
+            release/linux/*.tar.gz \
+            release/linux/*.tar.gz.sha256 \
+            --clobber
 
       - name: Upload Release Summary
         if: always()

@@ -71,7 +71,7 @@ func NewDefaultProviders(defaultOpenAIProvider ProviderType) (*defaultProviders,
 	if defaultOpenAIProvider == ProviderTypeOpenAI || defaultOpenAIProvider == ProviderTypeMistral {
 		return &defaultProviders{OpenAISubpath: defaultOpenAIProvider}, nil
 	} else {
-		return nil, fmt.Errorf("`defaultOpenAIProvider` must be 'openai' or 'mistral'.")
+		return nil, fmt.Errorf("defaultOpenAIProvider must be 'openai' or 'mistral'")
 	}
 }
 
@@ -155,7 +155,7 @@ func (p *Providers) GetProviderFromPath(host string, path string, body *[]byte, 
 	case strings.HasPrefix(path, ProviderSubpathGemini):
 		provider = p.GeminiProvider
 	default:
-		return &provider, fmt.Errorf("%s [Provider] unknown provider detected from subpath: %s.", logPrefix, path)
+		return &provider, fmt.Errorf("%s [Provider] unknown provider detected from subpath: %s", logPrefix, path)
 	}
 
 	if provider != nil {
@@ -163,7 +163,7 @@ func (p *Providers) GetProviderFromPath(host string, path string, body *[]byte, 
 		return &provider, nil
 	}
 
-	return nil, fmt.Errorf("[Provider] unknown provider.")
+	return nil, fmt.Errorf("[Provider] unknown provider")
 }
 
 func (p *Providers) GetProviderFromHost(host string, logPrefix string) (*Provider, error) {
@@ -180,7 +180,7 @@ func (p *Providers) GetProviderFromHost(host string, logPrefix string) (*Provide
 		provider = p.MistralProvider
 	default:
 		log.Printf("%s [Provider] provider could not be determined from host '%s'.", logPrefix, host)
-		return &provider, fmt.Errorf("provider could not be determined from host: '%s'.", host)
+		return &provider, fmt.Errorf("provider could not be determined from host: '%s'", host)
 	}
 
 	log.Printf("%s [Provider] '%s' provider detected from host '%s'.", logPrefix, provider.GetName(), host)

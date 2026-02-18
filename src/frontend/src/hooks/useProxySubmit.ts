@@ -117,6 +117,12 @@ export function useProxySubmit({
     [finalOutput, detectedEntities]
   );
 
+  const responseDetectedEntities = useMemo(
+    () =>
+      detectedEntities.filter((entity) => maskedOutput.includes(entity.token)),
+    [detectedEntities, maskedOutput]
+  );
+
   const handleSubmit = useCallback(async () => {
     if (!inputData.trim()) return;
 
@@ -260,6 +266,7 @@ export function useProxySubmit({
     finalOutput,
     isProcessing,
     detectedEntities,
+    responseDetectedEntities,
     averageConfidence,
     highlightedInputOriginalHTML,
     highlightedInputMaskedHTML,

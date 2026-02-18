@@ -115,7 +115,7 @@ func DateOfBirthGenerator(rng *rand.Rand, original string) string {
 	day := 1 + rng.Intn(28) // Keep it simple to avoid invalid dates
 
 	// Try to match the format of the original
-	if len(original) > 0 {
+	if len(original) > 2 {
 		if original[2] == '/' || original[2] == '-' {
 			sep := string(original[2])
 			return fmt.Sprintf("%02d%s%02d%s%d", month, sep, day, sep, year)

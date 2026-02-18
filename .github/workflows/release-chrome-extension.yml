@@ -26,7 +26,7 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Extract Version
         id: version
@@ -63,7 +63,7 @@ jobs:
           cat kiji-pii-guard-${{ steps.version.outputs.version }}.zip.sha256
 
       - name: Upload as Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: kiji-pii-guard-${{ steps.version.outputs.version }}
           path: |
@@ -73,28 +73,40 @@ jobs:
 
       - name: Upload to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.create_release == 'true'
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            kiji-pii-guard-${{ steps.version.outputs.version }}.zip
-            kiji-pii-guard-${{ steps.version.outputs.version }}.zip.sha256
-          draft: false
-          prerelease: ${{ contains(github.ref, '-beta') || contains(github.ref, '-alpha') || contains(github.ref, '-rc') }}
-          fail_on_unmatched_files: true
-          append_body: true
-          body: |
-
-            ### Chrome Extension
-            - **Chrome Extension**: `kiji-pii-guard-${{ steps.version.outputs.version }}.zip`
-
-            **Install from zip:**
-            1. Download `kiji-pii-guard-${{ steps.version.outputs.version }}.zip`
-            2. Unzip to a folder
-            3. Open `chrome://extensions/`
-            4. Enable **Developer mode**
-            5. Click **Load unpacked** and select the unzipped folder
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Determine if prerelease
+          IS_PRERELEASE=""
+          if [[ "${{ github.ref }}" == *"-beta"* ]] || [[ "${{ github.ref }}" == *"-alpha"* ]] || [[ "${{ github.ref }}" == *"-rc"* ]]; then
+            IS_PRERELEASE="--prerelease"
+          fi
+
+          # Create release notes body
+          cat > release_notes.md << 'EOF'
+
+          ### Chrome Extension
+          - **Chrome Extension**: `kiji-pii-guard-${{ steps.version.outputs.version }}.zip`
+
+          **Install from zip:**
+          1. Download `kiji-pii-guard-${{ steps.version.outputs.version }}.zip`
+          2. Unzip to a folder
+          3. Open `chrome://extensions/`
+          4. Enable **Developer mode**
+          5. Click **Load unpacked** and select the unzipped folder
+          EOF
+
+          # Upload to release using GitHub CLI
+          gh release upload "${{ github.ref_name }}" \
+            kiji-pii-guard-${{ steps.version.outputs.version }}.zip \
+            kiji-pii-guard-${{ steps.version.outputs.version }}.zip.sha256 \
+            --clobber
+
+          # Append to release notes
+          EXISTING_NOTES=$(gh release view "${{ github.ref_name }}" --json body --jq .body || echo "")
+          echo "$EXISTING_NOTES" > existing_notes.md
+          cat existing_notes.md release_notes.md > combined_notes.md
+          gh release edit "${{ github.ref_name }}" --notes-file combined_notes.md $IS_PRERELEASE
 
       - name: Build Summary
         if: always()
