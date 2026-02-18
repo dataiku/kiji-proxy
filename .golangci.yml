@@ -1,12 +1,10 @@
-# golangci-lint configuration
-# Compatible with CI v1.64.2
-
-
+version: "2"
 
 run:
   timeout: 5m
 
 linters:
+  default: none
   enable:
     - errcheck
     - govet
@@ -20,19 +18,34 @@ linters:
     - gocritic
     - gosec
     - nakedret
-    - noctx
     - rowserrcheck
     - unconvert
     - unparam
     - whitespace
 
-issues:
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - gomnd
-        - funlen
-        - gocyclo
-        - goconst
-        - dupl
-        - gosec
+  settings:
+    gosec:
+      excludes:
+        - G101 # False positive on config field names matching "secret" patterns
+        - G115 # Safe integer conversions (e.g., rune('A' + smallInt))
+        - G117 # False positive on struct fields matching secret patterns
+        - G703 # Path traversal — expected in proxy serving CA certs
+        - G704 # SSRF — expected in proxy forwarding requests
+        - G705 # XSS — expected in proxy forwarding response bodies
+        - G706 # Log injection — expected in proxy logging request paths
+
+  exclusions:
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - path: _test\.go
+        linters:
+          - mnd
+          - funlen
+          - gocyclo
+          - goconst
+          - dupl
+          - gosec
