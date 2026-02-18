@@ -24,13 +24,13 @@ linters:
     - unparam
     - whitespace
 
-issues:
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - mnd
-        - funlen
-        - gocyclo
-        - goconst
-        - dupl
-        - gosec
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - mnd
+          - funlen
+          - gocyclo
+          - goconst
+          - dupl
+          - gosec
