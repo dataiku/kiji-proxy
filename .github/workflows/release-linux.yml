@@ -117,11 +117,17 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Upload Linux archives to release using GitHub CLI
-          gh release upload "${{ github.ref_name }}" \
+          # Create release if it doesn't exist yet, then upload assets
+          gh release create "${{ github.ref_name }}" \
             release/linux/*.tar.gz \
             release/linux/*.tar.gz.sha256 \
-            --clobber
+            --title "Kiji Privacy Proxy v${{ steps.version.outputs.version }}" \
+            --generate-notes \
+            --latest \
+            || gh release upload "${{ github.ref_name }}" \
+              release/linux/*.tar.gz \
+              release/linux/*.tar.gz.sha256 \
+              --clobber
 
       - name: Upload Release Summary
         if: always()
