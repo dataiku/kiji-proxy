@@ -11,7 +11,7 @@
       "program": "${workspaceFolder}/src/backend",
       "cwd": "${workspaceFolder}",
       "envFile": "${workspaceFolder}/.env",
-      "buildFlags": "-ldflags='-X main.version=0.4.5-dev'",
+      "buildFlags": "-ldflags='-X main.version=0.4.6-dev'",
       "env": {
         "PROXY_PORT": ":8080",
         "DETECTOR_NAME": "onnx_model_detector",
