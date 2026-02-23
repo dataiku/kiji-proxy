@@ -45,7 +45,7 @@
     "@typescript-eslint/eslint-plugin": "^8.56.0",
     "@typescript-eslint/parser": "^8.0.0",
     "autoprefixer": "^10.4.24",
-    "babel-loader": "^9.1.0",
+    "babel-loader": "^10.0.0",
     "css-loader": "^6.8.0",
     "electron": "^40.1.0",
     "electron-builder": "^26.7.0",
