@@ -1,5 +1,11 @@
 # kiji-privacy-proxy
 
+## 0.4.6
+
+### Patch Changes
+
+- 35ea9b0: New onnx link
+
 ## 0.4.5
 
 ### Patch Changes
