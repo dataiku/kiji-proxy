@@ -430,21 +430,42 @@ if [ -z "${CSC_LINK:-}" ]; then
     echo "--------------------------------------------"
     APP_BUNDLE=$(find release -name "*.app" -maxdepth 2 | head -1)
     if [ -n "$APP_BUNDLE" ]; then
-        # Sign individual components first (innermost to outermost)
-        # --deep is unreliable for dylibs and extra binaries in Resources/
-        RESOURCES_DIR="$APP_BUNDLE/Contents/Resources"
+        # Sign inside-out: innermost components first, app bundle last.
+        # Do NOT use --deep as it produces broken signatures on macOS 14+
+        # and causes Team ID mismatches that prevent binaries from launching.
 
-        # Sign dylibs
-        find "$RESOURCES_DIR" -name "*.dylib" -exec codesign --force --sign - {} \;
-
-        # Sign the Go backend binary
-        if [ -f "$RESOURCES_DIR/kiji-proxy" ]; then
-            codesign --force --sign - "$RESOURCES_DIR/kiji-proxy"
+        # Sign all Electron framework components
+        FRAMEWORKS_DIR="$APP_BUNDLE/Contents/Frameworks"
+        if [ -d "$FRAMEWORKS_DIR" ]; then
+            find "$FRAMEWORKS_DIR" -name "*.app" -exec codesign --force --sign - {} \;
+            find "$FRAMEWORKS_DIR" -name "*.framework" -exec codesign --force --sign - {} \;
+            find "$FRAMEWORKS_DIR" -name "*.dylib" -exec codesign --force --sign - {} \;
         fi
 
-        # Sign the full app bundle last
-        codesign --force --deep --sign - "$APP_BUNDLE"
-        echo "✅ App bundle re-signed with consistent ad-hoc identity"
+        RESOURCES_DIR="$APP_BUNDLE/Contents/Resources"
+
+        # Sign dylibs in resources (e.g., libonnxruntime)
+        find "$RESOURCES_DIR" -name "*.dylib" -exec codesign --force --sign - {} \;
+
+        # Sign the Go backend binary (extraFiles puts it at resources/kiji-proxy)
+        if [ -f "$RESOURCES_DIR/resources/kiji-proxy" ]; then
+            codesign --force --sign - "$RESOURCES_DIR/resources/kiji-proxy"
+            echo "✅ Signed Go binary at Contents/Resources/resources/kiji-proxy"
+        elif [ -f "$RESOURCES_DIR/kiji-proxy" ]; then
+            codesign --force --sign - "$RESOURCES_DIR/kiji-proxy"
+            echo "✅ Signed Go binary at Contents/Resources/kiji-proxy"
+        else
+            echo "⚠️  Go binary not found in app bundle for signing"
+            echo "    Contents of $RESOURCES_DIR/resources/:"
+            ls -la "$RESOURCES_DIR/resources/" 2>/dev/null || echo "    (directory not found)"
+        fi
+
+        # Sign the main app bundle last (without --deep)
+        codesign --force --sign - "$APP_BUNDLE"
+        echo "✅ App bundle re-signed with consistent ad-hoc identity (no --deep)"
+
+        # Verify the signature
+        codesign --verify --verbose=2 "$APP_BUNDLE" 2>&1 || echo "⚠️  Signature verification had warnings"
     else
         echo "⚠️  Could not find .app bundle to re-sign"
     fi

@@ -117,17 +117,23 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Create release if it doesn't exist yet, then upload assets
+          # Create draft release or upload to existing one.
+          # Using --draft so parallel workflows can upload assets before publishing.
           gh release create "${{ github.ref_name }}" \
             release/linux/*.tar.gz \
             release/linux/*.tar.gz.sha256 \
             --title "Kiji Privacy Proxy v${{ steps.version.outputs.version }}" \
             --generate-notes \
-            --latest \
+            --draft \
             || gh release upload "${{ github.ref_name }}" \
               release/linux/*.tar.gz \
               release/linux/*.tar.gz.sha256 \
               --clobber
+
+          # Publish the release (remove draft status)
+          gh release edit "${{ github.ref_name }}" \
+            --draft=false \
+            --latest
 
       - name: Upload Release Summary
         if: always()
