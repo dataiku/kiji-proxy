@@ -1,7 +1,7 @@
 {
   "name": "kiji-privacy-proxy",
   "productName": "Kiji Privacy Proxy",
-  "version": "0.4.5",
+  "version": "0.4.6",
   "description": "Dataiku's Kiji Privacy Proxy - PII detection and masking proxy for LLMs",
   "author": "Dataiku - Open Source Lab",
   "license": "Apache-2.0",
