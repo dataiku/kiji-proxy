@@ -72,9 +72,9 @@ jobs:
         uses: actions/cache@v5
         with:
           path: |
-            build/libonnxruntime.so.1.23.1
+            build/libonnxruntime.so.1.24.2
             build/libonnxruntime.so
-          key: ${{ runner.os }}-onnx-1.23.1-v2
+          key: ${{ runner.os }}-onnx-1.24.2
 
       - name: Extract Version
         id: version

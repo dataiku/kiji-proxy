@@ -64,7 +64,7 @@ if .venv/bin/python -c "import onnxruntime" 2>/dev/null; then
 else
     # Install onnxruntime if not already installed
     echo "Installing Python dependencies with uv..."
-    uv pip install onnxruntime
+    uv pip install onnxruntime==1.24.2
 fi
 
 echo ""
@@ -72,13 +72,13 @@ echo "📦 Step 2: Finding and preparing ONNX Runtime library..."
 echo "--------------------------------------------------------"
 
 # Check if ONNX library already exists (cache check)
-if [ -f "./build/libonnxruntime.1.23.1.dylib" ]; then
+if [ -f "./build/libonnxruntime.1.24.2.dylib" ]; then
     echo "✅ ONNX Runtime library already exists (using cache)"
 else
     # Find and copy ONNX Runtime library
     ONNX_LIB=$(find .venv -name "libonnxruntime*.dylib" | head -1)
     if [ -n "$ONNX_LIB" ]; then
-        cp "$ONNX_LIB" ./build/libonnxruntime.1.23.1.dylib
+        cp "$ONNX_LIB" ./build/libonnxruntime.1.24.2.dylib
         echo "✅ ONNX Runtime library copied from Python environment"
     else
         echo "⚠️  ONNX Runtime library not found in Python environment, continuing..."
@@ -292,39 +292,39 @@ cp build/kiji-proxy src/frontend/resources/kiji-proxy
 chmod +x src/frontend/resources/kiji-proxy
 
 # Copy ONNX library if it exists (to root of resources for easier access)
-if [ -f "build/libonnxruntime.1.23.1.dylib" ] || [ -L "build/libonnxruntime.1.23.1.dylib" ]; then
+if [ -f "build/libonnxruntime.1.24.2.dylib" ] || [ -L "build/libonnxruntime.1.24.2.dylib" ]; then
     # Check if it's a symlink
-    if [ -L "build/libonnxruntime.1.23.1.dylib" ]; then
+    if [ -L "build/libonnxruntime.1.24.2.dylib" ]; then
         # It's a symlink - check if target is already in resources
-        ONNX_TARGET=$(readlink "build/libonnxruntime.1.23.1.dylib")
+        ONNX_TARGET=$(readlink "build/libonnxruntime.1.24.2.dylib")
         # Convert to absolute path if relative
         if [[ "$ONNX_TARGET" != /* ]]; then
-            ONNX_TARGET="$(cd "$(dirname "build/libonnxruntime.1.23.1.dylib")" && cd "$(dirname "$ONNX_TARGET")" && pwd)/$(basename "$ONNX_TARGET")"
+            ONNX_TARGET="$(cd "$(dirname "build/libonnxruntime.1.24.2.dylib")" && cd "$(dirname "$ONNX_TARGET")" && pwd)/$(basename "$ONNX_TARGET")"
         fi
-        RESOURCES_LIB="$(cd "$(dirname "src/frontend/resources/libonnxruntime.1.23.1.dylib")" 2>/dev/null && pwd)/$(basename "src/frontend/resources/libonnxruntime.1.23.1.dylib")"
+        RESOURCES_LIB="$(cd "$(dirname "src/frontend/resources/libonnxruntime.1.24.2.dylib")" 2>/dev/null && pwd)/$(basename "src/frontend/resources/libonnxruntime.1.24.2.dylib")"
 
         if [ "$ONNX_TARGET" = "$RESOURCES_LIB" ]; then
             echo "✅ ONNX library already in resources/ (symlink points there)"
         elif [ -f "$ONNX_TARGET" ]; then
-            cp -f "$ONNX_TARGET" src/frontend/resources/libonnxruntime.1.23.1.dylib
+            cp -f "$ONNX_TARGET" src/frontend/resources/libonnxruntime.1.24.2.dylib
             echo "✅ ONNX library copied to resources/ (from symlink)"
         else
             echo "⚠️  Symlink target not found: $ONNX_TARGET"
         fi
-    elif [ -f "src/frontend/resources/libonnxruntime.1.23.1.dylib" ]; then
+    elif [ -f "src/frontend/resources/libonnxruntime.1.24.2.dylib" ]; then
         # Check if files are identical
-        if cmp -s "build/libonnxruntime.1.23.1.dylib" "src/frontend/resources/libonnxruntime.1.23.1.dylib"; then
+        if cmp -s "build/libonnxruntime.1.24.2.dylib" "src/frontend/resources/libonnxruntime.1.24.2.dylib"; then
             echo "✅ ONNX library already in resources/ (identical)"
         else
-            cp -f build/libonnxruntime.1.23.1.dylib src/frontend/resources/libonnxruntime.1.23.1.dylib
+            cp -f build/libonnxruntime.1.24.2.dylib src/frontend/resources/libonnxruntime.1.24.2.dylib
             echo "✅ ONNX library copied to resources/"
         fi
     else
-        cp build/libonnxruntime.1.23.1.dylib src/frontend/resources/libonnxruntime.1.23.1.dylib
+        cp build/libonnxruntime.1.24.2.dylib src/frontend/resources/libonnxruntime.1.24.2.dylib
         echo "✅ ONNX library copied to resources/"
     fi
 else
-    echo "⚠️  ONNX library not found at build/libonnxruntime.1.23.1.dylib"
+    echo "⚠️  ONNX library not found at build/libonnxruntime.1.24.2.dylib"
 fi
 
 # Copy model files to quantized directory (matches what Go binary expects after extraction)

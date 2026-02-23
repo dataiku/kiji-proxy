@@ -59,10 +59,10 @@ func NewONNXModelDetectorSimple(modelPath string, tokenizerPath string) (*ONNXMo
 
 	if onnxLibPath == "" {
 		onnxPaths := []string{
-			"./libonnxruntime.1.23.1.dylib",            // CWD (legacy)
-			"./resources/libonnxruntime.1.23.1.dylib",  // Production DMG: CWD is Contents/Resources
-			"./build/libonnxruntime.1.23.1.dylib",      // Development: in build directory
-			"../libonnxruntime.1.23.1.dylib",           // Alternative location
+			"./libonnxruntime.1.24.2.dylib",            // CWD (legacy)
+			"./resources/libonnxruntime.1.24.2.dylib",  // Production DMG: CWD is Contents/Resources
+			"./build/libonnxruntime.1.24.2.dylib",      // Development: in build directory
+			"../libonnxruntime.1.24.2.dylib",           // Alternative location
 		}
 
 		for _, p := range onnxPaths {
@@ -77,7 +77,7 @@ func NewONNXModelDetectorSimple(modelPath string, tokenizerPath string) (*ONNXMo
 		onnxruntime.SetSharedLibraryPath(onnxLibPath)
 	} else {
 		// Fall back to default path, might work if library is in system path
-		onnxruntime.SetSharedLibraryPath("./build/libonnxruntime.1.23.1.dylib")
+		onnxruntime.SetSharedLibraryPath("./build/libonnxruntime.1.24.2.dylib")
 	}
 
 	// Initialize ONNX Runtime environment only if not already initialized

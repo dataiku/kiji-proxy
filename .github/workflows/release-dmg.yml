@@ -103,7 +103,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: build/libonnxruntime.*.dylib
-          key: ${{ runner.os }}-onnx-1.23.1
+          key: ${{ runner.os }}-onnx-1.24.2
           restore-keys: |
             ${{ runner.os }}-onnx-
 
@@ -134,7 +134,7 @@ jobs:
       - name: Install Python Dependencies
         run: |
           uv venv --python 3.13
-          uv pip install onnxruntime
+          uv pip install onnxruntime==1.24.2
 
       - name: Install Root Dependencies
         run: npm ci
