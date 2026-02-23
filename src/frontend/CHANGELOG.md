@@ -1,5 +1,11 @@
 # kiji-privacy-proxy
 
+## 0.4.9
+
+### Patch Changes
+
+- 54943a8: updated release process
+
 ## 0.4.8
 
 ### Patch Changes
