@@ -1,6 +1,6 @@
 [project]
 name = "kiji-proxy"
-version = "0.4.3"
+version = "0.4.4"
 description = "Kiji Privacy Proxy for PII Detection and Masking"
 readme = "README.md"
 requires-python = ">=3.13"
