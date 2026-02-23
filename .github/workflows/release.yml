@@ -1,0 +1,537 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: "Create GitHub Release"
+        required: false
+        default: "false"
+        type: boolean
+
+jobs:
+  # ──────────────────────────────────────────────────────────────────────
+  # macOS DMG build (Apple Silicon + Intel universal)
+  # ──────────────────────────────────────────────────────────────────────
+  build-dmg:
+    name: Build DMG for Release
+    if: |
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      github.event_name == 'workflow_dispatch'
+
+    runs-on: macos-latest
+    environment: "DMG Build Environment"
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Verify signing secrets are available
+        run: |
+          MISSING=""
+          [ -z "$CSC_LINK" ] && MISSING="$MISSING CSC_LINK"
+          [ -z "$CSC_KEY_PASSWORD" ] && MISSING="$MISSING CSC_KEY_PASSWORD"
+          # Notarization is currently disabled; uncomment these checks when re-enabled:
+          # [ -z "$APPLE_ID" ] && MISSING="$MISSING APPLE_ID"
+          # [ -z "$APPLE_APP_SPECIFIC_PASSWORD" ] && MISSING="$MISSING APPLE_APP_SPECIFIC_PASSWORD"
+          # [ -z "$APPLE_TEAM_ID" ] && MISSING="$MISSING APPLE_TEAM_ID"
+          if [ -n "$MISSING" ]; then
+            echo "::error::Missing required environment secrets:$MISSING"
+            echo "Ensure the 'DMG Build Environment' environment is configured with all required secrets."
+            exit 1
+          fi
+          echo "All signing secrets are set."
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+        with:
+          lfs: true
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.24"
+          cache: false
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: package-lock.json
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@eac588ad8def6316056a12d4907a9d4d84ff7a3b # v7.3.0
+        with:
+          enable-cache: true
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
+        with:
+          toolchain: stable
+
+      - name: Cache LFS objects
+        uses: actions/cache@v5
+        with:
+          path: .git/lfs
+          key: lfs-${{ runner.os }}-${{ hashFiles('.gitattributes') }}
+          restore-keys: |
+            lfs-${{ runner.os }}-
+
+      - name: Cache tokenizers library
+        uses: actions/cache@v5
+        with:
+          path: build/tokenizers/libtokenizers.a
+          key: ${{ runner.os }}-tokenizers-v1.23.0-prebuilt-v2
+
+      - name: Cache ONNX Runtime library
+        uses: actions/cache@v5
+        with:
+          path: build/libonnxruntime.*.dylib
+          key: ${{ runner.os }}-onnx-1.24.2
+          restore-keys: |
+            ${{ runner.os }}-onnx-
+
+      - name: Extract Version
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            # Extract version from tag (v1.2.3 -> 1.2.3)
+            VERSION=${GITHUB_REF#refs/tags/v}
+          else
+            # For non-tag builds, extract version from package.json
+            VERSION=$(cat src/frontend/package.json | grep '"version"' | head -1 | awk -F '"' '{print $4}')
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Building version: $VERSION"
+
+      - name: Verify Git LFS Files
+        run: |
+          git lfs pull
+          # Verify model file is not an LFS pointer
+          MODEL_SIZE=$(stat -f%z "model/quantized/model_quantized.onnx" 2>/dev/null || echo "0")
+          echo "Model file size: ${MODEL_SIZE} bytes"
+          if [ "$MODEL_SIZE" -lt 1000 ]; then
+            echo "❌ Model file appears to be an LFS pointer (too small)"
+            exit 1
+          fi
+
+      - name: Install Python Dependencies
+        run: |
+          uv venv --python 3.13
+          uv pip install onnxruntime==1.24.2
+
+      - name: Install Root Dependencies
+        run: npm ci
+
+      - name: Install Frontend Dependencies
+        run: |
+          cd src/frontend
+          npm ci
+
+      - name: Build DMG
+        run: make build-dmg
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Rename DMG with Version
+        run: |
+          cd src/frontend/release
+          for dmg in *.dmg; do
+            if [ -f "$dmg" ]; then
+              # Replace spaces with hyphens for cleaner filename
+              # Example: "Kiji Privacy Proxy-0.2.0.dmg" -> "Kiji-Privacy-Proxy-0.2.0.dmg"
+              NEW_NAME=$(echo "$dmg" | tr ' ' '-')
+              if [ "$dmg" != "$NEW_NAME" ]; then
+                mv "$dmg" "$NEW_NAME"
+                echo "Renamed: $dmg -> $NEW_NAME"
+              else
+                echo "Already clean: $dmg"
+              fi
+            fi
+          done
+
+      - name: Upload DMG as Artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: dmg-assets
+          path: src/frontend/release/*.dmg
+          retention-days: 90
+
+      - name: Build Summary
+        if: always()
+        run: |
+          echo "## 📦 macOS Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**DMG Files:**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          ls -lh src/frontend/release/*.dmg 2>/dev/null | awk '{print "- " $9 " (" $5 ")"}' >> $GITHUB_STEP_SUMMARY || echo "No DMG files found" >> $GITHUB_STEP_SUMMARY
+
+  # ──────────────────────────────────────────────────────────────────────
+  # Linux binary build (amd64)
+  # ──────────────────────────────────────────────────────────────────────
+  build-linux:
+    name: Build Linux Binary
+    if: |
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      github.event_name == 'workflow_dispatch'
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+        with:
+          lfs: true
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.24"
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
+        with:
+          toolchain: stable
+
+      - name: Cache LFS objects
+        uses: actions/cache@v5
+        with:
+          path: .git/lfs
+          key: lfs-${{ runner.os }}-${{ hashFiles('.gitattributes') }}
+          restore-keys: |
+            lfs-${{ runner.os }}-
+
+      - name: Cache Go modules
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Cache tokenizers library
+        uses: actions/cache@v5
+        with:
+          path: build/tokenizers/libtokenizers.a
+          key: ${{ runner.os }}-tokenizers-v1.23.0-prebuilt-v2
+
+      - name: Cache ONNX Runtime library
+        uses: actions/cache@v5
+        with:
+          path: |
+            build/libonnxruntime.so.1.24.2
+            build/libonnxruntime.so
+          key: ${{ runner.os }}-onnx-1.24.2
+
+      - name: Extract Version
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            # Extract version from tag (v1.2.3 -> 1.2.3)
+            VERSION=${GITHUB_REF#refs/tags/v}
+          else
+            # For non-tag builds, extract version from package.json
+            VERSION=$(cat src/frontend/package.json | grep '"version"' | head -1 | awk -F '"' '{print $4}')
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Building version: $VERSION"
+
+      - name: Verify Git LFS Files
+        run: |
+          git lfs pull
+          # Verify model file is not an LFS pointer
+          MODEL_SIZE=$(stat -c%s "model/quantized/model_quantized.onnx" 2>/dev/null || echo "0")
+          echo "Model file size: ${MODEL_SIZE} bytes"
+          if [ "$MODEL_SIZE" -lt 1000 ]; then
+            echo "❌ Model file appears to be an LFS pointer (too small)"
+            exit 1
+          fi
+
+      - name: Build Linux Binary
+        run: |
+          chmod +x src/scripts/build_linux.sh
+          ./src/scripts/build_linux.sh
+
+      - name: Upload Linux Archive as Artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: linux-assets
+          path: release/linux/*.tar.gz*
+          retention-days: 90
+
+      - name: Build Summary
+        if: always()
+        run: |
+          echo "## 📦 Linux Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Archive Files:**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          ls -lh release/linux/*.tar.gz 2>/dev/null | awk '{print "- " $9 " (" $5 ")"}' >> $GITHUB_STEP_SUMMARY || echo "No archive files found" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**SHA256 Checksums:**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          cat release/linux/*.sha256 2>/dev/null | awk '{print "- `" $1 "`"}' >> $GITHUB_STEP_SUMMARY || echo "No checksums found" >> $GITHUB_STEP_SUMMARY
+
+  # ──────────────────────────────────────────────────────────────────────
+  # Chrome Extension package
+  # ──────────────────────────────────────────────────────────────────────
+  build-chrome:
+    name: Package Chrome Extension
+    if: |
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      github.event_name == 'workflow_dispatch'
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      - name: Extract Version
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+          else
+            VERSION=$(cat src/frontend/package.json | grep '"version"' | head -1 | awk -F '"' '{print $4}')
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Building version: $VERSION"
+
+      - name: Stamp Version in Manifest
+        run: |
+          cd chrome-extension
+          # Update manifest.json version to match the release tag
+          jq --arg v "${{ steps.version.outputs.version }}" '.version = $v' manifest.json > manifest.tmp
+          mv manifest.tmp manifest.json
+          echo "Manifest version set to: ${{ steps.version.outputs.version }}"
+          cat manifest.json | jq .version
+
+      - name: Package Extension
+        run: |
+          cd chrome-extension
+          zip -r ../kiji-pii-guard-${{ steps.version.outputs.version }}.zip . \
+            -x '*.DS_Store' '*.svg' '*.git*'
+          echo "Package contents:"
+          unzip -l ../kiji-pii-guard-${{ steps.version.outputs.version }}.zip
+
+      - name: Generate SHA256 Checksum
+        run: |
+          sha256sum kiji-pii-guard-${{ steps.version.outputs.version }}.zip \
+            > kiji-pii-guard-${{ steps.version.outputs.version }}.zip.sha256
+          cat kiji-pii-guard-${{ steps.version.outputs.version }}.zip.sha256
+
+      - name: Upload as Artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: chrome-assets
+          path: |
+            kiji-pii-guard-${{ steps.version.outputs.version }}.zip
+            kiji-pii-guard-${{ steps.version.outputs.version }}.zip.sha256
+          retention-days: 90
+
+      - name: Build Summary
+        if: always()
+        run: |
+          echo "## Chrome Extension Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Package:**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          ls -lh kiji-pii-guard-*.zip 2>/dev/null | awk '{print "- " $9 " (" $5 ")"}' >> $GITHUB_STEP_SUMMARY || echo "No zip found" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**SHA256:**" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat kiji-pii-guard-*.sha256 2>/dev/null >> $GITHUB_STEP_SUMMARY || echo "No checksum found" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+  # ──────────────────────────────────────────────────────────────────────
+  # Create a single GitHub Release with all assets
+  # ──────────────────────────────────────────────────────────────────────
+  create-release:
+    name: Create GitHub Release
+    needs: [build-dmg, build-linux, build-chrome]
+    if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.create_release == 'true'
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      - name: Extract Version
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+          else
+            VERSION=$(cat src/frontend/package.json | grep '"version"' | head -1 | awk -F '"' '{print $4}')
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Releasing version: $VERSION"
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v6
+        with:
+          path: release-assets
+
+      - name: List downloaded artifacts
+        run: find release-assets -type f | sort
+
+      - name: Create Release Notes
+        run: |
+          cat > release_notes.md << 'NOTES_EOF'
+          ## Kiji Privacy Proxy v${{ steps.version.outputs.version }}
+
+          ### Downloads
+          - **macOS**: DMG installer (Apple Silicon and Intel) - Desktop app with UI
+          - **Linux**: Standalone binary archive (amd64) - API server only (no UI)
+          - **Chrome Extension**: Browser extension for PII detection in web forms
+
+          ### macOS Installation
+
+          **Quick Start:**
+          1. Download `Kiji-Privacy-Proxy-${{ steps.version.outputs.version }}.dmg`
+          2. Open the DMG and drag to Applications
+          3. Launch "Kiji Privacy Proxy"
+
+          **HTTPS Support - Install CA Certificate:**
+
+          For HTTPS interception to work, you must trust the proxy's CA certificate:
+
+          ```bash
+          # System-wide trust (recommended)
+          sudo security add-trusted-cert \
+            -d \
+            -r trustRoot \
+            -k /Library/Keychains/System.keychain \
+            ~/.kiji-proxy/certs/ca.crt
+          ```
+
+          Or use **Keychain Access**:
+          1. Open Keychain Access app
+          2. File → Import Items → `~/.kiji-proxy/certs/ca.crt`
+          3. Double-click "Kiji Privacy Proxy CA" certificate
+          4. Expand **Trust** → Set to **Always Trust**
+
+          ### Linux Installation
+
+          **Note:** Linux build is API-only (no desktop UI). Access via HTTP endpoints.
+
+          **Quick Start:**
+          ```bash
+          # Extract
+          tar -xzf kiji-privacy-proxy-${{ steps.version.outputs.version }}-linux-amd64.tar.gz
+          cd kiji-privacy-proxy-${{ steps.version.outputs.version }}-linux-amd64
+
+          # Run
+          ./run.sh
+          ```
+
+          **HTTPS Support - Install CA Certificate:**
+          ```bash
+          # Ubuntu/Debian
+          sudo cp ~/.kiji-proxy/certs/ca.crt /usr/local/share/ca-certificates/kiji-proxy-ca.crt
+          sudo update-ca-certificates
+
+          # RHEL/CentOS/Fedora
+          sudo cp ~/.kiji-proxy/certs/ca.crt /etc/pki/ca-trust/source/anchors/kiji-proxy-ca.crt
+          sudo update-ca-trust
+          ```
+
+          **Configuration:**
+          ```bash
+          # Set API key
+          export OPENAI_API_KEY="your-key-here"
+
+          # Check health
+          curl http://localhost:8080/health
+
+          # Test proxy
+          curl -x http://localhost:8080 https://api.openai.com/v1/models
+          ```
+
+          See included `README.txt` for systemd service setup and advanced configuration.
+
+          ### Chrome Extension
+
+          **Install from zip:**
+          1. Download `kiji-pii-guard-${{ steps.version.outputs.version }}.zip`
+          2. Unzip to a folder
+          3. Open `chrome://extensions/`
+          4. Enable **Developer mode**
+          5. Click **Load unpacked** and select the unzipped folder
+
+          ### Documentation
+
+          - [Getting Started Guide](https://github.com/hanneshapke/kiji-proxy/blob/main/docs/01-getting-started.md)
+          - [Development Guide](https://github.com/hanneshapke/kiji-proxy/blob/main/docs/02-development-guide.md)
+          - [Release Management](https://github.com/hanneshapke/kiji-proxy/blob/main/docs/04-release-management.md)
+
+          ### What's New
+          See the changelog below for details.
+          NOTES_EOF
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Determine if prerelease
+          IS_PRERELEASE=""
+          if [[ "${{ github.ref }}" == *"-beta"* ]] || [[ "${{ github.ref }}" == *"-alpha"* ]] || [[ "${{ github.ref }}" == *"-rc"* ]]; then
+            IS_PRERELEASE="--prerelease"
+          fi
+
+          # Collect all release assets into a flat directory
+          mkdir -p assets
+          cp release-assets/dmg-assets/*.dmg assets/ 2>/dev/null || true
+          cp release-assets/linux-assets/*.tar.gz assets/ 2>/dev/null || true
+          cp release-assets/linux-assets/*.tar.gz.sha256 assets/ 2>/dev/null || true
+          cp release-assets/chrome-assets/*.zip assets/ 2>/dev/null || true
+          cp release-assets/chrome-assets/*.zip.sha256 assets/ 2>/dev/null || true
+
+          echo "Release assets:"
+          ls -lh assets/
+
+          # Create the release with all assets in one atomic operation
+          gh release create "${{ github.ref_name }}" \
+            assets/* \
+            --title "Kiji Privacy Proxy v${{ steps.version.outputs.version }}" \
+            --notes-file release_notes.md \
+            --generate-notes \
+            --latest \
+            $IS_PRERELEASE
