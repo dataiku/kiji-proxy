@@ -47,19 +47,29 @@ type ONNXModelDetectorSimple struct {
 
 // NewONNXModelDetectorSimple creates a new ONNX model detector
 func NewONNXModelDetectorSimple(modelPath string, tokenizerPath string) (*ONNXModelDetectorSimple, error) {
-	// Set the ONNX Runtime shared library path for macOS
-	// Try multiple possible locations for the library
-	onnxPaths := []string{
-		"./libonnxruntime.1.23.1.dylib",       // Production: in resources directory
-		"./build/libonnxruntime.1.23.1.dylib", // Development: in build directory
-		"../libonnxruntime.1.23.1.dylib",      // Alternative location
+	// Set the ONNX Runtime shared library path.
+	// Check ONNXRUNTIME_SHARED_LIBRARY_PATH env var first (set by Electron),
+	// then try multiple possible locations for the library.
+	onnxLibPath := os.Getenv("ONNXRUNTIME_SHARED_LIBRARY_PATH")
+	if onnxLibPath != "" {
+		if _, err := os.Stat(onnxLibPath); err != nil {
+			onnxLibPath = "" // env var path doesn't exist, fall through to search
+		}
 	}
 
-	var onnxLibPath string
-	for _, path := range onnxPaths {
-		if _, err := os.Stat(path); err == nil {
-			onnxLibPath = path
-			break
+	if onnxLibPath == "" {
+		onnxPaths := []string{
+			"./libonnxruntime.1.23.1.dylib",            // CWD (legacy)
+			"./resources/libonnxruntime.1.23.1.dylib",  // Production DMG: CWD is Contents/Resources
+			"./build/libonnxruntime.1.23.1.dylib",      // Development: in build directory
+			"../libonnxruntime.1.23.1.dylib",           // Alternative location
+		}
+
+		for _, p := range onnxPaths {
+			if _, err := os.Stat(p); err == nil {
+				onnxLibPath = p
+				break
+			}
 		}
 	}
 
