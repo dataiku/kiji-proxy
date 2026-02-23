@@ -1,5 +1,11 @@
 # kiji-privacy-proxy
 
+## 0.4.8
+
+### Patch Changes
+
+- 4ce8a48: Fixed sheperd bug
+
 ## 0.4.7
 
 ### Patch Changes
