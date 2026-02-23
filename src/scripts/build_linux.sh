@@ -99,7 +99,7 @@ echo ""
 echo "📦 Step 2: Downloading ONNX Runtime for Linux..."
 echo "------------------------------------------------"
 
-ONNX_VERSION="1.23.1"
+ONNX_VERSION="1.24.2"
 ONNX_PLATFORM="linux-x64"
 ONNX_FILE="onnxruntime-${ONNX_PLATFORM}-${ONNX_VERSION}.tgz"
 ONNX_URL="https://github.com/microsoft/onnxruntime/releases/download/v${ONNX_VERSION}/${ONNX_FILE}"

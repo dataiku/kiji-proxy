@@ -117,7 +117,7 @@ ls -lh model/quantized/model_quantized.onnx  # Should be ~63MB
 │    └── PII Detection Engine            │
 │    (NO WEB UI - API only)               │
 │                                          │
-│  lib/libonnxruntime.so.1.23.1           │
+│  lib/libonnxruntime.so.1.24.2           │
 │                                          │
 │  run.sh (launcher with LD_LIBRARY_PATH) │
 │  README.txt (usage guide)               │
@@ -158,7 +158,7 @@ pip install onnxruntime
 LIB_PATH=$(find .venv -name "libonnxruntime*.dylib" | head -1)
 
 # Copy to build directory
-cp "$LIB_PATH" build/libonnxruntime.1.23.1.dylib
+cp "$LIB_PATH" build/libonnxruntime.1.24.2.dylib
 ```
 
 **3. Build Tokenizers Library:**
@@ -304,16 +304,16 @@ cd ../..
 cd build
 
 # Download if not cached
-wget https://github.com/microsoft/onnxruntime/releases/download/v1.23.1/onnxruntime-linux-x64-1.23.1.tgz
+wget https://github.com/microsoft/onnxruntime/releases/download/v1.24.2/onnxruntime-linux-x64-1.24.2.tgz
 
 # Extract
-tar -xzf onnxruntime-linux-x64-1.23.1.tgz
+tar -xzf onnxruntime-linux-x64-1.24.2.tgz
 
 # Copy library to build root
-cp onnxruntime-linux-x64-1.23.1/lib/libonnxruntime.so.1.23.1 .
+cp onnxruntime-linux-x64-1.24.2/lib/libonnxruntime.so.1.24.2 .
 
 # Create symlink
-ln -sf libonnxruntime.so.1.23.1 libonnxruntime.so
+ln -sf libonnxruntime.so.1.24.2 libonnxruntime.so
 
 cd ..
 ```
@@ -357,8 +357,8 @@ mkdir -p ${PACKAGE_DIR}/{bin,lib}
 cp build/kiji-proxy ${PACKAGE_DIR}/bin/
 
 # Copy library
-cp build/libonnxruntime.so.1.23.1 ${PACKAGE_DIR}/lib/
-ln -sf libonnxruntime.so.1.23.1 ${PACKAGE_DIR}/lib/libonnxruntime.so
+cp build/libonnxruntime.so.1.24.2 ${PACKAGE_DIR}/lib/
+ln -sf libonnxruntime.so.1.24.2 ${PACKAGE_DIR}/lib/libonnxruntime.so
 ```
 
 **6. Create Helper Scripts:**
@@ -628,9 +628,9 @@ find .venv -name "libonnxruntime*.dylib" -exec cp {} build/ \;
 ```bash
 # Download manually
 cd build
-wget https://github.com/microsoft/onnxruntime/releases/download/v1.23.1/onnxruntime-linux-x64-1.23.1.tgz
-tar -xzf onnxruntime-linux-x64-1.23.1.tgz
-cp onnxruntime-linux-x64-1.23.1/lib/libonnxruntime.so.1.23.1 .
+wget https://github.com/microsoft/onnxruntime/releases/download/v1.24.2/onnxruntime-linux-x64-1.24.2.tgz
+tar -xzf onnxruntime-linux-x64-1.24.2.tgz
+cp onnxruntime-linux-x64-1.24.2/lib/libonnxruntime.so.1.24.2 .
 ```
 
 ### Tokenizers Build Failed
@@ -707,7 +707,7 @@ export LD_LIBRARY_PATH=/path/to/lib:$LD_LIBRARY_PATH
 ./bin/kiji-proxy
 
 # Or install system-wide
-sudo cp lib/libonnxruntime.so.1.23.1 /usr/local/lib/
+sudo cp lib/libonnxruntime.so.1.24.2 /usr/local/lib/
 sudo ldconfig
 ```
 

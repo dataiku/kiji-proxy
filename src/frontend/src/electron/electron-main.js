@@ -158,15 +158,15 @@ const launchGoBinary = () => {
   // In development mode, set ONNX Runtime library path
   // Try multiple locations relative to project root
   const onnxPaths = [
-    path.join(projectRoot, "build", "libonnxruntime.1.23.1.dylib"), // build/libonnxruntime.1.23.1.dylib
+    path.join(projectRoot, "build", "libonnxruntime.1.24.2.dylib"), // build/libonnxruntime.1.24.2.dylib
     path.join(
       projectRoot,
       "src",
       "frontend",
       "resources",
-      "libonnxruntime.1.23.1.dylib"
-    ), // src/frontend/resources/libonnxruntime.1.23.1.dylib
-    path.join(projectRoot, "libonnxruntime.1.23.1.dylib"), // root/libonnxruntime.1.23.1.dylib
+      "libonnxruntime.1.24.2.dylib"
+    ), // src/frontend/resources/libonnxruntime.1.24.2.dylib
+    path.join(projectRoot, "libonnxruntime.1.24.2.dylib"), // root/libonnxruntime.1.24.2.dylib
   ];
 
   // Also try to find in Python venv
@@ -179,7 +179,7 @@ const launchGoBinary = () => {
       "site-packages",
       "onnxruntime",
       "capi",
-      "libonnxruntime.1.23.2.dylib"
+      "libonnxruntime.1.24.2.dylib"
     );
     if (fs.existsSync(venvLib)) {
       onnxPaths.unshift(venvLib); // Check venv first

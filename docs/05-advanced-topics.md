@@ -796,17 +796,17 @@ train-and-sign-oidc:
 
 ```bash
 # Verify extracted directory
-ls -la build/onnxruntime-linux-x64-1.23.1/
+ls -la build/onnxruntime-linux-x64-1.24.2/
 
 # Check library exists
-ls -la build/onnxruntime-linux-x64-1.23.1/lib/libonnxruntime.so.1.23.1
+ls -la build/onnxruntime-linux-x64-1.24.2/lib/libonnxruntime.so.1.24.2
 
 # Manual copy
-cp build/onnxruntime-linux-x64-1.23.1/lib/libonnxruntime.so.1.23.1 build/
-cd build && ln -sf libonnxruntime.so.1.23.1 libonnxruntime.so
+cp build/onnxruntime-linux-x64-1.24.2/lib/libonnxruntime.so.1.24.2 build/
+cd build && ln -sf libonnxruntime.so.1.24.2 libonnxruntime.so
 
 # Verify
-ls -lh build/libonnxruntime.so.1.23.1  # Should be ~21MB
+ls -lh build/libonnxruntime.so.1.24.2  # Should be ~21MB
 ```
 
 **Library not found at runtime:**
@@ -820,7 +820,7 @@ export LD_LIBRARY_PATH=$(pwd)/lib:$LD_LIBRARY_PATH
 ./bin/kiji-proxy
 
 # macOS
-export ONNXRUNTIME_SHARED_LIBRARY_PATH=$(pwd)/build/libonnxruntime.1.23.1.dylib
+export ONNXRUNTIME_SHARED_LIBRARY_PATH=$(pwd)/build/libonnxruntime.1.24.2.dylib
 ```
 
 ### Git LFS Issues
@@ -993,7 +993,7 @@ echo "Git LFS: $(git lfs version 2>/dev/null || echo '❌ Not found')"
 
 # Build artifacts
 [ -f build/tokenizers/libtokenizers.a ] && echo "✅ Tokenizers" || echo "❌ Tokenizers"
-[ -f build/libonnxruntime.so.1.23.1 ] && echo "✅ ONNX Runtime" || echo "❌ ONNX Runtime"
+[ -f build/libonnxruntime.so.1.24.2 ] && echo "✅ ONNX Runtime" || echo "❌ ONNX Runtime"
 [ -f model/quantized/model_quantized.onnx ] && echo "✅ Model" || echo "❌ Model"
 
 # Model size
