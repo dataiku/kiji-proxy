@@ -6,9 +6,11 @@ on:
 
 permissions:
   pull-requests: write
+  contents: read
 
 jobs:
-  main:
+  lint-title:
+    name: Validate PR title
     runs-on: ubuntu-latest
     steps:
       - uses: amannn/action-semantic-pull-request@e32d7e603df1aa1ba07e981f2a23455dee596825 # v5
@@ -82,3 +84,117 @@ jobs:
         with:
           header: pr-title-lint-error
           delete: true
+
+  check-scope:
+    name: Check PR scope
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Classify changed files and check for mixed types
+        id: classify
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+
+          # Get list of changed files
+          FILES=$(git diff --name-only "$BASE_SHA"..."$HEAD_SHA")
+
+          if [ -z "$FILES" ]; then
+            echo "No changed files found."
+            exit 0
+          fi
+
+          # Classify each file into a semantic category
+          declare -A categories
+          declare -A category_files
+
+          while IFS= read -r file; do
+            case "$file" in
+              # CI/CD
+              .github/workflows/*|.github/actions/*)
+                cat="ci" ;;
+              # Tests
+              *_test.go|*_test.ts|*_test.js|*.test.ts|*.test.js|*.test.tsx|*.spec.*|tests/*|__tests__/*)
+                cat="test" ;;
+              # Documentation
+              docs/*|*.md|LICENSE*)
+                cat="docs" ;;
+              # Dependencies / config (chore)
+              go.mod|go.sum|package.json|package-lock.json|pyproject.toml|.changeset/*|.gitignore|.gitattributes|.eslintrc*|.prettierrc*|tsconfig.json|renovate.json|.nvmrc)
+                cat="chore" ;;
+              # Build / tooling (chore)
+              Makefile|src/scripts/*|electron-builder.yml)
+                cat="chore" ;;
+              # Source code — could be feat, fix, refactor, perf, style
+              # We label these generically as "code" since we can't tell the intent
+              src/*|model/src/*|chrome-extension/*)
+                cat="code" ;;
+              # Fallback
+              *)
+                cat="other" ;;
+            esac
+
+            categories[$cat]=1
+            category_files[$cat]="${category_files[$cat]}  - $file\n"
+          done <<< "$FILES"
+
+          # Remove "other" from the count — it shouldn't trigger a mixed warning
+          unset 'categories[other]'
+
+          NUM_CATEGORIES=${#categories[@]}
+
+          echo "## File Classification" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          for cat in "${!category_files[@]}"; do
+            echo "**$cat:**" >> "$GITHUB_STEP_SUMMARY"
+            echo -e "${category_files[$cat]}" >> "$GITHUB_STEP_SUMMARY"
+          done
+
+          if [ "$NUM_CATEGORIES" -gt 2 ]; then
+            echo "mixed=true" >> "$GITHUB_OUTPUT"
+
+            # Build the message for the PR comment
+            MSG="Categories found:\n"
+            for cat in "${!category_files[@]}"; do
+              MSG+="**$cat:**\n${category_files[$cat]}\n"
+            done
+            # Escape for GitHub Actions output
+            MSG="${MSG//'%'/'%25'}"
+            MSG="${MSG//$'\n'/'%0A'}"
+            MSG="${MSG//$'\r'/'%0D'}"
+            echo "details=$MSG" >> "$GITHUB_OUTPUT"
+          else
+            echo "mixed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: marocchino/sticky-pull-request-comment@773744901bac0e8cbb5a0dc842800d45e9b2b405 # v2
+        if: steps.classify.outputs.mixed == 'true'
+        with:
+          header: pr-scope-warning
+          message: |
+            > [!WARNING]
+            > **This PR touches 3+ distinct areas of the codebase.**
+            >
+            > Consider splitting into smaller, focused PRs — each covering a single semantic type.
+            > This makes reviews easier and keeps the git history clean.
+
+            ${{ steps.classify.outputs.details }}
+
+      - uses: marocchino/sticky-pull-request-comment@773744901bac0e8cbb5a0dc842800d45e9b2b405 # v2
+        if: steps.classify.outputs.mixed == 'false'
+        with:
+          header: pr-scope-warning
+          delete: true
+
+      - name: Fail if mixed
+        if: steps.classify.outputs.mixed == 'true'
+        run: |
+          echo "::error::PR touches 3+ distinct areas (ci, docs, code, test, chore). Consider splitting into focused PRs."
+          exit 1
