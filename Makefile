@@ -5,6 +5,7 @@
 .PHONY: build-dmg build-linux verify-linux
 .PHONY: electron-build electron-run electron electron-dev electron-install
 .PHONY: list show shell jupyter info quickstart
+.PHONY: pr-title
 
 # Default target
 .DEFAULT_GOAL := help
@@ -55,6 +56,41 @@ info: ## Show project info
 	@echo "  make install     - Install dependencies"
 	@echo "  make test        - Run tests"
 	@echo "  make help        - Show all commands"
+
+##@ Git & PR
+
+pr-title: ## Generate a semantic PR title from commits on this branch using Claude Code
+	@BASE=$$(gh pr view --json baseRefName -q .baseRefName 2>/dev/null || echo "main"); \
+	COMMITS=$$(git log --oneline $$BASE..HEAD); \
+	if [ -z "$$COMMITS" ]; then \
+		echo "$(YELLOW)⚠️  No commits found between $$BASE and HEAD$(NC)"; \
+		exit 1; \
+	fi; \
+	DIFF_STAT=$$(git diff --stat $$BASE...HEAD); \
+	echo "$$COMMITS" | claude -p "You are writing a PR title for a GitHub pull request that uses squash-and-merge. \
+The PR title will become the final commit message, so it MUST follow the Conventional Commits format. \
+\
+Rules: \
+1. Output ONLY the PR title, nothing else — no explanation, no quotes, no markdown. \
+2. Format: <type>: <short summary in present tense, lowercase> \
+3. Pick ONE type from: feat, fix, docs, style, refactor, test, chore, ci, perf \
+   - feat: new feature for the user \
+   - fix: bug fix for the user \
+   - docs: documentation changes \
+   - style: formatting, no code change \
+   - refactor: refactoring production code \
+   - test: adding/refactoring tests \
+   - chore: maintenance, deps, config \
+   - ci: CI/CD changes \
+   - perf: performance improvements \
+4. If commits span multiple types, pick the most significant one. \
+5. Keep it under 70 characters. \
+\
+Here are the commits on this branch: \
+$$COMMITS \
+\
+And here is the diff stat: \
+$$DIFF_STAT"
 
 ##@ Setup & Installation
 
