@@ -5,7 +5,7 @@
 .PHONY: build-dmg build-linux verify-linux
 .PHONY: electron-build electron-run electron electron-dev electron-install
 .PHONY: list show shell jupyter info quickstart
-.PHONY: pr-title
+.PHONY: pr
 
 # Default target
 .DEFAULT_GOAL := help
@@ -59,38 +59,86 @@ info: ## Show project info
 
 ##@ Git & PR
 
-pr-title: ## Generate a semantic PR title from commits on this branch using Claude Code
-	@BASE=$$(gh pr view --json baseRefName -q .baseRefName 2>/dev/null || echo "main"); \
+pr: ## Generate semantic PR title + summary with Claude Code and create the PR
+	@if gh pr view --json number -q .number >/dev/null 2>&1; then \
+		echo "$(YELLOW)⚠️  A PR already exists for this branch:$(NC)"; \
+		gh pr view --json url -q .url; \
+		exit 1; \
+	fi; \
+	CURRENT=$$(git branch --show-current); \
+	if [ "$$CURRENT" = "main" ] || [ "$$CURRENT" = "master" ]; then \
+		echo "$(YELLOW)⚠️  You are on $$CURRENT — switch to a feature branch first$(NC)"; \
+		exit 1; \
+	fi; \
+	BASE=$$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null || echo "main"); \
 	COMMITS=$$(git log --oneline "refs/heads/$$BASE"..HEAD); \
 	if [ -z "$$COMMITS" ]; then \
 		echo "$(YELLOW)⚠️  No commits found between $$BASE and HEAD$(NC)"; \
 		exit 1; \
 	fi; \
 	DIFF_STAT=$$(git diff --stat "refs/heads/$$BASE"...HEAD); \
-	echo "$$COMMITS" | npx @anthropic-ai/claude-code -p "You are writing a PR title for a GitHub pull request that uses squash-and-merge. \
-The PR title will become the final commit message, so it MUST follow the Conventional Commits format. \
+	echo "$(BLUE)Analyzing $$(echo "$$COMMITS" | wc -l | tr -d ' ') commits against $$BASE...$(NC)"; \
+	RESULT=$$(echo "$$COMMITS" | npx @anthropic-ai/claude-code -p "You are analyzing commits for a GitHub pull request that uses squash-and-merge. \
+The PR title becomes the final commit message and MUST follow the Conventional Commits format. \
 \
-Rules: \
-1. Output ONLY the PR title, nothing else — no explanation, no quotes, no markdown. \
-2. Format: <type>: <short summary in present tense, lowercase> \
-3. Pick ONE type from: feat, fix, docs, style, refactor, test, chore, ci, perf \
-   - feat: new feature for the user \
-   - fix: bug fix for the user \
-   - docs: documentation changes \
-   - style: formatting, no code change \
-   - refactor: refactoring production code \
-   - test: adding/refactoring tests \
-   - chore: maintenance, deps, config \
-   - ci: CI/CD changes \
-   - perf: performance improvements \
-4. If commits span multiple types, pick the most significant one. \
-5. Keep it under 70 characters. \
+Semantic types: \
+- feat: new feature for the user \
+- fix: bug fix for the user \
+- docs: documentation changes \
+- style: formatting, no code change \
+- refactor: refactoring production code \
+- test: adding/refactoring tests \
+- chore: maintenance, deps, config \
+- ci: CI/CD changes \
+- perf: performance improvements \
 \
-Here are the commits on this branch: \
+Step 1: Classify each commit into exactly one semantic type. \
+Step 2: Check if the commits span MULTIPLE semantic types. \
+\
+If commits span multiple types, output EXACTLY this format (no other text): \
+MIXED \
+<type1>: <list of commits> \
+<type2>: <list of commits> \
+... \
+\
+If all commits fit a single type, output EXACTLY this format (no other text): \
+TITLE: <type>: <short summary in present tense, lowercase, under 70 chars> \
+BODY: \
+## Summary \
+<2-5 bullet points describing the changes> \
+\
+## Changes \
+<bulleted list of specific changes, grouped logically> \
+\
+Here are the commits: \
 $$COMMITS \
 \
-And here is the diff stat: \
-$$DIFF_STAT"
+Diff stat: \
+$$DIFF_STAT"); \
+	if echo "$$RESULT" | head -1 | grep -q "^MIXED"; then \
+		echo ""; \
+		echo "$(YELLOW)⚠️  This PR spans multiple semantic types — consider splitting into separate PRs:$(NC)"; \
+		echo ""; \
+		echo "$$RESULT" | tail -n +2; \
+		echo ""; \
+		echo "$(YELLOW)Tip: Use interactive rebase or cherry-pick to split commits into focused PRs.$(NC)"; \
+		exit 1; \
+	fi; \
+	TITLE=$$(echo "$$RESULT" | head -1 | sed 's/^TITLE: //'); \
+	BODY=$$(echo "$$RESULT" | tail -n +2 | sed 's/^BODY://'); \
+	echo ""; \
+	echo "$(GREEN)Title:$(NC) $$TITLE"; \
+	echo "$(GREEN)Body:$(NC)"; \
+	echo "$$BODY"; \
+	echo ""; \
+	printf "$(BLUE)Create PR? [y/N] $(NC)"; \
+	read -r CONFIRM; \
+	if [ "$$CONFIRM" = "y" ] || [ "$$CONFIRM" = "Y" ]; then \
+		git push -u origin "$$CURRENT" 2>/dev/null; \
+		gh pr create --title "$$TITLE" --body "$$BODY"; \
+	else \
+		echo "$(YELLOW)PR not created.$(NC)"; \
+	fi
 
 ##@ Setup & Installation
 
