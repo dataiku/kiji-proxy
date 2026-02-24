@@ -78,7 +78,7 @@ pr: ## Generate semantic PR title + summary with Claude Code and create the PR
 	fi; \
 	DIFF_STAT=$$(git diff --stat "refs/heads/$$BASE"...HEAD); \
 	echo "$(BLUE)Analyzing $$(echo "$$COMMITS" | wc -l | tr -d ' ') commits against $$BASE...$(NC)"; \
-	RESULT=$$(echo "$$COMMITS" | npx --yes @anthropic-ai/claude-code -p "You are analyzing commits for a GitHub pull request that uses squash-and-merge. \
+	RESULT=$$(npx --yes @anthropic-ai/claude-code -p "You are analyzing commits for a GitHub pull request that uses squash-and-merge. \
 The PR title becomes the final commit message and MUST follow the Conventional Commits format. \
 \
 Semantic types: \
