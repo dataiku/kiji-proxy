@@ -61,13 +61,13 @@ info: ## Show project info
 
 pr-title: ## Generate a semantic PR title from commits on this branch using Claude Code
 	@BASE=$$(gh pr view --json baseRefName -q .baseRefName 2>/dev/null || echo "main"); \
-	COMMITS=$$(git log --oneline $$BASE..HEAD); \
+	COMMITS=$$(git log --oneline "refs/heads/$$BASE"..HEAD); \
 	if [ -z "$$COMMITS" ]; then \
 		echo "$(YELLOW)⚠️  No commits found between $$BASE and HEAD$(NC)"; \
 		exit 1; \
 	fi; \
-	DIFF_STAT=$$(git diff --stat $$BASE...HEAD); \
-	echo "$$COMMITS" | claude -p "You are writing a PR title for a GitHub pull request that uses squash-and-merge. \
+	DIFF_STAT=$$(git diff --stat "refs/heads/$$BASE"...HEAD); \
+	echo "$$COMMITS" | npx @anthropic-ai/claude-code -p "You are writing a PR title for a GitHub pull request that uses squash-and-merge. \
 The PR title will become the final commit message, so it MUST follow the Conventional Commits format. \
 \
 Rules: \
