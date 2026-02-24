@@ -134,7 +134,7 @@ $$DIFF_STAT"); \
 	printf "$(BLUE)Create PR? [y/N] $(NC)"; \
 	read -r CONFIRM; \
 	if [ "$$CONFIRM" = "y" ] || [ "$$CONFIRM" = "Y" ]; then \
-		git push -u origin "$$CURRENT" 2>/dev/null; \
+		git push -u origin "$$CURRENT"; \
 		gh pr create --title "$$TITLE" --body "$$BODY"; \
 	else \
 		echo "$(YELLOW)PR not created.$(NC)"; \
