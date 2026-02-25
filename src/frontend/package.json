@@ -30,7 +30,7 @@
     "lucide-react": "^0.574.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-shepherd": "^6.1.9"
+    "react-shepherd": "^7.0.3"
   },
   "devDependencies": {
     "@babel/core": "^7.29.0",
