@@ -25,21 +25,25 @@ fi
 
 # ── Guard: not on default branch ─────────────────────────────────────────────
 CURRENT=$(git branch --show-current)
-if [ "$CURRENT" = "main" ] || [ "$CURRENT" = "master" ]; then
+if [ "$CURRENT" = "main" ]; then
     echo -e "${YELLOW}⚠️  You are on $CURRENT — switch to a feature branch first${NC}"
     exit 1
 fi
 
 # ── Determine base branch and collect commits ────────────────────────────────
 BASE=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null || echo "main")
-COMMITS=$(git log --oneline "refs/heads/$BASE"..HEAD)
+
+echo -e "${BLUE}Fetching origin/$BASE...${NC}"
+git fetch origin "$BASE"
+
+COMMITS=$(git log --oneline "origin/$BASE"..HEAD)
 
 if [ -z "$COMMITS" ]; then
-    echo -e "${YELLOW}⚠️  No commits found between $BASE and HEAD${NC}"
+    echo -e "${YELLOW}⚠️  No commits found between origin/$BASE and HEAD${NC}"
     exit 1
 fi
 
-DIFF_STAT=$(git diff --stat "refs/heads/$BASE"...HEAD)
+DIFF_STAT=$(git diff --stat "origin/$BASE"...HEAD)
 COMMIT_COUNT=$(echo "$COMMITS" | wc -l | tr -d ' ')
 
 echo -e "${BLUE}Analyzing $COMMIT_COUNT commits against $BASE...${NC}"
