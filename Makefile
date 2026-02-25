@@ -5,6 +5,7 @@
 .PHONY: build-dmg build-linux verify-linux
 .PHONY: electron-build electron-run electron electron-dev electron-install
 .PHONY: list show shell jupyter info quickstart
+.PHONY: pr
 
 # Default target
 .DEFAULT_GOAL := help
@@ -55,6 +56,11 @@ info: ## Show project info
 	@echo "  make install     - Install dependencies"
 	@echo "  make test        - Run tests"
 	@echo "  make help        - Show all commands"
+
+##@ Git & PR
+
+pr: ## Generate semantic PR title + summary with Claude Code and create the PR
+	@./src/scripts/create_pr.sh
 
 ##@ Setup & Installation
 

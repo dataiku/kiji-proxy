@@ -5,7 +5,7 @@ go 1.24.0
 require (
 	github.com/daulet/tokenizers v1.25.0
 	github.com/yalue/onnxruntime_go v1.26.0
-	modernc.org/sqlite v1.46.0
+	modernc.org/sqlite v1.46.1
 )
 
 require (
