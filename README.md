@@ -4,8 +4,7 @@
   <img src="src/frontend/assets/kiji_proxy_inverted.png" alt="Kiji Privacy Proxy" width="300">
 
   <p>
-    <a href="https://github.com/dataiku/kiji-proxy/actions/workflows/release-dmg.yml"><img src="https://github.com/dataiku/kiji-proxy/actions/workflows/release-dmg.yml/badge.svg" alt="Build MacOS"></a>
-    <a href="https://github.com/dataiku/kiji-proxy/actions/workflows/release-linux.yml"><img src="https://github.com/dataiku/kiji-proxy/actions/workflows/release-linux.yml/badge.svg" alt="Build Linux"></a>
+    <a href="https://github.com/dataiku/kiji-proxy/actions/workflows/release.yml"><img src="https://github.com/dataiku/kiji-proxy/actions/workflows/release.yml/badge.svg" alt="Release"></a>
     <a href="https://github.com/dataiku/kiji-proxy/actions/workflows/lint-and-test.yml"><img src="https://github.com/dataiku/kiji-proxy/actions/workflows/lint-and-test.yml/badge.svg" alt="Lint & Test"></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%20License%202.0-blue" alt="License: Apache 2.0"></a>
     <a href="https://github.com/dataiku/kiji-proxy/stargazers"><img src="https://img.shields.io/github/stars/dataiku/kiji-proxy?style=social" alt="GitHub Stars"></a>
