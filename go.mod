@@ -14,7 +14,7 @@ require (
 )
 
 require (
-	github.com/getsentry/sentry-go v0.42.0
+	github.com/getsentry/sentry-go v0.43.0
 	github.com/google/uuid v1.6.0
 )
 
