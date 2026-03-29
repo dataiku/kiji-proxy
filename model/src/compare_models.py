@@ -34,9 +34,9 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 try:
-    from model.src.model import MultiTaskPIIDetectionModel
+    from model.src.model import PIIDetectionModel
 except ImportError:
-    from .model import MultiTaskPIIDetectionModel
+    from .model import PIIDetectionModel
 
 # Define command-line flags
 FLAGS = flags.FLAGS
@@ -87,7 +87,7 @@ def get_device():
 
 def load_pytorch_model(
     model_path: str,
-) -> tuple[MultiTaskPIIDetectionModel, AutoTokenizer, dict]:
+) -> tuple[PIIDetectionModel, AutoTokenizer, dict]:
     """Load the trained PyTorch model."""
     model_path = Path(model_path)
     logging.info(f"Loading PyTorch model from: {model_path}")
@@ -99,11 +99,6 @@ def load_pytorch_model(
 
     pii_label2id = mappings["pii"]["label2id"]
     pii_id2label = {int(k): v for k, v in mappings["pii"]["id2label"].items()}
-    coref_id2label = (
-        {int(k): v for k, v in mappings["coref"]["id2label"].items()}
-        if "coref" in mappings
-        else {0: "NO_COREF", 1: "CLUSTER_0"}
-    )
 
     # Load tokenizer
     tokenizer = AutoTokenizer.from_pretrained(model_path)
@@ -121,14 +116,11 @@ def load_pytorch_model(
 
     # Create model
     num_pii_labels = len(pii_label2id)
-    num_coref_labels = len(coref_id2label)
 
-    model = MultiTaskPIIDetectionModel(
+    model = PIIDetectionModel(
         model_name=base_model_name,
         num_pii_labels=num_pii_labels,
-        num_coref_labels=num_coref_labels,
         id2label_pii=pii_id2label,
-        id2label_coref=coref_id2label,
     )
 
     # Load weights
@@ -158,7 +150,7 @@ def load_pytorch_model(
     model.eval()
 
     logging.info(
-        f"  Loaded PyTorch model with {num_pii_labels} PII labels, {num_coref_labels} coref labels"
+        f"  Loaded PyTorch model with {num_pii_labels} PII labels"
     )
 
     return (
@@ -227,7 +219,7 @@ def load_onnx_model(
 
 
 def run_pytorch_inference(
-    model: MultiTaskPIIDetectionModel,
+    model: PIIDetectionModel,
     tokenizer: AutoTokenizer,
     text: str,
     device: torch.device,

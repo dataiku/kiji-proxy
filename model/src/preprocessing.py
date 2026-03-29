@@ -328,7 +328,7 @@ class DatasetProcessor:
 
     def prepare_datasets(
         self, subsample_count: int = 0
-    ) -> tuple[Dataset, Dataset, dict, dict]:
+    ) -> tuple[Dataset, Dataset, dict]:
         """
         Prepare training and validation datasets from local JSON files.
         Tokenization is performed on-the-fly during dataset preparation.
@@ -337,9 +337,9 @@ class DatasetProcessor:
             subsample_count: Limit to N samples (0 = use all)
 
         Returns:
-            Tuple of (train_dataset, val_dataset, label_mappings, coref_mappings)
+            Tuple of (train_dataset, val_dataset, label_mappings)
         """
-        # Load all samples (raw text, privacy_mask, coreferences)
+        # Load all samples (raw text, privacy_mask)
         all_samples = self.load_training_samples()
 
         # Filter out None samples
@@ -355,50 +355,21 @@ class DatasetProcessor:
         if len(all_samples) == 0:
             raise ValueError("No training samples found!")
 
-        # New code path: tokenize on-the-fly
         logging.info("🔄 Tokenizing samples on-the-fly during dataset preparation...")
 
-        # Determine max coreference cluster ID from all samples
-        max_coref_id = 0
-        for sample in all_samples:
-            coreferences = sample.get("coreferences", [])
-            for coref in coreferences:
-                cluster_id = coref.get("cluster_id", 0)
-                max_coref_id = max(max_coref_id, cluster_id)
-        num_coref_labels = max_coref_id + 2  # +1 for NO_COREF (0), +1 for 0-indexed
-
-        # Prepare dataset format with on-the-fly tokenization
         def format_sample(sample: dict) -> dict:
             """Format a single sample for training by tokenizing on-the-fly."""
             text = sample["text"]
             privacy_mask = sample["privacy_mask"]
-            coreferences = sample.get("coreferences", [])
 
-            # Tokenize PII sample
             pii_sample = self.tokenization_processor.create_pii_sample(
                 text, privacy_mask
             )
-
-            # Tokenize coreference sample
-            coreference_sample = self.tokenization_processor.create_coreference_sample(
-                text, coreferences
-            )
-
-            # Validate that tokenization is consistent
-            if coreference_sample["input_ids"] != pii_sample["input_ids"]:
-                raise ValueError(
-                    "Input IDs do not match between PII and coreference samples"
-                )
-            if coreference_sample["attention_mask"] != pii_sample["attention_mask"]:
-                raise ValueError(
-                    "Attention masks do not match between PII and coreference samples"
-                )
 
             return {
                 "input_ids": pii_sample["input_ids"],
                 "attention_mask": pii_sample["attention_mask"],
                 "pii_labels": pii_sample["labels"],
-                "coref_labels": coreference_sample["coreference_labels"],
             }
 
         # Tokenize all samples
@@ -411,7 +382,7 @@ class DatasetProcessor:
                     logging.info(f"  Tokenized {i + 1}/{len(all_samples)} samples...")
             except Exception as e:
                 logging.error(f"❌ Failed to tokenize sample {i}: {e}")
-                raise  # Re-raise the original exception with full traceback
+                raise
 
         if len(formatted_samples) == 0:
             raise ValueError("No samples could be tokenized!")
@@ -429,20 +400,12 @@ class DatasetProcessor:
         pii_label2id = self.label2id
         pii_id2label = self.id2label
 
-        # Create coreference label mappings
-        coref_id2label = {0: "NO_COREF"}
-        for i in range(1, num_coref_labels):
-            coref_id2label[i] = f"CLUSTER_{i - 1}"
-
         # Save label mappings
         mappings_path = Path(self.config.output_dir) / "label_mappings.json"
         mappings = {
             "pii": {
                 "label2id": pii_label2id,
                 "id2label": {str(k): v for k, v in pii_id2label.items()},
-            },
-            "coref": {
-                "id2label": {str(k): v for k, v in coref_id2label.items()},
             },
         }
         with mappings_path.open("w") as f:
@@ -453,11 +416,9 @@ class DatasetProcessor:
         logging.info(f"  Training samples: {len(train_dataset)}")
         logging.info(f"  Validation samples: {len(val_dataset)}")
         logging.info(f"  PII labels: {len(pii_label2id)}")
-        logging.info(f"  Co-reference labels: {num_coref_labels}")
 
         return (
             train_dataset,
             val_dataset,
             mappings,
-            {"num_coref_labels": num_coref_labels},
         )
