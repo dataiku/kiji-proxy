@@ -42,7 +42,7 @@
     "@tailwindcss/postcss": "^4.1.18",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "@typescript-eslint/eslint-plugin": "^8.56.1",
+    "@typescript-eslint/eslint-plugin": "^8.57.2",
     "@typescript-eslint/parser": "^8.56.1",
     "autoprefixer": "^10.4.24",
     "babel-loader": "^9.1.0",
