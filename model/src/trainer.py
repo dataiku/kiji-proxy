@@ -8,6 +8,11 @@ import numpy as np
 import torch
 from absl import logging
 from datasets import Dataset
+from seqeval.metrics import classification_report as seqeval_classification_report
+from seqeval.metrics import f1_score as seqeval_f1_score
+from seqeval.metrics import precision_score as seqeval_precision_score
+from seqeval.metrics import recall_score as seqeval_recall_score
+from seqeval.scheme import IOB2
 from sklearn.metrics import (
     f1_score,
     precision_score,
@@ -259,11 +264,8 @@ class PIITrainer:
         """
         Compute evaluation metrics for both tasks.
 
-        Args:
-            eval_pred: EvalPrediction object with predictions and label_ids
-
-        Returns:
-            Dictionary of metrics for both tasks
+        Uses seqeval for entity-level (span-level) F1 on PII detection,
+        and sklearn for token-level metrics on coreference detection.
         """
         predictions = eval_pred.predictions
         label_ids = eval_pred.label_ids
@@ -281,7 +283,6 @@ class PIITrainer:
                 label_ids.get("coref_labels") if isinstance(label_ids, dict) else None
             )
         elif isinstance(predictions, (tuple, list)) and len(predictions) == 2:
-            # Tuple/list format: (pii_predictions, coref_predictions) or [pii_predictions, coref_predictions]
             pii_predictions, coref_predictions = predictions
             if isinstance(label_ids, (tuple, list)) and len(label_ids) == 2:
                 pii_labels, coref_labels = label_ids
@@ -289,200 +290,142 @@ class PIITrainer:
                 pii_labels = label_ids
                 coref_labels = None
         else:
-            # Single task fallback
             pii_predictions = predictions
             pii_labels = label_ids
             coref_predictions = None
             coref_labels = None
 
-        # PII detection metrics
+        # PII detection metrics using seqeval (entity-level)
         pii_preds = np.argmax(pii_predictions, axis=2)
-        pii_true_preds = [
-            [
-                self.pii_id2label.get(int(p), "O")
-                for (p, label_id) in zip(prediction, label, strict=True)
-                if label_id != -100
-            ]
-            for prediction, label in zip(pii_preds, pii_labels, strict=True)
-        ]
-        pii_true_labels = [
-            [
-                self.pii_id2label.get(int(label_id), "O")
-                for (p, label_id) in zip(prediction, label, strict=True)
-                if label_id != -100
-            ]
-            for prediction, label in zip(pii_preds, pii_labels, strict=True)
-        ]
 
-        pii_flat_preds = [item for sublist in pii_true_preds for item in sublist]
-        pii_flat_labels = [item for sublist in pii_true_labels for item in sublist]
+        # Build list-of-lists of BIO tag strings, skipping padding (-100)
+        true_labels = []
+        pred_labels = []
+        for pred_seq, label_seq in zip(pii_preds, pii_labels, strict=True):
+            true_seq = []
+            pred_seq_tags = []
+            for p, l in zip(pred_seq, label_seq, strict=True):
+                if l == -100:
+                    continue
+                true_seq.append(self.pii_id2label.get(int(l), "O"))
+                pred_seq_tags.append(self.pii_id2label.get(int(p), "O"))
+            true_labels.append(true_seq)
+            pred_labels.append(pred_seq_tags)
 
-        # Compute PII detection metrics
-        pii_f1_weighted = f1_score(pii_flat_labels, pii_flat_preds, average="weighted")
-        pii_f1_macro = f1_score(pii_flat_labels, pii_flat_preds, average="macro")
-        pii_precision_weighted = precision_score(
-            pii_flat_labels, pii_flat_preds, average="weighted", zero_division=0
+        # Entity-level metrics (strict span matching)
+        pii_f1 = seqeval_f1_score(
+            true_labels, pred_labels, mode="strict", scheme=IOB2
         )
-        pii_precision_macro = precision_score(
-            pii_flat_labels, pii_flat_preds, average="macro", zero_division=0
+        pii_precision = seqeval_precision_score(
+            true_labels, pred_labels, mode="strict", scheme=IOB2
         )
-        pii_recall_weighted = recall_score(
-            pii_flat_labels, pii_flat_preds, average="weighted", zero_division=0
-        )
-        pii_recall_macro = recall_score(
-            pii_flat_labels, pii_flat_preds, average="macro", zero_division=0
+        pii_recall = seqeval_recall_score(
+            true_labels, pred_labels, mode="strict", scheme=IOB2
         )
 
-        # Per-class metrics
-        unique_labels = sorted(set(pii_flat_labels + pii_flat_preds))
-        pii_f1_per_class = f1_score(
-            pii_flat_labels,
-            pii_flat_preds,
-            average=None,
-            labels=unique_labels,
-            zero_division=0,
-        )
-        pii_precision_per_class = precision_score(
-            pii_flat_labels,
-            pii_flat_preds,
-            average=None,
-            labels=unique_labels,
-            zero_division=0,
-        )
-        pii_recall_per_class = recall_score(
-            pii_flat_labels,
-            pii_flat_preds,
-            average=None,
-            labels=unique_labels,
-            zero_division=0,
+        # Per-class report
+        report = seqeval_classification_report(
+            true_labels, pred_labels, scheme=IOB2, output_dict=True
         )
 
-        # Build metrics dictionary
+        # Log the full classification report
+        report_str = seqeval_classification_report(
+            true_labels, pred_labels, scheme=IOB2
+        )
+        logging.info(f"\n📊 Entity-level Classification Report:\n{report_str}")
+
         metrics = {
-            "eval_pii_f1_weighted": pii_f1_weighted,
-            "eval_pii_f1_macro": pii_f1_macro,
-            "eval_pii_precision_weighted": pii_precision_weighted,
-            "eval_pii_precision_macro": pii_precision_macro,
-            "eval_pii_recall_weighted": pii_recall_weighted,
-            "eval_pii_recall_macro": pii_recall_macro,
-            # Keep backward compatibility
-            "eval_pii_f1": pii_f1_weighted,
+            "eval_pii_f1": pii_f1,
+            "eval_pii_precision": pii_precision,
+            "eval_pii_recall": pii_recall,
         }
 
-        # Add per-class metrics (limit to reasonable number of classes)
-        non_o_labels = [label for label in unique_labels if label != "O"]
-        if len(non_o_labels) <= 20:
-            for label, f1, prec, rec in zip(
-                unique_labels,
-                pii_f1_per_class,
-                pii_precision_per_class,
-                pii_recall_per_class,
-                strict=True,
+        # Add per-class entity-level metrics from report
+        for entity_type, entity_metrics in report.items():
+            if isinstance(entity_metrics, dict) and entity_type not in (
+                "micro avg",
+                "macro avg",
+                "weighted avg",
             ):
-                # Sanitize label name for metric key
-                safe_label = label.replace("-", "_").replace(" ", "_")
-                metrics[f"eval_pii_f1_{safe_label}"] = float(f1)
-                metrics[f"eval_pii_precision_{safe_label}"] = float(prec)
-                metrics[f"eval_pii_recall_{safe_label}"] = float(rec)
+                safe_label = entity_type.replace("-", "_").replace(" ", "_")
+                metrics[f"eval_pii_f1_{safe_label}"] = entity_metrics.get(
+                    "f1-score", 0.0
+                )
+                metrics[f"eval_pii_precision_{safe_label}"] = entity_metrics.get(
+                    "precision", 0.0
+                )
+                metrics[f"eval_pii_recall_{safe_label}"] = entity_metrics.get(
+                    "recall", 0.0
+                )
 
-        # Co-reference detection metrics
+        # Add aggregate metrics from report
+        for avg_type in ("micro avg", "macro avg", "weighted avg"):
+            if avg_type in report:
+                safe_avg = avg_type.replace(" ", "_")
+                metrics[f"eval_pii_f1_{safe_avg}"] = report[avg_type].get(
+                    "f1-score", 0.0
+                )
+                metrics[f"eval_pii_precision_{safe_avg}"] = report[avg_type].get(
+                    "precision", 0.0
+                )
+                metrics[f"eval_pii_recall_{safe_avg}"] = report[avg_type].get(
+                    "recall", 0.0
+                )
+
+        # Co-reference detection metrics (token-level, sklearn)
         if coref_predictions is not None and coref_labels is not None:
             coref_preds = np.argmax(coref_predictions, axis=2)
-            coref_true_preds = [
-                [
-                    int(p)
-                    for (p, label_id) in zip(prediction, label, strict=True)
-                    if label_id != -100
-                ]
-                for prediction, label in zip(coref_preds, coref_labels, strict=True)
-            ]
-            coref_true_labels = [
-                [
-                    int(label_id)
-                    for (p, label_id) in zip(prediction, label, strict=True)
-                    if label_id != -100
-                ]
-                for prediction, label in zip(coref_preds, coref_labels, strict=True)
-            ]
-
             coref_flat_preds = [
-                item for sublist in coref_true_preds for item in sublist
+                int(p)
+                for pred_seq, label_seq in zip(
+                    coref_preds, coref_labels, strict=True
+                )
+                for p, l in zip(pred_seq, label_seq, strict=True)
+                if l != -100
             ]
             coref_flat_labels = [
-                item for sublist in coref_true_labels for item in sublist
+                int(l)
+                for pred_seq, label_seq in zip(
+                    coref_preds, coref_labels, strict=True
+                )
+                for p, l in zip(pred_seq, label_seq, strict=True)
+                if l != -100
             ]
 
-            # Compute co-reference detection metrics
             coref_f1_weighted = f1_score(
-                coref_flat_labels, coref_flat_preds, average="weighted", zero_division=0
+                coref_flat_labels,
+                coref_flat_preds,
+                average="weighted",
+                zero_division=0,
             )
             coref_f1_macro = f1_score(
-                coref_flat_labels, coref_flat_preds, average="macro", zero_division=0
+                coref_flat_labels,
+                coref_flat_preds,
+                average="macro",
+                zero_division=0,
             )
             coref_precision_weighted = precision_score(
-                coref_flat_labels, coref_flat_preds, average="weighted", zero_division=0
-            )
-            coref_precision_macro = precision_score(
-                coref_flat_labels, coref_flat_preds, average="macro", zero_division=0
+                coref_flat_labels,
+                coref_flat_preds,
+                average="weighted",
+                zero_division=0,
             )
             coref_recall_weighted = recall_score(
-                coref_flat_labels, coref_flat_preds, average="weighted", zero_division=0
-            )
-            coref_recall_macro = recall_score(
-                coref_flat_labels, coref_flat_preds, average="macro", zero_division=0
-            )
-
-            # Per-class metrics for co-reference
-            unique_coref_labels = sorted(set(coref_flat_labels + coref_flat_preds))
-            coref_f1_per_class = f1_score(
                 coref_flat_labels,
                 coref_flat_preds,
-                average=None,
-                labels=unique_coref_labels,
-                zero_division=0,
-            )
-            coref_precision_per_class = precision_score(
-                coref_flat_labels,
-                coref_flat_preds,
-                average=None,
-                labels=unique_coref_labels,
-                zero_division=0,
-            )
-            coref_recall_per_class = recall_score(
-                coref_flat_labels,
-                coref_flat_preds,
-                average=None,
-                labels=unique_coref_labels,
+                average="weighted",
                 zero_division=0,
             )
 
-            # Add co-reference metrics
             metrics.update(
                 {
                     "eval_coref_f1_weighted": coref_f1_weighted,
                     "eval_coref_f1_macro": coref_f1_macro,
                     "eval_coref_precision_weighted": coref_precision_weighted,
-                    "eval_coref_precision_macro": coref_precision_macro,
                     "eval_coref_recall_weighted": coref_recall_weighted,
-                    "eval_coref_recall_macro": coref_recall_macro,
-                    # Keep backward compatibility
                     "eval_coref_f1": coref_f1_weighted,
                 }
             )
-
-            # Add per-class metrics for co-reference
-            if len(unique_coref_labels) <= 20:
-                for label, f1, prec, rec in zip(
-                    unique_coref_labels,
-                    coref_f1_per_class,
-                    coref_precision_per_class,
-                    coref_recall_per_class,
-                    strict=True,
-                ):
-                    safe_label = f"cluster_{label}"
-                    metrics[f"eval_coref_f1_{safe_label}"] = float(f1)
-                    metrics[f"eval_coref_precision_{safe_label}"] = float(prec)
-                    metrics[f"eval_coref_recall_{safe_label}"] = float(rec)
 
         return metrics
 
