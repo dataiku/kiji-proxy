@@ -1,6 +1,7 @@
 """Data preprocessing and dataset loading."""
 
 import json
+import random
 import sys
 from pathlib import Path
 from typing import ClassVar
@@ -415,6 +416,10 @@ class DatasetProcessor:
 
         if len(formatted_samples) == 0:
             raise ValueError("No samples could be tokenized!")
+
+        # Shuffle before splitting to prevent ordered-batch bias
+        random.seed(42)
+        random.shuffle(formatted_samples)
 
         # Split into train and validation
         split_idx = int(len(formatted_samples) * (1 - self.config.eval_size_ratio))
