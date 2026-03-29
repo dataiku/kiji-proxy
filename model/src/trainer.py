@@ -89,21 +89,27 @@ class MultiTaskTrainer(Trainer):
             coref_labels=coref_labels,
         )
 
-        # Compute multi-task loss
-        if self.multi_task_loss_fn is not None:
-            loss = self.multi_task_loss_fn(
-                outputs["pii_logits"],
-                pii_labels,
-                outputs["coref_logits"],
-                coref_labels,
+        # Use CRF loss for PII if available, otherwise fall back
+        if "crf_loss" in outputs:
+            pii_loss = outputs["crf_loss"]
+        elif self.multi_task_loss_fn is not None:
+            pii_loss = self.multi_task_loss_fn.pii_loss_fn(
+                outputs["pii_logits"], pii_labels
             )
         else:
-            # Fallback: simple sum of individual losses
             pii_loss = functional.cross_entropy(
                 outputs["pii_logits"].view(-1, outputs["pii_logits"].size(-1)),
                 pii_labels.view(-1),
                 ignore_index=-100,
             )
+
+        # Coref loss
+        if self.multi_task_loss_fn is not None:
+            coref_loss = self.multi_task_loss_fn.coref_loss_fn(
+                outputs["coref_logits"], coref_labels
+            )
+            loss = pii_loss + self.multi_task_loss_fn.coref_weight * coref_loss
+        else:
             coref_loss = functional.cross_entropy(
                 outputs["coref_logits"].view(-1, outputs["coref_logits"].size(-1)),
                 coref_labels.view(-1),

@@ -3,6 +3,7 @@
 import torch
 from torch import nn
 from torch.nn import functional
+from torchcrf import CRF
 from transformers import AutoModel
 
 
@@ -181,6 +182,9 @@ class MultiTaskPIIDetectionModel(nn.Module):
         # Co-reference detection head
         self.coref_classifier = nn.Linear(hidden_size, num_coref_labels)
 
+        # CRF layer for valid BIO sequence decoding
+        self.crf = CRF(num_pii_labels, batch_first=True)
+
         # Store label mappings
         self.num_pii_labels = num_pii_labels
         self.num_coref_labels = num_coref_labels
@@ -218,8 +222,37 @@ class MultiTaskPIIDetectionModel(nn.Module):
         # Co-reference detection logits
         coref_logits = self.coref_classifier(sequence_output)
 
-        return {
+        result = {
             "pii_logits": pii_logits,
             "coref_logits": coref_logits,
             "hidden_states": sequence_output,
         }
+
+        # Compute CRF loss if PII labels are provided
+        if pii_labels is not None:
+            # Create mask: True for real tokens, False for padding (-100)
+            crf_mask = pii_labels != -100
+            # Replace -100 with 0 for CRF (it uses the mask to ignore padding)
+            safe_labels = pii_labels.clone()
+            safe_labels[~crf_mask] = 0
+            # CRF returns negative log-likelihood (negate for loss)
+            crf_loss = -self.crf(
+                pii_logits, safe_labels, mask=crf_mask, reduction="mean"
+            )
+            result["crf_loss"] = crf_loss
+
+        return result
+
+    def decode(
+        self, pii_logits: torch.Tensor, attention_mask: torch.Tensor
+    ) -> list[list[int]]:
+        """Decode PII logits using Viterbi algorithm via CRF.
+
+        Args:
+            pii_logits: Emission scores (batch_size, seq_len, num_labels)
+            attention_mask: Attention mask (batch_size, seq_len)
+
+        Returns:
+            List of predicted label sequences
+        """
+        return self.crf.decode(pii_logits, mask=attention_mask.bool())
