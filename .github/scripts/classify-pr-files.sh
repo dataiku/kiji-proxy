@@ -34,7 +34,7 @@ while IFS= read -r file; do
     docs/*|*.md|LICENSE*)
       cat="docs" ;;
     # Dependencies / config (chore)
-    go.mod|go.sum|package.json|package-lock.json|pyproject.toml|.changeset/*|.gitignore|.gitattributes|.eslintrc*|.prettierrc*|tsconfig.json|renovate.json|.nvmrc)
+    go.mod|go.sum|*/package.json|package.json|*/package-lock.json|package-lock.json|pyproject.toml|.changeset/*|.gitignore|.gitattributes|.eslintrc*|.prettierrc*|tsconfig.json|renovate.json|.nvmrc)
       cat="chore" ;;
     # Build / tooling (chore)
     Makefile|src/scripts/*|electron-builder.yml)
