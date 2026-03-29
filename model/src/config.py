@@ -15,7 +15,12 @@ class TrainingConfig:
     """Configuration for PII detection model training."""
 
     # Model settings
-    model_name: str = "distilbert-base-cased"  # 66M params, fast
+    # Supported base encoders (any HuggingFace AutoModel-compatible model):
+    #   - distilbert-base-cased:      66M params, fastest inference
+    #   - microsoft/deberta-v3-small:  44M params, better NER accuracy than DistilBERT
+    #   - microsoft/deberta-v3-base:   86M params, best NER accuracy at this scale
+    #   - roberta-base:               125M params, strong general-purpose encoder
+    model_name: str = "distilbert-base-cased"
 
     # Training parameters
     num_epochs: int = 5
