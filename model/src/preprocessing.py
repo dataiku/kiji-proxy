@@ -2,8 +2,11 @@
 
 import json
 import sys
+from collections import Counter
 from pathlib import Path
 from typing import ClassVar
+
+import numpy as np
 
 from absl import logging
 from datasets import Dataset
@@ -326,6 +329,56 @@ class DatasetProcessor:
 
         return samples
 
+    @staticmethod
+    def _compute_class_weights(
+        dataset: Dataset, id2label: dict[int, str]
+    ) -> dict[int, float]:
+        """Compute inverse-sqrt class weights from label frequencies.
+
+        Counts per-token label occurrences in the training set, then applies
+        inverse square-root weighting so rare entity types receive higher loss
+        contribution. The O label is kept at 1.0 and padding (-100) is ignored.
+
+        Args:
+            dataset: HuggingFace Dataset with a ``pii_labels`` column.
+            id2label: Mapping from label ID to label string.
+
+        Returns:
+            Dictionary mapping label IDs to their computed weights.
+        """
+        counts: Counter = Counter()
+        for sample in dataset:
+            for label_id in sample["pii_labels"]:
+                if label_id == -100:
+                    continue
+                counts[label_id] += 1
+
+        total = sum(counts.values())
+        num_classes = len(counts)
+
+        weights: dict[int, float] = {}
+        for label_id, count in counts.items():
+            if id2label.get(label_id) == "O":
+                weights[label_id] = 1.0
+                continue
+            weights[label_id] = float(np.sqrt(total / (num_classes * count)))
+
+        # Normalize entity weights so their mean is 1.0
+        entity_weights = [
+            w for lid, w in weights.items() if id2label.get(lid) != "O"
+        ]
+        mean_w = float(np.mean(entity_weights)) if entity_weights else 1.0
+        for lid in weights:
+            if id2label.get(lid) != "O":
+                weights[lid] = weights[lid] / mean_w
+
+        logging.info("\n⚖️  Class weights (inverse sqrt):")
+        for lid in sorted(weights):
+            label = id2label.get(lid, f"UNKNOWN-{lid}")
+            logging.info(f"  {label:25s} (id={lid:3d}): {weights[lid]:.4f}")
+
+        return weights
+
     def prepare_datasets(
         self, subsample_count: int = 0
     ) -> tuple[Dataset, Dataset, dict, dict]:
@@ -424,6 +477,11 @@ class DatasetProcessor:
         # Create HuggingFace datasets
         train_dataset = Dataset.from_list(train_samples)
         val_dataset = Dataset.from_list(val_samples)
+
+        # Compute and apply class weights from training data
+        if not self.config.class_weights:
+            class_weights = self._compute_class_weights(train_dataset, self.id2label)
+            self.config.class_weights = class_weights
 
         # Prepare label mappings
         pii_label2id = self.label2id
