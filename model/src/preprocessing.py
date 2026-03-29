@@ -184,6 +184,8 @@ class DatasetProcessor:
                             {
                                 "value": main_entity["text"],
                                 "label": main_entity["label"],
+                                "start": main_entity["start"],
+                                "end": main_entity["end"],
                             }
                         )
                     processed_entities.add(main_entity_id)
@@ -213,6 +215,8 @@ class DatasetProcessor:
                         {
                             "value": entity["text"],
                             "label": entity["label"],
+                            "start": entity["start"],
+                            "end": entity["end"],
                         }
                     )
 
