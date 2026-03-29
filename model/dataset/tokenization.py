@@ -39,7 +39,7 @@ class TokenizationProcessor:
                     "end": item["end"],
                 }
                 # Validate that the offset matches the expected value
-                actual = text[entry["start"]:entry["end"]]
+                actual = text[entry["start"] : entry["end"]]
                 if actual != entry["value"]:
                     import logging
 
