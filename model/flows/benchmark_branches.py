@@ -161,7 +161,7 @@ def create_worktree(repo_root: Path, branch: str, base_dir: Path) -> Path:
     """Create an isolated git worktree for a branch."""
     worktree_path = base_dir / branch.replace("/", "_")
     subprocess.run(
-        ["git", "worktree", "add", str(worktree_path), branch],
+        ["git", "worktree", "add", "--detach", str(worktree_path), branch],
         cwd=repo_root,
         check=True,
         capture_output=True,
