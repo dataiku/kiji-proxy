@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import ClassVar
 
 import numpy as np
-
 from absl import logging
 from datasets import Dataset
 from transformers import AutoTokenizer
@@ -364,9 +363,7 @@ class DatasetProcessor:
             weights[label_id] = float(np.sqrt(total / (num_classes * count)))
 
         # Normalize entity weights so their mean is 1.0
-        entity_weights = [
-            w for lid, w in weights.items() if id2label.get(lid) != "O"
-        ]
+        entity_weights = [w for lid, w in weights.items() if id2label.get(lid) != "O"]
         mean_w = float(np.mean(entity_weights)) if entity_weights else 1.0
         for lid in weights:
             if id2label.get(lid) != "O":
