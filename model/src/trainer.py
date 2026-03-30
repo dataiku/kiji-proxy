@@ -304,10 +304,10 @@ class PIITrainer:
         for pred_seq, label_seq in zip(pii_preds, pii_labels, strict=True):
             true_seq = []
             pred_seq_tags = []
-            for p, l in zip(pred_seq, label_seq, strict=True):
-                if l == -100:
+            for p, label in zip(pred_seq, label_seq, strict=True):
+                if label == -100:
                     continue
-                true_seq.append(self.pii_id2label.get(int(l), "O"))
+                true_seq.append(self.pii_id2label.get(int(label), "O"))
                 pred_seq_tags.append(self.pii_id2label.get(int(p), "O"))
             true_labels.append(true_seq)
             pred_labels.append(pred_seq_tags)
@@ -380,16 +380,16 @@ class PIITrainer:
                 for pred_seq, label_seq in zip(
                     coref_preds, coref_labels, strict=True
                 )
-                for p, l in zip(pred_seq, label_seq, strict=True)
-                if l != -100
+                for p, label in zip(pred_seq, label_seq, strict=True)
+                if label != -100
             ]
             coref_flat_labels = [
-                int(l)
+                int(label)
                 for pred_seq, label_seq in zip(
                     coref_preds, coref_labels, strict=True
                 )
-                for p, l in zip(pred_seq, label_seq, strict=True)
-                if l != -100
+                for p, label in zip(pred_seq, label_seq, strict=True)
+                if label != -100
             ]
 
             coref_f1_weighted = f1_score(
