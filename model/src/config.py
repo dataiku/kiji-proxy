@@ -20,7 +20,7 @@ class TrainingConfig:
     #   - microsoft/deberta-v3-small:  44M params, better NER accuracy than DistilBERT
     #   - microsoft/deberta-v3-base:   86M params, best NER accuracy at this scale
     #   - roberta-base:               125M params, strong general-purpose encoder
-    model_name: str = "distilbert-base-cased"
+    model_name: str = "microsoft/deberta-v3-small"
 
     # Training parameters
     num_epochs: int = 5

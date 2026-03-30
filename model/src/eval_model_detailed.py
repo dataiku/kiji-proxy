@@ -129,9 +129,9 @@ class DetailedPIIModelLoader:
             if base_model_name == "distilbert":
                 base_model_name = "distilbert-base-cased"
         else:
-            base_model_name = "distilbert-base-cased"
+            base_model_name = "microsoft/deberta-v3-small"
             logging.warning(
-                "⚠️  config.json not found, using default: distilbert-base-cased"
+                "⚠️  config.json not found, using default: microsoft/deberta-v3-small"
             )
 
         # Determine number of labels
