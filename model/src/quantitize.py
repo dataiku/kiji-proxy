@@ -313,8 +313,6 @@ def export_to_onnx(
     # beyond 512, causing PII at the end of long texts to be missed.
     tokenizer_json_path = Path(output_path) / "tokenizer.json"
     if tokenizer_json_path.exists():
-        import json
-
         with open(tokenizer_json_path) as f:
             tok_data = json.load(f)
         if tok_data.get("truncation") is not None:
