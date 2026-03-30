@@ -269,8 +269,14 @@ def export_to_onnx(
     if hasattr(model, "crf"):
         crf_params = {
             "transitions": model.crf.transitions.detach().cpu().numpy().tolist(),
-            "start_transitions": model.crf.start_transitions.detach().cpu().numpy().tolist(),
-            "end_transitions": model.crf.end_transitions.detach().cpu().numpy().tolist(),
+            "start_transitions": model.crf.start_transitions.detach()
+            .cpu()
+            .numpy()
+            .tolist(),
+            "end_transitions": model.crf.end_transitions.detach()
+            .cpu()
+            .numpy()
+            .tolist(),
         }
         crf_path = output_path / "crf_transitions.json"
         with open(crf_path, "w") as f:
