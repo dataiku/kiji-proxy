@@ -211,7 +211,7 @@ class PIITrainingPipeline(FlowSpec):
 
         # Process the dataset
         processor = DatasetProcessor(self.config)
-        train_dataset, val_dataset, mappings = processor.prepare_datasets(
+        train_dataset, val_dataset, mappings, _ = processor.prepare_datasets(
             subsample_count=self.subsample_count
         )
 

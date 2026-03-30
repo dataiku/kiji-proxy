@@ -328,7 +328,7 @@ class DatasetProcessor:
 
     def prepare_datasets(
         self, subsample_count: int = 0
-    ) -> tuple[Dataset, Dataset, dict]:
+    ) -> tuple[Dataset, Dataset, dict, dict]:
         """
         Prepare training and validation datasets from local JSON files.
         Tokenization is performed on-the-fly during dataset preparation.
@@ -337,7 +337,7 @@ class DatasetProcessor:
             subsample_count: Limit to N samples (0 = use all)
 
         Returns:
-            Tuple of (train_dataset, val_dataset, label_mappings)
+            Tuple of (train_dataset, val_dataset, label_mappings, coref_info)
         """
         # Load all samples (raw text, privacy_mask)
         all_samples = self.load_training_samples()
@@ -421,4 +421,5 @@ class DatasetProcessor:
             train_dataset,
             val_dataset,
             mappings,
+            {},
         )
