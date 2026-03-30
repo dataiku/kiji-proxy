@@ -149,9 +149,7 @@ def load_pytorch_model(
     model.load_state_dict(state_dict, strict=False)
     model.eval()
 
-    logging.info(
-        f"  Loaded PyTorch model with {num_pii_labels} PII labels"
-    )
+    logging.info(f"  Loaded PyTorch model with {num_pii_labels} PII labels")
 
     return (
         model,
@@ -456,9 +454,7 @@ def main(argv):
         pytorch_pii, pytorch_time = run_pytorch_inference(
             pytorch_model, pytorch_tokenizer, text, device
         )
-        onnx_pii, onnx_time = run_onnx_inference(
-            onnx_session, onnx_tokenizer, text
-        )
+        onnx_pii, onnx_time = run_onnx_inference(onnx_session, onnx_tokenizer, text)
 
         pytorch_times.append(pytorch_time)
         onnx_times.append(onnx_time)

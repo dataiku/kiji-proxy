@@ -185,13 +185,9 @@ class PIITrainer:
                 num_classes=num_pii_labels,
                 reduction="mean",
             )
-            logging.info(
-                f"✅ Initialized PII loss ({num_pii_labels} classes)"
-            )
+            logging.info(f"✅ Initialized PII loss ({num_pii_labels} classes)")
 
-        logging.info(
-            f"✅ Model initialized with {num_pii_labels} PII labels"
-        )
+        logging.info(f"✅ Model initialized with {num_pii_labels} PII labels")
 
     def compute_metrics(self, eval_pred) -> dict[str, float]:
         """

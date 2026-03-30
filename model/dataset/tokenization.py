@@ -266,4 +266,3 @@ class TokenizationProcessor:
             "label2id": self.label2id,
             "id2label": self.id2label,
         }
-
