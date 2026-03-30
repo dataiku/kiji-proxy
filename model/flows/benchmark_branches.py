@@ -1,4 +1,4 @@
-#!/usr/bin/env -S uv run --extra training --extra quantization --extra signing --script
+#!/usr/bin/env -S uv run --extra training --script
 # /// script
 # requires-python = ">=3.13"
 # dependencies = []
@@ -9,23 +9,21 @@ Trains the model on each specified branch using isolated git worktrees,
 collects evaluation metrics from trainer_state.json, and writes a
 comparison report to a JSON file.
 
+Runs train.py directly (no metaflow dependency required).
+
 Usage:
     # Compare feature branches against main
-    uv run --extra training --extra quantization --extra signing \
-        python model/flows/benchmark_branches.py
+    uv run --extra training python model/flows/benchmark_branches.py
 
     # Specific branches only
-    uv run --extra training --extra quantization --extra signing \
-        python model/flows/benchmark_branches.py \
+    uv run --extra training python model/flows/benchmark_branches.py \
         --branches main fix/shuffle-before-train-val-split feat/class-weights-from-label-frequency
 
     # Quick test with subsampled data
-    uv run --extra training --extra quantization --extra signing \
-        python model/flows/benchmark_branches.py --subsample 500 --epochs 3
+    uv run --extra training python model/flows/benchmark_branches.py --subsample 500 --epochs 3
 
     # Custom output
-    uv run --extra training --extra quantization --extra signing \
-        python model/flows/benchmark_branches.py --output results/benchmark.json
+    uv run --extra training python model/flows/benchmark_branches.py --output results/benchmark.json
 """
 
 import argparse
@@ -50,6 +48,64 @@ METRICS_KEYS = [
     "eval_loss",
 ]
 
+# Inline runner script dropped into each worktree. Uses train.py directly,
+# bypassing metaflow. Reads config from environment variables.
+RUNNER_SCRIPT = """\
+import json
+import os
+import sys
+import time
+
+sys.path.insert(0, os.path.join(os.getcwd(), "model", "src"))
+
+from config import EnvironmentSetup, TrainingConfig
+from preprocessing import DatasetProcessor
+from trainer import PIITrainer
+
+os.environ["WANDB_DISABLED"] = "true"
+os.environ["WANDB_MODE"] = "disabled"
+
+config = TrainingConfig(
+    model_name=os.environ.get("BENCH_MODEL", "distilbert-base-cased"),
+    num_epochs=int(os.environ["BENCH_EPOCHS"]),
+    batch_size=4,
+    learning_rate=2e-5,
+    warmup_steps=500,
+    weight_decay=0.01,
+    early_stopping_enabled=True,
+    early_stopping_patience=3,
+    early_stopping_threshold=0.005,
+    training_samples_dir=os.environ["BENCH_TRAINING_DIR"],
+    output_dir=os.environ["BENCH_OUTPUT_DIR"],
+)
+
+EnvironmentSetup.disable_wandb()
+
+dataset_processor = DatasetProcessor(config)
+subsample = int(os.environ.get("BENCH_SUBSAMPLE", "0"))
+train_dataset, val_dataset, mappings, coref_info = dataset_processor.prepare_datasets(
+    subsample_count=subsample
+)
+
+trainer = PIITrainer(config)
+trainer.load_label_mappings(mappings, coref_info)
+trainer.initialize_model()
+
+start = time.time()
+trained_trainer = trainer.train(train_dataset, val_dataset)
+elapsed = time.time() - start
+
+results = trainer.evaluate(val_dataset, trained_trainer)
+results["training_wall_time_seconds"] = round(elapsed, 1)
+
+# Write results to a known location for the benchmark harness to pick up
+results_path = os.path.join(os.environ["BENCH_OUTPUT_DIR"], "bench_results.json")
+with open(results_path, "w") as f:
+    json.dump(results, f, indent=2)
+
+print(f"Benchmark results written to {results_path}")
+"""
+
 
 def get_repo_root() -> Path:
     result = subprocess.run(
@@ -59,6 +115,36 @@ def get_repo_root() -> Path:
         check=True,
     )
     return Path(result.stdout.strip())
+
+
+def resolve_branch(branch: str) -> str:
+    """Resolve a branch name, fetching from remote if needed."""
+    # Check if it exists locally
+    result = subprocess.run(
+        ["git", "rev-parse", "--verify", branch],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        return branch
+
+    # Try as remote tracking branch
+    remote_ref = f"origin/{branch}"
+    result = subprocess.run(
+        ["git", "rev-parse", "--verify", remote_ref],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        # Create local branch tracking remote
+        subprocess.run(
+            ["git", "branch", branch, remote_ref],
+            capture_output=True,
+            text=True,
+        )
+        return branch
+
+    raise ValueError(f"Branch '{branch}' not found locally or on origin")
 
 
 def get_branch_commit(branch: str) -> str:
@@ -94,76 +180,45 @@ def remove_worktree(repo_root: Path, worktree_path: Path):
     )
 
 
-def write_benchmark_config(
+def run_training(
     worktree: Path,
     epochs: int,
     subsample: int,
     training_samples_dir: str,
-) -> Path:
-    """Write a training config TOML tailored for benchmarking."""
+) -> dict:
+    """Run training in a worktree via an inline runner script and return metrics."""
     output_dir = worktree / "model" / "benchmark_output"
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    config_path = worktree / "benchmark_config.toml"
-    config_path.write_text(f"""\
-[model]
-name = "distilbert-base-cased"
+    # Write the runner script into the worktree
+    runner_path = worktree / "_bench_runner.py"
+    runner_path.write_text(RUNNER_SCRIPT)
 
-[training]
-num_epochs = {epochs}
-batch_size = 4
-learning_rate = 2e-5
-warmup_steps = 500
-weight_decay = 0.01
-early_stopping_enabled = true
-early_stopping_patience = 3
-early_stopping_threshold = 0.005
-
-[paths]
-training_samples_dir = "{training_samples_dir}"
-output_dir = "{output_dir}"
-
-[data]
-subsample_count = {subsample}
-
-[pipeline]
-skip_export = true
-skip_quantization = true
-skip_signing = true
-""")
-    return config_path
-
-
-def run_training(worktree: Path, config_path: Path) -> dict:
-    """Run the training pipeline in a worktree and return metrics."""
     env = os.environ.copy()
     env["WANDB_DISABLED"] = "true"
     env["WANDB_MODE"] = "disabled"
+    env["BENCH_EPOCHS"] = str(epochs)
+    env["BENCH_SUBSAMPLE"] = str(subsample)
+    env["BENCH_TRAINING_DIR"] = training_samples_dir
+    env["BENCH_OUTPUT_DIR"] = str(output_dir)
 
     cmd = [
         "uv",
         "run",
         "--extra",
         "training",
-        "--extra",
-        "quantization",
-        "--extra",
-        "signing",
         "python",
-        "model/flows/training_pipeline.py",
-        "--config",
-        "config-file",
-        str(config_path),
-        "run",
+        "_bench_runner.py",
     ]
 
-    print(f"    Running: {' '.join(cmd[:6])}...")
+    print(f"    Running training ({epochs} epochs, subsample={subsample or 'all'})...")
     result = subprocess.run(
         cmd,
         cwd=worktree,
         env=env,
         capture_output=True,
         text=True,
+        timeout=7200,  # 2 hour timeout
     )
 
     if result.returncode != 0:
@@ -172,19 +227,31 @@ def run_training(worktree: Path, config_path: Path) -> dict:
             print(f"      {line}")
         return {"error": f"Training failed with exit code {result.returncode}"}
 
-    return extract_metrics(worktree / "model" / "benchmark_output")
+    return extract_metrics(output_dir)
 
 
 def extract_metrics(output_dir: Path) -> dict:
-    """Extract final evaluation metrics from trainer_state.json."""
+    """Extract metrics from bench_results.json and trainer_state.json."""
+    # First try our bench_results.json (has eval results directly)
+    bench_results = output_dir / "bench_results.json"
+    if bench_results.exists():
+        all_results = json.loads(bench_results.read_text())
+        metrics = {}
+        for key in METRICS_KEYS:
+            if key in all_results:
+                metrics[key] = all_results[key]
+        metrics["epochs_completed"] = all_results.get("epoch", None)
+        if metrics:
+            return metrics
+
+    # Fallback to trainer_state.json
     trainer_state = output_dir / "trainer_state.json"
     if not trainer_state.exists():
-        return {"error": f"trainer_state.json not found in {output_dir}"}
+        return {"error": f"No results found in {output_dir}"}
 
     state = json.loads(trainer_state.read_text())
     log_history = state.get("log_history", [])
 
-    # Find the last evaluation entry (has eval_loss)
     eval_entries = [e for e in log_history if "eval_loss" in e]
     if not eval_entries:
         return {"error": "No evaluation entries found in trainer_state.json"}
@@ -207,7 +274,6 @@ def compute_deltas(baseline: dict, branch_metrics: dict) -> dict:
         branch_val = branch_metrics.get(key)
         if base_val is not None and branch_val is not None:
             delta = branch_val - base_val
-            # For loss, negative delta is better; for F1/precision/recall, positive is better
             deltas[f"{key}_delta"] = round(delta, 6)
             if base_val != 0:
                 deltas[f"{key}_pct_change"] = round((delta / abs(base_val)) * 100, 2)
@@ -308,7 +374,7 @@ def main():
 
     # Determine branches to benchmark
     if args.branches:
-        branches = args.branches
+        branches = list(args.branches)
     else:
         result = subprocess.run(
             ["git", "branch", "--format=%(refname:short)"],
@@ -327,6 +393,16 @@ def main():
     if args.baseline in branches:
         branches.remove(args.baseline)
     branches.insert(0, args.baseline)
+
+    # Resolve all branches (fetch from remote if needed)
+    resolved_branches = []
+    for branch in branches:
+        try:
+            resolved = resolve_branch(branch)
+            resolved_branches.append(resolved)
+        except ValueError as e:
+            print(f"  WARNING: {e} — skipping")
+    branches = resolved_branches
 
     # Resolve training samples dir to absolute path so worktrees can find it
     if args.training_samples_dir:
@@ -372,14 +448,11 @@ def main():
             print("  Creating worktree...")
             worktree = create_worktree(repo_root, branch, worktree_base)
 
-            # Write benchmark config
-            config_path = write_benchmark_config(
-                worktree, args.epochs, args.subsample, training_samples_dir
-            )
-
             # Train
             start = time.time()
-            metrics = run_training(worktree, config_path)
+            metrics = run_training(
+                worktree, args.epochs, args.subsample, training_samples_dir
+            )
             elapsed = time.time() - start
 
             branch_result = {
