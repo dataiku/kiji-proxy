@@ -232,6 +232,8 @@ class MultiTaskPIIDetectionModel(nn.Module):
         if pii_labels is not None:
             # Create mask: True for real tokens, False for padding (-100)
             crf_mask = pii_labels != -100
+            # CRF requires the first timestep mask to be True for all sequences
+            crf_mask[:, 0] = True
             # Replace -100 with 0 for CRF (it uses the mask to ignore padding)
             safe_labels = pii_labels.clone()
             safe_labels[~crf_mask] = 0
