@@ -313,9 +313,7 @@ class PIITrainer:
             pred_labels.append(pred_seq_tags)
 
         # Entity-level metrics (strict span matching)
-        pii_f1 = seqeval_f1_score(
-            true_labels, pred_labels, mode="strict", scheme=IOB2
-        )
+        pii_f1 = seqeval_f1_score(true_labels, pred_labels, mode="strict", scheme=IOB2)
         pii_precision = seqeval_precision_score(
             true_labels, pred_labels, mode="strict", scheme=IOB2
         )
@@ -377,17 +375,13 @@ class PIITrainer:
             coref_preds = np.argmax(coref_predictions, axis=2)
             coref_flat_preds = [
                 int(p)
-                for pred_seq, label_seq in zip(
-                    coref_preds, coref_labels, strict=True
-                )
+                for pred_seq, label_seq in zip(coref_preds, coref_labels, strict=True)
                 for p, label in zip(pred_seq, label_seq, strict=True)
                 if label != -100
             ]
             coref_flat_labels = [
                 int(label)
-                for pred_seq, label_seq in zip(
-                    coref_preds, coref_labels, strict=True
-                )
+                for pred_seq, label_seq in zip(coref_preds, coref_labels, strict=True)
                 for p, label in zip(pred_seq, label_seq, strict=True)
                 if label != -100
             ]
