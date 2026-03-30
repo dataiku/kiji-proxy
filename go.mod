@@ -5,7 +5,7 @@ go 1.25.0
 require (
 	github.com/daulet/tokenizers v1.26.0
 	github.com/yalue/onnxruntime_go v1.27.0
-	modernc.org/sqlite v1.47.0
+	modernc.org/sqlite v1.48.0
 )
 
 require (
@@ -14,7 +14,7 @@ require (
 )
 
 require (
-	github.com/getsentry/sentry-go v0.43.0
+	github.com/getsentry/sentry-go v0.44.1
 	github.com/google/uuid v1.6.0
 )
 
