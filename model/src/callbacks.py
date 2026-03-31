@@ -82,7 +82,6 @@ class CleanMetricsCallback(TrainerCallback):
 
         # Skip eval logs (handled by on_evaluate)
         if any(k.startswith("eval_") for k in logs):
-            logs.clear()
             return
 
         # Print training metrics concisely
