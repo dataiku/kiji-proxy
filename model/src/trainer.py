@@ -8,11 +8,11 @@ import numpy as np
 import torch
 from absl import logging
 from datasets import Dataset
-from sklearn.metrics import (
-    f1_score,
-    precision_score,
-    recall_score,
-)
+from seqeval.metrics import classification_report as seqeval_classification_report
+from seqeval.metrics import f1_score as seqeval_f1_score
+from seqeval.metrics import precision_score as seqeval_precision_score
+from seqeval.metrics import recall_score as seqeval_recall_score
+from seqeval.scheme import IOB2
 from torch.nn import functional
 from transformers import (
     AutoTokenizer,
@@ -202,98 +202,92 @@ class PIITrainer:
         predictions = eval_pred.predictions
         label_ids = eval_pred.label_ids
 
-        # Handle numpy array predictions
-        pii_predictions = predictions
-        pii_labels = label_ids
+        # Handle different prediction formats
+        if isinstance(predictions, dict):
+            pii_predictions = predictions.get("pii_logits", predictions)
+            pii_labels = (
+                label_ids.get("pii_labels")
+                if isinstance(label_ids, dict)
+                else label_ids
+            )
+        else:
+            pii_predictions = predictions
+            pii_labels = label_ids
 
-        # PII detection metrics
+        # PII detection metrics using seqeval (entity-level)
         pii_preds = np.argmax(pii_predictions, axis=2)
-        pii_true_preds = [
-            [
-                self.pii_id2label.get(int(p), "O")
-                for (p, label_id) in zip(prediction, label, strict=True)
-                if label_id != -100
-            ]
-            for prediction, label in zip(pii_preds, pii_labels, strict=True)
-        ]
-        pii_true_labels = [
-            [
-                self.pii_id2label.get(int(label_id), "O")
-                for (p, label_id) in zip(prediction, label, strict=True)
-                if label_id != -100
-            ]
-            for prediction, label in zip(pii_preds, pii_labels, strict=True)
-        ]
 
-        pii_flat_preds = [item for sublist in pii_true_preds for item in sublist]
-        pii_flat_labels = [item for sublist in pii_true_labels for item in sublist]
+        # Build list-of-lists of BIO tag strings, skipping padding (-100)
+        true_labels = []
+        pred_labels = []
+        for pred_seq, label_seq in zip(pii_preds, pii_labels, strict=True):
+            true_seq = []
+            pred_seq_tags = []
+            for p, label in zip(pred_seq, label_seq, strict=True):
+                if label == -100:
+                    continue
+                true_seq.append(self.pii_id2label.get(int(label), "O"))
+                pred_seq_tags.append(self.pii_id2label.get(int(p), "O"))
+            true_labels.append(true_seq)
+            pred_labels.append(pred_seq_tags)
 
-        # Compute PII detection metrics
-        pii_f1_weighted = f1_score(pii_flat_labels, pii_flat_preds, average="weighted")
-        pii_f1_macro = f1_score(pii_flat_labels, pii_flat_preds, average="macro")
-        pii_precision_weighted = precision_score(
-            pii_flat_labels, pii_flat_preds, average="weighted", zero_division=0
+        # Entity-level metrics (strict span matching)
+        pii_f1 = seqeval_f1_score(true_labels, pred_labels, mode="strict", scheme=IOB2)
+        pii_precision = seqeval_precision_score(
+            true_labels, pred_labels, mode="strict", scheme=IOB2
         )
-        pii_precision_macro = precision_score(
-            pii_flat_labels, pii_flat_preds, average="macro", zero_division=0
-        )
-        pii_recall_weighted = recall_score(
-            pii_flat_labels, pii_flat_preds, average="weighted", zero_division=0
-        )
-        pii_recall_macro = recall_score(
-            pii_flat_labels, pii_flat_preds, average="macro", zero_division=0
+        pii_recall = seqeval_recall_score(
+            true_labels, pred_labels, mode="strict", scheme=IOB2
         )
 
-        # Per-class metrics
-        unique_labels = sorted(set(pii_flat_labels + pii_flat_preds))
-        pii_f1_per_class = f1_score(
-            pii_flat_labels,
-            pii_flat_preds,
-            average=None,
-            labels=unique_labels,
-            zero_division=0,
-        )
-        pii_precision_per_class = precision_score(
-            pii_flat_labels,
-            pii_flat_preds,
-            average=None,
-            labels=unique_labels,
-            zero_division=0,
-        )
-        pii_recall_per_class = recall_score(
-            pii_flat_labels,
-            pii_flat_preds,
-            average=None,
-            labels=unique_labels,
-            zero_division=0,
+        # Per-class report
+        report = seqeval_classification_report(
+            true_labels, pred_labels, scheme=IOB2, output_dict=True
         )
 
-        # Build metrics dictionary
+        # Log the full classification report
+        report_str = seqeval_classification_report(
+            true_labels, pred_labels, scheme=IOB2
+        )
+        logging.info(f"\n📊 Entity-level Classification Report:\n{report_str}")
+
         metrics = {
-            "eval_pii_f1_weighted": pii_f1_weighted,
-            "eval_pii_f1_macro": pii_f1_macro,
-            "eval_pii_precision_weighted": pii_precision_weighted,
-            "eval_pii_precision_macro": pii_precision_macro,
-            "eval_pii_recall_weighted": pii_recall_weighted,
-            "eval_pii_recall_macro": pii_recall_macro,
-            # Keep backward compatibility
-            "eval_pii_f1": pii_f1_weighted,
+            "eval_pii_f1": pii_f1,
+            "eval_pii_precision": pii_precision,
+            "eval_pii_recall": pii_recall,
         }
 
-        # Add per-class metrics (limit to reasonable number of classes)
-        non_o_labels = [label for label in unique_labels if label != "O"]
-        if len(non_o_labels) <= 20:
-            for label, f1, prec, rec in zip(
-                unique_labels,
-                pii_f1_per_class,
-                pii_precision_per_class,
-                pii_recall_per_class,
-                strict=True,
+        # Add per-class entity-level metrics from report
+        for entity_type, entity_metrics in report.items():
+            if isinstance(entity_metrics, dict) and entity_type not in (
+                "micro avg",
+                "macro avg",
+                "weighted avg",
             ):
-                safe_label = label.replace("-", "_").replace(" ", "_")
-                metrics[f"eval_pii_f1_{safe_label}"] = float(f1)
-                metrics[f"eval_pii_precision_{safe_label}"] = float(prec)
-                metrics[f"eval_pii_recall_{safe_label}"] = float(rec)
+                safe_label = entity_type.replace("-", "_").replace(" ", "_")
+                metrics[f"eval_pii_f1_{safe_label}"] = entity_metrics.get(
+                    "f1-score", 0.0
+                )
+                metrics[f"eval_pii_precision_{safe_label}"] = entity_metrics.get(
+                    "precision", 0.0
+                )
+                metrics[f"eval_pii_recall_{safe_label}"] = entity_metrics.get(
+                    "recall", 0.0
+                )
+
+        # Add aggregate metrics from report
+        for avg_type in ("micro avg", "macro avg", "weighted avg"):
+            if avg_type in report:
+                safe_avg = avg_type.replace(" ", "_")
+                metrics[f"eval_pii_f1_{safe_avg}"] = report[avg_type].get(
+                    "f1-score", 0.0
+                )
+                metrics[f"eval_pii_precision_{safe_avg}"] = report[avg_type].get(
+                    "precision", 0.0
+                )
+                metrics[f"eval_pii_recall_{safe_avg}"] = report[avg_type].get(
+                    "recall", 0.0
+                )
 
         return metrics
 
