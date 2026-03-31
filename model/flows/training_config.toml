@@ -6,8 +6,9 @@ name = "microsoft/deberta-v3-base"
 
 [training]
 num_epochs = 30
-batch_size = 4
+batch_size = 64
 learning_rate = 2e-5
+bf16 = true                # Mixed precision for Ampere+ GPUs (H100, A100, etc.)
 
 warmup_steps = 500        # Gradual LR ramp-up to stabilize early training
 weight_decay = 0.01       # L2 regularization strength

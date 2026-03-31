@@ -35,6 +35,7 @@ class TrainingConfig:
     eval_steps: int = 500
     logging_steps: int = 500
     seed: int = 42
+    bf16: bool = False  # Enable bf16 mixed precision (requires Ampere+ GPU)
     lr_scheduler_type: str = "cosine_with_restarts"
     lr_scheduler_num_cycles: int = 3
     layerwise_lr_decay: float = (

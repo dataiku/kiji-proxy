@@ -140,6 +140,7 @@ class PIITrainingPipeline(FlowSpec):
             lr_scheduler_type=training_cfg.get("lr_scheduler_type", "cosine_with_restarts"),
             lr_scheduler_num_cycles=training_cfg.get("lr_scheduler_num_cycles", 3),
             layerwise_lr_decay=training_cfg.get("layerwise_lr_decay", 0.95),
+            bf16=training_cfg.get("bf16", False),
         )
         self.skip_export = cfg.get("pipeline", {}).get("skip_export", False)
         self.skip_quantization = cfg.get("pipeline", {}).get("skip_quantization", False)
