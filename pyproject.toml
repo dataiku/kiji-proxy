@@ -49,6 +49,7 @@ training = [
     "pandas>=1.0.0",
     "sympy>=1.0.0",
     "metaflow>=2.12.0",
+    "metaflow-checkpoint>=0.1.0",
 ]
 
 # ONNX quantization dependencies
