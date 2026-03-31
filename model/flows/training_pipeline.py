@@ -123,7 +123,7 @@ class PIITrainingPipeline(FlowSpec):
         cfg = self.config_file
         training_cfg = cfg.get("training", {})
         self.config = TrainingConfig(
-            model_name=cfg.get("model", {}).get("name", "microsoft/deberta-v3-small"),
+            model_name=cfg.get("model", {}).get("name", "microsoft/deberta-v3-base"),
             num_epochs=training_cfg.get("num_epochs", 5),
             batch_size=training_cfg.get("batch_size", 16),
             learning_rate=training_cfg.get("learning_rate", 3e-5),
@@ -137,6 +137,9 @@ class PIITrainingPipeline(FlowSpec):
             early_stopping_enabled=training_cfg.get("early_stopping_enabled", True),
             early_stopping_patience=training_cfg.get("early_stopping_patience", 3),
             early_stopping_threshold=training_cfg.get("early_stopping_threshold", 0.01),
+            lr_scheduler_type=training_cfg.get("lr_scheduler_type", "cosine_with_restarts"),
+            lr_scheduler_num_cycles=training_cfg.get("lr_scheduler_num_cycles", 3),
+            layerwise_lr_decay=training_cfg.get("layerwise_lr_decay", 0.95),
         )
         self.skip_export = cfg.get("pipeline", {}).get("skip_export", False)
         self.skip_quantization = cfg.get("pipeline", {}).get("skip_quantization", False)

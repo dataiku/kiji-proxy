@@ -109,12 +109,12 @@ def load_pytorch_model(
         with config_path.open() as f:
             model_config = json.load(f)
         base_model_name = model_config.get(
-            "_name_or_path", "microsoft/deberta-v3-small"
+            "_name_or_path", "microsoft/deberta-v3-base"
         )
         if base_model_name == "distilbert":
             base_model_name = "distilbert-base-cased"
     else:
-        base_model_name = "microsoft/deberta-v3-small"
+        base_model_name = "microsoft/deberta-v3-base"
 
     # Create model
     num_pii_labels = len(pii_label2id)

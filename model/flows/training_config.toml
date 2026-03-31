@@ -2,7 +2,7 @@
 # All pipeline settings are controlled via this file.
 
 [model]
-name = "microsoft/deberta-v3-small"
+name = "microsoft/deberta-v3-base"
 
 [training]
 num_epochs = 30
