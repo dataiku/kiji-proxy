@@ -211,14 +211,13 @@ class PIITrainingPipeline(FlowSpec):
 
         # Process the dataset
         processor = DatasetProcessor(self.config)
-        train_dataset, val_dataset, mappings, coref_info = processor.prepare_datasets(
+        train_dataset, val_dataset, mappings, _ = processor.prepare_datasets(
             subsample_count=self.subsample_count
         )
 
         self.train_dataset = train_dataset
         self.val_dataset = val_dataset
         self.label_mappings = mappings
-        self.coref_info = coref_info
 
         print(f"Training samples: {len(train_dataset)}")
         print(f"Validation samples: {len(val_dataset)}")
@@ -240,7 +239,7 @@ class PIITrainingPipeline(FlowSpec):
             print("Resuming from checkpoint...")
 
         trainer = PIITrainer(self.config)
-        trainer.load_label_mappings(self.label_mappings, self.coref_info)
+        trainer.load_label_mappings(self.label_mappings)
         trainer.initialize_model()
 
         start_time = time.time()
@@ -341,11 +340,11 @@ class PIITrainingPipeline(FlowSpec):
 
         import shutil
 
-        from src.quantitize import export_to_onnx, load_multitask_model, quantize_model
+        from src.quantitize import export_to_onnx, load_model, quantize_model
 
         try:
             model_path = current.model.loaded["trained_model"]
-            model, label_mappings, tokenizer = load_multitask_model(model_path)
+            model, label_mappings, tokenizer = load_model(model_path)
 
             quantized_output = "model/quantized"
             export_to_onnx(model, tokenizer, quantized_output)

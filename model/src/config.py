@@ -42,10 +42,6 @@ class TrainingConfig:
     max_sequence_length: int = 512
     training_samples_dir: str = "model/dataset/data_samples/training_samples"  # Use training samples by default, exported from Label Studio
 
-    # Multi-task learning
-    pii_loss_weight: float = 1.0  # Weight for PII detection loss
-    coref_loss_weight: float = 1.0  # Weight for co-reference detection loss
-
     # Early stopping
     early_stopping_enabled: bool = True  # Enable early stopping
     early_stopping_patience: int = (

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { X, ShieldCheck, Terminal, Chrome, ExternalLink } from "lucide-react";
+import { X, ShieldCheck, Terminal, Globe, ExternalLink } from "lucide-react";
 import { isElectron } from "../../utils/providerHelpers";
 
 interface CACertSetupModalProps {
@@ -83,7 +83,7 @@ export default function CACertSetupModal({
               }`}
             >
               <div className="flex items-center gap-2">
-                <Chrome className="w-4 h-4" />
+                <Globe className="w-4 h-4" />
                 Browser-Specific
               </div>
             </button>
