@@ -15,7 +15,12 @@ class TrainingConfig:
     """Configuration for PII detection model training."""
 
     # Model settings
-    model_name: str = "distilbert-base-cased"  # 66M params, fast
+    # Supported base encoders (any HuggingFace AutoModel-compatible model):
+    #   - distilbert-base-cased:      66M params, fastest inference
+    #   - microsoft/deberta-v3-small:  44M params, better NER accuracy than DistilBERT
+    #   - microsoft/deberta-v3-base:   86M params, best NER accuracy at this scale
+    #   - roberta-base:               125M params, strong general-purpose encoder
+    model_name: str = "microsoft/deberta-v3-small"
 
     # Training parameters
     num_epochs: int = 5
@@ -41,10 +46,6 @@ class TrainingConfig:
     eval_size_ratio: float = 0.1  # Validation set size as ratio of training
     max_sequence_length: int = 512
     training_samples_dir: str = "model/dataset/data_samples/training_samples"  # Use training samples by default, exported from Label Studio
-
-    # Multi-task learning
-    pii_loss_weight: float = 1.0  # Weight for PII detection loss
-    coref_loss_weight: float = 1.0  # Weight for co-reference detection loss
 
     # Early stopping
     early_stopping_enabled: bool = True  # Enable early stopping

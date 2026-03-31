@@ -215,7 +215,7 @@ Edit `model/flows/training_config.toml` to adjust training parameters:
 
 ```toml
 [model]
-name = "distilbert-base-cased"
+name = "microsoft/deberta-v3-small"
 
 [training]
 num_epochs = 30

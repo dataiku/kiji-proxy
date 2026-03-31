@@ -7,6 +7,24 @@ import (
 
 // Standard dummy data generators for various PII types
 
+// pickExcluding picks a random element from choices, excluding original.
+// If the list has only one element equal to original, it returns original as a fallback.
+func pickExcluding(rng *rand.Rand, choices []string, original string) string {
+	for attempts := 0; attempts < 3; attempts++ {
+		pick := choices[rng.Intn(len(choices))]
+		if pick != original {
+			return pick
+		}
+	}
+	// After 3 collisions, do a deterministic scan for any non-matching value
+	for _, v := range choices {
+		if v != original {
+			return v
+		}
+	}
+	return original
+}
+
 // EmailGenerator generates dummy email addresses
 func EmailGenerator(rng *rand.Rand, original string) string {
 	firstNames := []string{
@@ -173,7 +191,7 @@ func CityGenerator(rng *rand.Rand, original string) string {
 		"Nottingham", "Southampton", "Portsmouth", "Oxford", "Cambridge", "York", "Bath",
 		"Brighton", "Cardiff", "Belfast", "Glasgow", "Aberdeen", "Dundee", "Swansea",
 	}
-	return cities[rng.Intn(len(cities))]
+	return pickExcluding(rng, cities, original)
 }
 
 // BuildingNumGenerator generates dummy building numbers
@@ -212,7 +230,7 @@ func FirstNameGenerator(rng *rand.Rand, original string) string {
 		"Dmitri", "Anna", "Ivan", "Katya", "Alexei", "Elena", "Nikolai", "Olga",
 		"Sergei", "Natasha", "Vladimir", "Irina", "Mikhail", "Tatiana",
 	}
-	return names[rng.Intn(len(names))]
+	return pickExcluding(rng, names, original)
 }
 
 // SurnameGenerator generates dummy last names
@@ -241,7 +259,7 @@ func SurnameGenerator(rng *rand.Rand, original string) string {
 		"O'Brien", "Murphy", "Kelly", "Sullivan", "O'Connor", "Walsh", "Ryan", "Byrne",
 		"MacDonald", "Campbell", "Stewart", "Murray", "Fraser", "MacLeod",
 	}
-	return surnames[rng.Intn(len(surnames))]
+	return pickExcluding(rng, surnames, original)
 }
 
 // IDCardNumGenerator generates dummy ID card numbers
@@ -337,7 +355,7 @@ func StateGenerator(rng *rand.Rand, original string) string {
 		"Yorkshire", "Kent", "Essex", "Hampshire", "Surrey", "Lancashire", "Devon", "Cornwall",
 		"Oxfordshire", "Cambridgeshire", "Berkshire", "Somerset", "Dorset", "Wiltshire", "Norfolk", "Suffolk",
 	}
-	return states[rng.Intn(len(states))]
+	return pickExcluding(rng, states, original)
 }
 
 // CountryGenerator generates dummy country names
@@ -361,7 +379,7 @@ func CountryGenerator(rng *rand.Rand, original string) string {
 		// Middle East
 		"United Arab Emirates", "Israel", "Saudi Arabia", "Turkey",
 	}
-	return countries[rng.Intn(len(countries))]
+	return pickExcluding(rng, countries, original)
 }
 
 // PassportIdGenerator generates dummy passport IDs

@@ -93,82 +93,22 @@ class MaskedSparseCategoricalCrossEntropy(nn.Module):
             return loss
 
 
-class MultiTaskLoss(nn.Module):
-    """
-    Combined loss function for multi-task learning (PII detection + co-reference detection).
-    """
-
-    def __init__(
-        self,
-        pii_loss_fn: nn.Module,
-        coref_loss_fn: nn.Module,
-        pii_weight: float = 1.0,
-        coref_weight: float = 1.0,
-    ):
-        """
-        Initialize multi-task loss.
-
-        Args:
-            pii_loss_fn: Loss function for PII detection task
-            coref_loss_fn: Loss function for co-reference detection task
-            pii_weight: Weight for PII detection loss
-            coref_weight: Weight for co-reference detection loss
-        """
-        super().__init__()
-        self.pii_loss_fn = pii_loss_fn
-        self.coref_loss_fn = coref_loss_fn
-        self.pii_weight = pii_weight
-        self.coref_weight = coref_weight
-
-    def forward(
-        self,
-        pii_logits: torch.Tensor,
-        pii_labels: torch.Tensor,
-        coref_logits: torch.Tensor,
-        coref_labels: torch.Tensor,
-    ) -> torch.Tensor:
-        """
-        Compute combined multi-task loss.
-
-        Args:
-            pii_logits: PII detection logits (batch_size, seq_len, num_pii_classes)
-            pii_labels: PII detection labels (batch_size, seq_len)
-            coref_logits: Co-reference detection logits (batch_size, seq_len, num_coref_classes)
-            coref_labels: Co-reference detection labels (batch_size, seq_len)
-
-        Returns:
-            Combined loss value
-        """
-        pii_loss = self.pii_loss_fn(pii_logits, pii_labels)
-        coref_loss = self.coref_loss_fn(coref_logits, coref_labels)
-
-        total_loss = self.pii_weight * pii_loss + self.coref_weight * coref_loss
-        return total_loss
-
-
-class MultiTaskPIIDetectionModel(nn.Module):
-    """
-    Multi-task model for PII detection and co-reference detection.
-    Uses a shared BERT encoder with two separate classification heads.
-    """
+class PIIDetectionModel(nn.Module):
+    """Model for PII detection using a BERT encoder with a classification head."""
 
     def __init__(
         self,
         model_name: str,
         num_pii_labels: int,
-        num_coref_labels: int,
         id2label_pii: dict[int, str],
-        id2label_coref: dict[int, str],
     ):
         """
-        Initialize multi-task model.
+        Initialize PII detection model.
 
         Args:
             model_name: Name of the base BERT model
             num_pii_labels: Number of PII detection labels
-            num_coref_labels: Number of co-reference detection labels
             id2label_pii: Mapping from PII label IDs to label names
-            id2label_coref: Mapping from co-reference label IDs to label names
         """
         super().__init__()
 
@@ -176,27 +116,27 @@ class MultiTaskPIIDetectionModel(nn.Module):
         self.encoder = AutoModel.from_pretrained(model_name)
         hidden_size = self.encoder.config.hidden_size
 
-        # PII detection head
-        self.pii_classifier = nn.Linear(hidden_size, num_pii_labels)
-
-        # Co-reference detection head
-        self.coref_classifier = nn.Linear(hidden_size, num_coref_labels)
+        # PII detection head (MLP with bottleneck)
+        self.pii_classifier = nn.Sequential(
+            nn.Dropout(0.1),
+            nn.Linear(hidden_size, hidden_size // 2),
+            nn.GELU(),
+            nn.Dropout(0.1),
+            nn.Linear(hidden_size // 2, num_pii_labels),
+        )
 
         # CRF layer for valid BIO sequence decoding
         self.crf = CRF(num_pii_labels, batch_first=True)
 
         # Store label mappings
         self.num_pii_labels = num_pii_labels
-        self.num_coref_labels = num_coref_labels
         self.id2label_pii = id2label_pii
-        self.id2label_coref = id2label_coref
 
     def forward(
         self,
         input_ids: torch.Tensor,
         attention_mask: torch.Tensor,
         pii_labels: torch.Tensor | None = None,
-        coref_labels: torch.Tensor | None = None,
     ):
         """
         Forward pass through the model.
@@ -205,12 +145,11 @@ class MultiTaskPIIDetectionModel(nn.Module):
             input_ids: Token IDs (batch_size, seq_len)
             attention_mask: Attention mask (batch_size, seq_len)
             pii_labels: PII labels for training (batch_size, seq_len)
-            coref_labels: Co-reference labels for training (batch_size, seq_len)
 
         Returns:
-            Dictionary with logits for both tasks
+            Dictionary with PII logits and hidden states
         """
-        # Get shared encoder outputs
+        # Get encoder outputs
         outputs = self.encoder(input_ids=input_ids, attention_mask=attention_mask)
         sequence_output = (
             outputs.last_hidden_state
@@ -219,12 +158,8 @@ class MultiTaskPIIDetectionModel(nn.Module):
         # PII detection logits
         pii_logits = self.pii_classifier(sequence_output)
 
-        # Co-reference detection logits
-        coref_logits = self.coref_classifier(sequence_output)
-
         result = {
             "pii_logits": pii_logits,
-            "coref_logits": coref_logits,
             "hidden_states": sequence_output,
         }
 

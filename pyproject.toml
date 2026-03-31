@@ -41,6 +41,7 @@ training = [
     "datasets>=2.0.0",
     "scikit-learn>=1.0.0",
     "pytorch-crf>=0.7.2",
+    "seqeval>=1.2.2",
     "tqdm>=4.64.0",
     "psutil>=5.8.0",
     "accelerate>=0.26.0",
