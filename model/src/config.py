@@ -37,7 +37,9 @@ class TrainingConfig:
     seed: int = 42
     lr_scheduler_type: str = "cosine_with_restarts"
     lr_scheduler_num_cycles: int = 3
-    layerwise_lr_decay: float = 0.95  # Multiplicative decay per encoder layer (1.0 = disabled)
+    layerwise_lr_decay: float = (
+        0.95  # Multiplicative decay per encoder layer (1.0 = disabled)
+    )
 
     # Output and logging
     output_dir: str = "./model/trained"

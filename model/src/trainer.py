@@ -101,52 +101,84 @@ class PIIModelTrainer(Trainer):
         param_groups = []
 
         # Encoder embeddings — lowest LR
-        embeddings_lr = lr * (decay ** num_layers)
+        embeddings_lr = lr * (decay**num_layers)
         embeddings_params = [
-            (n, p) for n, p in encoder.named_parameters()
+            (n, p)
+            for n, p in encoder.named_parameters()
             if p.requires_grad and not any(f"layer.{i}" in n for i in range(num_layers))
         ]
-        param_groups.append({
-            "params": [p for n, p in embeddings_params if not any(nd in n for nd in no_decay)],
-            "lr": embeddings_lr,
-            "weight_decay": wd,
-        })
-        param_groups.append({
-            "params": [p for n, p in embeddings_params if any(nd in n for nd in no_decay)],
-            "lr": embeddings_lr,
-            "weight_decay": 0.0,
-        })
+        param_groups.append(
+            {
+                "params": [
+                    p
+                    for n, p in embeddings_params
+                    if not any(nd in n for nd in no_decay)
+                ],
+                "lr": embeddings_lr,
+                "weight_decay": wd,
+            }
+        )
+        param_groups.append(
+            {
+                "params": [
+                    p for n, p in embeddings_params if any(nd in n for nd in no_decay)
+                ],
+                "lr": embeddings_lr,
+                "weight_decay": 0.0,
+            }
+        )
 
         # Encoder layers — LR increases from bottom to top
         for layer_idx, layer in enumerate(encoder_layers):
             layer_lr = lr * (decay ** (num_layers - 1 - layer_idx))
-            layer_params = [(n, p) for n, p in layer.named_parameters() if p.requires_grad]
-            param_groups.append({
-                "params": [p for n, p in layer_params if not any(nd in n for nd in no_decay)],
-                "lr": layer_lr,
-                "weight_decay": wd,
-            })
-            param_groups.append({
-                "params": [p for n, p in layer_params if any(nd in n for nd in no_decay)],
-                "lr": layer_lr,
-                "weight_decay": 0.0,
-            })
+            layer_params = [
+                (n, p) for n, p in layer.named_parameters() if p.requires_grad
+            ]
+            param_groups.append(
+                {
+                    "params": [
+                        p
+                        for n, p in layer_params
+                        if not any(nd in n for nd in no_decay)
+                    ],
+                    "lr": layer_lr,
+                    "weight_decay": wd,
+                }
+            )
+            param_groups.append(
+                {
+                    "params": [
+                        p for n, p in layer_params if any(nd in n for nd in no_decay)
+                    ],
+                    "lr": layer_lr,
+                    "weight_decay": 0.0,
+                }
+            )
 
         # Classification head + CRF — full LR
         head_params = [
-            (n, p) for n, p in model.named_parameters()
+            (n, p)
+            for n, p in model.named_parameters()
             if p.requires_grad and not n.startswith("encoder.")
         ]
-        param_groups.append({
-            "params": [p for n, p in head_params if not any(nd in n for nd in no_decay)],
-            "lr": lr,
-            "weight_decay": wd,
-        })
-        param_groups.append({
-            "params": [p for n, p in head_params if any(nd in n for nd in no_decay)],
-            "lr": lr,
-            "weight_decay": 0.0,
-        })
+        param_groups.append(
+            {
+                "params": [
+                    p for n, p in head_params if not any(nd in n for nd in no_decay)
+                ],
+                "lr": lr,
+                "weight_decay": wd,
+            }
+        )
+        param_groups.append(
+            {
+                "params": [
+                    p for n, p in head_params if any(nd in n for nd in no_decay)
+                ],
+                "lr": lr,
+                "weight_decay": 0.0,
+            }
+        )
 
         # Filter out empty groups
         param_groups = [g for g in param_groups if g["params"]]
