@@ -440,6 +440,11 @@ class PIITrainer:
         if self.model is None:
             raise ValueError("Model must be initialized first")
 
+        # Cap eval set size if configured
+        if self.config.max_eval_samples > 0 and len(val_dataset) > self.config.max_eval_samples:
+            val_dataset = val_dataset.select(range(self.config.max_eval_samples))
+            logging.info(f"Capped eval set to {self.config.max_eval_samples} samples")
+
         # Data collator for PII detection
         def data_collator(features):
             """Collate function with padding."""
@@ -489,7 +494,7 @@ class PIITrainer:
             output_dir=self.config.output_dir,
             num_train_epochs=self.config.num_epochs,
             per_device_train_batch_size=self.config.batch_size,
-            per_device_eval_batch_size=self.config.batch_size,
+            per_device_eval_batch_size=self.config.batch_size * 2,
             warmup_steps=self.config.warmup_steps,
             weight_decay=self.config.weight_decay,
             learning_rate=self.config.learning_rate,
