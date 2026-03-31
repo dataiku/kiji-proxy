@@ -13,11 +13,6 @@ from seqeval.metrics import f1_score as seqeval_f1_score
 from seqeval.metrics import precision_score as seqeval_precision_score
 from seqeval.metrics import recall_score as seqeval_recall_score
 from seqeval.scheme import IOB2
-from sklearn.metrics import (
-    f1_score,
-    precision_score,
-    recall_score,
-)
 from torch.nn import functional
 from transformers import (
     AutoTokenizer,
@@ -214,7 +209,7 @@ class PIITrainer:
                 label_ids.get("pii_labels")
                 if isinstance(label_ids, dict)
                 else label_ids
-            )            
+            )
         else:
             pii_predictions = predictions
             pii_labels = label_ids
