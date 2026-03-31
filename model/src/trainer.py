@@ -441,7 +441,10 @@ class PIITrainer:
             raise ValueError("Model must be initialized first")
 
         # Cap eval set size if configured
-        if self.config.max_eval_samples > 0 and len(val_dataset) > self.config.max_eval_samples:
+        if (
+            self.config.max_eval_samples > 0
+            and len(val_dataset) > self.config.max_eval_samples
+        ):
             val_dataset = val_dataset.select(range(self.config.max_eval_samples))
             logging.info(f"Capped eval set to {self.config.max_eval_samples} samples")
 

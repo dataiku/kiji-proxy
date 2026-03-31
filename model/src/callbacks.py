@@ -27,7 +27,9 @@ class CleanMetricsCallback(TrainerCallback):
         pii_r = metrics.get("eval_pii_recall", 0)
         loss = metrics.get("eval_loss", 0)
 
-        lines.append(f"  Overall   F1={pii_f1:.4f}  P={pii_p:.4f}  R={pii_r:.4f}  Loss={loss:.4f}")
+        lines.append(
+            f"  Overall   F1={pii_f1:.4f}  P={pii_p:.4f}  R={pii_r:.4f}  Loss={loss:.4f}"
+        )
         lines.append("-" * 62)
 
         # Per-entity metrics table
@@ -41,7 +43,7 @@ class CleanMetricsCallback(TrainerCallback):
                 "eval_pii_f1_macro_avg",
                 "eval_pii_f1_weighted_avg",
             ):
-                entity = key[len("eval_pii_f1_"):]
+                entity = key[len("eval_pii_f1_") :]
                 entity_metrics[entity] = {
                     "f1": val,
                     "p": metrics.get(f"eval_pii_precision_{entity}", 0),
@@ -50,7 +52,9 @@ class CleanMetricsCallback(TrainerCallback):
 
         for entity in sorted(entity_metrics, key=lambda e: entity_metrics[e]["f1"]):
             m = entity_metrics[entity]
-            lines.append(f"  {entity:<20s} {m['f1']:>7.4f} {m['p']:>7.4f} {m['r']:>7.4f}")
+            lines.append(
+                f"  {entity:<20s} {m['f1']:>7.4f} {m['p']:>7.4f} {m['r']:>7.4f}"
+            )
 
         # Aggregates
         lines.append(f"  {'─' * 20} {'─' * 7} {'─' * 7} {'─' * 7}")
@@ -88,4 +92,6 @@ class CleanMetricsCallback(TrainerCallback):
         if loss is not None:
             step = state.global_step
             lr_str = f"  lr={lr:.2e}" if lr is not None else ""
-            logging.warning(f"  Step {step:>6d}  loss={loss:.4f}{lr_str}  epoch={epoch:.1f}")
+            logging.warning(
+                f"  Step {step:>6d}  loss={loss:.4f}{lr_str}  epoch={epoch:.1f}"
+            )
