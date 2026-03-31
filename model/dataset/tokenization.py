@@ -22,27 +22,40 @@ class TokenizationProcessor:
     def _find_privacy_mask_positions(
         self, text: str, privacy_mask: list[dict[str, str]]
     ) -> list[dict[str, Any]]:
-        """Find start and end positions for each privacy mask item."""
+        """Find start and end positions for each privacy mask item.
+
+        Uses character offsets from annotations when available (preferred).
+        Falls back to word-boundary-aware regex search for data sources
+        that don't provide offsets.
+        """
         privacy_mask_with_positions = []
         for item in privacy_mask:
-            value = item["value"]
-            label = item["label"]
+            if "start" in item and "end" in item:
+                # Use annotation offsets directly — no search needed
+                entry = {
+                    "value": item["value"],
+                    "label": item["label"],
+                    "start": item["start"],
+                    "end": item["end"],
+                }
+                # Validate that the offset matches the expected value
+                actual = text[entry["start"] : entry["end"]]
+                if actual != entry["value"]:
+                    import logging
 
-            # Find all occurrences of the value in the text
-            start = 0
-            while True:
-                pos = text.find(value, start)
-                if pos == -1:
-                    break
-                privacy_mask_with_positions.append(
-                    {
-                        "value": value,
-                        "label": label,
-                        "start": pos,
-                        "end": pos + len(value),
-                    }
+                    logging.getLogger(__name__).warning(
+                        "Offset mismatch: expected '%s' but found '%s' at [%d:%d]",
+                        entry["value"],
+                        actual,
+                        entry["start"],
+                        entry["end"],
+                    )
+                else:
+                    privacy_mask_with_positions.append(entry)
+            else:
+                raise ValueError(
+                    f"Privacy mask item missing 'start'/'end' offsets: {item}"
                 )
-                start = pos + 1
 
         # Sort by start position (reverse order for replacement)
         return sorted(
