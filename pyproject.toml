@@ -13,7 +13,8 @@ authors = [
 dependencies = [
     # Core ML/NLP dependencies (essential for PII detection)
     "torch>=1.9.0",
-    "transformers>=4.20.0",
+    "transformers>=4.20.0,<4.52.0",
+    "protobuf>=3.20.0",
     "numpy>=1.21.0",
     # FastAPI server dependencies (essential for API)
     "fastapi>=0.104.0",
