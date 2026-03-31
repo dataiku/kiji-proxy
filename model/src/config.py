@@ -36,6 +36,7 @@ class TrainingConfig:
     logging_steps: int = 500
     seed: int = 42
     bf16: bool = False  # Enable bf16 mixed precision (requires Ampere+ GPU)
+    torch_compile: bool = False  # Enable torch.compile for faster training
     lr_scheduler_type: str = "cosine_with_restarts"
     lr_scheduler_num_cycles: int = 3
     layerwise_lr_decay: float = (

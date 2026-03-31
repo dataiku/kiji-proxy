@@ -504,6 +504,7 @@ class PIITrainer:
             lr_scheduler_type=self.config.lr_scheduler_type,
             lr_scheduler_kwargs={"num_cycles": self.config.lr_scheduler_num_cycles},
             bf16=self.config.bf16,
+            torch_compile=self.config.torch_compile,
             logging_dir=f"{self.config.output_dir}/logs",
             logging_steps=self.config.logging_steps,
             eval_strategy="epoch",
