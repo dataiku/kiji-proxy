@@ -141,7 +141,7 @@ def convert_sample_to_labelstudio(sample: dict[str, Any]) -> dict[str, Any]:
 
     for coref_cluster in coreferences:
         mentions_raw = coref_cluster["mentions"]
-        entity_type = coref_cluster.get("entity_type", "mention")
+        entity_type = coref_cluster.get("entity_type") or "mention"
 
         # Normalize mentions: handle both old format (list of strings) and new format (list of objects)
         mentions = []
