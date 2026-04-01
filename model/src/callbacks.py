@@ -1,5 +1,6 @@
 """Custom callbacks for training."""
 
+import sys
 import time
 
 from absl import logging
@@ -21,6 +22,7 @@ class CleanMetricsCallback(TrainerCallback):
             f"{args.num_train_epochs:.0f} epochs, "
             f"batch_size={args.per_device_train_batch_size}"
         )
+        sys.stderr.flush()
 
     def on_train_end(self, args, state, control, **kwargs):
         elapsed = time.time() - self.train_start_time
@@ -29,6 +31,7 @@ class CleanMetricsCallback(TrainerCallback):
             f"  Training complete: {state.global_step} steps in {mins:.1f} min "
             f"({state.global_step / elapsed:.1f} steps/s)"
         )
+        sys.stderr.flush()
 
     def on_evaluate(self, args, state, control, metrics=None, **kwargs):
         """Called after evaluation - print a formatted metrics table."""
@@ -97,6 +100,7 @@ class CleanMetricsCallback(TrainerCallback):
         lines.append("=" * 62)
 
         logging.warning("\n".join(lines))
+        sys.stderr.flush()
 
     def on_log(self, args, state, control, logs=None, **kwargs):
         """Called when logging - only print training loss, suppress eval dicts."""
@@ -123,3 +127,4 @@ class CleanMetricsCallback(TrainerCallback):
                 f"  loss={loss:.4f}{lr_str}  epoch={epoch:.1f}"
                 f"  ETA={eta_m:.0f}m"
             )
+            sys.stderr.flush()
