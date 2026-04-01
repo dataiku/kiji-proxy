@@ -16,12 +16,14 @@ while [[ $# -gt 0 ]]; do
             echo "Usage: ./run_training.sh [OPTIONS]"
             echo ""
             echo "Options:"
-            echo "  --config FILE   Use custom config file (default: training_config.toml)"
-            echo "  -h, --help      Show this help"
+            echo "  --config FILE                   Use custom config file (default: training_config.toml)"
+            echo "  --num-samples-ai4privacy N      Add N samples from ai4privacy/pii-masking-200k"
+            echo "  -h, --help                      Show this help"
             echo ""
             echo "Examples:"
-            echo "  ./run_training.sh                       # Run with default config"
-            echo "  ./run_training.sh --config prod.toml    # Use custom config"
+            echo "  ./run_training.sh                                    # Run with default config"
+            echo "  ./run_training.sh --config prod.toml                 # Use custom config"
+            echo "  ./run_training.sh --num-samples-ai4privacy 5000      # Add 5k ai4privacy samples"
             echo ""
             echo "Note: Edit training_config.toml to change epochs, batch size, etc."
             exit 0
@@ -30,6 +32,10 @@ while [[ $# -gt 0 ]]; do
             # Resolve to absolute path
             CONFIG_PATH="$(cd "$(dirname "$2")" && pwd)/$(basename "$2")"
             CONFIG_FLAG="--config config-file $CONFIG_PATH"
+            shift 2
+            ;;
+        --num-samples-ai4privacy)
+            export NUM_AI4PRIVACY_SAMPLES="$2"
             shift 2
             ;;
         *)
