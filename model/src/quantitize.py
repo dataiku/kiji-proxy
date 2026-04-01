@@ -245,6 +245,8 @@ def export_to_onnx(
     onnx_path = output_path / "model.onnx"
 
     # Export PII detection model to ONNX
+    # Use dynamo=False to force the legacy TorchScript-based exporter,
+    # which is much faster for DeBERTa's disentangled attention layers.
     torch.onnx.export(
         wrapped_model,
         (inputs["input_ids"], inputs["attention_mask"]),
@@ -258,6 +260,7 @@ def export_to_onnx(
         },
         opset_version=opset,
         do_constant_folding=True,
+        dynamo=False,
     )
 
     logging.info(f"✅ PII detection model exported to: {onnx_path}")
