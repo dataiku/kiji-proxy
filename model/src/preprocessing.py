@@ -385,7 +385,7 @@ class DatasetProcessor:
         """Load samples from the ai4privacy/pii-masking-200k HuggingFace dataset.
 
         Args:
-            num_samples: Number of English samples to load.
+            num_samples: Number of English samples to load (0 = all).
 
         Returns:
             List of sample dicts with text, privacy_mask, coreferences, language, country.
@@ -396,15 +396,16 @@ class DatasetProcessor:
             convert_ai4privacy_sample,
         )
 
+        label = "all" if num_samples == 0 else str(num_samples)
         logging.info(
-            f"Loading {num_samples} samples from ai4privacy/pii-masking-200k..."
+            f"Loading {label} samples from ai4privacy/pii-masking-200k..."
         )
         ds = load_dataset("ai4privacy/pii-masking-200k", split="train")
         ds = ds.filter(lambda row: row.get("language") == "en")
 
         samples = []
         for row in ds:
-            if len(samples) >= num_samples:
+            if num_samples > 0 and len(samples) >= num_samples:
                 break
             sample = convert_ai4privacy_sample(row)
             if sample is not None:
@@ -429,8 +430,8 @@ class DatasetProcessor:
         # Load all samples (raw text, privacy_mask)
         all_samples = self.load_training_samples()
 
-        # Load ai4privacy samples if configured
-        if self.config.num_ai4privacy_samples > 0:
+        # Load ai4privacy samples if configured (-1 = none, 0 = all, N = limit)
+        if self.config.num_ai4privacy_samples >= 0:
             ai4p_samples = self._load_ai4privacy_samples(
                 self.config.num_ai4privacy_samples
             )

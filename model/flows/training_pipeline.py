@@ -140,7 +140,7 @@ class PIITrainingPipeline(FlowSpec):
             num_ai4privacy_samples=int(
                 os.environ.get(
                     "NUM_AI4PRIVACY_SAMPLES",
-                    cfg.get("data", {}).get("num_ai4privacy_samples", 0),
+                    cfg.get("data", {}).get("num_ai4privacy_samples", -1),
                 )
             ),
             lr_scheduler_type=training_cfg.get("lr_scheduler_type", "cosine_with_restarts"),
@@ -153,7 +153,12 @@ class PIITrainingPipeline(FlowSpec):
         self.skip_export = cfg.get("pipeline", {}).get("skip_export", False)
         self.skip_quantization = cfg.get("pipeline", {}).get("skip_quantization", False)
         self.skip_signing = cfg.get("pipeline", {}).get("skip_signing", False)
-        self.subsample_count = cfg.get("data", {}).get("subsample_count", 0)
+        self.subsample_count = int(
+            os.environ.get(
+                "NUM_SAMPLES",
+                cfg.get("data", {}).get("subsample_count", 0),
+            )
+        )
         self.pipeline_start_time = datetime.utcnow().isoformat()
         # Store raw config for export step
         self.raw_config = cfg

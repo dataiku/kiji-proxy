@@ -35,8 +35,8 @@ project_id = 6
 [data]
 # Limit samples for quick iteration (0 = use all)
 subsample_count = 0
-# Number of ai4privacy/pii-masking-200k samples to add (0 = none)
-num_ai4privacy_samples = 0
+# ai4privacy/pii-masking-200k samples to add (-1 = none, 0 = all)
+num_ai4privacy_samples = -1
 
 [pipeline]
 # Skip Label Studio export and use existing data from paths.training_samples_dir
