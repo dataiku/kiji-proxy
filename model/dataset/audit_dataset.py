@@ -47,8 +47,8 @@ project_root = Path(__file__).parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-from model.dataset.label_utils import LabelUtils
-from model.dataset.openai.api_clients import OpenAIClient
+from model.dataset.label_utils import LabelUtils  # noqa: E402
+from model.dataset.openai.api_clients import OpenAIClient  # noqa: E402
 
 # Load .env from project root
 load_dotenv(project_root / ".env")
@@ -567,7 +567,7 @@ def print_report(results: list[SampleAuditResult], output_path: Path | None) -> 
         )
         print(f"\n  Ledger updated: {ledger_path}")
         print(f"  Total reviewed: {total_in_ledger:,}  (CLEAN: {clean_in_ledger:,})")
-        print(f"  Set audit_allowlist to this path in training config.")
+        print("  Set audit_allowlist to this path in training config.")
 
     print(f"\n{sep}")
 
