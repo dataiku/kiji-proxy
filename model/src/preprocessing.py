@@ -425,28 +425,28 @@ class DatasetProcessor:
         Returns:
             Tuple of (train_dataset, val_dataset, label_mappings, coref_info)
         """
-        # Load all samples (raw text, privacy_mask)
+        # Load local samples (raw text, privacy_mask)
         all_samples = self.load_training_samples()
+        all_samples = [s for s in all_samples if s is not None]
 
-        # Load ai4privacy samples if configured (-1 = none, 0 = all, N = limit)
+        # Subsample local dataset if requested
+        if subsample_count > 0 and len(all_samples) > subsample_count:
+            random.Random(self.config.seed).shuffle(all_samples)
+            all_samples = all_samples[:subsample_count]
+            logging.info(f"Local dataset: {len(all_samples)} samples (capped)")
+
+        # Add ai4privacy samples if configured (-1 = none, 0 = all, N = limit)
         if self.config.num_ai4privacy_samples >= 0:
             ai4p_samples = self._load_ai4privacy_samples(
                 self.config.num_ai4privacy_samples
             )
+            logging.info(
+                f"Combined dataset: {len(all_samples)} local + {len(ai4p_samples)} ai4privacy"
+            )
             all_samples.extend(ai4p_samples)
 
-        # Filter out None samples
-        all_samples = [s for s in all_samples if s is not None]
-
-        # Shuffle before subsampling so ai4privacy samples are mixed in
+        # Shuffle combined dataset
         random.Random(self.config.seed).shuffle(all_samples)
-
-        # Subsample if requested
-        if subsample_count > 0 and len(all_samples) > subsample_count:
-            logging.info(
-                f"📉 Subsampling from {len(all_samples)} to {subsample_count} samples"
-            )
-            all_samples = all_samples[:subsample_count]
 
         if len(all_samples) == 0:
             raise ValueError("No training samples found!")
