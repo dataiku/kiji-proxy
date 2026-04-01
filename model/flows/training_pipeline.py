@@ -149,6 +149,7 @@ class PIITrainingPipeline(FlowSpec):
             bf16=training_cfg.get("bf16", False),
             torch_compile=training_cfg.get("torch_compile", False),
             max_eval_samples=training_cfg.get("max_eval_samples", 0),
+            audit_allowlist=cfg.get("data", {}).get("audit_allowlist", ""),
         )
         self.skip_export = cfg.get("pipeline", {}).get("skip_export", False)
         self.skip_quantization = cfg.get("pipeline", {}).get("skip_quantization", False)

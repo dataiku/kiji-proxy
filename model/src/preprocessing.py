@@ -286,6 +286,29 @@ class DatasetProcessor:
         logging.info(f"\n📥 Loading training samples from {samples_dir}...")
         logging.info(f"Found {len(json_files)} JSON files")
 
+        # Filter by audit ledger if configured
+        # The ledger is a TSV file (file_name, status, issue_count, issues)
+        # produced by audit_dataset.py. Only CLEAN samples are kept.
+        if self.config.audit_allowlist:
+            allowlist_path = Path(self.config.audit_allowlist)
+            if allowlist_path.exists():
+                clean_files: set[str] = set()
+                for line in allowlist_path.read_text().splitlines():
+                    if line.startswith("file_name\t"):
+                        continue  # header
+                    parts = line.split("\t")
+                    if len(parts) >= 2 and parts[1] == "CLEAN":
+                        clean_files.add(parts[0])
+                pre_filter = len(json_files)
+                json_files = [f for f in json_files if f.name in clean_files]
+                logging.info(
+                    f"  Audit ledger: kept {len(json_files):,} CLEAN of {pre_filter:,} files"
+                )
+            else:
+                logging.warning(
+                    f"⚠️  Audit ledger not found: {allowlist_path} — loading all files"
+                )
+
         # Track conversion statistics
         converted_count = 0
         skipped_count = 0
