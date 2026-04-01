@@ -119,7 +119,7 @@ def load_model(
     model_type_defaults = {
         "distilbert": "distilbert-base-cased",
         "roberta": "roberta-base",
-        "deberta-v2": "microsoft/deberta-v3-small",
+        "deberta-v2": "microsoft/deberta-v3-base",
     }
 
     if config_path.exists():
@@ -129,12 +129,12 @@ def load_model(
         if not base_model_name or base_model_name in model_type_defaults:
             model_type = model_config.get("model_type", "distilbert")
             base_model_name = model_type_defaults.get(
-                model_type, "microsoft/deberta-v3-small"
+                model_type, "microsoft/deberta-v3-base"
             )
     else:
-        base_model_name = "microsoft/deberta-v3-small"
+        base_model_name = "microsoft/deberta-v3-base"
         logging.warning(
-            "⚠️  config.json not found, using default: microsoft/deberta-v3-small"
+            "⚠️  config.json not found, using default: microsoft/deberta-v3-base"
         )
 
     # Determine number of labels
@@ -245,6 +245,8 @@ def export_to_onnx(
     onnx_path = output_path / "model.onnx"
 
     # Export PII detection model to ONNX
+    # Use dynamo=False to force the legacy TorchScript-based exporter,
+    # which is much faster for DeBERTa's disentangled attention layers.
     torch.onnx.export(
         wrapped_model,
         (inputs["input_ids"], inputs["attention_mask"]),
@@ -258,6 +260,7 @@ def export_to_onnx(
         },
         opset_version=opset,
         do_constant_folding=True,
+        dynamo=False,
     )
 
     logging.info(f"✅ PII detection model exported to: {onnx_path}")

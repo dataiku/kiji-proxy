@@ -43,7 +43,7 @@ class TokenizationProcessor:
                 if actual != entry["value"]:
                     import logging
 
-                    logging.getLogger(__name__).warning(
+                    logging.getLogger(__name__).debug(
                         "Offset mismatch: expected '%s' but found '%s' at [%d:%d]",
                         entry["value"],
                         actual,

@@ -123,7 +123,7 @@ class PIITrainingPipeline(FlowSpec):
         cfg = self.config_file
         training_cfg = cfg.get("training", {})
         self.config = TrainingConfig(
-            model_name=cfg.get("model", {}).get("name", "microsoft/deberta-v3-small"),
+            model_name=cfg.get("model", {}).get("name", "microsoft/deberta-v3-base"),
             num_epochs=training_cfg.get("num_epochs", 5),
             batch_size=training_cfg.get("batch_size", 16),
             learning_rate=training_cfg.get("learning_rate", 3e-5),
@@ -143,6 +143,12 @@ class PIITrainingPipeline(FlowSpec):
                     cfg.get("data", {}).get("num_ai4privacy_samples", 0),
                 )
             ),
+            lr_scheduler_type=training_cfg.get("lr_scheduler_type", "cosine_with_restarts"),
+            lr_scheduler_num_cycles=training_cfg.get("lr_scheduler_num_cycles", 3),
+            layerwise_lr_decay=training_cfg.get("layerwise_lr_decay", 0.95),
+            bf16=training_cfg.get("bf16", False),
+            torch_compile=training_cfg.get("torch_compile", False),
+            max_eval_samples=training_cfg.get("max_eval_samples", 0),
         )
         self.skip_export = cfg.get("pipeline", {}).get("skip_export", False)
         self.skip_quantization = cfg.get("pipeline", {}).get("skip_quantization", False)

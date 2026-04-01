@@ -20,7 +20,7 @@ class TrainingConfig:
     #   - microsoft/deberta-v3-small:  44M params, better NER accuracy than DistilBERT
     #   - microsoft/deberta-v3-base:   86M params, best NER accuracy at this scale
     #   - roberta-base:               125M params, strong general-purpose encoder
-    model_name: str = "microsoft/deberta-v3-small"
+    model_name: str = "microsoft/deberta-v3-base"
 
     # Training parameters
     num_epochs: int = 5
@@ -35,6 +35,13 @@ class TrainingConfig:
     eval_steps: int = 500
     logging_steps: int = 500
     seed: int = 42
+    bf16: bool = False  # Enable bf16 mixed precision (requires Ampere+ GPU)
+    torch_compile: bool = False  # Enable torch.compile for faster training
+    lr_scheduler_type: str = "cosine_with_restarts"
+    lr_scheduler_num_cycles: int = 3
+    layerwise_lr_decay: float = (
+        0.95  # Multiplicative decay per encoder layer (1.0 = disabled)
+    )
 
     # Output and logging
     output_dir: str = "./model/trained"
@@ -44,6 +51,7 @@ class TrainingConfig:
 
     # Dataset settings
     eval_size_ratio: float = 0.1  # Validation set size as ratio of training
+    max_eval_samples: int = 0  # Cap eval set size (0 = no cap)
     max_sequence_length: int = 512
     training_samples_dir: str = "model/dataset/data_samples/training_samples"  # Use training samples by default, exported from Label Studio
 

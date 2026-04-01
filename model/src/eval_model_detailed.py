@@ -119,9 +119,9 @@ class DetailedPIIModelLoader:
             if base_model_name == "distilbert":
                 base_model_name = "distilbert-base-cased"
         else:
-            base_model_name = "microsoft/deberta-v3-small"
+            base_model_name = "microsoft/deberta-v3-base"
             logging.warning(
-                "⚠️  config.json not found, using default: microsoft/deberta-v3-small"
+                "⚠️  config.json not found, using default: microsoft/deberta-v3-base"
             )
 
         # Determine number of labels
@@ -251,6 +251,7 @@ class DetailedPIIModelLoader:
         )
 
         offset_mapping = inputs.pop("offset_mapping")[0]
+        inputs.pop("token_type_ids", None)
         inputs = {k: v.to(self.device) for k, v in inputs.items()}
 
         # Run inference with multi-task model

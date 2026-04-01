@@ -13,7 +13,9 @@ authors = [
 dependencies = [
     # Core ML/NLP dependencies (essential for PII detection)
     "torch>=1.9.0",
-    "transformers>=4.20.0",
+    "transformers>=4.20.0,<4.52.0",
+    "protobuf>=3.20.0",
+    "sentencepiece>=0.1.99",
     "numpy>=1.21.0",
     # FastAPI server dependencies (essential for API)
     "fastapi>=0.104.0",
@@ -48,6 +50,8 @@ training = [
     "scipy>=1.0.0",
     "pandas>=1.0.0",
     "sympy>=1.0.0",
+    "metaflow>=2.12.0",
+    "metaflow-checkpoint>=0.1.0",
 ]
 
 # ONNX quantization dependencies

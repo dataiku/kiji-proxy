@@ -14,9 +14,11 @@ from seqeval.metrics import precision_score as seqeval_precision_score
 from seqeval.metrics import recall_score as seqeval_recall_score
 from seqeval.scheme import IOB2
 from torch.nn import functional
+from torch.optim import AdamW
 from transformers import (
     AutoTokenizer,
     EarlyStoppingCallback,
+    PrinterCallback,
     Trainer,
     TrainingArguments,
 )
@@ -43,16 +45,147 @@ except ImportError:
 class PIIModelTrainer(Trainer):
     """Custom Trainer for PII detection."""
 
-    def __init__(self, pii_loss_fn=None, **kwargs):
+    def __init__(self, pii_loss_fn=None, layerwise_lr_decay=1.0, **kwargs):
         """
         Initialize PII trainer.
 
         Args:
             pii_loss_fn: Loss function for PII detection
+            layerwise_lr_decay: Multiplicative LR decay per encoder layer (1.0 = disabled)
             **kwargs: Additional arguments for Trainer
         """
         super().__init__(**kwargs)
         self.pii_loss_fn = pii_loss_fn
+        self.layerwise_lr_decay = layerwise_lr_decay
+
+    def create_optimizer(self):
+        """Create optimizer with layer-wise learning rate decay for the encoder."""
+        if self.optimizer is not None:
+            return self.optimizer
+
+        decay = self.layerwise_lr_decay
+        lr = self.args.learning_rate
+        wd = self.args.weight_decay
+        model = self.model
+
+        if decay >= 1.0:
+            # No layer-wise decay — use default behavior
+            return super().create_optimizer()
+
+        no_decay = {"bias", "LayerNorm.weight", "layernorm.weight"}
+
+        # Collect encoder layers (works for DeBERTa, BERT, RoBERTa)
+        encoder = model.encoder
+        encoder_layers = None
+        for attr in ("encoder.layer", "layer"):
+            obj = encoder
+            for part in attr.split("."):
+                obj = getattr(obj, part, None)
+                if obj is None:
+                    break
+            if obj is not None:
+                encoder_layers = list(obj)
+                break
+
+        if encoder_layers is None:
+            logging.warning(
+                "Could not detect encoder layers for layer-wise LR decay — "
+                "falling back to uniform LR"
+            )
+            return super().create_optimizer()
+
+        num_layers = len(encoder_layers)
+        logging.info(
+            f"Applying layer-wise LR decay ({decay}) across {num_layers} encoder layers"
+        )
+
+        param_groups = []
+
+        # Encoder embeddings — lowest LR
+        embeddings_lr = lr * (decay**num_layers)
+        embeddings_params = [
+            (n, p)
+            for n, p in encoder.named_parameters()
+            if p.requires_grad and not any(f"layer.{i}" in n for i in range(num_layers))
+        ]
+        param_groups.append(
+            {
+                "params": [
+                    p
+                    for n, p in embeddings_params
+                    if not any(nd in n for nd in no_decay)
+                ],
+                "lr": embeddings_lr,
+                "weight_decay": wd,
+            }
+        )
+        param_groups.append(
+            {
+                "params": [
+                    p for n, p in embeddings_params if any(nd in n for nd in no_decay)
+                ],
+                "lr": embeddings_lr,
+                "weight_decay": 0.0,
+            }
+        )
+
+        # Encoder layers — LR increases from bottom to top
+        for layer_idx, layer in enumerate(encoder_layers):
+            layer_lr = lr * (decay ** (num_layers - 1 - layer_idx))
+            layer_params = [
+                (n, p) for n, p in layer.named_parameters() if p.requires_grad
+            ]
+            param_groups.append(
+                {
+                    "params": [
+                        p
+                        for n, p in layer_params
+                        if not any(nd in n for nd in no_decay)
+                    ],
+                    "lr": layer_lr,
+                    "weight_decay": wd,
+                }
+            )
+            param_groups.append(
+                {
+                    "params": [
+                        p for n, p in layer_params if any(nd in n for nd in no_decay)
+                    ],
+                    "lr": layer_lr,
+                    "weight_decay": 0.0,
+                }
+            )
+
+        # Classification head + CRF — full LR
+        head_params = [
+            (n, p)
+            for n, p in model.named_parameters()
+            if p.requires_grad and not n.startswith("encoder.")
+        ]
+        param_groups.append(
+            {
+                "params": [
+                    p for n, p in head_params if not any(nd in n for nd in no_decay)
+                ],
+                "lr": lr,
+                "weight_decay": wd,
+            }
+        )
+        param_groups.append(
+            {
+                "params": [
+                    p for n, p in head_params if any(nd in n for nd in no_decay)
+                ],
+                "lr": lr,
+                "weight_decay": 0.0,
+            }
+        )
+
+        # Filter out empty groups
+        param_groups = [g for g in param_groups if g["params"]]
+
+        self.optimizer = AdamW(param_groups)
+        return self.optimizer
 
     def compute_loss(
         self,
@@ -308,6 +441,14 @@ class PIITrainer:
         if self.model is None:
             raise ValueError("Model must be initialized first")
 
+        # Cap eval set size if configured
+        if (
+            self.config.max_eval_samples > 0
+            and len(val_dataset) > self.config.max_eval_samples
+        ):
+            val_dataset = val_dataset.select(range(self.config.max_eval_samples))
+            logging.info(f"Capped eval set to {self.config.max_eval_samples} samples")
+
         # Data collator for PII detection
         def data_collator(features):
             """Collate function with padding."""
@@ -357,10 +498,14 @@ class PIITrainer:
             output_dir=self.config.output_dir,
             num_train_epochs=self.config.num_epochs,
             per_device_train_batch_size=self.config.batch_size,
-            per_device_eval_batch_size=self.config.batch_size,
+            per_device_eval_batch_size=self.config.batch_size * 2,
             warmup_steps=self.config.warmup_steps,
             weight_decay=self.config.weight_decay,
             learning_rate=self.config.learning_rate,
+            lr_scheduler_type=self.config.lr_scheduler_type,
+            lr_scheduler_kwargs={"num_cycles": self.config.lr_scheduler_num_cycles},
+            bf16=self.config.bf16,
+            torch_compile=self.config.torch_compile,
             logging_dir=f"{self.config.output_dir}/logs",
             logging_steps=self.config.logging_steps,
             eval_strategy="epoch",
@@ -374,7 +519,7 @@ class PIITrainer:
             dataloader_pin_memory=False,
             remove_unused_columns=False,
             logging_first_step=False,
-            disable_tqdm=False,
+            disable_tqdm=True,
             log_level="error",
         )
 
@@ -402,8 +547,12 @@ class PIITrainer:
             data_collator=data_collator,
             compute_metrics=self.compute_metrics,
             pii_loss_fn=self.pii_loss_fn,
+            layerwise_lr_decay=self.config.layerwise_lr_decay,
             callbacks=callbacks if callbacks else None,
         )
+
+        # Remove default PrinterCallback that dumps raw dicts to stdout
+        trainer.remove_callback(PrinterCallback)
 
         logging.info("✅ Using PIIModelTrainer")
 
