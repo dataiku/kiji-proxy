@@ -1,11 +1,34 @@
 """Custom callbacks for training."""
 
+import time
+
 from absl import logging
 from transformers import TrainerCallback
 
 
 class CleanMetricsCallback(TrainerCallback):
     """Custom callback to print clean, readable metrics during training."""
+
+    def __init__(self):
+        self.train_start_time = None
+        self.total_steps = None
+
+    def on_train_begin(self, args, state, control, **kwargs):
+        self.train_start_time = time.time()
+        self.total_steps = state.max_steps
+        logging.warning(
+            f"  Training: {self.total_steps} steps, "
+            f"{args.num_train_epochs:.0f} epochs, "
+            f"batch_size={args.per_device_train_batch_size}"
+        )
+
+    def on_train_end(self, args, state, control, **kwargs):
+        elapsed = time.time() - self.train_start_time
+        mins = elapsed / 60
+        logging.warning(
+            f"  Training complete: {state.global_step} steps in {mins:.1f} min "
+            f"({state.global_step / elapsed:.1f} steps/s)"
+        )
 
     def on_evaluate(self, args, state, control, metrics=None, **kwargs):
         """Called after evaluation - print a formatted metrics table."""
@@ -90,7 +113,13 @@ class CleanMetricsCallback(TrainerCallback):
         epoch = logs.get("epoch", 0)
         if loss is not None:
             step = state.global_step
+            pct = step / self.total_steps * 100 if self.total_steps else 0
+            elapsed = time.time() - self.train_start_time
+            eta_s = (elapsed / step * (self.total_steps - step)) if step > 0 else 0
+            eta_m = eta_s / 60
             lr_str = f"  lr={lr:.2e}" if lr is not None else ""
             logging.warning(
-                f"  Step {step:>6d}  loss={loss:.4f}{lr_str}  epoch={epoch:.1f}"
+                f"  Step {step:>6d}/{self.total_steps} ({pct:4.1f}%)"
+                f"  loss={loss:.4f}{lr_str}  epoch={epoch:.1f}"
+                f"  ETA={eta_m:.0f}m"
             )

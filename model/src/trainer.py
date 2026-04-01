@@ -18,6 +18,7 @@ from torch.optim import AdamW
 from transformers import (
     AutoTokenizer,
     EarlyStoppingCallback,
+    PrinterCallback,
     Trainer,
     TrainingArguments,
 )
@@ -518,7 +519,7 @@ class PIITrainer:
             dataloader_pin_memory=False,
             remove_unused_columns=False,
             logging_first_step=False,
-            disable_tqdm=False,
+            disable_tqdm=True,
             log_level="error",
         )
 
@@ -549,6 +550,9 @@ class PIITrainer:
             layerwise_lr_decay=self.config.layerwise_lr_decay,
             callbacks=callbacks if callbacks else None,
         )
+
+        # Remove default PrinterCallback that dumps raw dicts to stdout
+        trainer.remove_callback(PrinterCallback)
 
         logging.info("✅ Using PIIModelTrainer")
 

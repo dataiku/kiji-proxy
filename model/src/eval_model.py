@@ -237,6 +237,7 @@ class PIIModelLoader:
         )
 
         offset_mapping = inputs.pop("offset_mapping")[0]
+        inputs.pop("token_type_ids", None)
         inputs = {k: v.to(self.device) for k, v in inputs.items()}
 
         # Run inference with multi-task model
