@@ -116,18 +116,33 @@ def convert_ai4privacy_sample(row: dict) -> dict | None:
     if not text:
         return None
 
+    # Build privacy_mask with character offsets resolved from the source text.
+    # ai4privacy only provides entity value + label, not offsets.
     privacy_mask = []
+    search_from = 0
     for entity in row.get("privacy_mask", []):
         external_label = entity.get("label", "")
         kiji_label = AI4PRIVACY_TO_KIJI.get(external_label)
         if kiji_label is None:
             continue
+        value = entity["value"]
+        # Find the entity in the text starting from last match position
+        idx = text.find(value, search_from)
+        if idx == -1:
+            # Retry from the beginning (entity may appear before last match)
+            idx = text.find(value)
+        if idx == -1:
+            # Entity text not found in source — skip it
+            continue
         privacy_mask.append(
             {
-                "value": entity["value"],
+                "value": value,
                 "label": kiji_label,
+                "start": idx,
+                "end": idx + len(value),
             }
         )
+        search_from = idx + len(value)
 
     if not privacy_mask:
         return None
