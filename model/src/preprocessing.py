@@ -397,9 +397,7 @@ class DatasetProcessor:
         )
 
         label = "all" if num_samples == 0 else str(num_samples)
-        logging.info(
-            f"Loading {label} samples from ai4privacy/pii-masking-200k..."
-        )
+        logging.info(f"Loading {label} samples from ai4privacy/pii-masking-200k...")
         ds = load_dataset("ai4privacy/pii-masking-200k", split="train")
         ds = ds.filter(lambda row: row.get("language") == "en")
 
