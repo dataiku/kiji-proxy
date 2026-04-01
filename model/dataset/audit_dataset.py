@@ -558,11 +558,13 @@ def print_report(results: list[SampleAuditResult], output_path: Path | None) -> 
     if ledger_path:
         _update_ledger(ledger_path, results)
         clean_in_ledger = sum(
-            1 for line in ledger_path.read_text().splitlines()
+            1
+            for line in ledger_path.read_text().splitlines()
             if line.split("\t")[1:2] == ["CLEAN"]
         )
         total_in_ledger = sum(
-            1 for line in ledger_path.read_text().splitlines()
+            1
+            for line in ledger_path.read_text().splitlines()
             if not line.startswith("file_name\t")
         )
         print(f"\n  Ledger updated: {ledger_path}")
@@ -668,7 +670,9 @@ def main() -> None:
     ledger_path = report_path.parent / "audit_ledger.tsv"
     already_reviewed = load_ledger(ledger_path)
     if already_reviewed:
-        print(f"Found {len(already_reviewed):,} already-reviewed files in {ledger_path}")
+        print(
+            f"Found {len(already_reviewed):,} already-reviewed files in {ledger_path}"
+        )
 
     # Load samples, skipping already-reviewed ones
     json_files = sorted(samples_dir.glob("*.json"))
