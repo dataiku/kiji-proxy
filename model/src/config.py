@@ -55,6 +55,9 @@ class TrainingConfig:
     max_sequence_length: int = 512
     training_samples_dir: str = "model/dataset/data_samples/training_samples"  # Use training samples by default, exported from Label Studio
 
+    # Sample filtering
+    audit_allowlist: str = ""  # Path to audit_allowlist.txt (empty = no filtering)
+
     # External dataset augmentation
     num_ai4privacy_samples: int = (
         -1  # ai4privacy/pii-masking-200k samples to add (-1 = none, 0 = all)
