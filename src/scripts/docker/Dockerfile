@@ -40,7 +40,7 @@ HEALTHCHECK --interval=5s --timeout=3s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:8080/health || exit 1
 
 # Copy and run the test script
-COPY docker-test-api.sh /opt/kiji-proxy/docker-test-api.sh
+COPY src/scripts/docker/docker-test-api.sh /opt/kiji-proxy/docker-test-api.sh
 RUN chmod +x /opt/kiji-proxy/docker-test-api.sh
 
 WORKDIR /opt/kiji-proxy
