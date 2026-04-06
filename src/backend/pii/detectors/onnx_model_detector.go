@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"runtime"
 	"sort"
 	"strings"
 
@@ -59,10 +60,15 @@ func NewONNXModelDetectorSimple(modelPath string, tokenizerPath string) (*ONNXMo
 
 	if onnxLibPath == "" {
 		onnxPaths := []string{
+			// macOS paths (.dylib)
 			"./libonnxruntime.1.24.2.dylib",            // CWD (legacy)
 			"./resources/libonnxruntime.1.24.2.dylib",  // Production DMG: CWD is Contents/Resources
 			"./build/libonnxruntime.1.24.2.dylib",      // Development: in build directory
 			"../libonnxruntime.1.24.2.dylib",           // Alternative location
+			// Linux paths (.so)
+			"./lib/libonnxruntime.so.1.24.2",           // Linux release tarball layout
+			"./build/libonnxruntime.so.1.24.2",         // Development: in build directory
+			"./libonnxruntime.so.1.24.2",               // CWD
 		}
 
 		for _, p := range onnxPaths {
@@ -77,7 +83,11 @@ func NewONNXModelDetectorSimple(modelPath string, tokenizerPath string) (*ONNXMo
 		onnxruntime.SetSharedLibraryPath(onnxLibPath)
 	} else {
 		// Fall back to default path, might work if library is in system path
-		onnxruntime.SetSharedLibraryPath("./build/libonnxruntime.1.24.2.dylib")
+		if runtime.GOOS == "linux" {
+			onnxruntime.SetSharedLibraryPath("./lib/libonnxruntime.so.1.24.2")
+		} else {
+			onnxruntime.SetSharedLibraryPath("./build/libonnxruntime.1.24.2.dylib")
+		}
 	}
 
 	// Initialize ONNX Runtime environment only if not already initialized
