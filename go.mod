@@ -3,9 +3,9 @@ module github.com/hannes/kiji-private
 go 1.25.0
 
 require (
-	github.com/daulet/tokenizers v1.26.0
+	github.com/daulet/tokenizers v1.27.0
 	github.com/yalue/onnxruntime_go v1.27.0
-	modernc.org/sqlite v1.48.0
+	modernc.org/sqlite v1.48.1
 )
 
 require (
