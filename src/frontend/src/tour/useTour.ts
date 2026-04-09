@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useShepherd } from "react-shepherd";
+import Shepherd from "shepherd.js";
 import { getTourSteps } from "./tourSteps";
 import { tourOptions } from "./tourOptions";
 import { isElectron } from "../utils/providerHelpers";
@@ -41,7 +41,6 @@ export function useTour(
   welcomeModalJustClosed: boolean,
   termsAccepted: boolean
 ) {
-  const Shepherd = useShepherd();
   const tourRef = useRef<TourInstance | null>(null);
   const hasAutoStarted = useRef(false);
   const [tourCompleted, setTourCompleted] = useState<boolean | null>(null);
@@ -69,7 +68,7 @@ export function useTour(
       tourRef.current = tour;
     }
     return tourRef.current;
-  }, [Shepherd, markTourCompleted]);
+  }, [markTourCompleted]);
 
   // Auto-start after WelcomeModal closes and terms are accepted (first time only)
   useEffect(() => {
