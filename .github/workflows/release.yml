@@ -85,6 +85,11 @@ jobs:
         with:
           toolchain: stable
 
+      - name: Extract dependency versions
+        id: deps
+        run: |
+          echo "tokenizers=$(grep 'github.com/daulet/tokenizers' go.mod | awk '{print $2}' | sed 's/^v//')" >> "$GITHUB_OUTPUT"
+
       - name: Cache LFS objects
         uses: actions/cache@v5
         with:
@@ -97,7 +102,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: build/tokenizers/libtokenizers.a
-          key: ${{ runner.os }}-tokenizers-v1.26.0-prebuilt-v1
+          key: ${{ runner.os }}-tokenizers-v${{ steps.deps.outputs.tokenizers }}-prebuilt-v1
 
       - name: Cache ONNX Runtime library
         uses: actions/cache@v5
@@ -226,6 +231,11 @@ jobs:
           restore-keys: |
             lfs-${{ runner.os }}-
 
+      - name: Extract dependency versions
+        id: deps
+        run: |
+          echo "tokenizers=$(grep 'github.com/daulet/tokenizers' go.mod | awk '{print $2}' | sed 's/^v//')" >> "$GITHUB_OUTPUT"
+
       - name: Cache Go modules
         uses: actions/cache@v5
         with:
@@ -240,7 +250,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: build/tokenizers/libtokenizers.a
-          key: ${{ runner.os }}-tokenizers-v1.26.0-prebuilt-v1
+          key: ${{ runner.os }}-tokenizers-v${{ steps.deps.outputs.tokenizers }}-prebuilt-v1
 
       - name: Cache ONNX Runtime library
         uses: actions/cache@v5

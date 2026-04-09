@@ -32,7 +32,7 @@ echo ""
 echo "📦 Step 1: Downloading tokenizers library for Linux..."
 echo "-------------------------------------------------------"
 
-TOKENIZERS_VERSION="1.26.0"
+TOKENIZERS_VERSION=$(grep 'github.com/daulet/tokenizers' "$PROJECT_ROOT/go.mod" | awk '{print $2}' | sed 's/^v//')
 TOKENIZERS_PLATFORM="linux-amd64"
 TOKENIZERS_FILE="libtokenizers.${TOKENIZERS_PLATFORM}.tar.gz"
 TOKENIZERS_URL="https://github.com/daulet/tokenizers/releases/download/v${TOKENIZERS_VERSION}/${TOKENIZERS_FILE}"

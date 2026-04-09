@@ -89,7 +89,7 @@ echo ""
 echo "📦 Step 3: Downloading tokenizers library (if needed)..."
 echo "--------------------------------------------------------"
 
-TOKENIZERS_VERSION="1.26.0"
+TOKENIZERS_VERSION=$(grep 'github.com/daulet/tokenizers' "$PROJECT_ROOT/go.mod" | awk '{print $2}' | sed 's/^v//')
 TOKENIZERS_PLATFORM="darwin-arm64"
 TOKENIZERS_FILE="libtokenizers.${TOKENIZERS_PLATFORM}.tar.gz"
 TOKENIZERS_URL="https://github.com/daulet/tokenizers/releases/download/v${TOKENIZERS_VERSION}/${TOKENIZERS_FILE}"
