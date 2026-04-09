@@ -88,7 +88,13 @@ jobs:
       - name: Extract dependency versions
         id: deps
         run: |
-          echo "tokenizers=$(grep 'github.com/daulet/tokenizers' go.mod | awk '{print $2}' | sed 's/^v//')" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          tokenizers="$(awk '/github.com\/daulet\/tokenizers/ { sub(/^v/, "", $2); print $2; exit }' go.mod)"
+          if [ -z "$tokenizers" ]; then
+            echo "Failed to determine tokenizers version from go.mod" >&2
+            exit 1
+          fi
+          echo "tokenizers=$tokenizers" >> "$GITHUB_OUTPUT"
 
       - name: Cache LFS objects
         uses: actions/cache@v5
@@ -234,7 +240,13 @@ jobs:
       - name: Extract dependency versions
         id: deps
         run: |
-          echo "tokenizers=$(grep 'github.com/daulet/tokenizers' go.mod | awk '{print $2}' | sed 's/^v//')" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          tokenizers="$(awk '/github.com\/daulet\/tokenizers/ { sub(/^v/, "", $2); print $2; exit }' go.mod)"
+          if [ -z "$tokenizers" ]; then
+            echo "Failed to determine tokenizers version from go.mod" >&2
+            exit 1
+          fi
+          echo "tokenizers=$tokenizers" >> "$GITHUB_OUTPUT"
 
       - name: Cache Go modules
         uses: actions/cache@v5

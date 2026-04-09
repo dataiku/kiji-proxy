@@ -4,7 +4,7 @@
 # This script matches the GitHub workflow exactly for consistent local and CI builds
 # Optimized for speed with caching, parallel operations, and conditional steps
 
-set -e
+set -euo pipefail
 
 # Enable parallel execution where possible
 PARALLEL_JOBS=$(sysctl -n hw.ncpu 2>/dev/null || echo 4)
@@ -89,7 +89,13 @@ echo ""
 echo "📦 Step 3: Downloading tokenizers library (if needed)..."
 echo "--------------------------------------------------------"
 
-TOKENIZERS_VERSION=$(grep 'github.com/daulet/tokenizers' "$PROJECT_ROOT/go.mod" | awk '{print $2}' | sed 's/^v//')
+TOKENIZERS_VERSION=$(awk '/github.com\/daulet\/tokenizers/ { sub(/^v/, "", $2); print $2; exit }' "$PROJECT_ROOT/go.mod")
+
+if [ -z "$TOKENIZERS_VERSION" ]; then
+    echo "❌ Failed to determine tokenizers version from $PROJECT_ROOT/go.mod"
+    exit 1
+fi
+
 TOKENIZERS_PLATFORM="darwin-arm64"
 TOKENIZERS_FILE="libtokenizers.${TOKENIZERS_PLATFORM}.tar.gz"
 TOKENIZERS_URL="https://github.com/daulet/tokenizers/releases/download/v${TOKENIZERS_VERSION}/${TOKENIZERS_FILE}"
