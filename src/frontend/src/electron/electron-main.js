@@ -550,7 +550,7 @@ function createTray() {
       label: "Documentation",
       click: () => {
         require("electron").shell.openExternal(
-          "https://github.com/hanneshapke/kiji-proxy/blob/main/docs/README.md"
+          "https://github.com/dataiku/kiji-proxy/blob/main/docs/README.md"
         );
       },
     },
@@ -558,7 +558,7 @@ function createTray() {
       label: "File a Bug Report",
       click: () => {
         require("electron").shell.openExternal(
-          "https://github.com/hanneshapke/kiji-proxy/issues/new?template=10_bug_report.yml"
+          "https://github.com/dataiku/kiji-proxy/issues/new?template=10_bug_report.yml"
         );
       },
     },
@@ -566,7 +566,7 @@ function createTray() {
       label: "Request a Feature",
       click: () => {
         require("electron").shell.openExternal(
-          "https://github.com/hanneshapke/kiji-proxy/discussions/new/choose"
+          "https://github.com/dataiku/kiji-proxy/discussions/new/choose"
         );
       },
     },
