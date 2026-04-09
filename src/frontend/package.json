@@ -28,9 +28,8 @@
     "express": "^4.18.0",
     "http-proxy-middleware": "^3.0.5",
     "lucide-react": "^1.7.0",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4",
-    "react-shepherd": "^7.0.3"
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "@babel/core": "^7.29.0",
@@ -40,8 +39,8 @@
     "@changesets/cli": "^2.27.1",
     "@electron/notarize": "^3.1.1",
     "@tailwindcss/postcss": "^4.1.18",
-    "@types/react": "^19.2.14",
-    "@types/react-dom": "^19.2.3",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
     "@typescript-eslint/eslint-plugin": "^8.56.1",
     "@typescript-eslint/parser": "^8.56.1",
     "autoprefixer": "^10.4.24",
