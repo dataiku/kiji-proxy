@@ -334,7 +334,7 @@ export default function CACertSetupModal({
           {/* Documentation Link */}
           <div className="pt-2">
             <a
-              href="https://github.com/hanneshapke/kiji-private/blob/main/docs/01-getting-started.md#installing-ca-certificate-required-for-https"
+              href="https://github.com/dataiku/kiji-private/blob/main/docs/01-getting-started.md#installing-ca-certificate-required-for-https"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 hover:underline"
