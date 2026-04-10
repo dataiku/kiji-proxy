@@ -1,5 +1,11 @@
 # kiji-privacy-proxy
 
+## 0.4.11
+
+### Patch Changes
+
+- d6e6643: fix linux builds
+
 ## 0.4.10
 
 ### Patch Changes
