@@ -1,5 +1,11 @@
 # kiji-privacy-proxy
 
+## 0.4.10
+
+### Patch Changes
+
+- dcfb59f: Update dependency management, fix frontend compatibility, and clean up repo links
+
 ## 0.4.9
 
 ### Patch Changes
