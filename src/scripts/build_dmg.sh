@@ -411,9 +411,9 @@ fi
 # When CSC_LINK is set, electron-builder will automatically sign with the Developer ID certificate.
 # When CSC_LINK is not set, electron-builder falls back to ad-hoc signing.
 echo "Running electron-builder..."
-# Unset Apple notarization credentials to prevent electron-builder's built-in
-# notarization from triggering automatically. Notarization is currently disabled
-# until a Developer ID Application certificate is configured.
+# Unset legacy Apple ID credentials so electron-builder's built-in notarization
+# does not trigger. Notarization is handled by the afterSign hook (notarize.js)
+# using the APPLE_API_KEY / APPLE_API_KEY_ID / APPLE_API_ISSUER env vars instead.
 unset APPLE_ID
 unset APPLE_APP_SPECIFIC_PASSWORD
 unset APPLE_TEAM_ID
@@ -500,7 +500,11 @@ echo "-----------------------------------"
 
 if [ -n "${CSC_LINK:-}" ]; then
     echo "✅ App was signed with Developer ID certificate by electron-builder"
-    echo "   Notarization was handled by afterSign hook (if credentials were provided)"
+    if [ -n "${APPLE_API_KEY:-}" ]; then
+        echo "✅ Notarization was handled by afterSign hook (APPLE_API_KEY set)"
+    else
+        echo "⚠️  Notarization skipped (APPLE_API_KEY not set)"
+    fi
 else
     echo "✅ App was ad-hoc signed with consistent identity and packaged into DMG"
 fi

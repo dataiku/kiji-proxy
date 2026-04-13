@@ -1,5 +1,4 @@
 {
-  "_note": "TODO: Enable notarization by adding \"afterSign\": \"../../src/scripts/notarize.js\" to the build config (requires Developer ID Application certificate)",
   "name": "kiji-privacy-proxy",
   "productName": "Kiji Privacy Proxy",
   "version": "0.4.11",
@@ -118,6 +117,7 @@
       "minimumSystemVersion": "10.13"
     },
     "afterPack": "../../src/scripts/remove-locales.js",
+    "afterSign": "../../src/scripts/notarize.js",
     "dmg": {
       "title": "${productName} ${version}",
       "background": "assets/dmg-background.png",

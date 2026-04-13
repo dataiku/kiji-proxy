@@ -34,22 +34,21 @@ jobs:
           MISSING=""
           [ -z "$CSC_LINK" ] && MISSING="$MISSING CSC_LINK"
           [ -z "$CSC_KEY_PASSWORD" ] && MISSING="$MISSING CSC_KEY_PASSWORD"
-          # Notarization is currently disabled; uncomment these checks when re-enabled:
-          # [ -z "$APPLE_ID" ] && MISSING="$MISSING APPLE_ID"
-          # [ -z "$APPLE_APP_SPECIFIC_PASSWORD" ] && MISSING="$MISSING APPLE_APP_SPECIFIC_PASSWORD"
-          # [ -z "$APPLE_TEAM_ID" ] && MISSING="$MISSING APPLE_TEAM_ID"
+          [ -z "$APPLE_API_KEY" ] && MISSING="$MISSING APPLE_API_KEY"
+          [ -z "$APPLE_API_KEY_ID" ] && MISSING="$MISSING APPLE_API_KEY_ID"
+          [ -z "$APPLE_API_ISSUER" ] && MISSING="$MISSING APPLE_API_ISSUER"
           if [ -n "$MISSING" ]; then
             echo "::error::Missing required environment secrets:$MISSING"
             echo "Ensure the 'DMG Build Environment' environment is configured with all required secrets."
             exit 1
           fi
-          echo "All signing secrets are set."
+          echo "All signing and notarization secrets are set."
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
 
       - name: Checkout Repository
         uses: actions/checkout@v6
@@ -160,9 +159,9 @@ jobs:
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
 
       - name: Rename DMG with Version
         run: |
