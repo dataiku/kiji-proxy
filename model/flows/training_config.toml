@@ -2,17 +2,20 @@
 # All pipeline settings are controlled via this file.
 
 [model]
-name = "distilbert-base-cased"
+name = "microsoft/deberta-v3-base"
 
 [training]
 num_epochs = 30
-batch_size = 4
+batch_size = 128
 learning_rate = 2e-5
+bf16 = true                # Mixed precision for Ampere+ GPUs (H100, A100, etc.)
+torch_compile = true       # torch.compile optimization (10-20% speedup on H100)
 
 warmup_steps = 500        # Gradual LR ramp-up to stabilize early training
 weight_decay = 0.01       # L2 regularization strength
 
 # Early stopping settings
+max_eval_samples = 2000         # Cap eval set size for faster evaluation
 early_stopping_enabled = true
 early_stopping_patience = 3   # Number of epochs with no improvement before stopping
 early_stopping_threshold = 0.005  # Minimum improvement (0.5%) to qualify as improvement
@@ -32,6 +35,11 @@ project_id = 6
 [data]
 # Limit samples for quick iteration (0 = use all)
 subsample_count = 0
+# ai4privacy/pii-masking-200k samples to add (-1 = none, 0 = all)
+num_ai4privacy_samples = -1
+# Path to audit_allowlist.txt to filter training samples (empty = no filtering)
+# Generate with: uv run python model/dataset/audit_dataset.py --samples-dir <dir>
+audit_allowlist = ""
 
 [pipeline]
 # Skip Label Studio export and use existing data from paths.training_samples_dir

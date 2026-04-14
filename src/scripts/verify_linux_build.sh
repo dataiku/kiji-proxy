@@ -114,7 +114,7 @@ check_executable() {
 # Check required files
 check_executable "bin/kiji-proxy" "Binary exists and is executable"
 check_executable "run.sh" "Run script exists and is executable"
-check_exists "lib/libonnxruntime.so.1.23.1" "ONNX Runtime library"
+check_exists "lib/libonnxruntime.so.1.24.2" "ONNX Runtime library"
 check_exists "lib/libonnxruntime.so" "ONNX Runtime symlink"
 check_exists "README.txt" "README file"
 check_exists "kiji-proxy.service" "Systemd service file"

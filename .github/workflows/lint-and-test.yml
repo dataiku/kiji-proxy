@@ -21,7 +21,7 @@ jobs:
           python-version: "3.13"
 
       - name: Install uv
-        uses: astral-sh/setup-uv@eac588ad8def6316056a12d4907a9d4d84ff7a3b # v7.3.0
+        uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57 # v8.0.0
         with:
           enable-cache: true
 
@@ -45,7 +45,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.25"
+          go-version-file: go.mod
 
       - name: golangci-lint
         uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 # v9.2.0
@@ -62,14 +62,14 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.25"
+          go-version-file: go.mod
 
       - name: Cache tokenizers library
         id: cache-tokenizers
         uses: actions/cache@v5
         with:
           path: build/tokenizers/libtokenizers.a
-          key: ${{ runner.os }}-tokenizers-v1.23.0-prebuilt-v2
+          key: ${{ runner.os }}-tokenizers-v1.26.0-prebuilt-v1
 
       - name: Download tokenizers library
         if: steps.cache-tokenizers.outputs.cache-hit != 'true'
@@ -77,7 +77,7 @@ jobs:
           mkdir -p build/tokenizers
           cd build/tokenizers
           curl -L -o libtokenizers.linux-amd64.tar.gz \
-            https://github.com/daulet/tokenizers/releases/download/v1.23.0/libtokenizers.linux-amd64.tar.gz
+            https://github.com/daulet/tokenizers/releases/download/v1.26.0/libtokenizers.linux-amd64.tar.gz
           tar -xzf libtokenizers.linux-amd64.tar.gz
           rm -f libtokenizers.linux-amd64.tar.gz
           ranlib libtokenizers.a

@@ -123,7 +123,7 @@ class PIITrainingPipeline(FlowSpec):
         cfg = self.config_file
         training_cfg = cfg.get("training", {})
         self.config = TrainingConfig(
-            model_name=cfg.get("model", {}).get("name", "distilbert-base-cased"),
+            model_name=cfg.get("model", {}).get("name", "microsoft/deberta-v3-base"),
             num_epochs=training_cfg.get("num_epochs", 5),
             batch_size=training_cfg.get("batch_size", 16),
             learning_rate=training_cfg.get("learning_rate", 3e-5),
@@ -137,11 +137,31 @@ class PIITrainingPipeline(FlowSpec):
             early_stopping_enabled=training_cfg.get("early_stopping_enabled", True),
             early_stopping_patience=training_cfg.get("early_stopping_patience", 3),
             early_stopping_threshold=training_cfg.get("early_stopping_threshold", 0.01),
+            num_ai4privacy_samples=int(
+                os.environ.get(
+                    "NUM_AI4PRIVACY_SAMPLES",
+                    cfg.get("data", {}).get("num_ai4privacy_samples", -1),
+                )
+            ),
+            lr_scheduler_type=training_cfg.get(
+                "lr_scheduler_type", "cosine_with_restarts"
+            ),
+            lr_scheduler_num_cycles=training_cfg.get("lr_scheduler_num_cycles", 3),
+            layerwise_lr_decay=training_cfg.get("layerwise_lr_decay", 0.95),
+            bf16=training_cfg.get("bf16", False),
+            torch_compile=training_cfg.get("torch_compile", False),
+            max_eval_samples=training_cfg.get("max_eval_samples", 0),
+            audit_allowlist=cfg.get("data", {}).get("audit_allowlist", ""),
         )
         self.skip_export = cfg.get("pipeline", {}).get("skip_export", False)
         self.skip_quantization = cfg.get("pipeline", {}).get("skip_quantization", False)
         self.skip_signing = cfg.get("pipeline", {}).get("skip_signing", False)
-        self.subsample_count = cfg.get("data", {}).get("subsample_count", 0)
+        self.subsample_count = int(
+            os.environ.get(
+                "NUM_SAMPLES",
+                cfg.get("data", {}).get("subsample_count", 0),
+            )
+        )
         self.pipeline_start_time = datetime.utcnow().isoformat()
         # Store raw config for export step
         self.raw_config = cfg
@@ -211,14 +231,13 @@ class PIITrainingPipeline(FlowSpec):
 
         # Process the dataset
         processor = DatasetProcessor(self.config)
-        train_dataset, val_dataset, mappings, coref_info = processor.prepare_datasets(
+        train_dataset, val_dataset, mappings, _ = processor.prepare_datasets(
             subsample_count=self.subsample_count
         )
 
         self.train_dataset = train_dataset
         self.val_dataset = val_dataset
         self.label_mappings = mappings
-        self.coref_info = coref_info
 
         print(f"Training samples: {len(train_dataset)}")
         print(f"Validation samples: {len(val_dataset)}")
@@ -240,7 +259,7 @@ class PIITrainingPipeline(FlowSpec):
             print("Resuming from checkpoint...")
 
         trainer = PIITrainer(self.config)
-        trainer.load_label_mappings(self.label_mappings, self.coref_info)
+        trainer.load_label_mappings(self.label_mappings)
         trainer.initialize_model()
 
         start_time = time.time()
@@ -341,11 +360,11 @@ class PIITrainingPipeline(FlowSpec):
 
         import shutil
 
-        from src.quantitize import export_to_onnx, load_multitask_model, quantize_model
+        from src.quantitize import export_to_onnx, load_model, quantize_model
 
         try:
             model_path = current.model.loaded["trained_model"]
-            model, label_mappings, tokenizer = load_multitask_model(model_path)
+            model, label_mappings, tokenizer = load_model(model_path)
 
             quantized_output = "model/quantized"
             export_to_onnx(model, tokenizer, quantized_output)

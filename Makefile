@@ -5,6 +5,7 @@
 .PHONY: build-dmg build-linux verify-linux
 .PHONY: electron-build electron-run electron electron-dev electron-install
 .PHONY: list show shell jupyter info quickstart
+.PHONY: pr
 
 # Default target
 .DEFAULT_GOAL := help
@@ -55,6 +56,11 @@ info: ## Show project info
 	@echo "  make install     - Install dependencies"
 	@echo "  make test        - Run tests"
 	@echo "  make help        - Show all commands"
+
+##@ Git & PR
+
+pr: ## Generate semantic PR title + summary with Claude Code and create the PR
+	@./src/scripts/create_pr.sh
 
 ##@ Setup & Installation
 
@@ -191,20 +197,20 @@ electron-install: ## Install Electron UI dependencies
 setup-onnx: ## Set up ONNX Runtime library for development
 	@echo "$(BLUE)Setting up ONNX Runtime library...$(NC)"
 	@mkdir -p build
-	@if [ -f "build/libonnxruntime.1.23.1.dylib" ]; then \
+	@if [ -f "build/libonnxruntime.1.24.2.dylib" ]; then \
 		echo "$(GREEN)✅ ONNX library already exists$(NC)"; \
-	elif [ -f "src/frontend/resources/libonnxruntime.1.23.1.dylib" ]; then \
-		ln -sf ../src/frontend/resources/libonnxruntime.1.23.1.dylib build/libonnxruntime.1.23.1.dylib; \
+	elif [ -f "src/frontend/resources/libonnxruntime.1.24.2.dylib" ]; then \
+		ln -sf ../src/frontend/resources/libonnxruntime.1.24.2.dylib build/libonnxruntime.1.24.2.dylib; \
 		echo "$(GREEN)✅ Linked existing ONNX library from resources$(NC)"; \
 	else \
 		if [ ! -d ".venv" ]; then \
 			echo "$(YELLOW)Creating virtual environment with Python 3.13...$(NC)"; \
 			uv venv --python 3.13; \
 		fi; \
-		uv pip install --quiet onnxruntime; \
+		uv pip install --quiet onnxruntime==1.24.2; \
 		ONNX_LIB=$$(find .venv -name "libonnxruntime*.dylib" | head -1); \
 		if [ -n "$$ONNX_LIB" ]; then \
-			cp "$$ONNX_LIB" build/libonnxruntime.1.23.1.dylib; \
+			cp "$$ONNX_LIB" build/libonnxruntime.1.24.2.dylib; \
 			echo "$(GREEN)✅ ONNX library installed$(NC)"; \
 		else \
 			echo "$(YELLOW)⚠️  Could not find ONNX library, continuing anyway$(NC)"; \
@@ -232,11 +238,11 @@ electron-run: setup-onnx build-go electron-build ## Run Electron app (builds Go 
 	@mkdir -p src/frontend/resources
 	@cp build/kiji-proxy src/frontend/resources/kiji-proxy
 	@chmod +x src/frontend/resources/kiji-proxy
-	@if [ -f "build/libonnxruntime.1.23.1.dylib" ]; then \
-		cp build/libonnxruntime.1.23.1.dylib src/frontend/resources/libonnxruntime.1.23.1.dylib; \
+	@if [ -f "build/libonnxruntime.1.24.2.dylib" ]; then \
+		cp build/libonnxruntime.1.24.2.dylib src/frontend/resources/libonnxruntime.1.24.2.dylib; \
 		echo "$(GREEN)✅ ONNX library copied to resources$(NC)"; \
 	else \
-		echo "$(YELLOW)⚠️  ONNX library not found at build/libonnxruntime.1.23.1.dylib$(NC)"; \
+		echo "$(YELLOW)⚠️  ONNX library not found at build/libonnxruntime.1.24.2.dylib$(NC)"; \
 	fi
 	@echo "$(GREEN)✅ Resources prepared$(NC)"
 	@echo "$(BLUE)Starting Electron app...$(NC)"

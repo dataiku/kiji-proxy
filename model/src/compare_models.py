@@ -34,9 +34,9 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 try:
-    from model.src.model import MultiTaskPIIDetectionModel
+    from model.src.model import PIIDetectionModel
 except ImportError:
-    from .model import MultiTaskPIIDetectionModel
+    from .model import PIIDetectionModel
 
 # Define command-line flags
 FLAGS = flags.FLAGS
@@ -87,7 +87,7 @@ def get_device():
 
 def load_pytorch_model(
     model_path: str,
-) -> tuple[MultiTaskPIIDetectionModel, AutoTokenizer, dict]:
+) -> tuple[PIIDetectionModel, AutoTokenizer, dict]:
     """Load the trained PyTorch model."""
     model_path = Path(model_path)
     logging.info(f"Loading PyTorch model from: {model_path}")
@@ -99,11 +99,6 @@ def load_pytorch_model(
 
     pii_label2id = mappings["pii"]["label2id"]
     pii_id2label = {int(k): v for k, v in mappings["pii"]["id2label"].items()}
-    coref_id2label = (
-        {int(k): v for k, v in mappings["coref"]["id2label"].items()}
-        if "coref" in mappings
-        else {0: "NO_COREF", 1: "CLUSTER_0"}
-    )
 
     # Load tokenizer
     tokenizer = AutoTokenizer.from_pretrained(model_path)
@@ -113,22 +108,19 @@ def load_pytorch_model(
     if config_path.exists():
         with config_path.open() as f:
             model_config = json.load(f)
-        base_model_name = model_config.get("_name_or_path", "distilbert-base-cased")
+        base_model_name = model_config.get("_name_or_path", "microsoft/deberta-v3-base")
         if base_model_name == "distilbert":
             base_model_name = "distilbert-base-cased"
     else:
-        base_model_name = "distilbert-base-cased"
+        base_model_name = "microsoft/deberta-v3-base"
 
     # Create model
     num_pii_labels = len(pii_label2id)
-    num_coref_labels = len(coref_id2label)
 
-    model = MultiTaskPIIDetectionModel(
+    model = PIIDetectionModel(
         model_name=base_model_name,
         num_pii_labels=num_pii_labels,
-        num_coref_labels=num_coref_labels,
         id2label_pii=pii_id2label,
-        id2label_coref=coref_id2label,
     )
 
     # Load weights
@@ -157,14 +149,12 @@ def load_pytorch_model(
     model.load_state_dict(state_dict, strict=False)
     model.eval()
 
-    logging.info(
-        f"  Loaded PyTorch model with {num_pii_labels} PII labels, {num_coref_labels} coref labels"
-    )
+    logging.info(f"  Loaded PyTorch model with {num_pii_labels} PII labels")
 
     return (
         model,
         tokenizer,
-        {"pii_id2label": pii_id2label, "coref_id2label": coref_id2label},
+        {"pii_id2label": pii_id2label},
     )
 
 
@@ -194,11 +184,6 @@ def load_onnx_model(
         mappings = json.load(f)
 
     pii_id2label = {int(k): v for k, v in mappings["pii"]["id2label"].items()}
-    coref_id2label = (
-        {int(k): v for k, v in mappings["coref"]["id2label"].items()}
-        if "coref" in mappings
-        else {0: "NO_COREF", 1: "CLUSTER_0"}
-    )
 
     # Load tokenizer
     tokenizer = AutoTokenizer.from_pretrained(model_path)
@@ -222,16 +207,16 @@ def load_onnx_model(
     return (
         session,
         tokenizer,
-        {"pii_id2label": pii_id2label, "coref_id2label": coref_id2label},
+        {"pii_id2label": pii_id2label},
     )
 
 
 def run_pytorch_inference(
-    model: MultiTaskPIIDetectionModel,
+    model: PIIDetectionModel,
     tokenizer: AutoTokenizer,
     text: str,
     device: torch.device,
-) -> tuple[np.ndarray, np.ndarray, float]:
+) -> tuple[np.ndarray, float]:
     """Run inference with PyTorch model."""
     inputs = tokenizer(
         text,
@@ -247,17 +232,16 @@ def run_pytorch_inference(
     with torch.no_grad():
         outputs = model(**inputs)
         pii_logits = outputs["pii_logits"].cpu().numpy()
-        coref_logits = outputs["coref_logits"].cpu().numpy()
     inference_time = (time.perf_counter() - start_time) * 1000
 
-    return pii_logits, coref_logits, inference_time
+    return pii_logits, inference_time
 
 
 def run_onnx_inference(
     session: ort.InferenceSession,
     tokenizer: AutoTokenizer,
     text: str,
-) -> tuple[np.ndarray, np.ndarray, float]:
+) -> tuple[np.ndarray, float]:
     """Run inference with ONNX model."""
     inputs = tokenizer(
         text,
@@ -275,35 +259,25 @@ def run_onnx_inference(
     outputs = session.run(None, ort_inputs)
     inference_time = (time.perf_counter() - start_time) * 1000
 
-    # Outputs are [pii_logits, coref_logits]
     pii_logits = outputs[0]
-    coref_logits = outputs[1]
 
-    return pii_logits, coref_logits, inference_time
+    return pii_logits, inference_time
 
 
 def compare_outputs(
     pytorch_pii: np.ndarray,
-    pytorch_coref: np.ndarray,
     onnx_pii: np.ndarray,
-    onnx_coref: np.ndarray,
     pytorch_pii_id2label: dict,
     onnx_pii_id2label: dict,
-    pytorch_coref_id2label: dict,
-    onnx_coref_id2label: dict,
     tolerance: float,
     verbose: bool = False,
 ) -> dict:
     """Compare PyTorch and ONNX outputs."""
     results = {
         "pii_predictions_match": False,
-        "coref_predictions_match": False,
         "pii_logits_close": False,
-        "coref_logits_close": False,
         "pii_max_diff": 0.0,
-        "coref_max_diff": 0.0,
         "pii_comparable": True,
-        "coref_comparable": True,
     }
 
     # Check if PII dimensions match
@@ -313,18 +287,9 @@ def compare_outputs(
         )
         results["pii_comparable"] = False
 
-    # Check if coref dimensions match
-    if pytorch_coref.shape[-1] != onnx_coref.shape[-1]:
-        logging.warning(
-            f"  Coref label count mismatch: PyTorch={pytorch_coref.shape[-1]}, ONNX={onnx_coref.shape[-1]}"
-        )
-        results["coref_comparable"] = False
-
     # Get predictions (argmax)
     pytorch_pii_preds = np.argmax(pytorch_pii, axis=-1)
     onnx_pii_preds = np.argmax(onnx_pii, axis=-1)
-    pytorch_coref_preds = np.argmax(pytorch_coref, axis=-1)
-    onnx_coref_preds = np.argmax(onnx_coref, axis=-1)
 
     # Compare PII predictions
     if results["pii_comparable"]:
@@ -355,35 +320,6 @@ def compare_outputs(
                             f"    PII diff at [{batch_idx}, {seq_idx}]: PyTorch={pt_label}, ONNX={onnx_label}"
                         )
 
-    # Compare coref predictions
-    if results["coref_comparable"]:
-        results["coref_predictions_match"] = np.array_equal(
-            pytorch_coref_preds, onnx_coref_preds
-        )
-        coref_diff = np.abs(pytorch_coref - onnx_coref)
-        results["coref_max_diff"] = float(np.max(coref_diff))
-        results["coref_mean_diff"] = float(np.mean(coref_diff))
-        results["coref_logits_close"] = results["coref_max_diff"] < tolerance
-    else:
-        # Compare by label name instead of index
-        results["coref_predictions_match"] = True
-        results["coref_max_diff"] = float("nan")
-        results["coref_mean_diff"] = float("nan")
-        for batch_idx in range(pytorch_coref_preds.shape[0]):
-            for seq_idx in range(pytorch_coref_preds.shape[1]):
-                pt_label = pytorch_coref_id2label.get(
-                    int(pytorch_coref_preds[batch_idx, seq_idx]), "UNK"
-                )
-                onnx_label = onnx_coref_id2label.get(
-                    int(onnx_coref_preds[batch_idx, seq_idx]), "UNK"
-                )
-                if pt_label != onnx_label:
-                    results["coref_predictions_match"] = False
-                    if verbose:
-                        logging.info(
-                            f"    Coref diff at [{batch_idx}, {seq_idx}]: PyTorch={pt_label}, ONNX={onnx_label}"
-                        )
-
     if verbose and results["pii_comparable"] and not results["pii_predictions_match"]:
         diff_indices = np.where(pytorch_pii_preds != onnx_pii_preds)
         for batch_idx, seq_idx in zip(diff_indices[0], diff_indices[1], strict=True):
@@ -395,23 +331,6 @@ def compare_outputs(
             )
             logging.info(
                 f"    PII diff at [{batch_idx}, {seq_idx}]: PyTorch={pt_label}, ONNX={onnx_label}"
-            )
-
-    if (
-        verbose
-        and results["coref_comparable"]
-        and not results["coref_predictions_match"]
-    ):
-        diff_indices = np.where(pytorch_coref_preds != onnx_coref_preds)
-        for batch_idx, seq_idx in zip(diff_indices[0], diff_indices[1], strict=True):
-            pt_label = pytorch_coref_id2label.get(
-                int(pytorch_coref_preds[batch_idx, seq_idx]), "UNK"
-            )
-            onnx_label = onnx_coref_id2label.get(
-                int(onnx_coref_preds[batch_idx, seq_idx]), "UNK"
-            )
-            logging.info(
-                f"    Coref diff at [{batch_idx}, {seq_idx}]: PyTorch={pt_label}, ONNX={onnx_label}"
             )
 
     return results
@@ -532,12 +451,10 @@ def main(argv):
         logging.info(f"Test Case {i}: {text[:50]}...")
 
         # Run inference
-        pytorch_pii, pytorch_coref, pytorch_time = run_pytorch_inference(
+        pytorch_pii, pytorch_time = run_pytorch_inference(
             pytorch_model, pytorch_tokenizer, text, device
         )
-        onnx_pii, onnx_coref, onnx_time = run_onnx_inference(
-            onnx_session, onnx_tokenizer, text
-        )
+        onnx_pii, onnx_time = run_onnx_inference(onnx_session, onnx_tokenizer, text)
 
         pytorch_times.append(pytorch_time)
         onnx_times.append(onnx_time)
@@ -545,13 +462,9 @@ def main(argv):
         # Compare outputs
         results = compare_outputs(
             pytorch_pii,
-            pytorch_coref,
             onnx_pii,
-            onnx_coref,
             pytorch_labels["pii_id2label"],
             onnx_labels["pii_id2label"],
-            pytorch_labels["coref_id2label"],
-            onnx_labels["coref_id2label"],
             FLAGS.tolerance,
             FLAGS.verbose,
         )
@@ -559,7 +472,6 @@ def main(argv):
 
         # Display results
         pii_match = "MATCH" if results["pii_predictions_match"] else "DIFFER"
-        coref_match = "MATCH" if results["coref_predictions_match"] else "DIFFER"
 
         if results["pii_comparable"]:
             logging.info(
@@ -570,14 +482,6 @@ def main(argv):
                 f"  PII predictions: {pii_match} (label comparison only - dimensions differ)"
             )
 
-        if results["coref_comparable"]:
-            logging.info(
-                f"  Coref predictions: {coref_match} (max diff: {results['coref_max_diff']:.4f}, mean: {results['coref_mean_diff']:.4f})"
-            )
-        else:
-            logging.info(
-                f"  Coref predictions: {coref_match} (label comparison only - dimensions differ)"
-            )
         logging.info(
             f"  Inference time: PyTorch={pytorch_time:.2f}ms, ONNX={onnx_time:.2f}ms"
         )
@@ -605,20 +509,15 @@ def main(argv):
     logging.info("=" * 80)
 
     pii_match_count = sum(1 for r in all_results if r["pii_predictions_match"])
-    coref_match_count = sum(1 for r in all_results if r["coref_predictions_match"])
     total_cases = len(all_results)
 
     logging.info("\nPrediction Matching:")
     logging.info(
         f"  PII predictions match: {pii_match_count}/{total_cases} ({100 * pii_match_count / total_cases:.1f}%)"
     )
-    logging.info(
-        f"  Coref predictions match: {coref_match_count}/{total_cases} ({100 * coref_match_count / total_cases:.1f}%)"
-    )
 
     # Check if logit comparison is possible
     pii_comparable = all(r["pii_comparable"] for r in all_results)
-    coref_comparable = all(r["coref_comparable"] for r in all_results)
 
     logging.info("\nLogit Differences:")
     if pii_comparable:
@@ -632,17 +531,6 @@ def main(argv):
         max_pii_diff = float("inf")
         logging.info("  PII - N/A (different label counts between models)")
 
-    if coref_comparable:
-        coref_diffs = [r["coref_max_diff"] for r in all_results]
-        avg_coref_diff = np.mean(coref_diffs)
-        max_coref_diff = max(coref_diffs)
-        logging.info(
-            f"  Coref - avg max diff: {avg_coref_diff:.4f}, overall max: {max_coref_diff:.4f}"
-        )
-    else:
-        max_coref_diff = float("inf")
-        logging.info("  Coref - N/A (different label counts between models)")
-
     logging.info("\nInference Performance:")
     logging.info(
         f"  PyTorch - avg: {np.mean(pytorch_times):.2f}ms, min: {np.min(pytorch_times):.2f}ms, max: {np.max(pytorch_times):.2f}ms"
@@ -654,24 +542,23 @@ def main(argv):
 
     # Overall status
     all_pii_match = pii_match_count == total_cases
-    all_coref_match = coref_match_count == total_cases
 
     logging.info("\n" + "=" * 80)
 
     # Warn if models have different architectures
-    if not pii_comparable or not coref_comparable:
+    if not pii_comparable:
         logging.warning("WARNING: Models have different output dimensions!")
         logging.warning(
             "  The ONNX model was likely exported from a different training run."
         )
         logging.warning("  Re-export with: uv run python -m model.src.quantitize")
 
-    if all_pii_match and all_coref_match:
+    if all_pii_match:
         logging.info("RESULT: All predictions match between PyTorch and ONNX models")
     else:
         logging.info("RESULT: Some predictions differ (may be due to quantization)")
-        if pii_comparable and coref_comparable:
-            if max_pii_diff < FLAGS.tolerance and max_coref_diff < FLAGS.tolerance:
+        if pii_comparable:
+            if max_pii_diff < FLAGS.tolerance:
                 logging.info(
                     f"  However, all logit differences are within tolerance ({FLAGS.tolerance})"
                 )

@@ -106,7 +106,7 @@ pip install onnxruntime
 
 # Find and copy library
 LIB_PATH=$(find .venv -name "libonnxruntime*.dylib" | head -1)
-cp "$LIB_PATH" ./build/libonnxruntime.1.23.1.dylib
+cp "$LIB_PATH" ./build/libonnxruntime.1.24.2.dylib
 ```
 
 **Option 2: Via UV (Faster):**
@@ -122,27 +122,27 @@ uv pip install onnxruntime
 
 # Copy library
 LIB_PATH=$(find .venv -name "libonnxruntime*.dylib" | head -1)
-cp "$LIB_PATH" ./build/libonnxruntime.1.23.1.dylib
+cp "$LIB_PATH" ./build/libonnxruntime.1.24.2.dylib
 ```
 
 **Option 3: Manual Download:**
 
 ```bash
 # macOS ARM64 (Apple Silicon)
-wget https://github.com/microsoft/onnxruntime/releases/download/v1.23.1/onnxruntime-osx-arm64-1.23.1.tgz
-tar -xzf onnxruntime-osx-arm64-1.23.1.tgz
-cp onnxruntime-osx-arm64-1.23.1/lib/libonnxruntime.1.23.1.dylib build/
+wget https://github.com/microsoft/onnxruntime/releases/download/v1.24.2/onnxruntime-osx-arm64-1.24.2.tgz
+tar -xzf onnxruntime-osx-arm64-1.24.2.tgz
+cp onnxruntime-osx-arm64-1.24.2/lib/libonnxruntime.1.24.2.dylib build/
 
 # Linux
-wget https://github.com/microsoft/onnxruntime/releases/download/v1.23.1/onnxruntime-linux-x64-1.23.1.tgz
-tar -xzf onnxruntime-linux-x64-1.23.1.tgz
-cp onnxruntime-linux-x64-1.23.1/lib/libonnxruntime.so.1.23.1 build/libonnxruntime.so
+wget https://github.com/microsoft/onnxruntime/releases/download/v1.24.2/onnxruntime-linux-x64-1.24.2.tgz
+tar -xzf onnxruntime-linux-x64-1.24.2.tgz
+cp onnxruntime-linux-x64-1.24.2/lib/libonnxruntime.so.1.24.2 build/libonnxruntime.so
 ```
 
 **Verify:**
 ```bash
 ls -lh build/libonnxruntime.*
-# macOS: Should show libonnxruntime.1.23.1.dylib (~26MB)
+# macOS: Should show libonnxruntime.1.24.2.dylib (~26MB)
 # Linux: Should show libonnxruntime.so (~24MB)
 ```
 
@@ -706,7 +706,7 @@ ls -lh libtokenizers.a
 
 ```bash
 # macOS
-export ONNXRUNTIME_SHARED_LIBRARY_PATH="./build/libonnxruntime.1.23.1.dylib"
+export ONNXRUNTIME_SHARED_LIBRARY_PATH="./build/libonnxruntime.1.24.2.dylib"
 
 # Linux
 export LD_LIBRARY_PATH="./build:$LD_LIBRARY_PATH"

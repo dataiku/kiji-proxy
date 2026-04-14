@@ -1,6 +1,6 @@
 [project]
 name = "kiji-proxy"
-version = "0.4.3"
+version = "0.4.11"
 description = "Kiji Privacy Proxy for PII Detection and Masking"
 readme = "README.md"
 requires-python = ">=3.13"
@@ -13,7 +13,9 @@ authors = [
 dependencies = [
     # Core ML/NLP dependencies (essential for PII detection)
     "torch>=1.9.0",
-    "transformers>=4.20.0",
+    "transformers>=4.20.0,<4.52.0",
+    "protobuf>=3.20.0",
+    "sentencepiece>=0.1.99",
     "numpy>=1.21.0",
     # FastAPI server dependencies (essential for API)
     "fastapi>=0.104.0",
@@ -40,12 +42,16 @@ training = [
     "wandb>=0.12.0",
     "datasets>=2.0.0",
     "scikit-learn>=1.0.0",
+    "pytorch-crf>=0.7.2",
+    "seqeval>=1.2.2",
     "tqdm>=4.64.0",
     "psutil>=5.8.0",
     "accelerate>=0.26.0",
     "scipy>=1.0.0",
     "pandas>=1.0.0",
     "sympy>=1.0.0",
+    "metaflow>=2.12.0",
+    "metaflow-checkpoint>=0.1.0",
 ]
 
 # ONNX quantization dependencies

@@ -4,7 +4,7 @@
 # This script matches the GitHub workflow exactly for consistent local and CI builds
 # Optimized for speed with caching, parallel operations, and conditional steps
 
-set -e
+set -euo pipefail
 
 # Enable parallel execution where possible
 PARALLEL_JOBS=$(sysctl -n hw.ncpu 2>/dev/null || echo 4)
@@ -64,7 +64,7 @@ if .venv/bin/python -c "import onnxruntime" 2>/dev/null; then
 else
     # Install onnxruntime if not already installed
     echo "Installing Python dependencies with uv..."
-    uv pip install onnxruntime
+    uv pip install onnxruntime==1.24.2
 fi
 
 echo ""
@@ -72,13 +72,13 @@ echo "📦 Step 2: Finding and preparing ONNX Runtime library..."
 echo "--------------------------------------------------------"
 
 # Check if ONNX library already exists (cache check)
-if [ -f "./build/libonnxruntime.1.23.1.dylib" ]; then
+if [ -f "./build/libonnxruntime.1.24.2.dylib" ]; then
     echo "✅ ONNX Runtime library already exists (using cache)"
 else
     # Find and copy ONNX Runtime library
     ONNX_LIB=$(find .venv -name "libonnxruntime*.dylib" | head -1)
     if [ -n "$ONNX_LIB" ]; then
-        cp "$ONNX_LIB" ./build/libonnxruntime.1.23.1.dylib
+        cp "$ONNX_LIB" ./build/libonnxruntime.1.24.2.dylib
         echo "✅ ONNX Runtime library copied from Python environment"
     else
         echo "⚠️  ONNX Runtime library not found in Python environment, continuing..."
@@ -89,7 +89,13 @@ echo ""
 echo "📦 Step 3: Downloading tokenizers library (if needed)..."
 echo "--------------------------------------------------------"
 
-TOKENIZERS_VERSION="1.23.0"
+TOKENIZERS_VERSION=$(awk '/github.com\/daulet\/tokenizers/ { sub(/^v/, "", $2); print $2; exit }' "$PROJECT_ROOT/go.mod")
+
+if [ -z "$TOKENIZERS_VERSION" ]; then
+    echo "❌ Failed to determine tokenizers version from $PROJECT_ROOT/go.mod"
+    exit 1
+fi
+
 TOKENIZERS_PLATFORM="darwin-arm64"
 TOKENIZERS_FILE="libtokenizers.${TOKENIZERS_PLATFORM}.tar.gz"
 TOKENIZERS_URL="https://github.com/daulet/tokenizers/releases/download/v${TOKENIZERS_VERSION}/${TOKENIZERS_FILE}"
@@ -292,39 +298,39 @@ cp build/kiji-proxy src/frontend/resources/kiji-proxy
 chmod +x src/frontend/resources/kiji-proxy
 
 # Copy ONNX library if it exists (to root of resources for easier access)
-if [ -f "build/libonnxruntime.1.23.1.dylib" ] || [ -L "build/libonnxruntime.1.23.1.dylib" ]; then
+if [ -f "build/libonnxruntime.1.24.2.dylib" ] || [ -L "build/libonnxruntime.1.24.2.dylib" ]; then
     # Check if it's a symlink
-    if [ -L "build/libonnxruntime.1.23.1.dylib" ]; then
+    if [ -L "build/libonnxruntime.1.24.2.dylib" ]; then
         # It's a symlink - check if target is already in resources
-        ONNX_TARGET=$(readlink "build/libonnxruntime.1.23.1.dylib")
+        ONNX_TARGET=$(readlink "build/libonnxruntime.1.24.2.dylib")
         # Convert to absolute path if relative
         if [[ "$ONNX_TARGET" != /* ]]; then
-            ONNX_TARGET="$(cd "$(dirname "build/libonnxruntime.1.23.1.dylib")" && cd "$(dirname "$ONNX_TARGET")" && pwd)/$(basename "$ONNX_TARGET")"
+            ONNX_TARGET="$(cd "$(dirname "build/libonnxruntime.1.24.2.dylib")" && cd "$(dirname "$ONNX_TARGET")" && pwd)/$(basename "$ONNX_TARGET")"
         fi
-        RESOURCES_LIB="$(cd "$(dirname "src/frontend/resources/libonnxruntime.1.23.1.dylib")" 2>/dev/null && pwd)/$(basename "src/frontend/resources/libonnxruntime.1.23.1.dylib")"
+        RESOURCES_LIB="$(cd "$(dirname "src/frontend/resources/libonnxruntime.1.24.2.dylib")" 2>/dev/null && pwd)/$(basename "src/frontend/resources/libonnxruntime.1.24.2.dylib")"
 
         if [ "$ONNX_TARGET" = "$RESOURCES_LIB" ]; then
             echo "✅ ONNX library already in resources/ (symlink points there)"
         elif [ -f "$ONNX_TARGET" ]; then
-            cp -f "$ONNX_TARGET" src/frontend/resources/libonnxruntime.1.23.1.dylib
+            cp -f "$ONNX_TARGET" src/frontend/resources/libonnxruntime.1.24.2.dylib
             echo "✅ ONNX library copied to resources/ (from symlink)"
         else
             echo "⚠️  Symlink target not found: $ONNX_TARGET"
         fi
-    elif [ -f "src/frontend/resources/libonnxruntime.1.23.1.dylib" ]; then
+    elif [ -f "src/frontend/resources/libonnxruntime.1.24.2.dylib" ]; then
         # Check if files are identical
-        if cmp -s "build/libonnxruntime.1.23.1.dylib" "src/frontend/resources/libonnxruntime.1.23.1.dylib"; then
+        if cmp -s "build/libonnxruntime.1.24.2.dylib" "src/frontend/resources/libonnxruntime.1.24.2.dylib"; then
             echo "✅ ONNX library already in resources/ (identical)"
         else
-            cp -f build/libonnxruntime.1.23.1.dylib src/frontend/resources/libonnxruntime.1.23.1.dylib
+            cp -f build/libonnxruntime.1.24.2.dylib src/frontend/resources/libonnxruntime.1.24.2.dylib
             echo "✅ ONNX library copied to resources/"
         fi
     else
-        cp build/libonnxruntime.1.23.1.dylib src/frontend/resources/libonnxruntime.1.23.1.dylib
+        cp build/libonnxruntime.1.24.2.dylib src/frontend/resources/libonnxruntime.1.24.2.dylib
         echo "✅ ONNX library copied to resources/"
     fi
 else
-    echo "⚠️  ONNX library not found at build/libonnxruntime.1.23.1.dylib"
+    echo "⚠️  ONNX library not found at build/libonnxruntime.1.24.2.dylib"
 fi
 
 # Copy model files to quantized directory (matches what Go binary expects after extraction)
@@ -405,9 +411,10 @@ fi
 # When CSC_LINK is set, electron-builder will automatically sign with the Developer ID certificate.
 # When CSC_LINK is not set, electron-builder falls back to ad-hoc signing.
 echo "Running electron-builder..."
-# Unset Apple notarization credentials to prevent electron-builder's built-in
-# notarization from triggering automatically. Notarization is currently disabled
-# until a Developer ID Application certificate is configured.
+# Unset legacy Apple ID credentials to prevent electron-builder from attempting
+# the deprecated password-based notarization path. API key notarization
+# (APPLE_API_KEY file path + APPLE_API_KEY_ID + APPLE_API_ISSUER) is handled
+# natively by electron-builder v26+ when those env vars are set.
 unset APPLE_ID
 unset APPLE_APP_SPECIFIC_PASSWORD
 unset APPLE_TEAM_ID
@@ -430,21 +437,42 @@ if [ -z "${CSC_LINK:-}" ]; then
     echo "--------------------------------------------"
     APP_BUNDLE=$(find release -name "*.app" -maxdepth 2 | head -1)
     if [ -n "$APP_BUNDLE" ]; then
-        # Sign individual components first (innermost to outermost)
-        # --deep is unreliable for dylibs and extra binaries in Resources/
-        RESOURCES_DIR="$APP_BUNDLE/Contents/Resources"
+        # Sign inside-out: innermost components first, app bundle last.
+        # Do NOT use --deep as it produces broken signatures on macOS 14+
+        # and causes Team ID mismatches that prevent binaries from launching.
 
-        # Sign dylibs
-        find "$RESOURCES_DIR" -name "*.dylib" -exec codesign --force --sign - {} \;
-
-        # Sign the Go backend binary
-        if [ -f "$RESOURCES_DIR/kiji-proxy" ]; then
-            codesign --force --sign - "$RESOURCES_DIR/kiji-proxy"
+        # Sign all Electron framework components
+        FRAMEWORKS_DIR="$APP_BUNDLE/Contents/Frameworks"
+        if [ -d "$FRAMEWORKS_DIR" ]; then
+            find "$FRAMEWORKS_DIR" -name "*.app" -exec codesign --force --sign - {} \;
+            find "$FRAMEWORKS_DIR" -name "*.framework" -exec codesign --force --sign - {} \;
+            find "$FRAMEWORKS_DIR" -name "*.dylib" -exec codesign --force --sign - {} \;
         fi
 
-        # Sign the full app bundle last
-        codesign --force --deep --sign - "$APP_BUNDLE"
-        echo "✅ App bundle re-signed with consistent ad-hoc identity"
+        RESOURCES_DIR="$APP_BUNDLE/Contents/Resources"
+
+        # Sign dylibs in resources (e.g., libonnxruntime)
+        find "$RESOURCES_DIR" -name "*.dylib" -exec codesign --force --sign - {} \;
+
+        # Sign the Go backend binary (extraFiles puts it at resources/kiji-proxy)
+        if [ -f "$RESOURCES_DIR/resources/kiji-proxy" ]; then
+            codesign --force --sign - "$RESOURCES_DIR/resources/kiji-proxy"
+            echo "✅ Signed Go binary at Contents/Resources/resources/kiji-proxy"
+        elif [ -f "$RESOURCES_DIR/kiji-proxy" ]; then
+            codesign --force --sign - "$RESOURCES_DIR/kiji-proxy"
+            echo "✅ Signed Go binary at Contents/Resources/kiji-proxy"
+        else
+            echo "⚠️  Go binary not found in app bundle for signing"
+            echo "    Contents of $RESOURCES_DIR/resources/:"
+            ls -la "$RESOURCES_DIR/resources/" 2>/dev/null || echo "    (directory not found)"
+        fi
+
+        # Sign the main app bundle last (without --deep)
+        codesign --force --sign - "$APP_BUNDLE"
+        echo "✅ App bundle re-signed with consistent ad-hoc identity (no --deep)"
+
+        # Verify the signature
+        codesign --verify --verbose=2 "$APP_BUNDLE" 2>&1 || echo "⚠️  Signature verification had warnings"
     else
         echo "⚠️  Could not find .app bundle to re-sign"
     fi
@@ -473,7 +501,11 @@ echo "-----------------------------------"
 
 if [ -n "${CSC_LINK:-}" ]; then
     echo "✅ App was signed with Developer ID certificate by electron-builder"
-    echo "   Notarization was handled by afterSign hook (if credentials were provided)"
+    if [ -n "${APPLE_API_KEY:-}" ]; then
+        echo "✅ Notarization was handled by afterSign hook (APPLE_API_KEY set)"
+    else
+        echo "⚠️  Notarization skipped (APPLE_API_KEY not set)"
+    fi
 else
     echo "✅ App was ad-hoc signed with consistent identity and packaged into DMG"
 fi

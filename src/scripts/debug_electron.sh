@@ -109,8 +109,8 @@ if [ "$REBUILD" = true ]; then
     cp build/kiji-proxy src/frontend/resources/kiji-proxy
     chmod +x src/frontend/resources/kiji-proxy
 
-    if [ -f "build/libonnxruntime.1.23.1.dylib" ]; then
-        cp build/libonnxruntime.1.23.1.dylib src/frontend/resources/libonnxruntime.1.23.1.dylib
+    if [ -f "build/libonnxruntime.1.24.2.dylib" ]; then
+        cp build/libonnxruntime.1.24.2.dylib src/frontend/resources/libonnxruntime.1.24.2.dylib
         echo -e "${GREEN}✓ Resources prepared${NC}"
     else
         echo -e "${YELLOW}⚠️  ONNX library not found${NC}"

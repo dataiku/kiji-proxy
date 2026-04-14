@@ -8,10 +8,9 @@ This directory contains all CI/CD workflows for the Kiji Privacy Proxy project.
 |----------|---------|---------|-----------|
 | **changesets.yml** | Push to `main` | Creates Version PRs | None |
 | **auto-tag.yml** | Release PR merged to `main` | Creates git tags automatically | None |
-| **release-dmg.yml** | Tag `v*`, Manual | Builds macOS DMG, creates releases | DMG files (90 days) |
-| **release-linux.yml** | Tag `v*`, Manual | Builds Linux binary, creates releases | tar.gz + checksum (90 days) |
-| **release-chrome-extension.yml** | Tag `v*`, Manual | Packages Chrome extension | zip + checksum (90 days) |
+| **release.yml** | Tag `v*`, Manual | Builds all platforms, creates single release | DMG, tar.gz, zip + checksums (90 days) |
 | **lint-and-test.yml** | Push/PR to `main`/`develop` | Linting and tests | None |
+| **semantic-pr.yml** | PR opened/edited | Enforces Conventional Commits in PR titles | None |
 | **cleanup-artifacts.yml** | Daily (2 AM UTC), Manual | Cleans old artifacts | None |
 | **sign-model.yml** | Manual only | Signs ML models | Signed models (30 days) |
 
@@ -45,21 +44,32 @@ This directory contains all CI/CD workflows for the Kiji Privacy Proxy project.
 2. Checks if the tag already exists
 3. Creates and pushes tag `v{version}` (e.g., `v0.3.5`)
 
-This tag push then triggers the release workflows (`release-dmg.yml`, `release-linux.yml`, `release-chrome-extension.yml`).
+This tag push then triggers the release workflow (`release.yml`).
 
 **Requires:** `PAT_TOKEN` repository secret (to allow tag push to trigger other workflows).
 
 ---
 
-### 3. Release DMG Workflow (`release-dmg.yml`)
+### 3. Release Workflow (`release.yml`)
 
-**Purpose:** Builds macOS DMG installer and creates GitHub releases.
+**Purpose:** Builds all platforms in parallel and creates a single GitHub release with all assets.
 
 **Triggers:**
 - Tag starting with `v*` pushed
 - Manual via Actions UI
 
-**Environment:** `DMG Build Environment` (GitHub environment with signing secrets)
+**Jobs:**
+
+| Job | Runner | What it does | Permissions |
+|-----|--------|-------------|-------------|
+| **build-dmg** | `macos-latest` | Builds signed macOS DMG | `contents: read` |
+| **build-linux** | `ubuntu-latest` | Builds Linux binary archive | `contents: read` |
+| **build-chrome** | `ubuntu-latest` | Packages Chrome extension | `contents: read` |
+| **create-release** | `ubuntu-latest` | Downloads all artifacts, creates single release | `contents: write` |
+
+The three build jobs run in parallel. The `create-release` job waits for all builds to complete, then creates one atomic GitHub release with all assets and the `--latest` flag. This eliminates the race condition that previously occurred when separate workflows competed to create/publish releases.
+
+**Environment:** `DMG Build Environment` (for `build-dmg` job only)
 
 **Required secrets (in the environment):**
 - `CSC_LINK` - Base64-encoded `.p12` certificate
@@ -70,56 +80,11 @@ This tag push then triggers the release workflows (`release-dmg.yml`, `release-l
 - `APPLE_APP_SPECIFIC_PASSWORD`
 - `APPLE_TEAM_ID`
 
-**What it does:**
-1. Verifies signing secrets are available (fails fast if missing)
-2. Sets up Go, Python, Node.js, Rust toolchains
-3. Verifies Git LFS files are actual binaries
-4. Installs dependencies
-5. Runs `make build-dmg` (Go binary + Electron app)
-6. Uploads DMG as artifact (90 day retention)
-7. Creates/updates GitHub Release on tag push
-
-**Caching:** LFS objects, Rust/Cargo, tokenizers library, ONNX Runtime.
-
----
-
-### 4. Release Linux Workflow (`release-linux.yml`)
-
-**Purpose:** Builds Linux standalone binary archive.
-
-**Triggers:**
-- Tag starting with `v*` pushed
-- Manual via Actions UI
-
-**What it does:**
-1. Sets up Go, Rust toolchains
-2. Verifies Git LFS files
-3. Runs `./src/scripts/build_linux.sh`
-4. Uploads tar.gz + SHA256 checksum as artifact (90 day retention)
-5. Appends Linux artifacts to GitHub Release on tag push
-
 **Caching:** LFS objects, Go modules, Rust/Cargo, tokenizers library, ONNX Runtime.
 
 ---
 
-### 5. Release Chrome Extension Workflow (`release-chrome-extension.yml`)
-
-**Purpose:** Packages the Chrome extension as a zip for distribution.
-
-**Triggers:**
-- Tag starting with `v*` pushed
-- Manual via Actions UI
-
-**What it does:**
-1. Stamps the release version into `chrome-extension/manifest.json`
-2. Creates a zip of the `chrome-extension/` directory
-3. Generates SHA256 checksum
-4. Uploads zip + checksum as artifact (90 day retention)
-5. Appends Chrome extension to GitHub Release on tag push
-
----
-
-### 6. Lint and Test Workflow (`lint-and-test.yml`)
+### 4. Lint and Test Workflow (`lint-and-test.yml`)
 
 **Purpose:** Code quality checks and tests.
 
@@ -138,7 +103,7 @@ This tag push then triggers the release workflows (`release-dmg.yml`, `release-l
 
 ---
 
-### 7. Cleanup Artifacts Workflow (`cleanup-artifacts.yml`)
+### 5. Cleanup Artifacts Workflow (`cleanup-artifacts.yml`)
 
 **Purpose:** Manages storage by cleaning old artifacts.
 
@@ -155,7 +120,7 @@ This tag push then triggers the release workflows (`release-dmg.yml`, `release-l
 
 ---
 
-### 8. Sign Model Workflow (`sign-model.yml`)
+### 6. Sign Model Workflow (`sign-model.yml`)
 
 **Purpose:** Cryptographically signs ML models.
 
@@ -170,6 +135,24 @@ This tag push then triggers the release workflows (`release-dmg.yml`, `release-l
 1. Signs model files with cryptographic signature
 2. Verifies the signature
 3. Uploads signed artifacts (30 day retention)
+
+---
+
+### 7. Semantic PR Title Workflow (`semantic-pr.yml`)
+
+**Purpose:** Enforces Conventional Commits format in PR titles.
+
+**Triggers:**
+- Pull request opened, edited, or synchronized
+
+**What it does:**
+1. Validates the PR title matches `type(optional scope): description`
+2. On failure, posts a sticky comment with the error and a formatting guide
+3. On success, removes the comment if one was previously posted
+
+**Allowed types:** `feat`, `fix`, `docs`, `style`, `chore`, `refactor`, `test`, `ci`, `perf`
+
+**Tip:** To make this a hard gate, add it as a required status check in **Settings > Branches > Branch protection rules**.
 
 ---
 
@@ -200,11 +183,11 @@ auto-tag.yml (automatic on PR merge with release label)
   - Creates and pushes tag v0.3.5
               |
               v
-Release workflows (automatic on tag push)
-  - release-dmg.yml    -> macOS DMG
-  - release-linux.yml  -> Linux tar.gz
-  - release-chrome-extension.yml -> Chrome extension zip
-  - All attach artifacts to the same GitHub Release
+release.yml (automatic on tag push)
+  - build-dmg       -> macOS DMG        (parallel)
+  - build-linux     -> Linux tar.gz     (parallel)
+  - build-chrome    -> Chrome ext zip   (parallel)
+  - create-release  -> Single GitHub Release with all assets
               |
               v
 Release Published!
@@ -231,7 +214,7 @@ Notarization is currently **disabled**. The DMG is code-signed but not notarized
 
 5. In `src/scripts/build_dmg.sh`, remove the `unset APPLE_ID` / `unset APPLE_APP_SPECIFIC_PASSWORD` / `unset APPLE_TEAM_ID` lines that currently suppress notarization.
 
-6. In `.github/workflows/release-dmg.yml`, uncomment the `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, and `APPLE_TEAM_ID` checks in the "Verify signing secrets" step.
+6. In `.github/workflows/release.yml`, uncomment the `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, and `APPLE_TEAM_ID` checks in the `build-dmg` job's "Verify signing secrets" step.
 
 ---
 
@@ -263,4 +246,4 @@ Notarization is currently **disabled**. The DMG is code-signed but not notarized
 
 ---
 
-**Last Updated:** February 2, 2026
+**Last Updated:** February 24, 2026

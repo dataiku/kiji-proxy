@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"runtime"
 	"sort"
 	"strings"
 
@@ -47,19 +48,34 @@ type ONNXModelDetectorSimple struct {
 
 // NewONNXModelDetectorSimple creates a new ONNX model detector
 func NewONNXModelDetectorSimple(modelPath string, tokenizerPath string) (*ONNXModelDetectorSimple, error) {
-	// Set the ONNX Runtime shared library path for macOS
-	// Try multiple possible locations for the library
-	onnxPaths := []string{
-		"./libonnxruntime.1.23.1.dylib",       // Production: in resources directory
-		"./build/libonnxruntime.1.23.1.dylib", // Development: in build directory
-		"../libonnxruntime.1.23.1.dylib",      // Alternative location
+	// Set the ONNX Runtime shared library path.
+	// Check ONNXRUNTIME_SHARED_LIBRARY_PATH env var first (set by Electron),
+	// then try multiple possible locations for the library.
+	onnxLibPath := os.Getenv("ONNXRUNTIME_SHARED_LIBRARY_PATH")
+	if onnxLibPath != "" {
+		if _, err := os.Stat(onnxLibPath); err != nil {
+			onnxLibPath = "" // env var path doesn't exist, fall through to search
+		}
 	}
 
-	var onnxLibPath string
-	for _, path := range onnxPaths {
-		if _, err := os.Stat(path); err == nil {
-			onnxLibPath = path
-			break
+	if onnxLibPath == "" {
+		onnxPaths := []string{
+			// macOS paths (.dylib)
+			"./libonnxruntime.1.24.2.dylib",            // CWD (legacy)
+			"./resources/libonnxruntime.1.24.2.dylib",  // Production DMG: CWD is Contents/Resources
+			"./build/libonnxruntime.1.24.2.dylib",      // Development: in build directory
+			"../libonnxruntime.1.24.2.dylib",           // Alternative location
+			// Linux paths (.so)
+			"./lib/libonnxruntime.so.1.24.2",           // Linux release tarball layout
+			"./build/libonnxruntime.so.1.24.2",         // Development: in build directory
+			"./libonnxruntime.so.1.24.2",               // CWD
+		}
+
+		for _, p := range onnxPaths {
+			if _, err := os.Stat(p); err == nil {
+				onnxLibPath = p
+				break
+			}
 		}
 	}
 
@@ -67,7 +83,11 @@ func NewONNXModelDetectorSimple(modelPath string, tokenizerPath string) (*ONNXMo
 		onnxruntime.SetSharedLibraryPath(onnxLibPath)
 	} else {
 		// Fall back to default path, might work if library is in system path
-		onnxruntime.SetSharedLibraryPath("./build/libonnxruntime.1.23.1.dylib")
+		if runtime.GOOS == "linux" {
+			onnxruntime.SetSharedLibraryPath("./lib/libonnxruntime.so.1.24.2")
+		} else {
+			onnxruntime.SetSharedLibraryPath("./build/libonnxruntime.1.24.2.dylib")
+		}
 	}
 
 	// Initialize ONNX Runtime environment only if not already initialized

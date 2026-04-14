@@ -346,7 +346,7 @@ Both workflows cache:
 - **Git LFS objects** - Model files (~100MB)
 - **Go modules** - Dependencies from go.sum
 - **Rust/Cargo** - Tokenizers compilation
-- **ONNX Runtime** - Pre-built libraries (version 1.23.1)
+- **ONNX Runtime** - Pre-built libraries (version 1.24.2)
 - **Python packages** (macOS only) - ONNX Runtime Python
 - **Node modules** - via `cache: 'npm'`
 

@@ -34,9 +34,9 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 try:
-    from model.model import MultiTaskPIIDetectionModel
+    from model.model import PIIDetectionModel
 except ImportError:
-    from .model import MultiTaskPIIDetectionModel
+    from .model import PIIDetectionModel
 
 
 # =============================================================================
@@ -74,7 +74,6 @@ class PIIModelLoader:
         self.tokenizer = None
         self.pii_label2id = None
         self.pii_id2label = None
-        self.coref_id2label = None
         self.device = get_device()
 
     def load_model(self):
@@ -97,15 +96,6 @@ class PIIModelLoader:
         self.pii_id2label = {int(k): v for k, v in mappings["pii"]["id2label"].items()}
         logging.info(f"✅ Loaded {len(self.pii_label2id)} PII label mappings")
 
-        # Load co-reference label mappings
-        if "coref" in mappings:
-            self.coref_id2label = {
-                int(k): v for k, v in mappings["coref"]["id2label"].items()
-            }
-            logging.info(
-                f"✅ Loaded {len(self.coref_id2label)} co-reference label mappings"
-            )
-
         # Load tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_path)
         logging.info("✅ Loaded tokenizer")
@@ -123,19 +113,13 @@ class PIIModelLoader:
             if base_model_name == "distilbert":
                 base_model_name = "distilbert-base-cased"
         else:
-            base_model_name = "distilbert-base-cased"
+            base_model_name = "microsoft/deberta-v3-base"
             logging.warning(
-                "⚠️  config.json not found, using default: distilbert-base-cased"
+                "⚠️  config.json not found, using default: microsoft/deberta-v3-base"
             )
 
         # Determine number of labels
         num_pii_labels = len(self.pii_label2id)
-
-        # Determine num_coref_labels from mappings (use max ID + 1 if available)
-        if self.coref_id2label:
-            num_coref_labels = max(self.coref_id2label.keys()) + 1
-        else:
-            num_coref_labels = 2
 
         # Find model weights file
         model_weights_path = Path(self.model_path) / "pytorch_model.bin"
@@ -149,7 +133,6 @@ class PIIModelLoader:
                     model_weights_path = bin_files[0]
                     logging.info(f"   Found weights: {model_weights_path.name}")
 
-        # Load model weights first to determine correct num_coref_labels
         state_dict = None
         if model_weights_path.exists():
             logging.info(f"📦 Loading weights from: {model_weights_path.name}")
@@ -174,27 +157,15 @@ class PIIModelLoader:
                     if k.startswith("model.")
                 }
 
-            # Infer num_coref_labels from model weights
-            for key in state_dict.keys():
-                if "coref_classifier.weight" in key:
-                    num_coref_labels = state_dict[key].shape[0]
-                    logging.info(
-                        f"   Detected {num_coref_labels} co-reference labels from model weights"
-                    )
-                    break
-
         logging.info("📋 Model configuration:")
         logging.info(f"   Base model: {base_model_name}")
         logging.info(f"   PII labels: {num_pii_labels}")
-        logging.info(f"   Co-reference labels: {num_coref_labels}")
 
-        # Load multi-task model
-        self.model = MultiTaskPIIDetectionModel(
+        # Load PII detection model
+        self.model = PIIDetectionModel(
             model_name=base_model_name,
             num_pii_labels=num_pii_labels,
-            num_coref_labels=num_coref_labels,
             id2label_pii=self.pii_id2label,
-            id2label_coref=self.coref_id2label or {0: "NO_COREF", 1: "CLUSTER_0"},
         )
 
         # Load model weights into the model
@@ -266,22 +237,20 @@ class PIIModelLoader:
         )
 
         offset_mapping = inputs.pop("offset_mapping")[0]
+        inputs.pop("token_type_ids", None)
         inputs = {k: v.to(self.device) for k, v in inputs.items()}
 
-        # Run inference with multi-task model
+        # Run inference
         with torch.no_grad():
             outputs = self.model(**inputs)
             # Get PII predictions
             pii_predictions = torch.argmax(outputs["pii_logits"], dim=-1)[0]
-            # Get co-reference predictions
-            coref_predictions = torch.argmax(outputs["coref_logits"], dim=-1)[0]
 
         # Convert predictions to labels
         tokens = self.tokenizer.convert_ids_to_tokens(inputs["input_ids"][0])
         predicted_labels = [
             self.pii_id2label.get(p.item(), "O") for p in pii_predictions
         ]
-        predicted_coref_ids = [p.item() for p in coref_predictions]
 
         # Extract entities
         entities = []
@@ -416,65 +385,10 @@ class PIIModelLoader:
                     )
                 )
 
-        # Extract co-reference clusters
-        coref_clusters: dict[int, list[tuple[str, int, int]]] = {}
-        for token, coref_id, offset in zip(
-            tokens, predicted_coref_ids, offset_mapping, strict=True
-        ):
-            # Skip special tokens
-            if token in [
-                self.tokenizer.cls_token,
-                self.tokenizer.sep_token,
-                self.tokenizer.pad_token,
-            ]:
-                continue
-
-            # Skip NO_COREF (typically 0)
-            if coref_id == 0:
-                continue
-
-            # Get the text span for this token
-            start_pos = offset[0].item()
-            end_pos = offset[1].item()
-            token_text = text[start_pos:end_pos]
-
-            # Add to cluster
-            if coref_id not in coref_clusters:
-                coref_clusters[coref_id] = []
-            coref_clusters[coref_id].append((token_text, start_pos, end_pos))
-
-        # Merge adjacent tokens in the same cluster
-        merged_clusters: dict[int, list[tuple[str, int, int]]] = {}
-        for cluster_id, spans in coref_clusters.items():
-            if not spans:
-                continue
-
-            # Sort by start position
-            spans = sorted(spans, key=lambda x: x[1])
-            merged = []
-            current_span = spans[0]
-
-            for span in spans[1:]:
-                token_text, start_pos, end_pos = span
-                prev_text, prev_start, prev_end = current_span
-
-                # If adjacent or overlapping, merge
-                if start_pos <= prev_end:
-                    # Merge tokens
-                    merged_text = text[prev_start:end_pos]
-                    current_span = (merged_text, prev_start, end_pos)
-                else:
-                    # Save current and start new
-                    merged.append(current_span)
-                    current_span = span
-
-            merged.append(current_span)
-            merged_clusters[cluster_id] = merged
-
         end_time = time.perf_counter()
         inference_time_ms = (end_time - start_time) * 1000
 
-        return entities, merged_clusters, inference_time_ms
+        return entities, {}, inference_time_ms
 
 
 # =============================================================================

@@ -188,15 +188,15 @@ const launchGoBinary = () => {
   // In development mode, set ONNX Runtime library path
   // Try multiple locations relative to project root
   const onnxPaths = [
-    path.join(projectRoot, "build", "libonnxruntime.1.23.1.dylib"), // build/libonnxruntime.1.23.1.dylib
+    path.join(projectRoot, "build", "libonnxruntime.1.24.2.dylib"), // build/libonnxruntime.1.24.2.dylib
     path.join(
       projectRoot,
       "src",
       "frontend",
       "resources",
-      "libonnxruntime.1.23.1.dylib"
-    ), // src/frontend/resources/libonnxruntime.1.23.1.dylib
-    path.join(projectRoot, "libonnxruntime.1.23.1.dylib"), // root/libonnxruntime.1.23.1.dylib
+      "libonnxruntime.1.24.2.dylib"
+    ), // src/frontend/resources/libonnxruntime.1.24.2.dylib
+    path.join(projectRoot, "libonnxruntime.1.24.2.dylib"), // root/libonnxruntime.1.24.2.dylib
   ];
 
   // Also try to find in Python venv
@@ -209,7 +209,7 @@ const launchGoBinary = () => {
       "site-packages",
       "onnxruntime",
       "capi",
-      "libonnxruntime.1.23.2.dylib"
+      "libonnxruntime.1.24.2.dylib"
     );
     if (fs.existsSync(venvLib)) {
       onnxPaths.unshift(venvLib); // Check venv first
@@ -580,7 +580,7 @@ function createTray() {
       label: "Documentation",
       click: () => {
         require("electron").shell.openExternal(
-          "https://github.com/hanneshapke/kiji-proxy/blob/main/docs/README.md"
+          "https://github.com/dataiku/kiji-proxy/blob/main/docs/README.md"
         );
       },
     },
@@ -588,7 +588,7 @@ function createTray() {
       label: "File a Bug Report",
       click: () => {
         require("electron").shell.openExternal(
-          "https://github.com/hanneshapke/kiji-proxy/issues/new?template=10_bug_report.yml"
+          "https://github.com/dataiku/kiji-proxy/issues/new?template=10_bug_report.yml"
         );
       },
     },
@@ -596,7 +596,7 @@ function createTray() {
       label: "Request a Feature",
       click: () => {
         require("electron").shell.openExternal(
-          "https://github.com/hanneshapke/kiji-proxy/discussions/new/choose"
+          "https://github.com/dataiku/kiji-proxy/discussions/new/choose"
         );
       },
     },
@@ -652,12 +652,12 @@ function createWindow() {
   });
 
   // Load the app
-  // In both dev and production, the Go backend serves the UI on port 8080
-  // The backend embeds the UI files when built with the 'embed' tag
-  const startUrl = "http://localhost:8080";
+  // In development, use the webpack dev server for full React errors and HMR.
+  // In production, load the UI served by the Go backend.
+  const startUrl = isDev ? "http://localhost:3000" : "http://localhost:8080";
 
   console.log("[DEBUG] Mode:", isDev ? "development" : "production");
-  console.log("[DEBUG] Loading UI from Go backend at:", startUrl);
+  console.log("[DEBUG] Loading UI at:", startUrl);
   console.log("[DEBUG] __dirname:", __dirname);
 
   // Retry loading the page if it fails (safety net in case backend becomes

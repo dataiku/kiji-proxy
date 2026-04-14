@@ -264,7 +264,7 @@ def _generate_quantized_model_card(
 """
 
     # Base model reference (the trained model)
-    base_model_value = trained_repo_id or "distilbert-base-cased"
+    base_model_value = trained_repo_id or "microsoft/deberta-v3-small"
 
     trained_section = ""
     if trained_repo_id:
@@ -394,7 +394,7 @@ def upload_model_to_huggingface(
     model_dir: str | None = None,
     repo_id: str | None = None,
     private: bool = True,
-    base_model: str = "distilbert-base-cased",
+    base_model: str = "microsoft/deberta-v3-small",
     dataset_repo_id: str | None = None,
     trained_repo_id: str | None = None,
     quantized_repo_id: str | None = None,
@@ -541,8 +541,8 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--base-model",
-        default="distilbert-base-cased",
-        help="Base model name for fine-tuning (default: distilbert-base-cased)",
+        default="microsoft/deberta-v3-small",
+        help="Base model name for fine-tuning (default: microsoft/deberta-v3-small)",
     )
     parser.add_argument(
         "--dataset-repo-id",

@@ -69,20 +69,20 @@ flags.DEFINE_boolean(
 )
 
 try:
-    from model.src.model import MultiTaskPIIDetectionModel
+    from model.src.model import PIIDetectionModel
 except ImportError:
     # Fallback to importing from same directory
     sys.path.insert(0, str(Path(__file__).parent))
-    from model import MultiTaskPIIDetectionModel
+    from model import PIIDetectionModel
 
 # absl.logging is already configured, no need for basicConfig
 
 
-def load_multitask_model(
+def load_model(
     model_path: str,
-) -> tuple[MultiTaskPIIDetectionModel, dict, AutoTokenizer]:
+) -> tuple[PIIDetectionModel, dict, AutoTokenizer]:
     """
-    Load the multi-task model, label mappings, and tokenizer.
+    Load the PII detection model, label mappings, and tokenizer.
 
     Args:
         model_path: Path to the model directory
@@ -106,11 +106,6 @@ def load_multitask_model(
 
     pii_label2id = mappings["pii"]["label2id"]
     pii_id2label = {int(k): v for k, v in mappings["pii"]["id2label"].items()}
-    coref_id2label = (
-        {int(k): v for k, v in mappings["coref"]["id2label"].items()}
-        if "coref" in mappings
-        else {0: "NO_COREF", 1: "CLUSTER_0"}
-    )
 
     logging.info(f"✅ Loaded {len(pii_label2id)} PII label mappings")
 
@@ -120,31 +115,36 @@ def load_multitask_model(
 
     # Load model config
     config_path = model_path / "config.json"
+    # Map model_type shortnames to full HuggingFace model identifiers
+    model_type_defaults = {
+        "distilbert": "distilbert-base-cased",
+        "roberta": "roberta-base",
+        "deberta-v2": "microsoft/deberta-v3-base",
+    }
+
     if config_path.exists():
         with config_path.open() as f:
             model_config = json.load(f)
-        base_model_name = model_config.get("_name_or_path") or model_config.get(
-            "model_type", "distilbert"
-        )
-        if base_model_name == "distilbert":
-            base_model_name = "distilbert-base-cased"
+        base_model_name = model_config.get("_name_or_path", "")
+        if not base_model_name or base_model_name in model_type_defaults:
+            model_type = model_config.get("model_type", "distilbert")
+            base_model_name = model_type_defaults.get(
+                model_type, "microsoft/deberta-v3-base"
+            )
     else:
-        base_model_name = "distilbert-base-cased"
+        base_model_name = "microsoft/deberta-v3-base"
         logging.warning(
-            "⚠️  config.json not found, using default: distilbert-base-cased"
+            "⚠️  config.json not found, using default: microsoft/deberta-v3-base"
         )
 
     # Determine number of labels
     num_pii_labels = len(pii_label2id)
-    num_coref_labels = len(coref_id2label)
 
-    # Load multi-task model
-    model = MultiTaskPIIDetectionModel(
+    # Load PII detection model
+    model = PIIDetectionModel(
         model_name=base_model_name,
         num_pii_labels=num_pii_labels,
-        num_coref_labels=num_coref_labels,
         id2label_pii=pii_id2label,
-        id2label_coref=coref_id2label,
     )
 
     # Load model weights
@@ -190,45 +190,44 @@ def load_multitask_model(
 
     label_mappings = {
         "pii": {"label2id": pii_label2id, "id2label": pii_id2label},
-        "coref": {"id2label": coref_id2label},
     }
 
     return model, label_mappings, tokenizer
 
 
-class MultiTaskModelWrapper(torch.nn.Module):
-    """Wrapper to export multi-task model that returns tuple instead of dict."""
+class ModelWrapper(torch.nn.Module):
+    """Wrapper to export model that returns tensor instead of dict."""
 
-    def __init__(self, multitask_model: MultiTaskPIIDetectionModel):
+    def __init__(self, model: PIIDetectionModel):
         """Initialize wrapper."""
         super().__init__()
-        self.model = multitask_model
+        self.model = model
 
     def forward(self, input_ids: torch.Tensor, attention_mask: torch.Tensor):
-        """Forward pass returning tuple of (pii_logits, coref_logits)."""
+        """Forward pass returning pii_logits tensor."""
         outputs = self.model(input_ids=input_ids, attention_mask=attention_mask)
-        return outputs["pii_logits"], outputs["coref_logits"]
+        return outputs["pii_logits"]
 
 
 def export_to_onnx(
-    model: MultiTaskPIIDetectionModel,
+    model: PIIDetectionModel,
     tokenizer: AutoTokenizer,
     output_path: str,
     opset: int = 18,
 ):
     """
-    Export the full multi-task model to ONNX (both PII and co-reference detection).
+    Export the PII detection model to ONNX format.
 
     Args:
-        model: The multi-task model
+        model: The PII detection model
         tokenizer: The tokenizer
         output_path: Path to save the ONNX model
         opset: ONNX opset version
     """
-    logging.info("🔄 Exporting multi-task model to ONNX...")
+    logging.info("🔄 Exporting PII detection model to ONNX...")
 
-    # Wrap model to return tuple instead of dict (required for ONNX export)
-    wrapped_model = MultiTaskModelWrapper(model)
+    # Wrap model to return tensor instead of dict (required for ONNX export)
+    wrapped_model = ModelWrapper(model)
     wrapped_model.eval()
 
     # Create dummy input for tracing
@@ -245,25 +244,45 @@ def export_to_onnx(
 
     onnx_path = output_path / "model.onnx"
 
-    # Export full multi-task model to ONNX
+    # Export PII detection model to ONNX
+    # Use dynamo=False to force the legacy TorchScript-based exporter,
+    # which is much faster for DeBERTa's disentangled attention layers.
     torch.onnx.export(
         wrapped_model,
         (inputs["input_ids"], inputs["attention_mask"]),
         str(onnx_path),
         input_names=["input_ids", "attention_mask"],
-        output_names=["pii_logits", "coref_logits"],
+        output_names=["pii_logits"],
         dynamic_axes={
             "input_ids": {0: "batch_size", 1: "sequence_length"},
             "attention_mask": {0: "batch_size", 1: "sequence_length"},
             "pii_logits": {0: "batch_size", 1: "sequence_length"},
-            "coref_logits": {0: "batch_size", 1: "sequence_length"},
         },
         opset_version=opset,
         do_constant_folding=True,
+        dynamo=False,
     )
 
-    logging.info(f"✅ Multi-task model exported to: {onnx_path}")
-    logging.info("   Outputs: pii_logits, coref_logits")
+    logging.info(f"✅ PII detection model exported to: {onnx_path}")
+    logging.info("   Outputs: pii_logits")
+
+    # Export CRF transition parameters for Viterbi decoding in Go
+    if hasattr(model, "crf"):
+        crf_params = {
+            "transitions": model.crf.transitions.detach().cpu().numpy().tolist(),
+            "start_transitions": model.crf.start_transitions.detach()
+            .cpu()
+            .numpy()
+            .tolist(),
+            "end_transitions": model.crf.end_transitions.detach()
+            .cpu()
+            .numpy()
+            .tolist(),
+        }
+        crf_path = output_path / "crf_transitions.json"
+        with open(crf_path, "w") as f:
+            json.dump(crf_params, f)
+        logging.info(f"✅ CRF transition parameters exported to: {crf_path}")
 
     # Copy tokenizer files to output directory
     logging.info("📋 Copying tokenizer files...")
@@ -301,8 +320,6 @@ def export_to_onnx(
     # beyond 512, causing PII at the end of long texts to be missed.
     tokenizer_json_path = Path(output_path) / "tokenizer.json"
     if tokenizer_json_path.exists():
-        import json
-
         with open(tokenizer_json_path) as f:
             tok_data = json.load(f)
         if tok_data.get("truncation") is not None:
@@ -416,7 +433,7 @@ def main(argv):
 
     try:
         # Load model
-        model, label_mappings, tokenizer = load_multitask_model(FLAGS.model_path)
+        model, label_mappings, tokenizer = load_model(FLAGS.model_path)
 
         # Export to ONNX
         export_to_onnx(model, tokenizer, FLAGS.output_path, FLAGS.opset)
