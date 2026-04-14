@@ -394,11 +394,15 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# Create symlink to electron in local node_modules for electron-builder (workspace fix)
-echo "Creating symlink to electron from root node_modules..."
+# Create symlinks to packages in root node_modules for electron-builder (workspace fix)
+# electron-builder only looks in src/frontend/node_modules/ when bundling the asar,
+# but npm workspaces hoists dependencies to the root node_modules/.
+echo "Creating symlinks to packages from root node_modules..."
 mkdir -p node_modules
-ln -sf ../../../node_modules/electron node_modules/electron
-ln -sf ../../../node_modules/electron-builder node_modules/electron-builder
+ln -sfn ../../../node_modules/electron node_modules/electron
+ln -sfn ../../../node_modules/electron-builder node_modules/electron-builder
+ln -sfn ../../../node_modules/electron-updater node_modules/electron-updater
+ln -sfn ../../../node_modules/@sentry node_modules/@sentry
 
 # Verify symlinks
 if [ -L "node_modules/electron" ]; then
