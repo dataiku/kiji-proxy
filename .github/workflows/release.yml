@@ -188,11 +188,14 @@ jobs:
             fi
           done
 
-      - name: Upload DMG as Artifact
+      - name: Upload Build Artifacts
         uses: actions/upload-artifact@v7
         with:
           name: dmg-assets
-          path: src/frontend/release/*.dmg
+          path: |
+            src/frontend/release/*.dmg
+            src/frontend/release/*.zip
+            src/frontend/release/latest-mac.yml
           retention-days: 90
 
       - name: Build Summary
@@ -548,6 +551,8 @@ jobs:
           # Collect all release assets into a flat directory
           mkdir -p assets
           cp release-assets/dmg-assets/*.dmg assets/ 2>/dev/null || true
+          cp release-assets/dmg-assets/*.zip assets/ 2>/dev/null || true
+          cp release-assets/dmg-assets/latest-mac.yml assets/ 2>/dev/null || true
           cp release-assets/linux-assets/*.tar.gz assets/ 2>/dev/null || true
           cp release-assets/linux-assets/*.tar.gz.sha256 assets/ 2>/dev/null || true
           cp release-assets/chrome-assets/*.zip assets/ 2>/dev/null || true
