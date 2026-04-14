@@ -154,12 +154,20 @@ jobs:
           cd src/frontend
           npm ci
 
+      - name: Write Apple API key to file
+        run: |
+          mkdir -p "$RUNNER_TEMP/apple"
+          echo "$APPLE_API_KEY" > "$RUNNER_TEMP/apple/AuthKey.p8"
+          chmod 600 "$RUNNER_TEMP/apple/AuthKey.p8"
+        env:
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+
       - name: Build DMG
         run: make build-dmg
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY: ${{ runner.temp }}/apple/AuthKey.p8
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
 

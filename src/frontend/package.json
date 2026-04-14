@@ -117,7 +117,6 @@
       "minimumSystemVersion": "10.13"
     },
     "afterPack": "../../src/scripts/remove-locales.js",
-    "afterSign": "../../src/scripts/notarize.js",
     "dmg": {
       "title": "${productName} ${version}",
       "background": "assets/dmg-background.png",
