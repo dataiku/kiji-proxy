@@ -41,7 +41,7 @@ func (p *GeminiProvider) ExtractRequestText(data map[string]interface{}) (string
 	// Gemini uses "contents" array with "parts" containing "text"
 	contents, ok := data["contents"].([]interface{})
 	if !ok {
-		return "", fmt.Errorf("No 'contents' field in Gemini request.")
+		return "", fmt.Errorf("no 'contents' field in Gemini request")
 	}
 
 	var result strings.Builder
@@ -71,7 +71,7 @@ func (p *GeminiProvider) ExtractResponseText(data map[string]interface{}) (strin
 	// Gemini response has "candidates" array with "content.parts[].text"
 	candidates, ok := data["candidates"].([]interface{})
 	if !ok || len(candidates) == 0 {
-		return "", fmt.Errorf("No candidates in Gemini response.")
+		return "", fmt.Errorf("no candidates in Gemini response")
 	}
 
 	var result strings.Builder
@@ -149,10 +149,10 @@ func (p *GeminiProvider) RestoreMaskedResponse(maskedResponse map[string]interfa
 	// Iterate over all 'candidates' in the Gemini response
 	candidates, ok := maskedResponse["candidates"].([]interface{})
 	if !ok || len(candidates) == 0 {
-		return fmt.Errorf("No candidates in Gemini response.")
+		return fmt.Errorf("no candidates in Gemini response")
 	}
 
-	err := fmt.Errorf("No PII to reverse in Gemini response 'candidates' field.")
+	err := fmt.Errorf("no PII to reverse in Gemini response 'candidates' field")
 	for _, candidate := range candidates {
 		candidateMap, ok := candidate.(map[string]interface{})
 		if !ok {

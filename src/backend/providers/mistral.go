@@ -41,7 +41,7 @@ func (p *MistralProvider) ExtractRequestText(data map[string]interface{}) (strin
 	// Mistral uses same "messages" format as OpenAI
 	messages, ok := data["messages"].([]interface{})
 	if !ok {
-		return "", fmt.Errorf("No messages field in Mistral request")
+		return "", fmt.Errorf("no messages field in Mistral request")
 	}
 
 	var result strings.Builder
@@ -61,7 +61,7 @@ func (p *MistralProvider) ExtractResponseText(data map[string]interface{}) (stri
 	// Mistral uses same "choices" format as OpenAI
 	choices, ok := data["choices"].([]interface{})
 	if !ok || len(choices) == 0 {
-		return "", fmt.Errorf("No choices in Mistral response")
+		return "", fmt.Errorf("no choices in Mistral response")
 	}
 
 	var result strings.Builder
@@ -119,10 +119,10 @@ func (p *MistralProvider) RestoreMaskedResponse(maskedResponse map[string]interf
 	// Mistral uses same "choices" format as OpenAI
 	choices, ok := maskedResponse["choices"].([]interface{})
 	if !ok || len(choices) == 0 {
-		return fmt.Errorf("No choices in Mistral response.")
+		return fmt.Errorf("no choices in Mistral response")
 	}
 
-	err := fmt.Errorf("No PII to reverse in Mistral response 'choices' field.")
+	err := fmt.Errorf("no PII to reverse in Mistral response 'choices' field")
 	for i := range choices {
 		choice := choices[i].(map[string]interface{})
 

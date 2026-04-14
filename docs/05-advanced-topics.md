@@ -1106,7 +1106,7 @@ ls -la build/tokenizers/libtokenizers.a && echo "Cached" || echo "Will rebuild"
 ## Getting Help
 
 **Documentation Issues:**
-- Open issue: https://github.com/hanneshapke/kiji-proxy/issues
+- Open issue: https://github.com/dataiku/kiji-proxy/issues
 
 **Bug Reports:**
 - Include OS version, steps to reproduce, logs

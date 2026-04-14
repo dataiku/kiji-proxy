@@ -6,7 +6,7 @@ export function getTourSteps(): StepOptions[] {
     {
       id: "welcome",
       attachTo: { element: "#tour-header", on: "bottom" },
-      title: "Welcome to Yaak Privacy Proxy",
+      title: "Welcome to Kiji Privacy Proxy",
       text: "This is your privacy-first proxy for LLM requests. It detects and masks personal information before sending your data to AI providers.",
       buttons: [
         {

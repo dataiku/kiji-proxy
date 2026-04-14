@@ -295,6 +295,24 @@ def export_to_onnx(
 
     # Save tokenizer to output directory
     tokenizer.save_pretrained(str(output_path))
+
+    # Remove truncation from tokenizer.json — the Go backend handles chunking
+    # itself and the tokenizer's built-in truncation silently drops tokens
+    # beyond 512, causing PII at the end of long texts to be missed.
+    tokenizer_json_path = Path(output_path) / "tokenizer.json"
+    if tokenizer_json_path.exists():
+        import json
+
+        with open(tokenizer_json_path) as f:
+            tok_data = json.load(f)
+        if tok_data.get("truncation") is not None:
+            tok_data["truncation"] = None
+            with open(tokenizer_json_path, "w") as f:
+                json.dump(tok_data, f, indent=2, ensure_ascii=False)
+            logging.info(
+                "Removed truncation from tokenizer.json (handled by Go chunking)"
+            )
+
     logging.info("✅ Tokenizer files saved")
 
     return str(onnx_path)

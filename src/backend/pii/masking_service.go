@@ -84,6 +84,8 @@ func (s *MaskingService) MaskText(text string, logPrefix string) MaskedResult {
 	}
 
 	// Replace PII with masked text and create mapping
+	// Entities are sorted by StartPos descending, so replacing from end to start
+	// preserves earlier byte offsets.
 	for _, entity := range entities {
 		originalText := entity.Text
 		if originalText == "" {
@@ -94,8 +96,16 @@ func (s *MaskingService) MaskText(text string, logPrefix string) MaskedResult {
 		// Store mapping for restoration
 		maskedToOriginal[maskedEntityText] = originalText
 
-		// Replace in the text
-		maskedText = strings.Replace(maskedText, originalText, maskedEntityText, 1)
+		// Use position-based replacement to avoid matching the wrong occurrence
+		// (e.g., a single letter "s" from a possessive suffix)
+		start := entity.StartPos
+		end := entity.EndPos
+		if start >= 0 && end <= len(maskedText) && start < end {
+			maskedText = maskedText[:start] + maskedEntityText + maskedText[end:]
+		} else {
+			// Fallback to string replacement if positions are invalid
+			maskedText = strings.Replace(maskedText, originalText, maskedEntityText, 1)
+		}
 	}
 
 	return MaskedResult{

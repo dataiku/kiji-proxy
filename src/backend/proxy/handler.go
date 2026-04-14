@@ -184,6 +184,13 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			// Build PII entities array only (minimal data)
 			piiEntities := make([]map[string]interface{}, 0)
 			for _, entity := range processed.Entities {
+				// Skip entities with very short text (1-2 chars) — these are
+				// tokenizer artifacts (e.g., possessive "'s" split into "s")
+				// that cause false highlights via string matching in the UI.
+				if len(entity.Text) <= 2 {
+					continue
+				}
+
 				// Find the masked text for this entity
 				var maskedText string
 				for masked, original := range processed.MaskedToOriginal {
@@ -203,17 +210,25 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				})
 			}
 
-			// Extract message text only (not full JSON) to save memory
-			maskedMessageText := originalText
-			for masked, original := range processed.MaskedToOriginal {
-				maskedMessageText = strings.ReplaceAll(maskedMessageText, original, masked)
+			// Extract masked message text from the already-redacted request body
+			// (avoids string-based replacement which breaks on short PII like "s")
+			var maskedMessageText string
+			var redactedData map[string]interface{}
+			if err := json.Unmarshal(processed.RedactedBody, &redactedData); err == nil {
+				maskedMessageText, _ = (*provider).ExtractRequestText(redactedData)
+			} else {
+				maskedMessageText = originalText
 			}
 
-			// Extract response text
+			// Extract response text (already restored to original PII)
 			responseText, _ := (*provider).ExtractResponseText(responseData)
-			maskedResponseText := responseText
-			for masked, original := range processed.MaskedToOriginal {
-				maskedResponseText = strings.ReplaceAll(maskedResponseText, original, masked)
+			// Build masked version from the pre-restoration response body
+			var maskedResponseText string
+			var preRestorationData map[string]interface{}
+			if err := json.Unmarshal(respBody, &preRestorationData); err == nil {
+				maskedResponseText, _ = (*provider).ExtractResponseText(preRestorationData)
+			} else {
+				maskedResponseText = responseText
 			}
 
 			// Add MINIMAL PII details to response (no full JSON duplicates)

@@ -23,7 +23,7 @@ jobs:
 
     steps:
       - name: Delete artifacts older than 7 days
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const daysToKeep = 7;
@@ -75,7 +75,7 @@ jobs:
               .write();
 
       - name: Delete artifacts from failed runs
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const dryRun = ${{ github.event.inputs.dry_run || 'true' }};

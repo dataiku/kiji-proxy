@@ -97,6 +97,22 @@ Deep dive into advanced features, security, and troubleshooting.
 
 ---
 
+### [Chapter 7: Customizing the PII Model](07-customizing-pii-model.md)
+
+Train a custom PII detection model with your own entity types, data, and domain-specific needs.
+
+**Topics:**
+- Generating synthetic training data (Doubleword or OpenAI)
+- Using HuggingFace datasets (`dataiku/kiji-pii-training-data`)
+- Customizing entity types in `label_utils.py`
+- Reviewing and correcting data in Label Studio
+- Running the Metaflow training pipeline
+- Loading a custom model in the desktop app
+
+**Start here if you're:** Adding new PII entity types, retraining the model, or adapting Kiji to your domain.
+
+---
+
 ## Quick Links
 
 ### Getting Started
@@ -125,6 +141,12 @@ Deep dive into advanced features, security, and troubleshooting.
 - [Automatic Proxy (PAC) Setup](transparent-proxy-setup.md)
 - [Model Signing](05-advanced-topics.md#model-signing)
 - [Troubleshooting](05-advanced-topics.md#build-troubleshooting)
+
+### Model Customization
+- [Generating Training Data](07-customizing-pii-model.md#generating-training-data)
+- [Reviewing Data in Label Studio](07-customizing-pii-model.md#reviewing-data-in-label-studio)
+- [Training with Metaflow](07-customizing-pii-model.md#training-the-model-with-metaflow)
+- [Loading a Custom Model](07-customizing-pii-model.md#loading-your-custom-model-in-the-app)
 
 ## Document Status
 
@@ -166,8 +188,8 @@ When updating documentation:
 
 - **Installation Issues:** See [Getting Started](01-getting-started.md#troubleshooting)
 - **Configuration Help:** See [Advanced Topics](05-advanced-topics.md)
-- **Bug Reports:** [GitHub Issues](https://github.com/hanneshapke/kiji-proxy/issues)
-- **Questions:** [GitHub Discussions](https://github.com/hanneshapke/kiji-proxy/discussions)
+- **Bug Reports:** [GitHub Issues](https://github.com/dataiku/kiji-proxy/issues)
+- **Questions:** [GitHub Discussions](https://github.com/dataiku/kiji-proxy/discussions)
 
 ### For Developers
 
@@ -188,10 +210,10 @@ See LICENSE file in the repository root.
 
 ## Project Links
 
-- **Repository:** https://github.com/hanneshapke/kiji-proxy
-- **Issues:** https://github.com/hanneshapke/kiji-proxy/issues
-- **Releases:** https://github.com/hanneshapke/kiji-proxy/releases
-- **Discussions:** https://github.com/hanneshapke/kiji-proxy/discussions
+- **Repository:** https://github.com/dataiku/kiji-proxy
+- **Issues:** https://github.com/dataiku/kiji-proxy/issues
+- **Releases:** https://github.com/dataiku/kiji-proxy/releases
+- **Discussions:** https://github.com/dataiku/kiji-proxy/discussions
 
 ---
 

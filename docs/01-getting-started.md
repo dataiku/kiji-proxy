@@ -55,7 +55,7 @@ The backend supports two proxy modes that can run simultaneously:
 
 ### macOS (Desktop App)
 
-1. Download the latest DMG from [Releases](https://github.com/hanneshapke/kiji-proxy/releases)
+1. Download the latest DMG from [Releases](https://github.com/dataiku/kiji-proxy/releases)
 2. Open the DMG file
 3. Drag "Kiji Privacy Proxy" to Applications
 4. Launch the app
@@ -66,7 +66,7 @@ The app is code-signed and notarized, so it should launch without any macOS Gate
 
 ### Linux (Standalone Backend)
 
-1. Download the latest tarball from [Releases](https://github.com/hanneshapke/kiji-proxy/releases)
+1. Download the latest tarball from [Releases](https://github.com/dataiku/kiji-proxy/releases)
 2. Extract:
 ```bash
 tar -xzf kiji-privacy-proxy-*-linux-amd64.tar.gz
@@ -92,7 +92,7 @@ The standalone backend runs as a headless server. Configure via environment vari
 **Installation Steps:**
 
 1. **Download DMG:**
-   - Visit [Releases](https://github.com/hanneshapke/kiji-proxy/releases)
+   - Visit [Releases](https://github.com/dataiku/kiji-proxy/releases)
    - Download `Kiji-Privacy-Proxy-{version}.dmg`
 
 2. **Install:**
@@ -162,10 +162,10 @@ See [transparent-proxy-setup.md](transparent-proxy-setup.md) for complete detail
 1. **Download and Extract:**
    ```bash
    # Download
-   wget https://github.com/hanneshapke/kiji-proxy/releases/download/v{version}/kiji-privacy-proxy-{version}-linux-amd64.tar.gz
+   wget https://github.com/dataiku/kiji-proxy/releases/download/v{version}/kiji-privacy-proxy-{version}-linux-amd64.tar.gz
    
    # Verify checksum (optional)
-   wget https://github.com/hanneshapke/kiji-proxy/releases/download/v{version}/kiji-privacy-proxy-{version}-linux-amd64.tar.gz.sha256
+   wget https://github.com/dataiku/kiji-proxy/releases/download/v{version}/kiji-privacy-proxy-{version}-linux-amd64.tar.gz.sha256
    sha256sum -c kiji-privacy-proxy-{version}-linux-amd64.tar.gz.sha256
    
    # Extract
@@ -474,7 +474,7 @@ git push origin main
 **5. Wait for Changesets Action:**
 
 After pushing to main:
-1. Go to [Actions tab](https://github.com/hanneshapke/kiji-proxy/actions)
+1. Go to [Actions tab](https://github.com/dataiku/kiji-proxy/actions)
 2. Find "Changesets Release" workflow
 3. Wait for completion (~1-2 minutes)
 
@@ -486,7 +486,7 @@ After pushing to main:
 
 **6. Review and Merge Version PR:**
 
-1. Go to [Pull Requests](https://github.com/hanneshapke/kiji-proxy/pulls)
+1. Go to [Pull Requests](https://github.com/dataiku/kiji-proxy/pulls)
 2. Find PR titled "chore: version packages"
 3. Review changes:
    - `package.json` - version updated
@@ -527,7 +527,7 @@ Both macOS and Linux builds start automatically:
 
 **9. Verify Release:**
 
-1. Go to [Releases](https://github.com/hanneshapke/kiji-proxy/releases)
+1. Go to [Releases](https://github.com/dataiku/kiji-proxy/releases)
 2. Find "Release v1.0.1"
 3. Verify artifacts:
    - `Kiji-Privacy-Proxy-1.0.1.dmg`

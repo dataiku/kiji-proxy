@@ -569,10 +569,8 @@ class PIITrainer:
             learning_rate=self.config.learning_rate,
             logging_dir=f"{self.config.output_dir}/logs",
             logging_steps=self.config.logging_steps,
-            eval_strategy="steps",
-            eval_steps=self.config.eval_steps,
-            save_strategy="steps",
-            save_steps=self.config.save_steps,
+            eval_strategy="epoch",
+            save_strategy="epoch",
             load_best_model_at_end=True,
             metric_for_best_model="eval_pii_f1",  # Use PII F1 as primary metric
             greater_is_better=True,

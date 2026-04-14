@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { X, Info } from "lucide-react";
-import logoImage from "../../../assets/logo.png";
+import logoImage from "../../../assets/kiji_proxy.svg";
 import TermsModal from "./TermsModal";
 import { GO_SERVER_ADDRESS } from "../../utils/providerHelpers";
 
@@ -59,7 +59,7 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
         <div className="p-6 space-y-6">
           {/* Logo and Name */}
           <div className="flex flex-col items-center text-center">
-            <img src={logoImage} alt="Yaak Logo" className="w-20 h-20 mb-4" />
+            <img src={logoImage} alt="Kiji Logo" className="w-20 h-20 mb-4" />
             <h3 className="text-2xl font-bold text-slate-800">
               Kiji Privacy Proxy
             </h3>
@@ -148,8 +148,16 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
           {/* Copyright */}
           <div className="pt-4 border-t border-slate-200 text-center">
             <p className="text-xs text-slate-500">
-              © {new Date().getFullYear()} 575 Lab - Dataiku's Open Source
-              Office. All rights reserved.
+              © {new Date().getFullYear()} -{" "}
+              <a
+                href="https://www.dataiku.com/company/dataiku-for-the-future/open-source/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:text-blue-700 hover:underline"
+              >
+                575 Lab
+              </a>{" "}
+              - Dataiku's Open Source Office. All rights reserved.
             </p>
           </div>
         </div>
