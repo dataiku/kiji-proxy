@@ -1,5 +1,4 @@
 {
-  "_note": "TODO: Enable notarization by adding \"afterSign\": \"../../src/scripts/notarize.js\" to the build config (requires Developer ID Application certificate)",
   "name": "kiji-privacy-proxy",
   "productName": "Kiji Privacy Proxy",
   "version": "0.4.11",
