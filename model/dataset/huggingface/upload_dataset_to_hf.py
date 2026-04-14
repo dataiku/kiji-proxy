@@ -319,16 +319,34 @@ def _upload_binary_via_git(
         git_env = {**os.environ}
         subprocess.run(
             ["git", "add", ".gitattributes", path_in_repo],
-            cwd=repo_dir, check=True, capture_output=True, env=git_env,
+            cwd=repo_dir,
+            check=True,
+            capture_output=True,
+            env=git_env,
         )
         subprocess.run(
-            ["git", "-c", "user.name=kiji", "-c", "user.email=kiji@575.ai",
-             "commit", "-m", f"Add {path_in_repo}"],
-            cwd=repo_dir, check=True, capture_output=True, env=git_env,
+            [
+                "git",
+                "-c",
+                "user.name=kiji",
+                "-c",
+                "user.email=kiji@575.ai",
+                "commit",
+                "-m",
+                f"Add {path_in_repo}",
+            ],
+            cwd=repo_dir,
+            check=True,
+            capture_output=True,
+            env=git_env,
         )
-        result = subprocess.run(
+        subprocess.run(
             ["git", "push"],
-            cwd=repo_dir, check=True, capture_output=True, text=True, env=git_env,
+            cwd=repo_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+            env=git_env,
         )
         print(f"  Pushed {path_in_repo} via git LFS")
     finally:
