@@ -6,12 +6,10 @@ const {
   nativeImage,
   ipcMain,
   safeStorage,
-  dialog,
 } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const { spawn } = require("child_process");
-const { autoUpdater } = require("electron-updater");
 const isDev = process.env.NODE_ENV === "development";
 
 // Initialize Sentry for error tracking
@@ -22,38 +20,57 @@ Sentry.init({
   tracesSampleRate: 1.0,
 });
 
-// Configure auto-updater (only in production)
-autoUpdater.autoDownload = true;
-autoUpdater.autoInstallOnAppQuit = true;
+// Configure auto-updater (only in production — requires app-update.yml from electron-builder)
+let autoUpdater = null;
+if (!isDev) {
+  autoUpdater = require("electron-updater").autoUpdater;
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
 
-autoUpdater.on("update-available", (info) => {
-  console.log(`[AutoUpdater] Update available: v${info.version}`);
-});
+  autoUpdater.on("update-available", (info) => {
+    console.log(`[AutoUpdater] Update available: v${info.version}`);
+  });
 
-autoUpdater.on("update-downloaded", (info) => {
-  console.log(`[AutoUpdater] Update downloaded: v${info.version}`);
-  dialog
-    .showMessageBox({
-      type: "info",
-      title: "Update Ready",
-      message: `Version ${info.version} has been downloaded. Restart now to apply the update?`,
-      buttons: ["Restart", "Later"],
-    })
-    .then((result) => {
-      if (result.response === 0) {
-        autoUpdater.quitAndInstall();
+  autoUpdater.on("update-downloaded", (info) => {
+    console.log(`[AutoUpdater] Update downloaded: v${info.version}`);
+    updateDownloaded = true;
+    if (mainWindow) {
+      createMenu();
+    }
+    // Swap tray icon to show update badge
+    if (tray) {
+      const updateIconPath = path.join(
+        __dirname,
+        "..",
+        "..",
+        "assets",
+        "icon-16-update.png"
+      );
+      if (fs.existsSync(updateIconPath)) {
+        const updateIcon = nativeImage.createFromPath(updateIconPath);
+        if (process.platform === "darwin") {
+          const resized = updateIcon.resize({ width: 16, height: 16 });
+          resized.setTemplateImage(true);
+          tray.setImage(resized);
+        } else {
+          tray.setImage(updateIcon);
+        }
+        tray.setToolTip("Kiji Privacy Proxy — Update available");
       }
-    });
-});
+      updateTrayMenu();
+    }
+  });
 
-autoUpdater.on("error", (err) => {
-  console.error("[AutoUpdater] Error:", err);
-});
+  autoUpdater.on("error", (err) => {
+    console.error("[AutoUpdater] Error:", err);
+  });
+}
 
 let mainWindow;
 let splashWindow = null;
 let goProcess = null;
 let tray = null;
+let updateDownloaded = false;
 
 // Storage for API key (using safeStorage when available, fallback to encrypted file)
 const getStoragePath = () => {
@@ -509,8 +526,9 @@ function closeSplashWindow() {
 
 // Create system tray icon
 function createTray() {
-  // Use icon-16.png for the menu bar
-  const iconPath = path.join(__dirname, "..", "..", "assets", "icon-16.png");
+  const assetsDir = path.join(__dirname, "..", "..", "assets");
+  const iconFile = updateDownloaded ? "icon-16-update.png" : "icon-16.png";
+  const iconPath = path.join(assetsDir, iconFile);
 
   if (!fs.existsSync(iconPath)) {
     console.warn("Tray icon not found at:", iconPath);
@@ -525,14 +543,35 @@ function createTray() {
     // Mark as template image for automatic dark mode adaptation
     resizedIcon.setTemplateImage(true);
     tray = new Tray(resizedIcon);
-    tray.setToolTip("Kiji Privacy Proxy");
+    tray.setToolTip(
+      updateDownloaded
+        ? "Kiji Privacy Proxy — Update available"
+        : "Kiji Privacy Proxy"
+    );
   } else {
     tray = new Tray(icon);
-    tray.setToolTip("Kiji Privacy Proxy");
+    tray.setToolTip(
+      updateDownloaded
+        ? "Kiji Privacy Proxy — Update available"
+        : "Kiji Privacy Proxy"
+    );
   }
 
-  // Build context menu
-  const contextMenu = Menu.buildFromTemplate([
+  updateTrayMenu();
+
+  // On macOS, left-click shows the context menu (default behavior)
+  // On Windows/Linux, we can add a click handler if needed
+  if (process.platform !== "darwin") {
+    tray.on("click", () => {
+      showMainWindow();
+    });
+  }
+}
+
+function updateTrayMenu() {
+  if (!tray) return;
+
+  const menuItems = [
     {
       label: "Open Kiji Privacy Proxy",
       click: () => {
@@ -543,7 +582,6 @@ function createTray() {
       label: "About Kiji Privacy Proxy",
       click: () => {
         showMainWindow();
-        // Send IPC to open about dialog after a short delay to ensure window is ready
         setTimeout(() => {
           if (mainWindow) {
             mainWindow.webContents.send("open-about");
@@ -555,7 +593,6 @@ function createTray() {
       label: "Settings",
       click: () => {
         showMainWindow();
-        // Send IPC to open settings after a short delay to ensure window is ready
         setTimeout(() => {
           if (mainWindow) {
             mainWindow.webContents.send("open-settings");
@@ -568,7 +605,6 @@ function createTray() {
       label: "Terms && Conditions",
       click: () => {
         showMainWindow();
-        // Send IPC to open terms after a short delay to ensure window is ready
         setTimeout(() => {
           if (mainWindow) {
             mainWindow.webContents.send("open-terms");
@@ -609,23 +645,23 @@ function createTray() {
       },
     },
     { type: "separator" },
+    ...(updateDownloaded
+      ? [
+          {
+            label: "Restart to Update",
+            click: () => autoUpdater.quitAndInstall(),
+          },
+        ]
+      : []),
     {
       label: "Quit Kiji Privacy Proxy",
       click: () => {
         app.quit();
       },
     },
-  ]);
+  ];
 
-  tray.setContextMenu(contextMenu);
-
-  // On macOS, left-click shows the context menu (default behavior)
-  // On Windows/Linux, we can add a click handler if needed
-  if (process.platform !== "darwin") {
-    tray.on("click", () => {
-      showMainWindow();
-    });
-  }
+  tray.setContextMenu(Menu.buildFromTemplate(menuItems));
 }
 
 function createWindow() {
@@ -900,6 +936,14 @@ function createMenu() {
         { role: "hideOthers", label: "Hide Others" },
         { role: "unhide", label: "Show All" },
         { type: "separator" },
+        ...(updateDownloaded
+          ? [
+              {
+                label: "Restart to Update",
+                click: () => autoUpdater.quitAndInstall(),
+              },
+            ]
+          : []),
         { role: "quit", label: "Quit " + app.getName() },
       ],
     });
