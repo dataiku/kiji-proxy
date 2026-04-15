@@ -37,9 +37,10 @@ project_id = 6
 subsample_count = 0
 # ai4privacy/pii-masking-200k samples to add (-1 = none, 0 = all)
 num_ai4privacy_samples = -1
-# Path to audit_allowlist.txt to filter training samples (empty = no filtering)
+# Path to audit ledger TSV to filter training samples (empty = no filtering)
+# Relative paths are resolved from the project root.
 # Generate with: uv run python model/dataset/audit_dataset.py --samples-dir <dir>
-audit_allowlist = "/home/hannes/kiji-proxy/model/dataset/data_samples/training_samples/audit_ledger.tsv"
+audit_allowlist = "model/dataset/data_samples/training_samples/audit_ledger.tsv"
 
 [pipeline]
 # Skip Label Studio export and use existing data from paths.training_samples_dir

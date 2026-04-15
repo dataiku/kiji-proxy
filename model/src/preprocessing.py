@@ -291,6 +291,9 @@ class DatasetProcessor:
         # produced by audit_dataset.py. Only CLEAN samples are kept.
         if self.config.audit_allowlist:
             allowlist_path = Path(self.config.audit_allowlist)
+            if not allowlist_path.is_absolute():
+                repo_root = Path(__file__).parent.parent.parent
+                allowlist_path = repo_root / allowlist_path
             if allowlist_path.exists():
                 clean_files: set[str] = set()
                 for line in allowlist_path.read_text().splitlines():
