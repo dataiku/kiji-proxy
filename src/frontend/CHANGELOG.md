@@ -1,5 +1,11 @@
 # kiji-privacy-proxy
 
+## 0.5.0
+
+### Minor Changes
+
+- 3eb6a12: Change default base model to use RoBERTA
+
 ## 0.4.11
 
 ### Patch Changes
