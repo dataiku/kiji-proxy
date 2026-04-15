@@ -441,6 +441,8 @@ func (d *ONNXModelDetectorSimple) finalizeEntity(entity *Entity, tokenIndices []
 	}
 	if trimmedStart < trimmedEnd {
 		entity.Text = originalText[trimmedStart:trimmedEnd]
+	} else {
+		entity.Text = ""
 	}
 
 	// Safe conversion with bounds checking
