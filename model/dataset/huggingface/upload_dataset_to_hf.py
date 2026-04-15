@@ -7,7 +7,10 @@
 
 import json
 import os
+import shutil
+import subprocess
 import sys
+import tempfile
 from collections import Counter
 from pathlib import Path
 
@@ -277,6 +280,79 @@ This dataset is designed for training token-classification models that detect an
     return card.strip() + "\n"
 
 
+def _upload_binary_via_git(
+    file_path: Path,
+    path_in_repo: str,
+    repo_id: str,
+    token: str,
+) -> None:
+    """Upload a binary file to HuggingFace via git clone + LFS push.
+
+    The HF Hub API rejects binary files and requires Xet/LFS storage.
+    This clones the repo, adds the file with LFS tracking, and pushes.
+    """
+    tmpdir = Path(tempfile.mkdtemp())
+    try:
+        repo_url = f"https://x-access-token:{token}@huggingface.co/datasets/{repo_id}"
+        subprocess.run(
+            ["git", "clone", "--depth", "1", repo_url, str(tmpdir / "repo")],
+            check=True,
+            capture_output=True,
+            env={**os.environ, "GIT_LFS_SKIP_SMUDGE": "1"},
+        )
+        repo_dir = tmpdir / "repo"
+
+        # Ensure the file extension is tracked by LFS
+        ext = file_path.suffix  # e.g. ".tsv"
+        gitattributes = repo_dir / ".gitattributes"
+        lfs_pattern = f"*{ext} filter=lfs diff=lfs merge=lfs -text"
+        if gitattributes.exists():
+            content = gitattributes.read_text()
+            if lfs_pattern not in content:
+                with gitattributes.open("a") as f:
+                    f.write(f"\n{lfs_pattern}\n")
+        else:
+            gitattributes.write_text(f"{lfs_pattern}\n")
+
+        shutil.copy(file_path, repo_dir / path_in_repo)
+
+        git_env = {**os.environ}
+        subprocess.run(
+            ["git", "add", ".gitattributes", path_in_repo],
+            cwd=repo_dir,
+            check=True,
+            capture_output=True,
+            env=git_env,
+        )
+        subprocess.run(
+            [
+                "git",
+                "-c",
+                "user.name=kiji",
+                "-c",
+                "user.email=kiji@575.ai",
+                "commit",
+                "-m",
+                f"Add {path_in_repo}",
+            ],
+            cwd=repo_dir,
+            check=True,
+            capture_output=True,
+            env=git_env,
+        )
+        subprocess.run(
+            ["git", "push"],
+            cwd=repo_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+            env=git_env,
+        )
+        print(f"  Pushed {path_in_repo} via git LFS")
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+
 def upload_to_huggingface(
     samples_dir: str = "model/dataset/data_samples/training_samples",
     repo_id: str | None = None,
@@ -343,7 +419,7 @@ def upload_to_huggingface(
     print(f"\nPushing to {repo_id} (private={private})...")
     dataset_dict.push_to_hub(repo_id, token=token)
 
-    # Generate and upload dataset card
+    # Generate dataset card
     print("Generating dataset card...")
     stats = _compute_dataset_stats(samples)
     card = _generate_dataset_card(
@@ -352,12 +428,28 @@ def upload_to_huggingface(
         train_count=len(dataset_dict["train"]),
         test_count=len(dataset_dict["test"]),
     )
+
+    # Upload dataset card (text file, via API)
     api.upload_file(
         path_or_fileobj=card.encode(),
         path_in_repo="README.md",
         repo_id=repo_id,
         repo_type="dataset",
     )
+
+    # Upload audit ledger via git clone + LFS (HF rejects binary files via API,
+    # requiring Xet/LFS storage via git push)
+    audit_ledger_path = Path(samples_dir) / "audit_ledger.tsv"
+    if audit_ledger_path.exists():
+        print(f"Uploading audit ledger via git LFS: {audit_ledger_path}")
+        _upload_binary_via_git(
+            file_path=audit_ledger_path,
+            path_in_repo="audit_ledger.tsv",
+            repo_id=repo_id,
+            token=token,
+        )
+    else:
+        print(f"Warning: audit_ledger.tsv not found at {audit_ledger_path}, skipping")
 
     print(f"Done! Dataset available at: https://huggingface.co/datasets/{repo_id}")
     print("\nUsage:")
