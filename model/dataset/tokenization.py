@@ -237,26 +237,26 @@ class TokenizationProcessor:
             else:
                 token_ids = list(input_ids)
 
-            # Convert token IDs to token strings
+            # Convert token IDs to clean token strings for punctuation detection.
+            # The tokenizer.decode / convert_tokens_to_string path handles
+            # subword prefixes for any tokenizer family:
+            #   - WordPiece  (DistilBERT):  "##ing"  → "ing"
+            #   - SentencePiece (DeBERTa):  "▁hello" → "hello"
             token_texts = []
             for tid in token_ids:
                 try:
-                    # Convert ID to raw token string (before decoding)
-                    # This preserves punctuation marks better
                     token_str = self.tokenizer.convert_ids_to_tokens([tid])[0]
-                    # For punctuation detection, use the raw token string
-                    # Remove special prefixes like ## for subword tokens, but keep punctuation
-                    if token_str.startswith("##"):
-                        token_text = token_str[2:]
-                    else:
-                        token_text = token_str
-                    # Also try decoded version as fallback for better accuracy
                     decoded_text = self.tokenizer.convert_tokens_to_string([token_str])
-                    # Use decoded text if it's more reliable (non-empty and matches token)
-                    if decoded_text and len(decoded_text.strip()) > 0:
+                    if decoded_text and decoded_text.strip():
                         token_texts.append(decoded_text)
                     else:
-                        token_texts.append(token_text)
+                        # Fallback: strip known subword prefixes manually
+                        cleaned = token_str
+                        if cleaned.startswith("##"):
+                            cleaned = cleaned[2:]
+                        elif cleaned.startswith("\u2581"):
+                            cleaned = cleaned[1:]
+                        token_texts.append(cleaned)
                 except (IndexError, TypeError, AttributeError):
                     token_texts.append("")
         except (TypeError, KeyError, IndexError, AttributeError):
