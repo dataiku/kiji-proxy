@@ -427,17 +427,33 @@ func (d *ONNXModelDetectorSimple) finalizeEntity(entity *Entity, tokenIndices []
 
 	// Extract the actual text from the original string
 	entity.Text = originalText[startOffset[0]:endOffset[1]]
+
+	// Trim leading/trailing whitespace from entity text and adjust offsets.
+	// The SentencePiece Metaspace pre-tokenizer includes the preceding space
+	// character in token offsets.
+	trimmedStart := startOffset[0]
+	trimmedEnd := endOffset[1]
+	for trimmedStart < trimmedEnd && (originalText[trimmedStart] == ' ' || originalText[trimmedStart] == '\t' || originalText[trimmedStart] == '\n' || originalText[trimmedStart] == '\r') {
+		trimmedStart++
+	}
+	for trimmedEnd > trimmedStart && (originalText[trimmedEnd-1] == ' ' || originalText[trimmedEnd-1] == '\t' || originalText[trimmedEnd-1] == '\n' || originalText[trimmedEnd-1] == '\r') {
+		trimmedEnd--
+	}
+	if trimmedStart < trimmedEnd {
+		entity.Text = originalText[trimmedStart:trimmedEnd]
+	}
+
 	// Safe conversion with bounds checking
 	const maxInt = int(^uint(0) >> 1)
-	if startOffset[0] <= uint(maxInt) {
+	if trimmedStart <= uint(maxInt) {
 		// #nosec G115 - Safe conversion with bounds checking
-		entity.StartPos = int(startOffset[0])
+		entity.StartPos = int(trimmedStart)
 	} else {
 		entity.StartPos = maxInt // Max int value
 	}
-	if endOffset[1] <= uint(maxInt) {
+	if trimmedEnd <= uint(maxInt) {
 		// #nosec G115 - Safe conversion with bounds checking
-		entity.EndPos = int(endOffset[1])
+		entity.EndPos = int(trimmedEnd)
 	} else {
 		entity.EndPos = maxInt // Max int value
 	}
