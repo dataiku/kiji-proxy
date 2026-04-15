@@ -1,2 +1,9 @@
 model/quantized/** filter=lfs diff=lfs merge=lfs -text
+model/quantized/model_manifest.json filter= diff= merge= text
+model/quantized/label_mappings.json filter= diff= merge= text
+model/quantized/ort_config.json filter= diff= merge= text
+model/quantized/tokenizer_config.json filter= diff= merge= text
+model/quantized/special_tokens_map.json filter= diff= merge= text
+model/quantized/added_tokens.json filter= diff= merge= text
+model/quantized/crf_transitions.json filter= diff= merge= text
 *.onnx filter=lfs diff=lfs merge=lfs -text

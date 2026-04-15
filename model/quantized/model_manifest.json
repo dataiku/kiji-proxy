@@ -1,3 +1,57 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:22904eaab43572e8aa408a68fc0c92515f7938b1a1be8d40358d9b9a83144e29
-size 1869
+{
+  "model_path": "model/quantized",
+  "hashes": {
+    "sha256": "6e1b6ac2c331d18579a1ce7e8f6867d293ec273c52ed5922abf1e0afb42b10d1",
+    "sha512": "93fb00f4a6e33fa949b038583fba2f387e10361f3a9610634c968a2aef0f42c048a0549c6acb38f65a01319b59508ab62cea7bd57e381e07d2ffdc4fca28f0cc"
+  },
+  "files": [
+    {
+      "path": "added_tokens.json",
+      "sha256": "dc046d04c9b0ada7ae6f1dc89c465801799acdf0c9a6aab8c15a1b2d5ca4e91f"
+    },
+    {
+      "path": "crf_transitions.json",
+      "sha256": "08f3b4e30b6bee7c4b24f1e620871baa7e8456b738540925269d253eefc558ae"
+    },
+    {
+      "path": "label_mappings.json",
+      "sha256": "603307cb87520281858a7f2de08d2e72a748e128f33789fc242a9e030a8ac7a9"
+    },
+    {
+      "path": "model.onnx.data",
+      "sha256": "d93759243fb646966fc12b3e1a2cacedaf0326a94e014194faafdb683a50d98b"
+    },
+    {
+      "path": "model_manifest.json",
+      "sha256": "cc9036b411d9e17a5c15dd6d5387ad12cd7e7e9787a4812d7515ad8145b8a3a5"
+    },
+    {
+      "path": "model_quantized.onnx",
+      "sha256": "ed55898afa51cd40c8ccb1260661a4962c5a8bcc5e7004db1bf3b221bd508d11"
+    },
+    {
+      "path": "ort_config.json",
+      "sha256": "713d4cdeb867f45c821d5f2bc226ed33ac3afcce49a83b1b95dc7b45aca116f9"
+    },
+    {
+      "path": "special_tokens_map.json",
+      "sha256": "b2f1b2f15f29a6b6d9d6ea4eca1675d2c231a71477f151d48f79cc83a625ba21"
+    },
+    {
+      "path": "spm.model",
+      "sha256": "c679fbf93643d19aab7ee10c0b99e460bdbc02fedf34b92b05af343b4af586fd"
+    },
+    {
+      "path": "tokenizer.json",
+      "sha256": "4b4f60231058db4b5794e7b124bb7945bc8ade6719282de4d2e0372ee527b929"
+    },
+    {
+      "path": "tokenizer_config.json",
+      "sha256": "e6c4c771911c211618a2d46488dc7e9e499f051773cd4ff4faeca6fe55fdf569"
+    },
+    {
+      "path": "vocab.txt",
+      "sha256": "eeaa9875b23b04b4c54ef759d03db9d1ba1554838f8fb26c5d96fa551df93d02"
+    }
+  ]
+}
