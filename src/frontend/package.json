@@ -47,7 +47,7 @@
     "autoprefixer": "^10.5.0",
     "babel-loader": "^10.1.1",
     "css-loader": "^6.8.0",
-    "electron": "^41.2.0",
+    "electron": "^41.2.1",
     "electron-builder": "^26.7.0",
     "eslint": "^9.39.2",
     "eslint-plugin-react": "^7.33.0",
