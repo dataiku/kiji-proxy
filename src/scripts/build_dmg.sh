@@ -427,7 +427,7 @@ if [ -z "${CSC_LINK:-}" ]; then
     echo "⚠️  No CSC_LINK set — building app bundle first, then re-signing..."
 
     # Step 1: Build the .app only (--dir skips DMG creation)
-    CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --dir
+    CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --publish never --dir
     if [ $? -ne 0 ]; then
         echo "❌ electron-builder app build failed!"
         exit 1
@@ -485,14 +485,14 @@ if [ -z "${CSC_LINK:-}" ]; then
     echo ""
     echo "📦 Step 12: Creating DMG from signed app..."
     echo "--------------------------------------------"
-    CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --prepackaged "$APP_BUNDLE"
+    CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --publish never --prepackaged "$APP_BUNDLE"
     if [ $? -ne 0 ]; then
         echo "❌ DMG creation failed!"
         exit 1
     fi
 else
     echo "✅ CSC_LINK detected — signing with Developer ID certificate"
-    npx electron-builder
+    npx electron-builder --publish never
     if [ $? -ne 0 ]; then
         echo "❌ electron-builder packaging failed!"
         exit 1
