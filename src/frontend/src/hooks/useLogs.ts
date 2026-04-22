@@ -20,6 +20,10 @@ export function useLogs(isOpen: boolean) {
 
       setIsLoading(true);
       setError(null);
+      if (pageNum === 0) {
+        setLogs([]);
+        setPage(0);
+      }
       try {
         const offset = pageNum * PAGE_SIZE;
         const logsUrl = `${apiUrl("/logs", isElectron)}?limit=${PAGE_SIZE}&offset=${offset}`;
@@ -130,9 +134,6 @@ export function useLogs(isOpen: boolean) {
   // Load logs when modal opens
   useEffect(() => {
     if (isOpen) {
-      setPage(0);
-      setLogs([]);
-      setError(null);
       loadLogs(0);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

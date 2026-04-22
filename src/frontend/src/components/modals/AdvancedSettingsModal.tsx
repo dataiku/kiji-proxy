@@ -35,14 +35,6 @@ export default function AdvancedSettingsModal({
   const [entityConfidence, setEntityConfidence] = useState(0.25);
   const [confidenceSaved, setConfidenceSaved] = useState(false);
 
-  useEffect(() => {
-    if (isOpen && isElectron) {
-      loadModelInfo();
-      loadTransparentProxySetting();
-      loadEntityConfidence();
-    }
-  }, [isOpen]);
-
   const loadTransparentProxySetting = async () => {
     if (!window.electronAPI) return;
 
@@ -64,6 +56,31 @@ export default function AdvancedSettingsModal({
       console.error("Error loading entity confidence:", error);
     }
   };
+
+  const loadModelInfo = async () => {
+    if (!window.electronAPI) return;
+
+    try {
+      const [storedDir, info] = await Promise.all([
+        window.electronAPI.getModelDirectory(),
+        window.electronAPI.getModelInfo(),
+      ]);
+
+      setHasModelDirectory(!!storedDir);
+      setModelDirectory(storedDir || "");
+      setModelInfo(info);
+    } catch (error) {
+      console.error("Error loading model info:", error);
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen && isElectron) {
+      loadModelInfo();
+      loadTransparentProxySetting();
+      loadEntityConfidence();
+    }
+  }, [isOpen]);
 
   const handleSetEntityConfidence = async (confidence: number) => {
     if (!window.electronAPI) return;
@@ -100,23 +117,6 @@ export default function AdvancedSettingsModal({
       console.error("Error toggling transparent proxy:", error);
     } finally {
       setIsTogglingProxy(false);
-    }
-  };
-
-  const loadModelInfo = async () => {
-    if (!window.electronAPI) return;
-
-    try {
-      const [storedDir, info] = await Promise.all([
-        window.electronAPI.getModelDirectory(),
-        window.electronAPI.getModelInfo(),
-      ]);
-
-      setHasModelDirectory(!!storedDir);
-      setModelDirectory(storedDir || "");
-      setModelInfo(info);
-    } catch (error) {
-      console.error("Error loading model info:", error);
     }
   };
 

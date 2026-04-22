@@ -128,12 +128,6 @@ export default function SettingsModal({
     mistral: "",
   });
 
-  useEffect(() => {
-    if (isOpen && isElectron) {
-      loadSettings();
-    }
-  }, [isOpen]);
-
   const loadSettings = async () => {
     if (!window.electronAPI) return;
 
@@ -168,6 +162,12 @@ export default function SettingsModal({
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (isOpen && isElectron) {
+      loadSettings();
+    }
+  }, [isOpen]);
 
   const handleSave = async () => {
     if (!window.electronAPI) return;
