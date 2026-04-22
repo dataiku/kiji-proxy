@@ -134,6 +134,7 @@ export function useLogs(isOpen: boolean) {
   // Load logs when modal opens
   useEffect(() => {
     if (isOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       loadLogs(0);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

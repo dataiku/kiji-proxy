@@ -76,9 +76,11 @@ export default function AdvancedSettingsModal({
 
   useEffect(() => {
     if (isOpen && isElectron) {
+      /* eslint-disable react-hooks/set-state-in-effect */
       loadModelInfo();
       loadTransparentProxySetting();
       loadEntityConfidence();
+      /* eslint-enable react-hooks/set-state-in-effect */
     }
   }, [isOpen]);
 

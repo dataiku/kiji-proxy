@@ -165,6 +165,7 @@ export default function SettingsModal({
 
   useEffect(() => {
     if (isOpen && isElectron) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       loadSettings();
     }
   }, [isOpen]);
