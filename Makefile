@@ -175,6 +175,11 @@ test-e2e: ## Run end-to-end evaluation harness (requires running backend + OPENA
 	uv run python -m tests.e2e.run --num 750 --report tests/e2e/reports/latest.json
 	@echo "$(GREEN)✅ e2e report written to tests/e2e/reports/latest.json$(NC)"
 
+test-benchmark: ## Benchmark model against ai4privacy/pii-masking-300k (no backend needed)
+	@echo "$(BLUE)Running ai4privacy benchmark...$(NC)"
+	uv run python -m tests.benchmark.run --num 1000
+	@echo "$(GREEN)✅ Benchmark report written to tests/benchmark/reports/latest.json$(NC)"
+
 test-e2e-dataset: ## Regenerate the e2e evaluation dataset (idempotent, seeded)
 	@echo "$(BLUE)Regenerating e2e dataset...$(NC)"
 	uv run python tests/e2e/dataset/generate.py
