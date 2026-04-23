@@ -1,4 +1,4 @@
-// Kiji Guard Extension - Background Service Worker
+// Kiji Privacy Proxy Extension - Background Service Worker
 "use strict";
 
 importScripts("config.js");
@@ -54,13 +54,13 @@ async function applyContentScriptRegistration(domains) {
     }
 
     console.log(
-      "Kiji Guard Extension: Content scripts registered for",
+      "Kiji Privacy Proxy Extension: Content scripts registered for",
       domains
     );
-    console.log("Kiji Guard Extension: using backend URL", backendUrl);
+    console.log("Kiji Privacy Proxy Extension: using backend URL", backendUrl);
   } catch (e) {
     console.error(
-      "Kiji Guard Extension: Failed to register content scripts",
+      "Kiji Privacy Proxy Extension: Failed to register content scripts",
       e
     );
   }
@@ -149,7 +149,7 @@ async function handlePIICheck(text) {
   backendUrl = storedUrl || DEFAULT_API_BASE;
 
   const url = `${backendUrl}/api/pii/check`;
-  console.log("Kiji Guard Extension: POST", url);
+  console.log("Kiji Privacy Proxy Extension: POST", url);
 
   let response;
   try {
@@ -161,7 +161,7 @@ async function handlePIICheck(text) {
     });
   } catch (e) {
     const error = `Network error reaching ${url}: ${e.name}: ${e.message}`;
-    console.error("Kiji Guard Extension:", error);
+    console.error("Kiji Privacy Proxy Extension:", error);
     return { success: false, error, url };
   }
 
@@ -175,7 +175,7 @@ async function handlePIICheck(text) {
     const error = `HTTP ${response.status} ${response.statusText}${
       detail ? " — " + detail : ""
     }`;
-    console.error("Kiji Guard Extension: PII check failed", error);
+    console.error("Kiji Privacy Proxy Extension: PII check failed", error);
     return { success: false, error, status: response.status, url };
   }
 
@@ -184,7 +184,7 @@ async function handlePIICheck(text) {
     data = await response.json();
   } catch (e) {
     const error = `Invalid JSON from ${url}: ${e.message}`;
-    console.error("Kiji Guard Extension:", error);
+    console.error("Kiji Privacy Proxy Extension:", error);
     return { success: false, error, url };
   }
 

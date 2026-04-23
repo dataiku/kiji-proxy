@@ -1,4 +1,4 @@
-// Kiji Guard Extension - Content Script for ChatGPT
+// Kiji Privacy Proxy Extension - Content Script for ChatGPT
 (function () {
   "use strict";
 
@@ -43,7 +43,7 @@
         <header id="kiji-pii-header">
           <span id="kiji-pii-logo">${KIJI_LOGO_SVG}</span>
           <div id="kiji-pii-brand">
-            <span id="kiji-pii-title">Kiji Guard</span>
+            <span id="kiji-pii-title">Kiji Privacy Proxy</span>
             <span id="kiji-pii-lab">Dataiku 575 Lab</span>
           </div>
           <span id="kiji-pii-mark" aria-hidden="true">5·7·5</span>
@@ -299,7 +299,7 @@
     contextInvalidated = true;
     detachListeners();
     showToast(
-      "Kiji Guard was reloaded. Refresh this page to re-enable PII checks — your next send will go through unchecked.",
+      "Kiji Privacy Proxy was reloaded. Refresh this page to re-enable PII checks — your next send will go through unchecked.",
       "warning"
     );
   }
@@ -322,14 +322,14 @@
 
       if (!response) {
         lastCheckError = "No response from background service worker";
-        console.error("Kiji Guard Extension:", lastCheckError);
+        console.error("Kiji Privacy Proxy Extension:", lastCheckError);
         return null;
       }
 
       if (!response.success) {
         lastCheckError = response.error || "Unknown error";
         console.error(
-          "Kiji Guard Extension: API error",
+          "Kiji Privacy Proxy Extension: API error",
           lastCheckError,
           response
         );
@@ -339,7 +339,7 @@
       return response.data;
     } catch (error) {
       lastCheckError = `${error.name || "Error"}: ${error.message}`;
-      console.error("Kiji Guard Extension: Failed to check PII", error);
+      console.error("Kiji Privacy Proxy Extension: Failed to check PII", error);
       if (/Extension context invalidated/i.test(error?.message || "")) {
         markContextInvalidated();
       }
@@ -383,13 +383,13 @@
           // called, so the user's next click goes straight to ChatGPT's own
           // submit handler. That's an explicit, re-confirmed send.
           console.warn(
-            "Kiji Guard Extension: context invalidated, blocking auto-submit"
+            "Kiji Privacy Proxy Extension: context invalidated, blocking auto-submit"
           );
           return;
         }
 
         console.log(
-          "Kiji Guard Extension: API unavailable, allowing submission"
+          "Kiji Privacy Proxy Extension: API unavailable, allowing submission"
         );
         const detail = lastCheckError ? ` (${lastCheckError})` : "";
         showToast(
@@ -413,7 +413,7 @@
       }
 
       if (result.pii_found) {
-        console.log("Kiji Guard Extension: PII detected", result);
+        console.log("Kiji Privacy Proxy Extension: PII detected", result);
         showPIIModal(result, text, (action, maskedText) => {
           switch (action) {
             case "cancel":
@@ -430,11 +430,11 @@
           }
         });
       } else {
-        console.log("Kiji Guard Extension: No PII detected, proceeding");
+        console.log("Kiji Privacy Proxy Extension: No PII detected, proceeding");
         triggerSubmit();
       }
     } catch (error) {
-      console.error("Kiji Guard Extension: Error", error);
+      console.error("Kiji Privacy Proxy Extension: Error", error);
       triggerSubmit();
     } finally {
       isChecking = false;
@@ -465,7 +465,7 @@
     );
     if (button) {
       button.addEventListener("click", handleSubmit, true);
-      console.log("Kiji Guard Extension: Attached to submit button");
+      console.log("Kiji Privacy Proxy Extension: Attached to submit button");
       return true;
     }
     return false;
@@ -481,7 +481,7 @@
     if (button) button.removeEventListener("click", handleSubmit, true);
     document.removeEventListener("keydown", handleKeydown, true);
     console.warn(
-      "Kiji Guard Extension: listeners detached — reload the page to re-enable"
+      "Kiji Privacy Proxy Extension: listeners detached — reload the page to re-enable"
     );
   }
 
@@ -501,7 +501,7 @@
 
   // Initialize
   function init() {
-    console.log("Kiji Guard Extension: Initializing...");
+    console.log("Kiji Privacy Proxy Extension: Initializing...");
 
     // Create modal
     getModal();
@@ -520,7 +520,7 @@
     // Listen for Enter key submissions
     document.addEventListener("keydown", handleKeydown, true);
 
-    console.log("Kiji Guard Extension: Ready");
+    console.log("Kiji Privacy Proxy Extension: Ready");
   }
 
   // Wait for DOM to be ready

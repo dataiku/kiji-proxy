@@ -1,4 +1,4 @@
-// Kiji Guard Extension - Popup Script
+// Kiji Privacy Proxy Extension - Popup Script
 "use strict";
 
 const SETUP_GUIDE_URL = "https://github.com/dataiku/kiji-proxy#quick-start";
@@ -101,7 +101,19 @@ function subscribeToLiveUpdates() {
   });
 }
 
+function renderVersion() {
+  const el = document.getElementById("ext-version");
+  if (!el) return;
+  try {
+    el.textContent = chrome.runtime.getManifest().version;
+  } catch {
+    // ignore — leave placeholder
+  }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
+  renderVersion();
+
   document.getElementById("open-settings").addEventListener("click", (e) => {
     e.preventDefault();
     if (chrome?.runtime?.openOptionsPage) {

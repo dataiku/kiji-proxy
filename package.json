@@ -6,7 +6,7 @@
   "author": "Dataiku - Open Source Lab",
   "license": "Apache-2.0",
   "private": true,
-  "_comment": "NOTE: Version must be kept in sync with src/frontend/package.json",
+  "_comment": "Version is managed by Changesets. `npm run version` bumps package.json + src/frontend/package.json (via Changesets) and then stamps chrome-extension/manifest.json via src/scripts/sync-manifest-version.js.",
   "workspaces": [
     "src/frontend"
   ],
@@ -37,7 +37,7 @@
     "lint:fix": "cd src/frontend && npm run lint:fix",
     "type-check": "cd src/frontend && npm run type-check",
     "changeset": "changeset",
-    "version": "changeset version",
+    "version": "changeset version && node src/scripts/sync-manifest-version.js",
     "release": "changeset publish"
   },
   "engines": {

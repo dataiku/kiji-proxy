@@ -1,10 +1,19 @@
-// Kiji Guard Extension - Options Script
+// Kiji Privacy Proxy Extension - Options Script
 "use strict";
 
 const DEFAULT_API_BASE = CONFIG.DEFAULT_API_BASE;
 const DEFAULT_DOMAINS = CONFIG.DEFAULT_DOMAINS;
 
 document.addEventListener("DOMContentLoaded", () => {
+  const versionEl = document.getElementById("ext-version");
+  if (versionEl) {
+    try {
+      versionEl.textContent = chrome.runtime.getManifest().version;
+    } catch {
+      // ignore — leave placeholder
+    }
+  }
+
   const urlInput = document.getElementById("backend-url");
   const domainsTextarea = document.getElementById("intercept-domains");
   const resetDomainsLink = document.getElementById("reset-domains");

@@ -1,5 +1,5 @@
 /* ===========================================================
-   Kiji Guard — content script UI
+   Kiji Privacy Proxy — content script UI
    Scoped to #kiji-pii-overlay and .kiji-pii-toast so host page
    styles can't leak in and vice versa.
    =========================================================== */
