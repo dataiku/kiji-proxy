@@ -177,7 +177,9 @@ class TokenizationProcessor:
 
             # Determine effective label for this token
             if is_punct:
-                base = bio_label[2:] if bio_label.startswith(("B-", "I-")) else bio_label
+                base = (
+                    bio_label[2:] if bio_label.startswith(("B-", "I-")) else bio_label
+                )
                 if base != "O" and not self._is_punctuation_in_entity(
                     token_text.strip(),
                     word_idx,
