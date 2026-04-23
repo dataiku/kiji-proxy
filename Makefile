@@ -1,6 +1,6 @@
 .PHONY: help install install-dev venv
 .PHONY: format lint lint-go lint-frontend lint-frontend-fix lint-all typecheck typecheck-frontend check check-all ruff-fix ruff-all
-.PHONY: test test-go test-all
+.PHONY: test test-go test-all test-e2e test-e2e-dataset
 .PHONY: clean clean-venv clean-all
 .PHONY: build-dmg build-linux verify-linux
 .PHONY: electron-build electron-run electron electron-dev electron-install
@@ -169,6 +169,16 @@ test-go: ## Run Go tests
 
 test-all: test test-go ## Run all tests (Python, Go)
 	@echo "$(GREEN)✅ All tests complete$(NC)"
+
+test-e2e: ## Run end-to-end evaluation harness (requires running backend + OPENAI_API_KEY)
+	@echo "$(BLUE)Running e2e evaluation harness...$(NC)"
+	uv run python -m tests.e2e.run --num 750 --report tests/e2e/reports/latest.json
+	@echo "$(GREEN)✅ e2e report written to tests/e2e/reports/latest.json$(NC)"
+
+test-e2e-dataset: ## Regenerate the e2e evaluation dataset (idempotent, seeded)
+	@echo "$(BLUE)Regenerating e2e dataset...$(NC)"
+	uv run python tests/e2e/dataset/generate.py
+	@echo "$(GREEN)✅ Dataset written to tests/e2e/dataset/samples.jsonl$(NC)"
 
 ##@ Cleanup
 

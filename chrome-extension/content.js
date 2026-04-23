@@ -155,10 +155,22 @@
     const maskedDiv = document.getElementById("kiji-pii-masked");
     const subEl = document.getElementById("kiji-pii-sub");
 
-    // Build entities table using safe DOM APIs (no innerHTML)
+    // Build entities table using safe DOM APIs (no innerHTML).
+    // Derive masked->label from detected_entities + entities. The server
+    // emits detected_entities with {label, original, ...} per match, and
+    // entities is masked->original, so the inverse gives us masked->label.
     const entries = Object.entries(response.entities || {});
+    const originalToMasked = {};
+    for (const [masked, original] of entries) {
+      originalToMasked[original] = masked;
+    }
+    const entityTypes = {};
+    for (const d of response.detected_entities || []) {
+      const masked = originalToMasked[d.original];
+      if (masked) entityTypes[masked] = d.label;
+    }
     entitiesDiv.replaceChildren(
-      buildEntityTable(response.entities, response.entity_types)
+      buildEntityTable(response.entities, entityTypes)
     );
 
     // Update sub text with entity count
