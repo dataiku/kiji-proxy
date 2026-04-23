@@ -24,5 +24,11 @@
   },
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'"
-  }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["icons/kiji-light.svg", "icons/kiji-dark.svg"],
+      "matches": ["<all_urls>"]
+    }
+  ]
 }

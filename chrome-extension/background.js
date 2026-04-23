@@ -82,18 +82,28 @@ function loadSettingsAndCheck() {
   });
 }
 
-async function checkHealth() {
+let inflightHealthCheck = null;
+let healthCheckTimer = null;
+
+function checkHealth() {
+  if (inflightHealthCheck) return inflightHealthCheck;
+  inflightHealthCheck = runHealthCheck().finally(() => {
+    inflightHealthCheck = null;
+    scheduleNextCheck();
+  });
+  return inflightHealthCheck;
+}
+
+async function runHealthCheck() {
   try {
     const response = await fetch(`${backendUrl}/health`, {
       method: "GET",
       signal: AbortSignal.timeout(5000),
     });
-    const connected = response.ok;
-    updateConnectionStatus(connected);
+    updateConnectionStatus(response.ok);
   } catch (e) {
     updateConnectionStatus(false);
   }
-  scheduleNextCheck();
 }
 
 function updateConnectionStatus(connected) {
@@ -110,7 +120,8 @@ function updateConnectionStatus(connected) {
 }
 
 function scheduleNextCheck() {
-  setTimeout(checkHealth, HEALTH_CHECK_INTERVAL_MS);
+  if (healthCheckTimer) clearTimeout(healthCheckTimer);
+  healthCheckTimer = setTimeout(checkHealth, HEALTH_CHECK_INTERVAL_MS);
 }
 
 // --- Lifecycle ---
@@ -128,37 +139,69 @@ chrome.runtime.onStartup.addListener(() => {
 
 // --- Message handling ---
 
+async function handlePIICheck(text) {
+  // Pull the latest backendUrl every time — the service worker may have been
+  // torn down since startup, which resets in-memory `backendUrl` to the
+  // default even if the user configured a different one in options.
+  const { backendUrl: storedUrl } = await chrome.storage.sync.get({
+    backendUrl: DEFAULT_API_BASE,
+  });
+  backendUrl = storedUrl || DEFAULT_API_BASE;
+
+  const url = `${backendUrl}/api/pii/check`;
+  console.log("Kiji Guard Extension: POST", url);
+
+  let response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: text }),
+      signal: AbortSignal.timeout(10000),
+    });
+  } catch (e) {
+    const error = `Network error reaching ${url}: ${e.name}: ${e.message}`;
+    console.error("Kiji Guard Extension:", error);
+    return { success: false, error, url };
+  }
+
+  if (!response.ok) {
+    let detail = "";
+    try {
+      detail = (await response.text()).slice(0, 300);
+    } catch {
+      // ignore
+    }
+    const error = `HTTP ${response.status} ${response.statusText}${
+      detail ? " — " + detail : ""
+    }`;
+    console.error("Kiji Guard Extension: PII check failed", error);
+    return { success: false, error, status: response.status, url };
+  }
+
+  let data;
+  try {
+    data = await response.json();
+  } catch (e) {
+    const error = `Invalid JSON from ${url}: ${e.message}`;
+    console.error("Kiji Guard Extension:", error);
+    return { success: false, error, url };
+  }
+
+  chrome.storage.local.get({ checksTotal: 0, piiFound: 0 }, (result) => {
+    const updates = { checksTotal: result.checksTotal + 1 };
+    if (data.pii_found) {
+      updates.piiFound = result.piiFound + 1;
+    }
+    chrome.storage.local.set(updates);
+  });
+
+  return { success: true, data };
+}
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "check-pii-text") {
-    // Handle PII check request from content script
-    fetch(`${backendUrl}/api/pii/check`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ message: message.text }),
-    })
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error(`API error: ${response.status}`);
-        }
-        return response.json();
-      })
-      .then((data) => {
-        // Update stats
-        chrome.storage.local.get({ checksTotal: 0, piiFound: 0 }, (result) => {
-          const updates = { checksTotal: result.checksTotal + 1 };
-          if (data.pii_found) {
-            updates.piiFound = result.piiFound + 1;
-          }
-          chrome.storage.local.set(updates);
-        });
-        sendResponse({ success: true, data });
-      })
-      .catch((error) => {
-        console.error("Kiji Guard Extension: Failed to check PII", error);
-        sendResponse({ success: false, error: error.message });
-      });
+    handlePIICheck(message.text).then(sendResponse);
     return true; // keep channel open for async sendResponse
   }
 
@@ -184,6 +227,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         });
       }
     );
+    return true; // keep channel open for async sendResponse
+  }
+
+  if (message.type === "refresh-status") {
+    checkHealth().then(() => {
+      chrome.storage.local.get(
+        { connected: false, checksTotal: 0, piiFound: 0 },
+        (result) => {
+          sendResponse({
+            connected: result.connected,
+            checksTotal: result.checksTotal,
+            piiFound: result.piiFound,
+            backendUrl: backendUrl,
+          });
+        }
+      );
+    });
     return true; // keep channel open for async sendResponse
   }
 

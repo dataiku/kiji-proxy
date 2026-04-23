@@ -557,6 +557,7 @@ type PIICheckRequest struct {
 type PIICheckResponse struct {
 	MaskedMessage string            `json:"masked_message"`
 	Entities      map[string]string `json:"entities"`
+	EntityTypes   map[string]string `json:"entity_types"`
 	PIIFound      bool              `json:"pii_found"`
 }
 
@@ -614,9 +615,22 @@ func (s *Server) handlePIICheck(w http.ResponseWriter, r *http.Request) {
 		entityDetails[masked] = original
 	}
 
+	// Build masked -> label map so clients can show the entity type.
+	originalToMasked := make(map[string]string, len(entityDetails))
+	for masked, original := range entityDetails {
+		originalToMasked[original] = masked
+	}
+	entityTypes := make(map[string]string, len(entities))
+	for _, e := range entities {
+		if masked, ok := originalToMasked[e.Text]; ok {
+			entityTypes[masked] = e.Label
+		}
+	}
+
 	response := PIICheckResponse{
 		MaskedMessage: maskedText,
 		Entities:      entityDetails,
+		EntityTypes:   entityTypes,
 		PIIFound:      len(entities) > 0,
 	}
 

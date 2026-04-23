@@ -52,24 +52,53 @@ function setStats({ checksTotal = 0, piiFound = 0 }) {
   document.getElementById("pii-found").textContent = piiFound.toLocaleString();
 }
 
+let lastBackendUrl = null;
+
+function applyState(state) {
+  if (!state) {
+    setStatus({ connected: false });
+    return;
+  }
+  lastBackendUrl = state.backendUrl ?? lastBackendUrl;
+  setStatus({
+    connected: !!state.connected,
+    backendUrl: state.backendUrl,
+  });
+  setStats({
+    checksTotal: state.checksTotal ?? 0,
+    piiFound: state.piiFound ?? 0,
+  });
+}
+
 async function loadState() {
   try {
-    const state = await chrome.runtime.sendMessage({ type: "get-status" });
-    if (!state) {
-      setStatus({ connected: false });
-      return;
-    }
-    setStatus({
-      connected: !!state.connected,
-      backendUrl: state.backendUrl,
-    });
-    setStats({
-      checksTotal: state.checksTotal ?? 0,
-      piiFound: state.piiFound ?? 0,
-    });
+    const cached = await chrome.runtime.sendMessage({ type: "get-status" });
+    applyState(cached);
   } catch {
-    setStatus({ connected: false });
+    // ignore; refresh below will update the UI
   }
+
+  try {
+    const fresh = await chrome.runtime.sendMessage({ type: "refresh-status" });
+    applyState(fresh);
+  } catch {
+    setStatus({ connected: false, backendUrl: lastBackendUrl });
+  }
+}
+
+function subscribeToLiveUpdates() {
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== "local") return;
+
+    if (changes.connected || changes.checksTotal || changes.piiFound) {
+      chrome.storage.local.get(
+        { connected: false, checksTotal: 0, piiFound: 0 },
+        (result) => {
+          applyState({ ...result, backendUrl: lastBackendUrl });
+        }
+      );
+    }
+  });
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -88,5 +117,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  subscribeToLiveUpdates();
   loadState();
 });
