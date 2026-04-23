@@ -13,30 +13,46 @@ let isConnected = false;
 
 // --- Dynamic content script registration ---
 
-async function updateContentScripts(domains) {
-  // Unregister existing, then re-register with new domains
+// Serialize registration to avoid races between onInstalled / onStartup /
+// storage.onChanged, which can otherwise produce "Duplicate script ID".
+let contentScriptUpdateQueue = Promise.resolve();
+
+function updateContentScripts(domains) {
+  const run = () => applyContentScriptRegistration(domains);
+  contentScriptUpdateQueue = contentScriptUpdateQueue.then(run, run);
+  return contentScriptUpdateQueue;
+}
+
+async function applyContentScriptRegistration(domains) {
+  const scriptConfig = {
+    id: CONTENT_SCRIPT_ID,
+    matches: domains,
+    js: ["content.js"],
+    css: ["styles.css"],
+    runAt: "document_idle",
+  };
+
   try {
-    await chrome.scripting.unregisterContentScripts({
+    const existing = await chrome.scripting.getRegisteredContentScripts({
       ids: [CONTENT_SCRIPT_ID],
     });
-  } catch (e) {
-    // Ignore if not yet registered
-  }
+    const isRegistered = existing.length > 0;
 
-  if (!domains || domains.length === 0) {
-    return;
-  }
+    if (!domains || domains.length === 0) {
+      if (isRegistered) {
+        await chrome.scripting.unregisterContentScripts({
+          ids: [CONTENT_SCRIPT_ID],
+        });
+      }
+      return;
+    }
 
-  try {
-    await chrome.scripting.registerContentScripts([
-      {
-        id: CONTENT_SCRIPT_ID,
-        matches: domains,
-        js: ["content.js"],
-        css: ["styles.css"],
-        runAt: "document_idle",
-      },
-    ]);
+    if (isRegistered) {
+      await chrome.scripting.updateContentScripts([scriptConfig]);
+    } else {
+      await chrome.scripting.registerContentScripts([scriptConfig]);
+    }
+
     console.log(
       "Kiji Guard Extension: Content scripts registered for",
       domains

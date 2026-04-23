@@ -4,45 +4,71 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="stylesheet" href="options.css" />
-    <title>Kiji Guard Extension - Settings</title>
+    <title>Kiji Guard — Settings</title>
   </head>
   <body>
-    <div class="options-container">
-      <h1>Kiji Guard Extension Settings</h1>
+    <div class="page">
+      <div class="card">
+        <header class="card-header">
+          <picture class="card-logo">
+            <source
+              srcset="icons/kiji-dark.svg"
+              media="(prefers-color-scheme: dark)"
+            />
+            <img src="icons/kiji-light.svg" alt="Kiji" />
+          </picture>
+          <div class="card-title">
+            <span class="card-name">Kiji Guard</span>
+            <span class="card-sub">Settings · Dataiku 575 Lab</span>
+          </div>
+          <span class="card-mark" aria-hidden="true">5·7·5</span>
+        </header>
 
-      <div class="form-group">
-        <label for="backend-url">Backend URL</label>
-        <input
-          type="url"
-          id="backend-url"
-          placeholder="http://localhost:8081"
-        />
-        <p class="form-help">The URL of the Kiji Privacy Proxy server.</p>
-      </div>
+        <div class="card-body">
+          <div class="form-group">
+            <label for="backend-url">Backend URL</label>
+            <input
+              type="url"
+              id="backend-url"
+              class="input-mono"
+              placeholder="http://localhost:8081"
+            />
+            <p class="form-help">
+              The local address of the Kiji Privacy Proxy server.
+            </p>
+          </div>
 
-      <div class="form-group">
-        <div class="label-row">
-          <label for="intercept-domains">Domains to intercept</label>
-          <a href="#" id="reset-domains" class="reset-link"
-            >Reset to defaults</a
-          >
+          <div class="form-group">
+            <div class="label-row">
+              <label for="intercept-domains">Intercepted domains</label>
+              <a href="#" id="reset-domains" class="link">Reset to defaults</a>
+            </div>
+            <div class="textarea-wrap">
+              <div class="textarea-meta">
+                <span>Match patterns</span>
+                <span id="pattern-count">0 active</span>
+              </div>
+              <textarea
+                id="intercept-domains"
+                rows="10"
+                spellcheck="false"
+                placeholder="https://chatgpt.com/*"
+              ></textarea>
+            </div>
+            <p class="form-help">
+              One pattern per line. Use
+              <code>https://domain.com/*</code>. Kiji will mask PII on these
+              sites before your prompts leave the browser.
+            </p>
+          </div>
+
+          <div class="form-actions">
+            <button id="save-btn" type="button" class="btn-primary">
+              Save changes
+            </button>
+            <span id="save-status" class="save-status" role="status"></span>
+          </div>
         </div>
-        <textarea
-          id="intercept-domains"
-          rows="10"
-          spellcheck="false"
-          placeholder="https://chatgpt.com/*"
-        ></textarea>
-        <p class="form-help">
-          One URL match pattern per line. Must use the format
-          <code>https://domain.com/*</code>. The PII guard will be active on
-          these sites.
-        </p>
-      </div>
-
-      <div class="form-actions">
-        <button id="save-btn">Save</button>
-        <span id="save-status" class="save-status"></span>
       </div>
     </div>
     <script src="config.js"></script>

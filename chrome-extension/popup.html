@@ -4,36 +4,56 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="stylesheet" href="popup.css" />
-    <title>Kiji Guard Extension</title>
+    <title>Kiji Guard</title>
   </head>
   <body>
-    <div class="popup-container">
-      <div class="popup-header">
-        <img src="icons/icon48.png" alt="Kiji" class="popup-logo" />
-        <h1>Kiji Guard Extension</h1>
-      </div>
+    <div class="popup">
+      <header class="popup-header">
+        <picture class="popup-logo">
+          <source
+            srcset="icons/kiji-dark.svg"
+            media="(prefers-color-scheme: dark)"
+          />
+          <img src="icons/kiji-light.svg" alt="Kiji" />
+        </picture>
+        <div class="popup-title">
+          <span class="popup-name">Kiji Guard</span>
+          <span class="popup-lab">Dataiku 575 Lab</span>
+        </div>
+        <span class="popup-mark" aria-hidden="true">5·7·5</span>
+      </header>
 
-      <div class="popup-status">
-        <span id="status-dot" class="status-dot status-disconnected"></span>
-        <span id="status-text">Checking...</span>
-      </div>
+      <section class="popup-hero" id="hero">
+        <div class="popup-hero-meta">
+          <span id="status-dot" class="status-dot"></span>
+          <span id="status-eyebrow" class="popup-eyebrow">Checking</span>
+        </div>
+        <h2 id="status-text" class="popup-headline">Connecting to proxy…</h2>
+        <p id="status-detail" class="popup-sub"></p>
+      </section>
 
-      <div class="popup-url" id="backend-url"></div>
-
-      <div class="popup-stats">
+      <section class="popup-stats" aria-label="Session activity">
         <div class="stat">
           <span class="stat-value" id="checks-total">0</span>
           <span class="stat-label">Messages checked</span>
         </div>
-        <div class="stat">
+        <div class="stat stat-accent">
           <span class="stat-value" id="pii-found">0</span>
-          <span class="stat-label">PII detections</span>
+          <span class="stat-label">PII masked</span>
         </div>
+      </section>
+
+      <div class="popup-action" id="action-slot" hidden>
+        <button type="button" id="primary-action" class="btn-secondary">
+          <span id="primary-action-label">Open setup guide</span>
+          <span aria-hidden="true" class="btn-arrow">→</span>
+        </button>
       </div>
 
-      <div class="popup-footer">
-        <a href="#" id="open-settings">Settings</a>
-      </div>
+      <footer class="popup-footer">
+        <span class="popup-url" id="backend-url">localhost:8081</span>
+        <a href="#" id="open-settings" class="popup-link">Settings →</a>
+      </footer>
     </div>
     <script src="popup.js"></script>
   </body>
