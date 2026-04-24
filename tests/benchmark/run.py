@@ -157,7 +157,12 @@ class OnnxPIIModel:
             start += 1
         while end > start and text[end - 1] in " \t\n\r":
             end -= 1
+        # Strip trailing sentence punctuation only when it's followed by
+        # whitespace or end-of-string (so "yahoo.com" keeps the dot but
+        # "1988," at end of phrase loses the comma).
         while end > start and text[end - 1] in ",.;:!?":
+            if end < len(text) and text[end] not in " \t\n\r":
+                break
             end -= 1
         return start, end
 

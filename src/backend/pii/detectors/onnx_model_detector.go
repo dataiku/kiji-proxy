@@ -539,9 +539,13 @@ func (d *ONNXModelDetectorSimple) finalizeEntity(entity *Entity, tokenIndices []
 	for trimmedEnd > trimmedStart && (originalText[trimmedEnd-1] == ' ' || originalText[trimmedEnd-1] == '\t' || originalText[trimmedEnd-1] == '\n' || originalText[trimmedEnd-1] == '\r') {
 		trimmedEnd--
 	}
-	// Strip trailing sentence punctuation that the model may absorb into
-	// entity spans (e.g. "April 12, 1988," → "April 12, 1988").
+	// Strip trailing sentence punctuation only when followed by whitespace
+	// or end-of-string, so "yahoo.com" keeps the dot but "1988," loses
+	// the trailing comma.
 	for trimmedEnd > trimmedStart && (originalText[trimmedEnd-1] == ',' || originalText[trimmedEnd-1] == '.' || originalText[trimmedEnd-1] == ';' || originalText[trimmedEnd-1] == ':' || originalText[trimmedEnd-1] == '!' || originalText[trimmedEnd-1] == '?') {
+		if trimmedEnd < uint(len(originalText)) && originalText[trimmedEnd] != ' ' && originalText[trimmedEnd] != '\t' && originalText[trimmedEnd] != '\n' && originalText[trimmedEnd] != '\r' {
+			break
+		}
 		trimmedEnd--
 	}
 	if trimmedStart < trimmedEnd {
