@@ -359,15 +359,19 @@ def print_sample_detections(
     fp = pred_set - gold_set
 
     print(f"  Expected ({len(gold_set)}):")
-    for start, end, label in sorted(gold_set):
-        marker = "TP" if (start, end, label) in tp else "FN"
-        print(f"    [{label:<20s}] {text[start:end]!r}  ({marker})")
+    if gold_set:
+        for start, end, label in sorted(gold_set):
+            marker = "TP" if (start, end, label) in tp else "FN"
+            print(f"    [{label:<20s}] {text[start:end]!r}  ({marker})")
+    else:
+        print(f"    (none)")
     print(f"  Predicted ({len(pred_set)}):")
-    for start, end, label in sorted(pred_set):
-        marker = "TP" if (start, end, label) in tp else "FP"
-        print(f"    [{label:<20s}] {text[start:end]!r}  ({marker})")
-    if not gold_set and not pred_set:
-        print("  (no entities)")
+    if pred_set:
+        for start, end, label in sorted(pred_set):
+            marker = "TP" if (start, end, label) in tp else "FP"
+            print(f"    [{label:<20s}] {text[start:end]!r}  ({marker})")
+    else:
+        print(f"    (none)")
 
 
 # ---------------------------------------------------------------------------
