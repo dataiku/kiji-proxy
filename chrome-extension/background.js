@@ -24,9 +24,35 @@ function updateContentScripts(domains) {
 }
 
 async function applyContentScriptRegistration(domains) {
+  // Filter to domains we actually have host permission for. Defaults are
+  // granted via manifest; user-added custom domains only register here once
+  // the user has approved the runtime permission prompt in options.
+  const allowedDomains = [];
+  const skippedDomains = [];
+  for (const pattern of domains || []) {
+    let granted = false;
+    try {
+      granted = await chrome.permissions.contains({ origins: [pattern] });
+    } catch {
+      // Invalid pattern — skip
+    }
+    if (granted) {
+      allowedDomains.push(pattern);
+    } else {
+      skippedDomains.push(pattern);
+    }
+  }
+
+  if (skippedDomains.length > 0) {
+    console.warn(
+      "Kiji Privacy Proxy Extension: skipping domains without granted host permission",
+      skippedDomains
+    );
+  }
+
   const scriptConfig = {
     id: CONTENT_SCRIPT_ID,
-    matches: domains,
+    matches: allowedDomains,
     js: ["content.js"],
     css: ["styles.css"],
     runAt: "document_idle",
@@ -38,7 +64,7 @@ async function applyContentScriptRegistration(domains) {
     });
     const isRegistered = existing.length > 0;
 
-    if (!domains || domains.length === 0) {
+    if (allowedDomains.length === 0) {
       if (isRegistered) {
         await chrome.scripting.unregisterContentScripts({
           ids: [CONTENT_SCRIPT_ID],
@@ -55,7 +81,7 @@ async function applyContentScriptRegistration(domains) {
 
     console.log(
       "Kiji Privacy Proxy Extension: Content scripts registered for",
-      domains
+      allowedDomains
     );
     console.log("Kiji Privacy Proxy Extension: using backend URL", backendUrl);
   } catch (e) {

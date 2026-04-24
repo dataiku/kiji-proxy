@@ -37,7 +37,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // Save settings
-  saveBtn.addEventListener("click", () => {
+  saveBtn.addEventListener("click", async () => {
     const url = urlInput.value.trim().replace(/\/+$/, "");
     if (!url) {
       showStatus("URL cannot be empty.", true);
@@ -73,6 +73,27 @@ document.addEventListener("DOMContentLoaded", () => {
     if (domains.length === 0) {
       showStatus("At least one domain is required.", true);
       return;
+    }
+
+    // Request host permissions for any custom (non-default) domains. Default
+    // domains are already granted via manifest host_permissions; custom ones
+    // require a runtime user gesture, which this click handler provides.
+    const customDomains = domains.filter((d) => !DEFAULT_DOMAINS.includes(d));
+    if (customDomains.length > 0) {
+      let granted = false;
+      try {
+        granted = await chrome.permissions.request({ origins: customDomains });
+      } catch (e) {
+        showStatus(`Permission request failed: ${e.message}`, true);
+        return;
+      }
+      if (!granted) {
+        showStatus(
+          `Permission denied for: ${customDomains.join(", ")}`,
+          true
+        );
+        return;
+      }
     }
 
     chrome.storage.sync.set(

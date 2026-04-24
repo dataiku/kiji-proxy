@@ -9,7 +9,17 @@
     "scripting"
   ],
   "host_permissions": [
-    "<all_urls>"
+    "https://chatgpt.com/*",
+    "https://chat.openai.com/*",
+    "https://claude.ai/*",
+    "https://gemini.google.com/*",
+    "https://copilot.microsoft.com/*",
+    "https://huggingface.co/chat/*",
+    "https://chat.mistral.ai/*",
+    "https://poe.com/*"
+  ],
+  "optional_host_permissions": [
+    "https://*/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -38,7 +48,14 @@
         "icons/kiji-dark.svg"
       ],
       "matches": [
-        "<all_urls>"
+        "https://chatgpt.com/*",
+        "https://chat.openai.com/*",
+        "https://claude.ai/*",
+        "https://gemini.google.com/*",
+        "https://copilot.microsoft.com/*",
+        "https://huggingface.co/chat/*",
+        "https://chat.mistral.ai/*",
+        "https://poe.com/*"
       ]
     }
   ]
