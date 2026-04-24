@@ -40,23 +40,5 @@
   },
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'"
-  },
-  "web_accessible_resources": [
-    {
-      "resources": [
-        "icons/kiji-light.svg",
-        "icons/kiji-dark.svg"
-      ],
-      "matches": [
-        "https://chatgpt.com/*",
-        "https://chat.openai.com/*",
-        "https://claude.ai/*",
-        "https://gemini.google.com/*",
-        "https://copilot.microsoft.com/*",
-        "https://huggingface.co/chat/*",
-        "https://chat.mistral.ai/*",
-        "https://poe.com/*"
-      ]
-    }
-  ]
+  }
 }
