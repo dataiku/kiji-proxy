@@ -292,7 +292,7 @@ class DatasetProcessor:
         if self.config.audit_allowlist:
             allowlist_path = Path(self.config.audit_allowlist)
             if not allowlist_path.is_absolute():
-                repo_root = Path(__file__).parent.parent.parent
+                repo_root = Path(__file__).resolve().parent.parent.parent
                 allowlist_path = repo_root / allowlist_path
             if allowlist_path.exists():
                 clean_files: set[str] = set()

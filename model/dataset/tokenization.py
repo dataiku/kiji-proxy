@@ -65,8 +65,15 @@ class TokenizationProcessor:
     def _create_word_labels(
         self, text: str, privacy_mask_with_positions: list[dict[str, Any]]
     ) -> list[str]:
-        """Create word-level labels from privacy mask positions."""
-        # Replace sensitive text with label placeholders
+        """Create word-level BIO labels from privacy mask positions.
+
+        Each word gets a BIO-prefixed label: ``B-LABEL`` for the first word
+        of an entity span and ``I-LABEL`` for subsequent words.  Words outside
+        any entity span receive ``O``.
+        """
+        # Replace sensitive text with BIO-prefixed label placeholders.
+        # privacy_mask_with_positions is sorted by start descending, so
+        # replacing from the end preserves earlier offsets.
         text_with_labels = text
         for item in privacy_mask_with_positions:
             label = item["label"]
@@ -74,25 +81,23 @@ class TokenizationProcessor:
             end = item["end"]
             value = item["value"]
 
-            # Count words in the sensitive value
             word_count = len(value.split())
-
-            # Replace with appropriate number of label placeholders
-            replacement = " ".join([label] * word_count)
+            bio_labels = [f"B-{label}"] + [f"I-{label}"] * (word_count - 1)
+            replacement = " ".join(bio_labels)
             text_with_labels = (
                 text_with_labels[:start] + replacement + text_with_labels[end:]
             )
 
-        # Split into words and assign labels
+        # Split into words and parse BIO labels
         words = text_with_labels.split()
         word_labels = []
         for word in words:
-            match = re.search(r"(\w+)", word)
+            match = re.search(r"(\w[\w-]*)", word)
             if match:
-                label = match.group(1)
-                # Check if it's a valid PII label (all uppercase, not "O")
-                if label.isupper() and label != "O":
-                    word_labels.append(label)
+                token = match.group(1)
+                # Check for BIO-prefixed PII labels (e.g. B-EMAIL, I-FIRSTNAME)
+                if token.startswith(("B-", "I-")):
+                    word_labels.append(token)
                 else:
                     word_labels.append("O")
             else:
@@ -135,12 +140,11 @@ class TokenizationProcessor:
                 return True
         return False
 
-    def _get_label_id(self, word_label: str, is_beginning: bool) -> int:
-        """Get the label ID for a word label with B-/I- prefix."""
-        if word_label == "O":
+    def _get_label_id(self, bio_label: str) -> int:
+        """Get the label ID for a BIO-prefixed label (e.g. ``B-EMAIL``, ``I-SSN``, ``O``)."""
+        if bio_label == "O":
             return 0
-        prefix = "B-" if is_beginning else "I-"
-        return self.label2id.get(f"{prefix}{word_label}", 0)
+        return self.label2id.get(bio_label, 0)
 
     def _align_labels_with_tokens(
         self,
@@ -150,10 +154,14 @@ class TokenizationProcessor:
         words_original: list[str] | None = None,
         privacy_mask_with_positions: list[dict[str, Any]] | None = None,
     ) -> list[int]:
-        """Align word-level labels with token IDs."""
+        """Align word-level BIO labels with token IDs.
+
+        ``word_labels`` already carry the correct BIO prefix (``B-LABEL``,
+        ``I-LABEL``, or ``O``).  Sub-word tokens that continue the same
+        word receive the ``I-`` variant of their word's label.
+        """
         label_ids = []
         prev_word_idx = None
-        prev_word_label = None
 
         for idx, word_idx in enumerate(word_ids):
             # Handle special tokens and out-of-bounds
@@ -161,7 +169,7 @@ class TokenizationProcessor:
                 label_ids.append(-100)
                 continue
 
-            word_label = word_labels[word_idx]
+            bio_label = word_labels[word_idx]
             token_text = (
                 token_texts[idx] if token_texts and idx < len(token_texts) else ""
             )
@@ -169,24 +177,23 @@ class TokenizationProcessor:
 
             # Determine effective label for this token
             if is_punct:
-                # Punctuation: only label as entity if it's actually part of entity value
-                if word_label != "O" and not self._is_punctuation_in_entity(
+                base = (
+                    bio_label[2:] if bio_label.startswith(("B-", "I-")) else bio_label
+                )
+                if base != "O" and not self._is_punctuation_in_entity(
                     token_text.strip(),
                     word_idx,
                     words_original,
                     privacy_mask_with_positions,
                 ):
-                    # Punctuation after entity (e.g., comma after "Smith") -> "O"
-                    word_label = "O"
+                    bio_label = "O"
 
-            # Determine if this is beginning of entity or inside
-            is_beginning = (prev_word_idx != word_idx) or (
-                prev_word_label != word_label
-            )
-            label_ids.append(self._get_label_id(word_label, is_beginning))
+            # Sub-word continuation: second+ token of the same word gets I-
+            if word_idx == prev_word_idx and bio_label.startswith("B-"):
+                bio_label = "I-" + bio_label[2:]
 
+            label_ids.append(self._get_label_id(bio_label))
             prev_word_idx = word_idx
-            prev_word_label = word_label
 
         # Truncate to max_length if needed
         if len(label_ids) > 512:
