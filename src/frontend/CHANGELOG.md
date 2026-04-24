@@ -1,5 +1,11 @@
 # kiji-privacy-proxy
 
+## 0.5.3
+
+### Patch Changes
+
+- 816d5b7: Updated Chrome extension with specific urls, updated svg files
+
 ## 0.5.2
 
 ### Patch Changes
