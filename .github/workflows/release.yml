@@ -374,7 +374,7 @@ jobs:
         run: |
           cd chrome-extension
           zip -r ../kiji-privacy-proxy-extension-${{ steps.version.outputs.version }}.zip . \
-            -x '*.DS_Store' '*.svg' '*.git*'
+            -x '*.DS_Store' '*.git*'
           echo "Package contents:"
           unzip -l ../kiji-privacy-proxy-extension-${{ steps.version.outputs.version }}.zip
 
