@@ -539,6 +539,11 @@ func (d *ONNXModelDetectorSimple) finalizeEntity(entity *Entity, tokenIndices []
 	for trimmedEnd > trimmedStart && (originalText[trimmedEnd-1] == ' ' || originalText[trimmedEnd-1] == '\t' || originalText[trimmedEnd-1] == '\n' || originalText[trimmedEnd-1] == '\r') {
 		trimmedEnd--
 	}
+	// Strip trailing sentence punctuation that the model may absorb into
+	// entity spans (e.g. "April 12, 1988," → "April 12, 1988").
+	for trimmedEnd > trimmedStart && (originalText[trimmedEnd-1] == ',' || originalText[trimmedEnd-1] == '.' || originalText[trimmedEnd-1] == ';' || originalText[trimmedEnd-1] == ':' || originalText[trimmedEnd-1] == '!' || originalText[trimmedEnd-1] == '?') {
+		trimmedEnd--
+	}
 	if trimmedStart < trimmedEnd {
 		entity.Text = originalText[trimmedStart:trimmedEnd]
 	} else {

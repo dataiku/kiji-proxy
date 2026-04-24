@@ -146,14 +146,18 @@ class OnnxPIIModel:
             self.end_transitions = None
 
     def _trim_span(self, text: str, start: int, end: int) -> tuple[int, int]:
-        """Trim leading/trailing whitespace from a span.
+        """Trim leading/trailing whitespace and trailing punctuation from a span.
 
         SentencePiece includes the preceding space in token offsets.
+        The model may also extend spans to include trailing sentence
+        punctuation (e.g. "April 12, 1988,") which should be stripped.
         This mirrors the Go backend's finalizeEntity trimming.
         """
         while start < end and text[start] in " \t\n\r":
             start += 1
         while end > start and text[end - 1] in " \t\n\r":
+            end -= 1
+        while end > start and text[end - 1] in ",.;:!?":
             end -= 1
         return start, end
 
