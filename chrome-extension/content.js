@@ -444,44 +444,42 @@
     }
   }
 
-  // Trigger the actual submit
-  function triggerSubmit() {
-    const button = document.querySelector(
-      '[data-testid="send-button"], #composer-submit-button'
-    );
-    if (button) {
-      // Temporarily remove our listener
-      button.removeEventListener("click", handleSubmit, true);
-      button.click();
-      // Re-add listener after a short delay
-      setTimeout(() => {
-        attachSubmitListener();
-      }, 100);
+  // ChatGPT mounts/unmounts the send button as the textarea fills/empties, so
+  // a listener attached to a specific button node dies the moment React swaps
+  // it out. We delegate from `document` instead — the listener survives every
+  // re-render and also covers buttons that didn't exist at init time.
+  const SEND_BUTTON_SELECTOR =
+    '[data-testid="send-button"], #composer-submit-button';
+
+  // Set when triggerSubmit() programmatically clicks the send button so the
+  // delegated handler doesn't intercept the synthetic click and recurse.
+  let bypassNextSendClick = false;
+
+  function handleSendClick(event) {
+    if (bypassNextSendClick) {
+      bypassNextSendClick = false;
+      return;
     }
+    const target = event.target;
+    if (!target || !target.closest) return;
+    if (!target.closest(SEND_BUTTON_SELECTOR)) return;
+    handleSubmit(event);
   }
 
-  // Attach listener to submit button
-  function attachSubmitListener() {
-    if (contextInvalidated) return false;
-    const button = document.querySelector(
-      '[data-testid="send-button"], #composer-submit-button'
-    );
+  // Trigger the actual submit
+  function triggerSubmit() {
+    const button = document.querySelector(SEND_BUTTON_SELECTOR);
     if (button) {
-      button.addEventListener("click", handleSubmit, true);
-      console.log("Kiji Privacy Proxy Extension: Attached to submit button");
-      return true;
+      bypassNextSendClick = true;
+      button.click();
     }
-    return false;
   }
 
   // Detach all listeners when the extension context is invalidated so the
   // user's next click reaches ChatGPT's own submit handler and the page
   // remains usable until they reload.
   function detachListeners() {
-    const button = document.querySelector(
-      '[data-testid="send-button"], #composer-submit-button'
-    );
-    if (button) button.removeEventListener("click", handleSubmit, true);
+    document.removeEventListener("click", handleSendClick, true);
     document.removeEventListener("keydown", handleKeydown, true);
     console.warn(
       "Kiji Privacy Proxy Extension: listeners detached — reload the page to re-enable"
@@ -509,16 +507,9 @@
     // Create modal
     getModal();
 
-    // Try to attach to button
-    if (!attachSubmitListener()) {
-      // Button not found yet, use MutationObserver
-      const observer = new MutationObserver((mutations, obs) => {
-        if (attachSubmitListener()) {
-          obs.disconnect();
-        }
-      });
-      observer.observe(document.body, { childList: true, subtree: true });
-    }
+    // Delegate clicks from document so we catch the send button no matter how
+    // many times React unmounts and re-mounts it.
+    document.addEventListener("click", handleSendClick, true);
 
     // Listen for Enter key submissions
     document.addEventListener("keydown", handleKeydown, true);
