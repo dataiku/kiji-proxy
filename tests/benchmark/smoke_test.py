@@ -52,11 +52,12 @@ def main() -> int:
     from datetime import datetime
     print(f"Last modified:   {datetime.fromtimestamp(mod_time)}")
 
-    # Hash first 1MB to fingerprint the model
+    # Hash full file to fingerprint the model
     h = hashlib.sha256()
     with open(onnx_file, "rb") as f:
-        h.update(f.read(1024 * 1024))
-    print(f"SHA256 (1st MB): {h.hexdigest()[:16]}...")
+        while chunk := f.read(8192):
+            h.update(chunk)
+    print(f"SHA256:          {h.hexdigest()[:16]}...")
 
     # Load model
     import json
