@@ -1,10 +1,16 @@
 {
   "manifest_version": 3,
   "name": "Kiji Privacy Proxy Extension",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Checks for PII before submitting text to AI chat services",
-  "permissions": ["activeTab", "storage", "scripting"],
-  "host_permissions": ["<all_urls>"],
+  "permissions": [
+    "activeTab",
+    "storage",
+    "scripting"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
   "background": {
     "service_worker": "background.js"
   },
@@ -27,8 +33,13 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["icons/kiji-light.svg", "icons/kiji-dark.svg"],
-      "matches": ["<all_urls>"]
+      "resources": [
+        "icons/kiji-light.svg",
+        "icons/kiji-dark.svg"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
     }
   ]
 }

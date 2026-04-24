@@ -1,5 +1,11 @@
 # kiji-privacy-proxy
 
+## 0.5.1
+
+### Patch Changes
+
+- 0503dae: Updated DMG build
+
 ## 0.5.0
 
 ### Minor Changes
