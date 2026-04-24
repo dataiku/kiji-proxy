@@ -416,7 +416,7 @@
       }
 
       if (result.pii_found) {
-        console.log("Kiji Privacy Proxy Extension: PII detected", result);
+        console.log("Kiji Privacy Proxy Extension: PII detected");
         showPIIModal(result, text, (action, maskedText) => {
           switch (action) {
             case "cancel":

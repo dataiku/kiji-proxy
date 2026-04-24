@@ -81,9 +81,9 @@ async function applyContentScriptRegistration(domains) {
 
     console.log(
       "Kiji Privacy Proxy Extension: Content scripts registered for",
-      allowedDomains
+      allowedDomains.length,
+      "domain(s)"
     );
-    console.log("Kiji Privacy Proxy Extension: using backend URL", backendUrl);
   } catch (e) {
     console.error(
       "Kiji Privacy Proxy Extension: Failed to register content scripts",
@@ -175,7 +175,6 @@ async function handlePIICheck(text) {
   backendUrl = storedUrl || DEFAULT_API_BASE;
 
   const url = `${backendUrl}/api/pii/check`;
-  console.log("Kiji Privacy Proxy Extension: POST", url);
 
   let response;
   try {

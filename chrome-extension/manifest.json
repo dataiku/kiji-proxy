@@ -4,7 +4,6 @@
   "version": "0.5.3",
   "description": "Checks for PII before submitting text to AI chat services",
   "permissions": [
-    "activeTab",
     "storage",
     "scripting"
   ],
@@ -16,7 +15,10 @@
     "https://copilot.microsoft.com/*",
     "https://huggingface.co/chat/*",
     "https://chat.mistral.ai/*",
-    "https://poe.com/*"
+    "https://poe.com/*",
+    "https://www.perplexity.ai/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*"
   ],
   "optional_host_permissions": [
     "https://*/*"
