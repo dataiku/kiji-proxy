@@ -120,7 +120,13 @@ class TokenizationProcessor:
         words_original: list[str] | None,
         privacy_mask_with_positions: list[dict[str, Any]] | None,
     ) -> bool:
-        """Check if punctuation is part of an entity value (e.g., comma in 'Google, Inc.')."""
+        """Check if punctuation is part of an entity value.
+
+        Uses character positions to determine whether the punctuation token
+        falls within an entity span, avoiding false positives from string
+        containment (e.g. the trailing comma in ``"1988,"`` should not match
+        the internal comma in ``"April 12, 1988"``).
+        """
         if (
             not words_original
             or not privacy_mask_with_positions
@@ -128,15 +134,22 @@ class TokenizationProcessor:
         ):
             return False
 
+        # Reconstruct the character offset of this word by summing lengths
+        # of preceding words plus whitespace gaps.  text.split() tokens are
+        # separated by single spaces in the offset arithmetic.
+        char_pos = 0
+        for i in range(word_idx):
+            char_pos += len(words_original[i]) + 1  # +1 for the space
+
         original_word = words_original[word_idx]
-        word_without_punct = original_word.rstrip(",.;:!?)]}")
+        # The punctuation is at the trailing end of the word
+        punct_char_pos = char_pos + len(original_word) - len(punct_text)
 
         for item in privacy_mask_with_positions:
-            entity_value = item.get("value", "")
-            # Punctuation is part of entity if both:
-            # 1. Punctuation char is in the entity value
-            # 2. The word (without trailing punct) is part of the entity
-            if punct_text in entity_value and word_without_punct in entity_value:
+            entity_start = item.get("start", 0)
+            entity_end = item.get("end", 0)
+            # Punctuation is inside entity if its position falls within the span
+            if entity_start <= punct_char_pos < entity_end:
                 return True
         return False
 
