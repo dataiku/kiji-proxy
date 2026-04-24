@@ -1,5 +1,11 @@
 # kiji-privacy-proxy
 
+## 0.5.4
+
+### Patch Changes
+
+- 3831a7f: Updated chrome extension
+
 ## 0.5.3
 
 ### Patch Changes
