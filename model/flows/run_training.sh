@@ -18,7 +18,7 @@ while [[ $# -gt 0 ]]; do
             echo "Options:"
             echo "  --config FILE                   Use custom config file (default: training_config.toml)"
             echo "  --num-samples N                 Limit local training samples (0 = all, default: 0)"
-            echo "  --num-samples-ai4privacy N      Add N samples from ai4privacy/pii-masking-200k (0 = all)"
+            echo "  --num-samples-ai4privacy N      Add N samples from ai4privacy/pii-masking-300k (0 = all)"
             echo "  -h, --help                      Show this help"
             echo ""
             echo "Examples:"

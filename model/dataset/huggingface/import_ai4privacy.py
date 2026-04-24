@@ -3,7 +3,7 @@
 # requires-python = ">=3.13"
 # dependencies = []
 # ///
-"""Import English samples from ai4privacy/pii-masking-200k into Kiji training format.
+"""Import samples from ai4privacy/pii-masking-300k into Kiji training format.
 
 Downloads the dataset from HuggingFace, maps AI4Privacy entity labels to Kiji's
 standard PII labels, and saves as Label Studio JSON files ready for training.
@@ -33,70 +33,43 @@ from model.dataset.labelstudio.labelstudio_format import (  # noqa: E402
 
 # AI4Privacy labels → Kiji standard PII labels.
 # Labels mapped to None are dropped (no Kiji equivalent).
+# Label mapping for ai4privacy/pii-masking-300k.
+# Labels mapped to None are dropped (no Kiji equivalent).
 AI4PRIVACY_TO_KIJI: dict[str, str | None] = {
     # Names
-    "FIRSTNAME": "FIRSTNAME",
-    "LASTNAME": "SURNAME",
-    "MIDDLENAME": "FIRSTNAME",
+    "GIVENNAME1": "FIRSTNAME",
+    "GIVENNAME2": "FIRSTNAME",
+    "LASTNAME1": "SURNAME",
+    "LASTNAME2": "SURNAME",
+    "LASTNAME3": "SURNAME",
     # Contact
     "EMAIL": "EMAIL",
-    "PHONENUMBER": "PHONENUMBER",
-    "URL": "URL",
+    "TEL": "PHONENUMBER",
     "USERNAME": "USERNAME",
     # Address
-    "BUILDINGNUMBER": "BUILDINGNUM",
+    "BUILDING": "BUILDINGNUM",
     "STREET": "STREET",
-    "SECONDARYADDRESS": "STREET",
+    "SECADDRESS": "STREET",
     "CITY": "CITY",
-    "COUNTY": "STATE",
     "STATE": "STATE",
-    "ZIPCODE": "ZIP",
+    "POSTCODE": "ZIP",
+    "COUNTRY": "COUNTRY",
     # Identity & dates
-    "DOB": "DATEOFBIRTH",
-    "AGE": "AGE",
-    "SSN": "SSN",
-    # Financial
-    "CREDITCARDNUMBER": "CREDITCARDNUMBER",
-    "IBAN": "IBAN",
+    "BOD": "DATEOFBIRTH",
+    "SOCIALNUMBER": "SSN",
+    "DRIVERLICENSE": "DRIVERLICENSENUM",
+    "PASSPORT": "PASSPORTID",
+    "IDCARD": "NATIONALID",
     # Other
-    "COMPANYNAME": "COMPANYNAME",
-    "PASSWORD": "PASSWORD",
-    "VEHICLEVRM": "LICENSEPLATENUM",
+    "PASS": "PASSWORD",
     # --- Unmapped (dropped) ---
-    "PREFIX": None,
+    "CARDISSUER": None,
     "DATE": None,
-    "TIME": None,
-    "PHONEIMEI": None,
-    "GENDER": None,
-    "SEX": None,
-    "JOBAREA": None,
-    "JOBTYPE": None,
-    "JOBTITLE": None,
-    "USERAGENT": None,
-    "ACCOUNTNAME": None,
-    "ACCOUNTNUMBER": None,
-    "CURRENCYSYMBOL": None,
-    "AMOUNT": None,
-    "CREDITCARDISSUER": None,
-    "CREDITCARDCVV": None,
+    "GEOCOORD": None,
     "IP": None,
-    "IPV4": None,
-    "IPV6": None,
-    "MAC": None,
-    "ETHEREUMADDRESS": None,
-    "BITCOINADDRESS": None,
-    "LITECOINADDRESS": None,
-    "CURRENCY": None,
-    "CURRENCYNAME": None,
-    "CURRENCYCODE": None,
-    "ORDINALDIRECTION": None,
-    "MASKEDNUMBER": None,
-    "BIC": None,
-    "NEARBYGPSCOORDINATE": None,
-    "VEHICLEVIN": None,
-    "EYECOLOR": None,
-    "HEIGHT": None,
-    "PIN": None,
+    "SEX": None,
+    "TIME": None,
+    "TITLE": None,
 }
 
 
@@ -104,7 +77,7 @@ def convert_ai4privacy_sample(row: dict) -> dict | None:
     """Convert a single AI4Privacy row to Kiji's internal training format.
 
     Args:
-        row: A row from the ai4privacy/pii-masking-200k dataset with keys
+        row: A row from the ai4privacy/pii-masking-300k dataset with keys
              ``source_text``, ``privacy_mask``, and ``language``.
 
     Returns:
@@ -116,33 +89,34 @@ def convert_ai4privacy_sample(row: dict) -> dict | None:
     if not text:
         return None
 
-    # Build privacy_mask with character offsets resolved from the source text.
-    # ai4privacy only provides entity value + label, not offsets.
     privacy_mask = []
-    search_from = 0
     for entity in row.get("privacy_mask", []):
         external_label = entity.get("label", "")
         kiji_label = AI4PRIVACY_TO_KIJI.get(external_label)
         if kiji_label is None:
             continue
         value = entity["value"]
-        # Find the entity in the text starting from last match position
-        idx = text.find(value, search_from)
-        if idx == -1:
-            # Retry from the beginning (entity may appear before last match)
+        start = entity.get("start")
+        end = entity.get("end")
+        if start is not None and end is not None:
+            # Validate offset matches the expected value
+            if text[start:end] != value:
+                continue
+        else:
+            # Fallback: find the entity in the text
             idx = text.find(value)
-        if idx == -1:
-            # Entity text not found in source — skip it
-            continue
+            if idx == -1:
+                continue
+            start = idx
+            end = idx + len(value)
         privacy_mask.append(
             {
                 "value": value,
                 "label": kiji_label,
-                "start": idx,
-                "end": idx + len(value),
+                "start": start,
+                "end": end,
             }
         )
-        search_from = idx + len(value)
 
     if not privacy_mask:
         return None
@@ -151,7 +125,7 @@ def convert_ai4privacy_sample(row: dict) -> dict | None:
         "text": text,
         "privacy_mask": privacy_mask,
         "coreferences": [],
-        "language": "English",
+        "language": row.get("language", "English"),
         "country": None,
     }
 
@@ -160,18 +134,15 @@ def import_ai4privacy(
     output_dir: str = "model/dataset/data_samples/training_samples",
     max_samples: int = 0,
 ):
-    """Download English AI4Privacy samples and save as Label Studio JSON files.
+    """Download AI4Privacy samples and save as Label Studio JSON files.
 
     Args:
         output_dir: Directory to write Label Studio JSON files.
         max_samples: Maximum number of samples to import (0 = all).
     """
-    print("Loading ai4privacy/pii-masking-200k from HuggingFace...")
-    ds = load_dataset("ai4privacy/pii-masking-200k", split="train")
-
-    # Filter to English only
-    ds = ds.filter(lambda row: row.get("language") == "en")
-    print(f"  English samples: {len(ds)}")
+    print("Loading ai4privacy/pii-masking-300k from HuggingFace...")
+    ds = load_dataset("ai4privacy/pii-masking-300k", split="train")
+    print(f"  Total samples: {len(ds)}")
 
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)

@@ -35,7 +35,7 @@ project_id = 6
 [data]
 # Limit samples for quick iteration (0 = use all)
 subsample_count = 0
-# ai4privacy/pii-masking-200k samples to add (-1 = none, 0 = all)
+# ai4privacy/pii-masking-300k samples to add (-1 = none, 0 = all)
 num_ai4privacy_samples = -1
 # Path to audit ledger TSV to filter training samples (empty = no filtering)
 # Relative paths are resolved from the project root.
