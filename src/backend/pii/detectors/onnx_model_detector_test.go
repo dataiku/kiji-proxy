@@ -471,3 +471,268 @@ func TestFinalizeEntity_MiddleOfText(t *testing.T) {
 		t.Errorf("Expected EndPos 25, got %d", entity.EndPos)
 	}
 }
+
+// ============================================
+// Tests for finalizeEntity() - Punctuation Trimming
+// ============================================
+
+func TestFinalizeEntity_TrailingCommaBeforeSpace(t *testing.T) {
+	// "April 12, 1988, and" — trailing comma followed by space should be stripped
+	detector := &ONNXModelDetectorSimple{}
+	entity := &Entity{Label: "DATEOFBIRTH", Confidence: 0.90}
+	tokenIndices := []int{0, 1, 2, 3, 4}
+	originalText := "April 12, 1988, and I live here"
+	offsets := []tokenizers.Offset{{0, 5}, {5, 8}, {8, 9}, {9, 10}, {10, 15}}
+
+	detector.finalizeEntity(entity, tokenIndices, originalText, offsets)
+
+	if entity.Text != "April 12, 1988" {
+		t.Errorf("Expected 'April 12, 1988', got '%s'", entity.Text)
+	}
+}
+
+func TestFinalizeEntity_TrailingPeriodBeforeSpace(t *testing.T) {
+	// "John. He is" — trailing period followed by space should be stripped
+	detector := &ONNXModelDetectorSimple{}
+	entity := &Entity{Label: "FIRSTNAME", Confidence: 0.90}
+	tokenIndices := []int{0, 1}
+	originalText := "John. He is here"
+	offsets := []tokenizers.Offset{{0, 4}, {4, 5}, {6, 8}, {9, 11}, {12, 16}}
+
+	detector.finalizeEntity(entity, tokenIndices, originalText, offsets)
+
+	if entity.Text != "John" {
+		t.Errorf("Expected 'John', got '%s'", entity.Text)
+	}
+}
+
+func TestFinalizeEntity_DotInsideEmail(t *testing.T) {
+	// "john@yahoo.com" — dot NOT followed by space, should be preserved
+	detector := &ONNXModelDetectorSimple{}
+	entity := &Entity{Label: "EMAIL", Confidence: 0.90}
+	tokenIndices := []int{0, 1, 2, 3, 4}
+	originalText := `"email": "john@yahoo.com"`
+	offsets := []tokenizers.Offset{{10, 14}, {14, 15}, {15, 20}, {20, 21}, {21, 24}}
+
+	detector.finalizeEntity(entity, tokenIndices, originalText, offsets)
+
+	if entity.Text != "john@yahoo.com" {
+		t.Errorf("Expected 'john@yahoo.com', got '%s'", entity.Text)
+	}
+}
+
+func TestFinalizeEntity_DotInsideURL(t *testing.T) {
+	// "www.example.com" — dots inside URL should be preserved
+	detector := &ONNXModelDetectorSimple{}
+	entity := &Entity{Label: "URL", Confidence: 0.90}
+	tokenIndices := []int{0, 1, 2, 3, 4}
+	originalText := "visit www.example.com today"
+	offsets := []tokenizers.Offset{{6, 9}, {9, 10}, {10, 17}, {17, 18}, {18, 21}}
+
+	detector.finalizeEntity(entity, tokenIndices, originalText, offsets)
+
+	if entity.Text != "www.example.com" {
+		t.Errorf("Expected 'www.example.com', got '%s'", entity.Text)
+	}
+}
+
+func TestFinalizeEntity_TrailingCommaAtEndOfText(t *testing.T) {
+	// "1988," at end of string — should be stripped (nothing follows)
+	detector := &ONNXModelDetectorSimple{}
+	entity := &Entity{Label: "DATEOFBIRTH", Confidence: 0.90}
+	tokenIndices := []int{0}
+	originalText := "1988,"
+	offsets := []tokenizers.Offset{{0, 5}}
+
+	detector.finalizeEntity(entity, tokenIndices, originalText, offsets)
+
+	if entity.Text != "1988" {
+		t.Errorf("Expected '1988', got '%s'", entity.Text)
+	}
+}
+
+func TestFinalizeEntity_DotAtEndOfSentence(t *testing.T) {
+	// "97204." at end — period followed by nothing, should be stripped
+	detector := &ONNXModelDetectorSimple{}
+	entity := &Entity{Label: "ZIP", Confidence: 0.90}
+	tokenIndices := []int{0, 1}
+	originalText := "97204."
+	offsets := []tokenizers.Offset{{0, 5}, {5, 6}}
+
+	detector.finalizeEntity(entity, tokenIndices, originalText, offsets)
+
+	if entity.Text != "97204" {
+		t.Errorf("Expected '97204', got '%s'", entity.Text)
+	}
+}
+
+func TestFinalizeEntity_LeadingWhitespace(t *testing.T) {
+	// SentencePiece includes preceding space in offsets
+	detector := &ONNXModelDetectorSimple{}
+	entity := &Entity{Label: "FIRSTNAME", Confidence: 0.90}
+	tokenIndices := []int{0}
+	originalText := "Hello John Smith"
+	offsets := []tokenizers.Offset{{5, 10}, {10, 16}} // " John" includes leading space
+
+	detector.finalizeEntity(entity, tokenIndices, originalText, offsets)
+
+	if entity.Text != "John" {
+		t.Errorf("Expected 'John', got '%s'", entity.Text)
+	}
+	if entity.StartPos != 6 {
+		t.Errorf("Expected StartPos 6, got %d", entity.StartPos)
+	}
+}
+
+func TestFinalizeEntity_DotFollowedByDigit(t *testing.T) {
+	// "192.168.1.1" — dots followed by digits, should be preserved
+	detector := &ONNXModelDetectorSimple{}
+	entity := &Entity{Label: "SSN", Confidence: 0.90}
+	tokenIndices := []int{0, 1, 2, 3, 4, 5, 6}
+	originalText := "IP is 192.168.1.1 here"
+	offsets := []tokenizers.Offset{{6, 9}, {9, 10}, {10, 13}, {13, 14}, {14, 15}, {15, 16}, {16, 17}}
+
+	detector.finalizeEntity(entity, tokenIndices, originalText, offsets)
+
+	if entity.Text != "192.168.1.1" {
+		t.Errorf("Expected '192.168.1.1', got '%s'", entity.Text)
+	}
+}
+
+// ============================================
+// Tests for viterbiDecode() - Pure Function
+// ============================================
+
+func TestViterbiDecode_AllO(t *testing.T) {
+	// 3 labels: O, B-X, I-X — emissions strongly favor O for all tokens
+	numLabels := 3
+	emissions := []float32{
+		10, -10, -10, // token 0: strongly O
+		10, -10, -10, // token 1: strongly O
+		10, -10, -10, // token 2: strongly O
+	}
+	crf := &crfParams{
+		Transitions:      [][]float32{{0, 0, 0}, {0, 0, 0}, {0, 0, 0}},
+		StartTransitions: []float32{0, 0, 0},
+		EndTransitions:   []float32{0, 0, 0},
+	}
+
+	path := viterbiDecode(emissions, numLabels, crf)
+
+	if len(path) != 3 {
+		t.Fatalf("Expected path length 3, got %d", len(path))
+	}
+	for i, p := range path {
+		if p != 0 {
+			t.Errorf("Token %d: expected O (0), got %d", i, p)
+		}
+	}
+}
+
+func TestViterbiDecode_SingleEntity(t *testing.T) {
+	// 3 labels: 0=O, 1=B-X, 2=I-X
+	// Emissions favor B-X at token 1 and I-X at token 2
+	numLabels := 3
+	emissions := []float32{
+		10, -10, -10, // token 0: O
+		-10, 10, -10, // token 1: B-X
+		-10, -10, 10, // token 2: I-X
+		10, -10, -10, // token 3: O
+	}
+	crf := &crfParams{
+		Transitions:      [][]float32{{0, 0, 0}, {0, 0, 0}, {0, 0, 0}},
+		StartTransitions: []float32{0, 0, 0},
+		EndTransitions:   []float32{0, 0, 0},
+	}
+
+	path := viterbiDecode(emissions, numLabels, crf)
+
+	expected := []int{0, 1, 2, 0}
+	for i, exp := range expected {
+		if path[i] != exp {
+			t.Errorf("Token %d: expected %d, got %d", i, exp, path[i])
+		}
+	}
+}
+
+func TestViterbiDecode_TransitionsPreventInvalidSequence(t *testing.T) {
+	// 3 labels: 0=O, 1=B-X, 2=I-X
+	// Emissions favor I-X at token 0, but transitions penalize starting with I-X
+	numLabels := 3
+	emissions := []float32{
+		-5, -5, 5, // token 0: emissions say I-X
+		10, -10, -10, // token 1: O
+	}
+	crf := &crfParams{
+		Transitions:      [][]float32{{0, 0, 0}, {0, 0, 0}, {0, 0, 0}},
+		StartTransitions: []float32{0, 0, -100}, // strongly penalize starting with I-X
+		EndTransitions:   []float32{0, 0, 0},
+	}
+
+	path := viterbiDecode(emissions, numLabels, crf)
+
+	// Even though emissions favor I-X at token 0, the start penalty should prevent it
+	if path[0] == 2 {
+		t.Errorf("Token 0: I-X should be prevented by start transition penalty, got %d", path[0])
+	}
+}
+
+func TestViterbiDecode_TransitionsEnforceBI(t *testing.T) {
+	// 3 labels: 0=O, 1=B-X, 2=I-X
+	// Emissions ambiguous at token 1, but transitions strongly favor B-X → I-X
+	numLabels := 3
+	emissions := []float32{
+		-10, 10, -10, // token 0: B-X
+		-10, 1, 1, // token 1: ambiguous B-X vs I-X
+		10, -10, -10, // token 2: O
+	}
+	crf := &crfParams{
+		// B-X (1) → I-X (2) gets bonus, B-X (1) → B-X (1) gets penalty
+		Transitions:      [][]float32{{0, 0, 0}, {0, -20, 20}, {0, 0, 0}},
+		StartTransitions: []float32{0, 0, 0},
+		EndTransitions:   []float32{0, 0, 0},
+	}
+
+	path := viterbiDecode(emissions, numLabels, crf)
+
+	if path[1] != 2 {
+		t.Errorf("Token 1: expected I-X (2) due to transition bonus from B-X, got %d", path[1])
+	}
+}
+
+func TestViterbiDecode_EmptyInput(t *testing.T) {
+	crf := &crfParams{
+		Transitions:      [][]float32{{0}},
+		StartTransitions: []float32{0},
+		EndTransitions:   []float32{0},
+	}
+
+	path := viterbiDecode([]float32{}, 1, crf)
+
+	if path != nil {
+		t.Errorf("Expected nil path for empty input, got %v", path)
+	}
+}
+
+// ============================================
+// Tests for softmaxConfidence() - Pure Function
+// ============================================
+
+func TestSoftmaxConfidence_ClearWinner(t *testing.T) {
+	logits := []float32{10, -10, -10}
+	conf := softmaxConfidence(logits, 0)
+
+	if conf < 0.99 {
+		t.Errorf("Expected confidence > 0.99 for clear winner, got %f", conf)
+	}
+}
+
+func TestSoftmaxConfidence_Uniform(t *testing.T) {
+	logits := []float32{0, 0, 0}
+	conf := softmaxConfidence(logits, 0)
+
+	expected := 1.0 / 3.0
+	if conf < expected-0.01 || conf > expected+0.01 {
+		t.Errorf("Expected confidence ~%f for uniform logits, got %f", expected, conf)
+	}
+}
