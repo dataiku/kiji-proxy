@@ -321,7 +321,10 @@ func (d *ONNXModelDetectorSimple) classifyToken(tokenLogits []float32) (string, 
 // using the CRF transition matrices to find the globally optimal label sequence.
 func viterbiDecode(emissions []float32, numLabels int, crf *crfParams) []int {
 	seqLen := len(emissions) / numLabels
-	if seqLen == 0 {
+	if seqLen == 0 || numLabels == 0 {
+		return nil
+	}
+	if len(emissions) < seqLen*numLabels {
 		return nil
 	}
 
@@ -330,8 +333,9 @@ func viterbiDecode(emissions []float32, numLabels int, crf *crfParams) []int {
 	backpointers := make([]int, seqLen*numLabels)
 
 	// Initialization: viterbi[0][j] = start_transitions[j] + emissions[0][j]
+	firstTokenEmissions := emissions[:numLabels] // #nosec G602 - bounds checked above
 	for j := 0; j < numLabels; j++ {
-		viterbi[j] = float64(crf.StartTransitions[j]) + float64(emissions[j])
+		viterbi[j] = float64(crf.StartTransitions[j]) + float64(firstTokenEmissions[j])
 	}
 
 	// Forward pass
