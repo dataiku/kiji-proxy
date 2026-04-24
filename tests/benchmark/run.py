@@ -58,6 +58,52 @@ AI4PRIVACY_TO_KIJI: dict[str, str] = {
 # ONNX model wrapper
 # ---------------------------------------------------------------------------
 
+def viterbi_decode(
+    logits: np.ndarray,
+    transitions: np.ndarray,
+    start_transitions: np.ndarray,
+    end_transitions: np.ndarray,
+) -> list[int]:
+    """Viterbi decoding using CRF transition parameters.
+
+    Args:
+        logits: Emission scores of shape (seq_len, num_labels).
+        transitions: Transition matrix (num_labels, num_labels).
+                     transitions[i][j] = score for transitioning from tag i to tag j.
+        start_transitions: Start scores (num_labels,).
+        end_transitions: End scores (num_labels,).
+
+    Returns:
+        Best label sequence as list of label IDs.
+    """
+    seq_len, num_labels = logits.shape
+    # viterbi[t][j] = best score ending in label j at position t
+    viterbi = np.full((seq_len, num_labels), -1e9)
+    backpointers = np.zeros((seq_len, num_labels), dtype=int)
+
+    # Initialization
+    viterbi[0] = start_transitions + logits[0]
+
+    # Forward pass
+    for t in range(1, seq_len):
+        for j in range(num_labels):
+            # Score of arriving at label j from each previous label
+            scores = viterbi[t - 1] + transitions[:, j] + logits[t, j]
+            backpointers[t, j] = int(np.argmax(scores))
+            viterbi[t, j] = scores[backpointers[t, j]]
+
+    # Add end transitions
+    final_scores = viterbi[seq_len - 1] + end_transitions
+    best_last = int(np.argmax(final_scores))
+
+    # Backtrace
+    best_path = [best_last]
+    for t in range(seq_len - 1, 0, -1):
+        best_path.append(backpointers[t, best_path[-1]])
+    best_path.reverse()
+    return best_path
+
+
 class OnnxPIIModel:
     """Thin wrapper around the quantized ONNX model for inference."""
 
@@ -86,6 +132,19 @@ class OnnxPIIModel:
             providers=["CPUExecutionProvider"],
         )
 
+        # Load CRF transition parameters for Viterbi decoding
+        crf_path = model_dir / "crf_transitions.json"
+        if crf_path.exists():
+            with crf_path.open() as f:
+                crf = json.load(f)
+            self.transitions = np.array(crf["transitions"], dtype=np.float32)
+            self.start_transitions = np.array(crf["start_transitions"], dtype=np.float32)
+            self.end_transitions = np.array(crf["end_transitions"], dtype=np.float32)
+        else:
+            self.transitions = None
+            self.start_transitions = None
+            self.end_transitions = None
+
     def _trim_span(self, text: str, start: int, end: int) -> tuple[int, int]:
         """Trim leading/trailing whitespace from a span.
 
@@ -113,7 +172,18 @@ class OnnxPIIModel:
             "attention_mask": inputs["attention_mask"],
         }
         logits = self.session.run(None, ort_inputs)[0]  # [1, seq, labels]
-        predictions = np.argmax(logits, axis=-1)[0]
+
+        if self.transitions is not None:
+            # Use Viterbi decoding with CRF transition constraints
+            seq_logits = logits[0]  # (seq_len, num_labels)
+            predictions = viterbi_decode(
+                seq_logits,
+                self.transitions,
+                self.start_transitions,
+                self.end_transitions,
+            )
+        else:
+            predictions = np.argmax(logits, axis=-1)[0]
 
         tokens = self.tokenizer.convert_ids_to_tokens(inputs["input_ids"][0])
         entities: list[tuple[int, int, str]] = []

@@ -66,9 +66,9 @@ class TrainingConfig:
     # Early stopping
     early_stopping_enabled: bool = True  # Enable early stopping
     early_stopping_patience: int = (
-        3  # Number of eval steps with no improvement before stopping
+        5  # Number of eval steps with no improvement before stopping
     )
-    early_stopping_threshold: float = 0.01  # Minimum improvement (1%) to qualify
+    early_stopping_threshold: float = 0.001  # Minimum improvement (0.1%) to qualify
 
     def __post_init__(self):
         """Create output directory after initialization."""
