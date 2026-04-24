@@ -1,5 +1,12 @@
 # kiji-privacy-proxy
 
+## 0.5.1
+
+### Patch Changes
+
+- b19637e: Improve PII detection accuracy and masking reliability: updated the base model, corrected BIO labels for multi-word entities, fixed the street name generator, and now show "Unknown" instead of the masked value when an entity label is missing.
+- 0503dae: Updated DMG build
+
 ## 0.5.0
 
 ### Minor Changes
