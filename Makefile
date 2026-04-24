@@ -6,6 +6,7 @@
 .PHONY: electron-build electron-run electron electron-dev electron-install
 .PHONY: list show shell jupyter info quickstart
 .PHONY: pr
+.PHONY: version-bump
 
 # Default target
 .DEFAULT_GOAL := help
@@ -61,6 +62,13 @@ info: ## Show project info
 
 pr: ## Generate semantic PR title + summary with Claude Code and create the PR
 	@./src/scripts/create_pr.sh
+
+##@ Release
+
+version-bump: ## Bump versions from pending changesets (runs `changeset version` + manifest sync)
+	@echo "$(BLUE)Bumping versions from pending changesets...$(NC)"
+	@npm run version
+	@echo "$(GREEN)✅ Version bump complete$(NC)"
 
 ##@ Setup & Installation
 
