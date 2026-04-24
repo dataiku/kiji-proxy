@@ -31,6 +31,14 @@ type tokenChunk struct {
 	isLast          bool // Is this the last chunk?
 }
 
+// crfParams holds the CRF transition matrices exported during quantization.
+// These are used by Viterbi decoding to enforce valid BIO label sequences.
+type crfParams struct {
+	Transitions      [][]float32 `json:"transitions"`       // [num_labels][num_labels]
+	StartTransitions []float32   `json:"start_transitions"` // [num_labels]
+	EndTransitions   []float32   `json:"end_transitions"`   // [num_labels]
+}
+
 // ONNXModelDetectorSimple implements DetectorClass using an internal ONNX model
 type ONNXModelDetectorSimple struct {
 	tokenizer                 *tokenizers.Tokenizer
@@ -44,6 +52,7 @@ type ONNXModelDetectorSimple struct {
 	numPIILabels              int
 	modelPath                 string
 	entityConfidenceThreshold float64
+	crf                       *crfParams // nil if crf_transitions.json not found
 }
 
 // NewONNXModelDetectorSimple creates a new ONNX model detector
@@ -169,6 +178,33 @@ func NewONNXModelDetectorSimple(modelPath string, tokenizerPath string) (*ONNXMo
 	}
 	fmt.Printf("Loaded %d PII labels (expected 49)\n", numPIILabels)
 
+	// Load CRF transition parameters for Viterbi decoding.
+	// The CRF layer is part of the trained model but not exported to ONNX;
+	// instead the transition matrices are saved as a sidecar JSON file.
+	var crf *crfParams
+	crfPaths := []string{
+		"model/quantized/crf_transitions.json",
+		"quantized/crf_transitions.json",
+		"./crf_transitions.json",
+	}
+	for _, path := range crfPaths {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		var c crfParams
+		if err := json.Unmarshal(data, &c); err != nil {
+			fmt.Printf("Warning: failed to parse CRF transitions from %s: %v\n", path, err)
+			continue
+		}
+		crf = &c
+		fmt.Printf("Loaded CRF transition parameters from %s (%d labels)\n", path, len(c.StartTransitions))
+		break
+	}
+	if crf == nil {
+		fmt.Println("Warning: CRF transitions not found, falling back to argmax decoding")
+	}
+
 	detector := &ONNXModelDetectorSimple{
 		tokenizer:                 tk,
 		id2label:                  config.PII.ID2Label,
@@ -177,6 +213,7 @@ func NewONNXModelDetectorSimple(modelPath string, tokenizerPath string) (*ONNXMo
 		numPIILabels:              numPIILabels,
 		modelPath:                 modelPath,
 		entityConfidenceThreshold: defaultEntityConfidenceThreshold,
+		crf:                       crf,
 	}
 
 	// Initialize tensors and session will be done on first use
@@ -280,6 +317,77 @@ func (d *ONNXModelDetectorSimple) classifyToken(tokenLogits []float32) (string, 
 	return label, confidence
 }
 
+// viterbiDecode runs the Viterbi algorithm over a sequence of emission scores
+// using the CRF transition matrices to find the globally optimal label sequence.
+func viterbiDecode(emissions []float32, numLabels int, crf *crfParams) []int {
+	seqLen := len(emissions) / numLabels
+	if seqLen == 0 {
+		return nil
+	}
+
+	// viterbi[t*numLabels + j] = best score ending in label j at position t
+	viterbi := make([]float64, seqLen*numLabels)
+	backpointers := make([]int, seqLen*numLabels)
+
+	// Initialization: viterbi[0][j] = start_transitions[j] + emissions[0][j]
+	for j := 0; j < numLabels; j++ {
+		viterbi[j] = float64(crf.StartTransitions[j]) + float64(emissions[j])
+	}
+
+	// Forward pass
+	for t := 1; t < seqLen; t++ {
+		for j := 0; j < numLabels; j++ {
+			bestScore := math.Inf(-1)
+			bestPrev := 0
+			emissionScore := float64(emissions[t*numLabels+j])
+			for k := 0; k < numLabels; k++ {
+				score := viterbi[(t-1)*numLabels+k] + float64(crf.Transitions[k][j]) + emissionScore
+				if score > bestScore {
+					bestScore = score
+					bestPrev = k
+				}
+			}
+			viterbi[t*numLabels+j] = bestScore
+			backpointers[t*numLabels+j] = bestPrev
+		}
+	}
+
+	// Add end transitions and find best last label
+	bestScore := math.Inf(-1)
+	bestLast := 0
+	for j := 0; j < numLabels; j++ {
+		score := viterbi[(seqLen-1)*numLabels+j] + float64(crf.EndTransitions[j])
+		if score > bestScore {
+			bestScore = score
+			bestLast = j
+		}
+	}
+
+	// Backtrace
+	path := make([]int, seqLen)
+	path[seqLen-1] = bestLast
+	for t := seqLen - 1; t > 0; t-- {
+		path[t-1] = backpointers[t*numLabels+path[t]]
+	}
+
+	return path
+}
+
+// softmaxConfidence computes the softmax probability for a specific class given its logits.
+func softmaxConfidence(tokenLogits []float32, classIdx int) float64 {
+	maxLogit := float64(tokenLogits[0])
+	for _, l := range tokenLogits[1:] {
+		if float64(l) > maxLogit {
+			maxLogit = float64(l)
+		}
+	}
+	var sum float64
+	for _, l := range tokenLogits {
+		sum += math.Exp(float64(l) - maxLogit)
+	}
+	return math.Exp(float64(tokenLogits[classIdx])-maxLogit) / sum
+}
+
 // processOutputInline converts model output to entities (inline to avoid compilation issues)
 func (d *ONNXModelDetectorSimple) processOutputInline(originalText string, tokenIDs []uint32, offsets []tokenizers.Offset) []Entity {
 	outputData := d.outputTensor.GetData()
@@ -292,6 +400,12 @@ func (d *ONNXModelDetectorSimple) processOutputInline(originalText string, token
 	}
 
 	fmt.Printf("[ONNX Model Response] Processing %d tokens, output tensor size: %d, numPIILabels: %d\n", numTokens, len(outputData), d.numPIILabels)
+
+	// Decode label sequence: use Viterbi if CRF params available, otherwise argmax
+	var bestLabels []int
+	if d.crf != nil && numTokens*d.numPIILabels <= len(outputData) {
+		bestLabels = viterbiDecode(outputData[:numTokens*d.numPIILabels], d.numPIILabels, d.crf)
+	}
 
 	// Group consecutive tokens with same label (B-PREFIX, I-PREFIX pattern)
 	var currentEntity *Entity
@@ -308,8 +422,22 @@ func (d *ONNXModelDetectorSimple) processOutputInline(originalText string, token
 		}
 		tokenLogits := outputData[startIdx:endIdx]
 
-		// Classify this token
-		label, confidence := d.classifyToken(tokenLogits)
+		// Get label and confidence
+		var label string
+		var confidence float64
+		if bestLabels != nil {
+			// Viterbi path — look up label and compute softmax confidence
+			classID := bestLabels[i]
+			idStr := fmt.Sprintf("%d", classID)
+			var ok bool
+			label, ok = d.id2label[idStr]
+			if !ok {
+				label = "O"
+			}
+			confidence = softmaxConfidence(tokenLogits, classID)
+		} else {
+			label, confidence = d.classifyToken(tokenLogits)
+		}
 
 		// Log token details
 		tokenText := ""
@@ -318,34 +446,6 @@ func (d *ONNXModelDetectorSimple) processOutputInline(originalText string, token
 		}
 		fmt.Printf("[ONNX Model Response] Token %d: id=%d text=%q offset=(%d,%d) label=%q confidence=%.4f\n",
 			i, tokenIDs[i], tokenText, offsets[i][0], offsets[i][1], label, confidence)
-
-		// Log top-3 predictions for non-O tokens to help debug misclassifications
-		if label != "O" || confidence < 0.8 {
-			type logitEntry struct {
-				classID int
-				label   string
-				logit   float32
-			}
-			var top []logitEntry
-			for j, logit := range tokenLogits {
-				cID := fmt.Sprintf("%d", j)
-				cLabel, ok := d.id2label[cID]
-				if !ok {
-					cLabel = fmt.Sprintf("UNKNOWN_%d", j)
-				}
-				top = append(top, logitEntry{j, cLabel, logit})
-			}
-			sort.Slice(top, func(a, b int) bool { return top[a].logit > top[b].logit })
-			n := 3
-			if len(top) < n {
-				n = len(top)
-			}
-			fmt.Printf("[ONNX Model Response]   Top-%d predictions: ", n)
-			for k := 0; k < n; k++ {
-				fmt.Printf("%s(id=%d logit=%.4f) ", top[k].label, top[k].classID, top[k].logit)
-			}
-			fmt.Println()
-		}
 
 		// Only process tokens with reasonable confidence
 		if confidence < d.entityConfidenceThreshold {
