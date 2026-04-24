@@ -333,9 +333,8 @@ func viterbiDecode(emissions []float32, numLabels int, crf *crfParams) []int {
 	backpointers := make([]int, seqLen*numLabels)
 
 	// Initialization: viterbi[0][j] = start_transitions[j] + emissions[0][j]
-	firstTokenEmissions := emissions[:numLabels] // #nosec G602 - bounds checked above
 	for j := 0; j < numLabels; j++ {
-		viterbi[j] = float64(crf.StartTransitions[j]) + float64(firstTokenEmissions[j])
+		viterbi[j] = float64(crf.StartTransitions[j]) + float64(emissions[j]) // #nosec G602 - j < numLabels <= len(emissions) checked above
 	}
 
 	// Forward pass
