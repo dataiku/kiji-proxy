@@ -130,10 +130,12 @@ func TestStreetGenerator(t *testing.T) {
 	rng := getTestRand(42)
 	result := StreetGenerator(rng, "")
 
-	// Check that result contains a number and street name
-	streetPattern := regexp.MustCompile(`^\d+ .+$`)
-	if !streetPattern.MatchString(result) {
-		t.Errorf("StreetGenerator returned invalid street format: %s", result)
+	if result == "" {
+		t.Errorf("StreetGenerator returned empty result")
+	}
+	streetPattern := regexp.MustCompile(`^\d`)
+	if streetPattern.MatchString(result) {
+		t.Errorf("StreetGenerator should not include a leading number: %s", result)
 	}
 }
 

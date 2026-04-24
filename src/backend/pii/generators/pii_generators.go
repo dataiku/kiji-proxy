@@ -156,10 +156,7 @@ func StreetGenerator(rng *rand.Rand, original string) string {
 		"King Street", "Manor Road", "Park Lane", "The Crescent", "Green Lane",
 		"Mill Lane", "New Road", "Chapel Street", "West End", "North Terrace",
 	}
-	number := 100 + rng.Intn(9900)
-
-	street := streetNames[rng.Intn(len(streetNames))]
-	return fmt.Sprintf("%d %s", number, street)
+	return streetNames[rng.Intn(len(streetNames))]
 }
 
 // ZipCodeGenerator generates dummy zip codes
