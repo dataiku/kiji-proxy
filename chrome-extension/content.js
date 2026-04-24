@@ -87,13 +87,16 @@
   }
 
   // Format a backend label ("CITY", "FIRST_NAME") as a user-facing string.
-  // Falls back to stripping angle brackets / index suffixes for legacy
-  // bracket-token responses like `<PERSON_1>`.
+  // Only parses the masked value as a label when it's a legacy bracket token
+  // like `<PERSON_1>`; modern masked values are realistic fakes (e.g. "25627"
+  // for a zipcode) and would otherwise be shown verbatim as the type.
   function formatEntityType(label, fallbackMasked) {
     let raw = label;
     if (!raw && fallbackMasked) {
-      const stripped = String(fallbackMasked).replace(/^<|>$/g, "");
-      raw = stripped.replace(/_\d+$/, "");
+      const masked = String(fallbackMasked);
+      if (/^<[A-Z_]+(_\d+)?>$/.test(masked)) {
+        raw = masked.replace(/^<|>$/g, "").replace(/_\d+$/, "");
+      }
     }
     if (!raw) return "Unknown";
     return raw
