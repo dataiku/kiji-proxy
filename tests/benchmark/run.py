@@ -358,19 +358,15 @@ def print_sample_detections(
     fn = gold_set - pred_set
     fp = pred_set - gold_set
 
-    if tp:
-        print(f"  Matches (TP={len(tp)}):")
-        for start, end, label in sorted(tp):
-            print(f"    [{label:<20s}] {text[start:end]!r}")
-    if fn:
-        print(f"  Missed  (FN={len(fn)}):")
-        for start, end, label in sorted(fn):
-            print(f"    [{label:<20s}] {text[start:end]!r}")
-    if fp:
-        print(f"  Spurious (FP={len(fp)}):")
-        for start, end, label in sorted(fp):
-            print(f"    [{label:<20s}] {text[start:end]!r}")
-    if not tp and not fn and not fp:
+    print(f"  Expected ({len(gold_set)}):")
+    for start, end, label in sorted(gold_set):
+        marker = "TP" if (start, end, label) in tp else "FN"
+        print(f"    [{label:<20s}] {text[start:end]!r}  ({marker})")
+    print(f"  Predicted ({len(pred_set)}):")
+    for start, end, label in sorted(pred_set):
+        marker = "TP" if (start, end, label) in tp else "FP"
+        print(f"    [{label:<20s}] {text[start:end]!r}  ({marker})")
+    if not gold_set and not pred_set:
         print("  (no entities)")
 
 
