@@ -300,17 +300,6 @@ class PIIModelLoader:
             ):
                 continue
 
-            # Skip punctuation-only tokens when continuing an entity
-            # This prevents punctuation from being included in entities
-            token_text = (
-                text[offset[0].item() : offset[1].item()]
-                if offset[0].item() < len(text)
-                else ""
-            )
-            is_punctuation_only = token_text.strip() and all(
-                c in ",.;:!?)]}" for c in token_text.strip()
-            )
-
             # Check if this is a PII token
             if label.startswith("B-"):
                 # Save previous entity if exists
@@ -330,24 +319,19 @@ class PIIModelLoader:
                             )
                         )
 
-                # Start new entity (skip if it's punctuation-only)
-                if not is_punctuation_only:
-                    current_label = label[2:]  # Remove "B-" prefix
-                    current_start = offset[0].item()
-                    current_end = offset[1].item()
-                    current_entity = token
-                else:
-                    current_entity = None
-                    current_label = None
+                current_label = label[2:]  # Remove "B-" prefix
+                current_start = offset[0].item()
+                current_end = offset[1].item()
+                current_entity = token
 
             elif label.startswith("I-") and current_entity is not None:
-                # Continue current entity (only if same label and not punctuation-only)
-                if (
-                    current_label == label[2:] and not is_punctuation_only
-                ):  # Check label matches
+                # Continue current entity if the label matches. Punctuation inside
+                # the entity span, such as dots in emails/URLs, is preserved here
+                # and only trailing sentence punctuation is stripped at finalization.
+                if current_label == label[2:]:
                     current_end = offset[1].item()
                 else:
-                    # Different label or punctuation - save previous and start new (if not punctuation)
+                    # Different label - save previous and start new
                     entity_text = text[current_start:current_end]
                     # Strip trailing punctuation
                     entity_text, chars_stripped = strip_trailing_punctuation(
@@ -363,13 +347,10 @@ class PIIModelLoader:
                             )
                         )
 
-                    if not is_punctuation_only:
-                        current_label = label[2:]
-                        current_start = offset[0].item()
-                        current_end = offset[1].item()
-                    else:
-                        current_entity = None
-                        current_label = None
+                    current_label = label[2:]
+                    current_start = offset[0].item()
+                    current_end = offset[1].item()
+                    current_entity = token
 
             elif current_entity is not None:  # "O" label or entity ended
                 # Save previous entity if exists

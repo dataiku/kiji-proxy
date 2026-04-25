@@ -70,14 +70,14 @@ func NewONNXModelDetectorSimple(modelPath string, tokenizerPath string) (*ONNXMo
 	if onnxLibPath == "" {
 		onnxPaths := []string{
 			// macOS paths (.dylib)
-			"./libonnxruntime.1.24.2.dylib",            // CWD (legacy)
-			"./resources/libonnxruntime.1.24.2.dylib",  // Production DMG: CWD is Contents/Resources
-			"./build/libonnxruntime.1.24.2.dylib",      // Development: in build directory
-			"../libonnxruntime.1.24.2.dylib",           // Alternative location
+			"./libonnxruntime.1.24.2.dylib",           // CWD (legacy)
+			"./resources/libonnxruntime.1.24.2.dylib", // Production DMG: CWD is Contents/Resources
+			"./build/libonnxruntime.1.24.2.dylib",     // Development: in build directory
+			"../libonnxruntime.1.24.2.dylib",          // Alternative location
 			// Linux paths (.so)
-			"./lib/libonnxruntime.so.1.24.2",           // Linux release tarball layout
-			"./build/libonnxruntime.so.1.24.2",         // Development: in build directory
-			"./libonnxruntime.so.1.24.2",               // CWD
+			"./lib/libonnxruntime.so.1.24.2",   // Linux release tarball layout
+			"./build/libonnxruntime.so.1.24.2", // Development: in build directory
+			"./libonnxruntime.so.1.24.2",       // CWD
 		}
 
 		for _, p := range onnxPaths {
@@ -391,6 +391,60 @@ func softmaxConfidence(tokenLogits []float32, classIdx int) float64 {
 	return math.Exp(float64(tokenLogits[classIdx])-maxLogit) / sum
 }
 
+func splitBIOLabel(label string) (baseLabel string, isBeginning bool, isInside bool) {
+	isBeginning = strings.HasPrefix(label, "B-")
+	isInside = strings.HasPrefix(label, "I-")
+	if isBeginning || isInside {
+		return strings.TrimPrefix(strings.TrimPrefix(label, "B-"), "I-"), isBeginning, isInside
+	}
+	return label, false, false
+}
+
+func isEntityJoinerToken(tokenText string) bool {
+	trimmed := strings.TrimSpace(tokenText)
+	if trimmed == "" {
+		return false
+	}
+	for _, r := range trimmed {
+		if !strings.ContainsRune(".,@_-+:/#%&=", r) {
+			return false
+		}
+	}
+	return true
+}
+
+func tokenStartsAtPreviousEnd(tokenIndex int, currentTokens []int, offsets []tokenizers.Offset) bool {
+	if len(currentTokens) == 0 || tokenIndex >= len(offsets) {
+		return false
+	}
+	previousTokenIndex := currentTokens[len(currentTokens)-1]
+	if previousTokenIndex >= len(offsets) {
+		return false
+	}
+	return offsets[previousTokenIndex][1] == offsets[tokenIndex][0]
+}
+
+func (d *ONNXModelDetectorSimple) decodedTokenLabel(index int, outputData []float32, bestLabels []int) (string, float64) {
+	startIdx := index * d.numPIILabels
+	endIdx := (index + 1) * d.numPIILabels
+	if startIdx < 0 || endIdx > len(outputData) {
+		return "O", 0
+	}
+
+	tokenLogits := outputData[startIdx:endIdx]
+	if bestLabels != nil && index < len(bestLabels) {
+		classID := bestLabels[index]
+		idStr := fmt.Sprintf("%d", classID)
+		label, ok := d.id2label[idStr]
+		if !ok {
+			label = "O"
+		}
+		return label, softmaxConfidence(tokenLogits, classID)
+	}
+
+	return d.classifyToken(tokenLogits)
+}
+
 // processOutputInline converts model output to entities (inline to avoid compilation issues)
 func (d *ONNXModelDetectorSimple) processOutputInline(originalText string, tokenIDs []uint32, offsets []tokenizers.Offset) []Entity {
 	outputData := d.outputTensor.GetData()
@@ -423,24 +477,9 @@ func (d *ONNXModelDetectorSimple) processOutputInline(originalText string, token
 			fmt.Printf("[ONNX Model Response] Token %d: out of bounds (startIdx=%d, endIdx=%d, outputLen=%d)\n", i, startIdx, endIdx, len(outputData))
 			break // Reached end of output data
 		}
-		tokenLogits := outputData[startIdx:endIdx]
 
 		// Get label and confidence
-		var label string
-		var confidence float64
-		if bestLabels != nil {
-			// Viterbi path — look up label and compute softmax confidence
-			classID := bestLabels[i]
-			idStr := fmt.Sprintf("%d", classID)
-			var ok bool
-			label, ok = d.id2label[idStr]
-			if !ok {
-				label = "O"
-			}
-			confidence = softmaxConfidence(tokenLogits, classID)
-		} else {
-			label, confidence = d.classifyToken(tokenLogits)
-		}
+		label, confidence := d.decodedTokenLabel(i, outputData, bestLabels)
 
 		// Log token details
 		tokenText := ""
@@ -455,16 +494,36 @@ func (d *ONNXModelDetectorSimple) processOutputInline(originalText string, token
 			label = "O"
 		}
 
-		// Handle B-PREFIX (beginning) and I-PREFIX (inside) labels
-		isBeginning := strings.HasPrefix(label, "B-")
-		isInside := strings.HasPrefix(label, "I-")
-		baseLabel := label
-		if isBeginning || isInside {
-			baseLabel = strings.TrimPrefix(strings.TrimPrefix(label, "B-"), "I-")
+		// Punctuation inside compact entities such as emails and URLs may be
+		// decoded as O by older models. If it is sandwiched between tokens of
+		// the same entity label, keep it as a bridge and let finalizeEntity trim
+		// true trailing sentence punctuation.
+		if label == "O" && currentEntity != nil && isEntityJoinerToken(tokenText) {
+			nextLabel, nextConfidence := d.decodedTokenLabel(i+1, outputData, bestLabels)
+			nextBaseLabel, nextIsBeginning, nextIsInside := splitBIOLabel(nextLabel)
+			if nextConfidence >= d.entityConfidenceThreshold &&
+				(nextIsBeginning || nextIsInside) &&
+				nextBaseLabel == currentEntity.Label {
+				label = "I-" + currentEntity.Label
+				confidence = currentEntity.Confidence
+			}
 		}
+
+		// Handle B-PREFIX (beginning) and I-PREFIX (inside) labels
+		baseLabel, isBeginning, isInside := splitBIOLabel(label)
+		isSameCompactEntity := label != "O" &&
+			currentEntity != nil &&
+			currentEntity.Label == baseLabel &&
+			tokenStartsAtPreviousEnd(i, currentTokens, offsets)
 
 		// Handle different entity states using switch for better readability
 		switch {
+		case label != "O" && currentEntity != nil && currentEntity.Label == baseLabel && (isInside || isSameCompactEntity):
+			// Continue current entity. Same-label B tags immediately after a
+			// joiner token are treated as continuation so emails like
+			// "jonathan.reyes@example.com" do not fragment.
+			currentTokens = append(currentTokens, i)
+			currentEntity.Confidence = (currentEntity.Confidence + confidence) / 2
 		case label != "O" && (isBeginning || currentEntity == nil):
 			// Finish previous entity if exists
 			if currentEntity != nil {
@@ -478,11 +537,6 @@ func (d *ONNXModelDetectorSimple) processOutputInline(originalText string, token
 				Confidence: confidence,
 			}
 			currentTokens = []int{i}
-		case label != "O" && isInside && currentEntity != nil && currentEntity.Label == baseLabel:
-			// Continue current entity
-			currentTokens = append(currentTokens, i)
-			// Update confidence to average
-			currentEntity.Confidence = (currentEntity.Confidence + confidence) / 2
 		default:
 			// Finish current entity if exists
 			if currentEntity != nil {

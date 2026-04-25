@@ -521,6 +521,37 @@ func TestFinalizeEntity_DotInsideEmail(t *testing.T) {
 	}
 }
 
+func TestFinalizeEntity_EmailTrailingSentenceDotTrimmed(t *testing.T) {
+	// Internal email dots should be preserved while the final sentence dot is stripped.
+	detector := &ONNXModelDetectorSimple{}
+	entity := &Entity{Label: "EMAIL", Confidence: 0.90}
+	tokenIndices := []int{0, 1, 2, 3, 4, 5, 6}
+	originalText := "Email jonathan.reyes@example.com."
+	offsets := []tokenizers.Offset{{6, 14}, {14, 15}, {15, 20}, {20, 21}, {21, 28}, {28, 32}, {32, 33}}
+
+	detector.finalizeEntity(entity, tokenIndices, originalText, offsets)
+
+	if entity.Text != "jonathan.reyes@example.com" {
+		t.Errorf("Expected 'jonathan.reyes@example.com', got '%s'", entity.Text)
+	}
+	if entity.EndPos != 32 {
+		t.Errorf("Expected EndPos 32, got %d", entity.EndPos)
+	}
+}
+
+func TestIsEntityJoinerToken(t *testing.T) {
+	for _, token := range []string{".", "@", "-", "_", ":", "/", ".@"} {
+		if !isEntityJoinerToken(token) {
+			t.Errorf("Expected %q to be an entity joiner", token)
+		}
+	}
+	for _, token := range []string{"", " ", "A", "!"} {
+		if isEntityJoinerToken(token) {
+			t.Errorf("Expected %q not to be an entity joiner", token)
+		}
+	}
+}
+
 func TestFinalizeEntity_DotInsideURL(t *testing.T) {
 	// "www.example.com" — dots inside URL should be preserved
 	detector := &ONNXModelDetectorSimple{}
