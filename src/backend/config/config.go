@@ -3,12 +3,12 @@ package config
 import (
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
 
+	"github.com/hannes/kiji-private/src/backend/paths"
 	"github.com/hannes/kiji-private/src/backend/providers"
 )
 
@@ -185,8 +185,7 @@ func DefaultConfig() *Config {
 	}
 
 	// Application data directory
-	homeDir, _ := os.UserHomeDir()
-	appDataDir := filepath.Join(homeDir, "Library", "Application Support", "Kiji Privacy Proxy")
+	appDataDir := paths.AppDataDir()
 	caPath := filepath.Join(appDataDir, "certs", "ca.crt")
 	keyPath := filepath.Join(appDataDir, "certs", "ca.key")
 	dbPath := filepath.Join(appDataDir, "kiji_privacy_proxy.db")

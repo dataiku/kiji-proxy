@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hannes/kiji-private/src/backend/paths"
 	detectors "github.com/hannes/kiji-private/src/backend/pii/detectors"
 	_ "modernc.org/sqlite"
 )
@@ -94,8 +95,7 @@ type SQLitePIIMappingDB struct {
 func NewSQLitePIIMappingDB(ctx context.Context, config DatabaseConfig) (*SQLitePIIMappingDB, error) {
 	dbPath := config.Path
 	if dbPath == "" {
-		homeDir, _ := os.UserHomeDir()
-		dbPath = filepath.Join(homeDir, "Library", "Application Support", "Kiji Privacy Proxy", "kiji_privacy_proxy.db")
+		dbPath = filepath.Join(paths.AppDataDir(), "kiji_privacy_proxy.db")
 	}
 
 	// Ensure the directory exists

@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hannes/kiji-private/src/backend/paths"
 	detectors "github.com/hannes/kiji-private/src/backend/pii/detectors"
 )
 
@@ -29,11 +30,7 @@ func newTestDB(t *testing.T) *SQLitePIIMappingDB {
 // --- NewSQLitePIIMappingDB tests ---
 
 func TestNewSQLitePIIMappingDB_DefaultPath(t *testing.T) {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		t.Fatal(err)
-	}
-	expectedPath := filepath.Join(homeDir, "Library", "Application Support", "Kiji Privacy Proxy", "kiji_privacy_proxy.db")
+	expectedPath := filepath.Join(paths.AppDataDir(), "kiji_privacy_proxy.db")
 
 	db, err := NewSQLitePIIMappingDB(context.Background(), DatabaseConfig{})
 	if err != nil {

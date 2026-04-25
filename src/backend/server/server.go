@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/hannes/kiji-private/src/backend/config"
+	"github.com/hannes/kiji-private/src/backend/paths"
 	"github.com/hannes/kiji-private/src/backend/providers"
 	"github.com/hannes/kiji-private/src/backend/proxy"
 	"golang.org/x/time/rate"
@@ -732,8 +733,7 @@ func (s *Server) handleCACert(w http.ResponseWriter, r *http.Request) {
 	// We need to access the cert manager - for now, read from disk
 	caPath := s.config.Proxy.CAPath
 	if caPath == "" {
-		homeDir, _ := os.UserHomeDir()
-		caPath = filepath.Join(homeDir, "Library", "Application Support", "Kiji Privacy Proxy", "certs", "ca.crt")
+		caPath = filepath.Join(paths.AppDataDir(), "certs", "ca.crt")
 	}
 
 	data, err := os.ReadFile(caPath)
