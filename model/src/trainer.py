@@ -227,10 +227,7 @@ class PIIModelTrainer(Trainer):
         # Use CRF loss for PII if available, otherwise fall back
         if "crf_loss" in outputs:
             loss = outputs["crf_loss"]
-            if (
-                self.pii_loss_fn is not None
-                and self.auxiliary_ce_loss_weight > 0
-            ):
+            if self.pii_loss_fn is not None and self.auxiliary_ce_loss_weight > 0:
                 token_loss = self.pii_loss_fn(outputs["pii_logits"], pii_labels)
                 loss = loss + self.auxiliary_ce_loss_weight * token_loss
         elif self.pii_loss_fn is not None:

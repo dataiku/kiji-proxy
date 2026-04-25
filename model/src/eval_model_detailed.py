@@ -279,7 +279,9 @@ class DetailedPIIModelLoader:
             if coref_logits is not None:
                 coref_logits = coref_logits[0]  # [seq_len, num_coref_labels]
                 coref_predictions = torch.argmax(coref_logits, dim=-1)  # [seq_len]
-                coref_probs = F.softmax(coref_logits, dim=-1)  # [seq_len, num_coref_labels]
+                coref_probs = F.softmax(
+                    coref_logits, dim=-1
+                )  # [seq_len, num_coref_labels]
             else:
                 coref_predictions = None
                 coref_probs = None
@@ -292,8 +294,7 @@ class DetailedPIIModelLoader:
             )
         pii_prediction_ids = pii_prediction_ids[: len(tokens)]
         pii_pred_labels = [
-            self.pii_id2label.get(int(label_id), "O")
-            for label_id in pii_prediction_ids
+            self.pii_id2label.get(int(label_id), "O") for label_id in pii_prediction_ids
         ]
         pii_pred_ids = [int(label_id) for label_id in pii_prediction_ids]
         coref_pred_ids = (

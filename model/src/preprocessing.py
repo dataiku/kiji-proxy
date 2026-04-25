@@ -474,7 +474,8 @@ class DatasetProcessor:
             val_indices = {idx for idx, _ in indexed_samples[:val_count]}
         else:
             sample_labels = {
-                idx: self._sample_entity_types(sample) for idx, sample in indexed_samples
+                idx: self._sample_entity_types(sample)
+                for idx, sample in indexed_samples
             }
             label_frequency: Counter = Counter()
             for labels in sample_labels.values():
@@ -497,9 +498,7 @@ class DatasetProcessor:
                     rng.random(),
                 )
 
-            for idx, _sample in sorted(
-                indexed_samples, key=rarity_score, reverse=True
-            ):
+            for idx, _sample in sorted(indexed_samples, key=rarity_score, reverse=True):
                 if len(val_indices) >= val_count:
                     break
                 labels = sample_labels[idx]

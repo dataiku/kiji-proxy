@@ -266,8 +266,7 @@ class PIIModelLoader:
             )
         pii_prediction_ids = pii_prediction_ids[: len(tokens)]
         predicted_labels = [
-            self.pii_id2label.get(int(label_id), "O")
-            for label_id in pii_prediction_ids
+            self.pii_id2label.get(int(label_id), "O") for label_id in pii_prediction_ids
         ]
 
         # Extract entities

@@ -424,6 +424,13 @@ func tokenStartsAtPreviousEnd(tokenIndex int, currentTokens []int, offsets []tok
 	return offsets[previousTokenIndex][1] == offsets[tokenIndex][0]
 }
 
+func tokenTextAt(originalText string, offsets []tokenizers.Offset, index int) string {
+	if index >= len(offsets) || offsets[index][0] >= uint(len(originalText)) || offsets[index][1] > uint(len(originalText)) {
+		return ""
+	}
+	return originalText[offsets[index][0]:offsets[index][1]]
+}
+
 func (d *ONNXModelDetectorSimple) decodedTokenLabel(index int, outputData []float32, bestLabels []int) (string, float64) {
 	startIdx := index * d.numPIILabels
 	endIdx := (index + 1) * d.numPIILabels
@@ -445,10 +452,131 @@ func (d *ONNXModelDetectorSimple) decodedTokenLabel(index int, outputData []floa
 	return d.classifyToken(tokenLogits)
 }
 
+type decodedEntityToken struct {
+	index       int
+	tokenID     uint32
+	text        string
+	label       string
+	baseLabel   string
+	confidence  float64
+	isBeginning bool
+	isInside    bool
+}
+
+func (d *ONNXModelDetectorSimple) decodeEntityToken(
+	index int,
+	tokenID uint32,
+	originalText string,
+	offsets []tokenizers.Offset,
+	outputData []float32,
+	bestLabels []int,
+	currentEntity *Entity,
+) decodedEntityToken {
+	label, confidence := d.decodedTokenLabel(index, outputData, bestLabels)
+	tokenText := tokenTextAt(originalText, offsets, index)
+
+	if confidence < d.entityConfidenceThreshold {
+		label = "O"
+	}
+	label, confidence = d.bridgeJoinerToken(index, tokenText, label, confidence, outputData, bestLabels, currentEntity)
+
+	baseLabel, isBeginning, isInside := splitBIOLabel(label)
+	return decodedEntityToken{
+		index:       index,
+		tokenID:     tokenID,
+		text:        tokenText,
+		label:       label,
+		baseLabel:   baseLabel,
+		confidence:  confidence,
+		isBeginning: isBeginning,
+		isInside:    isInside,
+	}
+}
+
+func (d *ONNXModelDetectorSimple) bridgeJoinerToken(
+	index int,
+	tokenText string,
+	label string,
+	confidence float64,
+	outputData []float32,
+	bestLabels []int,
+	currentEntity *Entity,
+) (string, float64) {
+	if label != "O" || currentEntity == nil || !isEntityJoinerToken(tokenText) {
+		return label, confidence
+	}
+
+	nextLabel, nextConfidence := d.decodedTokenLabel(index+1, outputData, bestLabels)
+	nextBaseLabel, nextIsBeginning, nextIsInside := splitBIOLabel(nextLabel)
+	if nextConfidence >= d.entityConfidenceThreshold &&
+		(nextIsBeginning || nextIsInside) &&
+		nextBaseLabel == currentEntity.Label {
+		return "I-" + currentEntity.Label, currentEntity.Confidence
+	}
+
+	return label, confidence
+}
+
+type entityGroupingState struct {
+	currentEntity *Entity
+	currentTokens []int
+	entities      []Entity
+}
+
+func (s *entityGroupingState) consume(
+	d *ONNXModelDetectorSimple,
+	token decodedEntityToken,
+	originalText string,
+	offsets []tokenizers.Offset,
+) {
+	isSameCompactEntity := token.label != "O" &&
+		s.currentEntity != nil &&
+		s.currentEntity.Label == token.baseLabel &&
+		tokenStartsAtPreviousEnd(token.index, s.currentTokens, offsets)
+
+	switch {
+	case token.label != "O" && s.currentEntity != nil && s.currentEntity.Label == token.baseLabel && (token.isInside || isSameCompactEntity):
+		// Continue current entity. Same-label B tags immediately after a
+		// joiner token are treated as continuation so emails like
+		// "jonathan.reyes@example.com" do not fragment.
+		s.currentTokens = append(s.currentTokens, token.index)
+		s.currentEntity.Confidence = (s.currentEntity.Confidence + token.confidence) / 2
+	case token.label != "O" && (token.isBeginning || s.currentEntity == nil):
+		s.finishCurrent(d, originalText, offsets)
+		s.currentEntity = &Entity{
+			Label:      token.baseLabel,
+			Confidence: token.confidence,
+		}
+		s.currentTokens = []int{token.index}
+	default:
+		s.finishCurrent(d, originalText, offsets)
+	}
+}
+
+func (s *entityGroupingState) finishCurrent(d *ONNXModelDetectorSimple, originalText string, offsets []tokenizers.Offset) {
+	if s.currentEntity == nil {
+		return
+	}
+
+	d.finalizeEntity(s.currentEntity, s.currentTokens, originalText, offsets)
+	s.entities = append(s.entities, *s.currentEntity)
+	s.currentEntity = nil
+	s.currentTokens = nil
+}
+
+func filterEmptyEntities(entities []Entity) []Entity {
+	filtered := entities[:0]
+	for _, e := range entities {
+		if e.Text != "" {
+			filtered = append(filtered, e)
+		}
+	}
+	return filtered
+}
+
 // processOutputInline converts model output to entities (inline to avoid compilation issues)
 func (d *ONNXModelDetectorSimple) processOutputInline(originalText string, tokenIDs []uint32, offsets []tokenizers.Offset) []Entity {
 	outputData := d.outputTensor.GetData()
-	entities := []Entity{}
 
 	// Ensure we don't process more tokens than we have
 	numTokens := len(tokenIDs)
@@ -465,8 +593,7 @@ func (d *ONNXModelDetectorSimple) processOutputInline(originalText string, token
 	}
 
 	// Group consecutive tokens with same label (B-PREFIX, I-PREFIX pattern)
-	var currentEntity *Entity
-	var currentTokens []int
+	state := entityGroupingState{}
 
 	// Process each token
 	for i := 0; i < numTokens; i++ {
@@ -478,90 +605,18 @@ func (d *ONNXModelDetectorSimple) processOutputInline(originalText string, token
 			break // Reached end of output data
 		}
 
-		// Get label and confidence
-		label, confidence := d.decodedTokenLabel(i, outputData, bestLabels)
-
-		// Log token details
-		tokenText := ""
-		if i < len(offsets) && offsets[i][0] < uint(len(originalText)) && offsets[i][1] <= uint(len(originalText)) {
-			tokenText = originalText[offsets[i][0]:offsets[i][1]]
-		}
+		token := d.decodeEntityToken(i, tokenIDs[i], originalText, offsets, outputData, bestLabels, state.currentEntity)
 		fmt.Printf("[ONNX Model Response] Token %d: id=%d text=%q offset=(%d,%d) label=%q confidence=%.4f\n",
-			i, tokenIDs[i], tokenText, offsets[i][0], offsets[i][1], label, confidence)
+			i, token.tokenID, token.text, offsets[i][0], offsets[i][1], token.label, token.confidence)
 
-		// Only process tokens with reasonable confidence
-		if confidence < d.entityConfidenceThreshold {
-			label = "O"
-		}
-
-		// Punctuation inside compact entities such as emails and URLs may be
-		// decoded as O by older models. If it is sandwiched between tokens of
-		// the same entity label, keep it as a bridge and let finalizeEntity trim
-		// true trailing sentence punctuation.
-		if label == "O" && currentEntity != nil && isEntityJoinerToken(tokenText) {
-			nextLabel, nextConfidence := d.decodedTokenLabel(i+1, outputData, bestLabels)
-			nextBaseLabel, nextIsBeginning, nextIsInside := splitBIOLabel(nextLabel)
-			if nextConfidence >= d.entityConfidenceThreshold &&
-				(nextIsBeginning || nextIsInside) &&
-				nextBaseLabel == currentEntity.Label {
-				label = "I-" + currentEntity.Label
-				confidence = currentEntity.Confidence
-			}
-		}
-
-		// Handle B-PREFIX (beginning) and I-PREFIX (inside) labels
-		baseLabel, isBeginning, isInside := splitBIOLabel(label)
-		isSameCompactEntity := label != "O" &&
-			currentEntity != nil &&
-			currentEntity.Label == baseLabel &&
-			tokenStartsAtPreviousEnd(i, currentTokens, offsets)
-
-		// Handle different entity states using switch for better readability
-		switch {
-		case label != "O" && currentEntity != nil && currentEntity.Label == baseLabel && (isInside || isSameCompactEntity):
-			// Continue current entity. Same-label B tags immediately after a
-			// joiner token are treated as continuation so emails like
-			// "jonathan.reyes@example.com" do not fragment.
-			currentTokens = append(currentTokens, i)
-			currentEntity.Confidence = (currentEntity.Confidence + confidence) / 2
-		case label != "O" && (isBeginning || currentEntity == nil):
-			// Finish previous entity if exists
-			if currentEntity != nil {
-				d.finalizeEntity(currentEntity, currentTokens, originalText, offsets)
-				entities = append(entities, *currentEntity)
-			}
-
-			// Start new entity
-			currentEntity = &Entity{
-				Label:      baseLabel,
-				Confidence: confidence,
-			}
-			currentTokens = []int{i}
-		default:
-			// Finish current entity if exists
-			if currentEntity != nil {
-				d.finalizeEntity(currentEntity, currentTokens, originalText, offsets)
-				entities = append(entities, *currentEntity)
-				currentEntity = nil
-				currentTokens = nil
-			}
-		}
+		state.consume(d, token, originalText, offsets)
 	}
 
 	// Finish last entity if exists
-	if currentEntity != nil {
-		d.finalizeEntity(currentEntity, currentTokens, originalText, offsets)
-		entities = append(entities, *currentEntity)
-	}
+	state.finishCurrent(d, originalText, offsets)
 
 	// Filter out entities with empty text (e.g. from special tokens like [CLS]/[SEP])
-	filtered := entities[:0]
-	for _, e := range entities {
-		if e.Text != "" {
-			filtered = append(filtered, e)
-		}
-	}
-	entities = filtered
+	entities := filterEmptyEntities(state.entities)
 
 	fmt.Printf("[ONNX Model Response] Extracted %d entities from chunk:\n", len(entities))
 	for i, e := range entities {

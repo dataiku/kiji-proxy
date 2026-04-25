@@ -91,7 +91,9 @@ class TokenizationProcessor:
         # Sort by start position (reverse order for replacement)
         return self._drop_overlapping_positions(privacy_mask_with_positions)
 
-    def _split_words_with_spans(self, text: str) -> tuple[list[str], list[tuple[int, int]]]:
+    def _split_words_with_spans(
+        self, text: str
+    ) -> tuple[list[str], list[tuple[int, int]]]:
         """Split text like ``str.split`` while keeping original character spans."""
         words = []
         spans = []
@@ -159,7 +161,11 @@ class TokenizationProcessor:
         privacy_mask_with_positions: list[dict[str, Any]] | None,
     ) -> bool:
         """Check whether a token span overlaps an entity span with the same label."""
-        if token_start < 0 or token_end <= token_start or not privacy_mask_with_positions:
+        if (
+            token_start < 0
+            or token_end <= token_start
+            or not privacy_mask_with_positions
+        ):
             return False
 
         for item in privacy_mask_with_positions:
