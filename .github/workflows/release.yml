@@ -171,19 +171,19 @@ jobs:
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
 
-      - name: Rename DMG with Version
+      - name: Normalize macOS Artifact Names
         run: |
           cd src/frontend/release
-          for dmg in *.dmg; do
-            if [ -f "$dmg" ]; then
-              # Replace spaces with hyphens for cleaner filename
-              # Example: "Kiji Privacy Proxy-0.2.0.dmg" -> "Kiji-Privacy-Proxy-0.2.0.dmg"
-              NEW_NAME=$(echo "$dmg" | tr ' ' '-')
-              if [ "$dmg" != "$NEW_NAME" ]; then
-                mv "$dmg" "$NEW_NAME"
-                echo "Renamed: $dmg -> $NEW_NAME"
+          for artifact in *.dmg *-mac.zip; do
+            if [ -f "$artifact" ]; then
+              # Match the artifact names generated in latest-mac.yml.
+              # Example: "Kiji Privacy Proxy-0.2.0-arm64-mac.zip" -> "Kiji-Privacy-Proxy-0.2.0-arm64-mac.zip"
+              new_name=$(echo "$artifact" | tr ' ' '-')
+              if [ "$artifact" != "$new_name" ]; then
+                mv "$artifact" "$new_name"
+                echo "Renamed: $artifact -> $new_name"
               else
-                echo "Already clean: $dmg"
+                echo "Already clean: $artifact"
               fi
             fi
           done
