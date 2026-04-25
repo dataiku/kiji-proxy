@@ -117,6 +117,7 @@ def load_model(
     config_path = model_path / "config.json"
     # Map model_type shortnames to full HuggingFace model identifiers
     model_type_defaults = {
+        "bert": "bert-base-cased",
         "distilbert": "distilbert-base-cased",
         "roberta": "roberta-base",
         "deberta-v2": "microsoft/deberta-v3-base",

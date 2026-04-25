@@ -105,12 +105,21 @@ def load_pytorch_model(
 
     # Load model config
     config_path = model_path / "config.json"
+    model_type_defaults = {
+        "bert": "bert-base-cased",
+        "distilbert": "distilbert-base-cased",
+        "roberta": "roberta-base",
+        "deberta-v2": "microsoft/deberta-v3-base",
+    }
     if config_path.exists():
         with config_path.open() as f:
             model_config = json.load(f)
-        base_model_name = model_config.get("_name_or_path", "microsoft/deberta-v3-base")
-        if base_model_name == "distilbert":
-            base_model_name = "distilbert-base-cased"
+        base_model_name = model_config.get("_name_or_path", "")
+        if not base_model_name or base_model_name in model_type_defaults:
+            model_type = model_config.get("model_type", "distilbert")
+            base_model_name = model_type_defaults.get(
+                model_type, "microsoft/deberta-v3-base"
+            )
     else:
         base_model_name = "microsoft/deberta-v3-base"
 

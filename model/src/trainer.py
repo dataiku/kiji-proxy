@@ -45,18 +45,26 @@ except ImportError:
 class PIIModelTrainer(Trainer):
     """Custom Trainer for PII detection."""
 
-    def __init__(self, pii_loss_fn=None, layerwise_lr_decay=1.0, **kwargs):
+    def __init__(
+        self,
+        pii_loss_fn=None,
+        layerwise_lr_decay=1.0,
+        auxiliary_ce_loss_weight=0.0,
+        **kwargs,
+    ):
         """
         Initialize PII trainer.
 
         Args:
             pii_loss_fn: Loss function for PII detection
             layerwise_lr_decay: Multiplicative LR decay per encoder layer (1.0 = disabled)
+            auxiliary_ce_loss_weight: Weight for token CE added to the CRF loss
             **kwargs: Additional arguments for Trainer
         """
         super().__init__(**kwargs)
         self.pii_loss_fn = pii_loss_fn
         self.layerwise_lr_decay = layerwise_lr_decay
+        self.auxiliary_ce_loss_weight = auxiliary_ce_loss_weight
 
     def create_optimizer(self):
         """Create optimizer with layer-wise learning rate decay for the encoder."""
@@ -219,6 +227,12 @@ class PIIModelTrainer(Trainer):
         # Use CRF loss for PII if available, otherwise fall back
         if "crf_loss" in outputs:
             loss = outputs["crf_loss"]
+            if (
+                self.pii_loss_fn is not None
+                and self.auxiliary_ce_loss_weight > 0
+            ):
+                token_loss = self.pii_loss_fn(outputs["pii_logits"], pii_labels)
+                loss = loss + self.auxiliary_ce_loss_weight * token_loss
         elif self.pii_loss_fn is not None:
             loss = self.pii_loss_fn(outputs["pii_logits"], pii_labels)
         else:
@@ -259,7 +273,26 @@ class PIIModelTrainer(Trainer):
         pii_logits = outputs.get("pii_logits")
         pii_labels = inputs.get("pii_labels")
 
-        predictions = pii_logits.detach().cpu() if pii_logits is not None else None
+        predictions = None
+        if pii_logits is not None:
+            attention_mask = inputs.get("attention_mask")
+            if hasattr(model, "decode") and attention_mask is not None:
+                decoded_paths = model.decode(pii_logits, attention_mask)
+                decoded_predictions = torch.zeros(
+                    pii_logits.shape[:2],
+                    dtype=torch.long,
+                    device=pii_logits.device,
+                )
+                for row_idx, path in enumerate(decoded_paths):
+                    path_len = min(len(path), decoded_predictions.shape[1])
+                    decoded_predictions[row_idx, :path_len] = torch.tensor(
+                        path[:path_len],
+                        dtype=torch.long,
+                        device=pii_logits.device,
+                    )
+                predictions = decoded_predictions.detach().cpu()
+            else:
+                predictions = pii_logits.detach().cpu()
         labels = pii_labels.detach().cpu() if pii_labels is not None else None
 
         return (loss, predictions, labels)
@@ -350,8 +383,18 @@ class PIITrainer:
             pii_predictions = predictions
             pii_labels = label_ids
 
-        # PII detection metrics using seqeval (entity-level)
-        pii_preds = np.argmax(pii_predictions, axis=2)
+        # PII detection metrics using seqeval (entity-level). During CRF training,
+        # prediction_step returns decoded label IDs. Older/non-CRF paths may still
+        # return logits, so keep both formats supported.
+        pii_predictions = np.asarray(pii_predictions)
+        if pii_predictions.ndim == 3:
+            pii_preds = np.argmax(pii_predictions, axis=2)
+        elif pii_predictions.ndim == 2:
+            pii_preds = pii_predictions.astype(np.int64)
+        else:
+            raise ValueError(
+                f"Unsupported PII prediction shape: {pii_predictions.shape}"
+            )
 
         # Build list-of-lists of BIO tag strings, skipping padding (-100)
         true_labels = []
@@ -424,6 +467,24 @@ class PIITrainer:
                 metrics[f"eval_pii_recall_{safe_avg}"] = report[avg_type].get(
                     "recall", 0.0
                 )
+
+        # Backward-compatible aliases used by summaries and best-model selection.
+        if "macro avg" in report:
+            metrics["eval_pii_f1_macro"] = report["macro avg"].get("f1-score", 0.0)
+            metrics["eval_pii_precision_macro"] = report["macro avg"].get(
+                "precision", 0.0
+            )
+            metrics["eval_pii_recall_macro"] = report["macro avg"].get("recall", 0.0)
+        if "weighted avg" in report:
+            metrics["eval_pii_f1_weighted"] = report["weighted avg"].get(
+                "f1-score", 0.0
+            )
+            metrics["eval_pii_precision_weighted"] = report["weighted avg"].get(
+                "precision", 0.0
+            )
+            metrics["eval_pii_recall_weighted"] = report["weighted avg"].get(
+                "recall", 0.0
+            )
 
         return metrics
 
@@ -511,7 +572,7 @@ class PIITrainer:
             eval_strategy="epoch",
             save_strategy="epoch",
             load_best_model_at_end=True,
-            metric_for_best_model="eval_pii_f1",
+            metric_for_best_model="eval_pii_f1_macro",
             greater_is_better=True,
             report_to=None,
             save_total_limit=3,
@@ -548,6 +609,7 @@ class PIITrainer:
             compute_metrics=self.compute_metrics,
             pii_loss_fn=self.pii_loss_fn,
             layerwise_lr_decay=self.config.layerwise_lr_decay,
+            auxiliary_ce_loss_weight=self.config.auxiliary_ce_loss_weight,
             callbacks=callbacks if callbacks else None,
         )
 
@@ -563,6 +625,8 @@ class PIITrainer:
 
         # Save
         trainer.save_model()
+        self.model.encoder.config._name_or_path = self.config.model_name
+        self.model.encoder.config.save_pretrained(self.config.output_dir)
         self.tokenizer.save_pretrained(self.config.output_dir)
         logging.info(
             f"\n✅ Training completed. Model saved to {self.config.output_dir}"

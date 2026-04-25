@@ -76,6 +76,10 @@ class PIILabels:
 class DatasetProcessor:
     """Handles dataset loading and processing from local JSON files."""
 
+    # Coreference marker labels used in Label Studio annotations.
+    # These are not PII entities and should not be included in the NER target.
+    _COREFERENCE_LABELS = {"PRONOUN", "REFERENCE", "MENTION", "pronoun", "reference"}
+
     def __init__(self, config):
         """
         Initialize dataset processor.
@@ -155,6 +159,10 @@ class DatasetProcessor:
                         }
                     )
 
+            def is_pii_entity(entity: dict) -> bool:
+                label = entity.get("label")
+                return bool(label) and label not in self._COREFERENCE_LABELS
+
             # Build privacy_mask from entities
             privacy_mask = []
 
@@ -180,9 +188,9 @@ class DatasetProcessor:
 
                 main_entity = entities[main_entity_id]
 
-                # Add main entity to privacy_mask (skip if no label, e.g. coreference span markers)
+                # Add main entity to privacy_mask (skip if no label or a coreference marker)
                 if main_entity_id not in processed_entities:
-                    if main_entity["label"]:
+                    if is_pii_entity(main_entity):
                         privacy_mask.append(
                             {
                                 "value": main_entity["text"],
@@ -213,7 +221,7 @@ class DatasetProcessor:
 
             # Add remaining entities (not part of coreferences) to privacy_mask
             for entity_id, entity in entities.items():
-                if entity_id not in processed_entities and entity["label"]:
+                if entity_id not in processed_entities and is_pii_entity(entity):
                     privacy_mask.append(
                         {
                             "value": entity["text"],
@@ -235,10 +243,6 @@ class DatasetProcessor:
         except Exception as e:
             logging.debug(f"Failed to convert Label Studio sample in {file_name}: {e}")
             return None
-
-    # Coreference marker labels used in Label Studio annotations.
-    # These are not PII entities and should not trigger non-standard label filtering.
-    _COREFERENCE_LABELS = {"PRONOUN", "REFERENCE", "MENTION", "pronoun", "reference"}
 
     def _has_non_standard_labels(self, sample: dict) -> bool:
         """
@@ -437,6 +441,100 @@ class DatasetProcessor:
         logging.info(f"Loaded {len(samples)} ai4privacy samples")
         return samples
 
+    def _sample_entity_types(self, sample: dict) -> set[str]:
+        """Return entity types present in a tokenized sample."""
+        entity_types = set()
+        for label_id in sample.get("pii_labels", []):
+            if label_id in (-100, 0):
+                continue
+            label = self.id2label.get(int(label_id), "O")
+            if label.startswith(("B-", "I-")):
+                entity_types.add(label[2:])
+        return entity_types
+
+    def _split_train_validation(
+        self, formatted_samples: list[dict]
+    ) -> tuple[list[dict], list[dict]]:
+        """Create a deterministic, rare-label-aware train/validation split."""
+        if not formatted_samples:
+            return [], []
+
+        eval_ratio = self.config.eval_size_ratio
+        if eval_ratio <= 0:
+            return formatted_samples, []
+
+        val_count = int(len(formatted_samples) * eval_ratio)
+        val_count = min(max(val_count, 1), len(formatted_samples) - 1)
+
+        rng = random.Random(self.config.seed)
+        indexed_samples = list(enumerate(formatted_samples))
+        rng.shuffle(indexed_samples)
+
+        if not self.config.balanced_validation_split:
+            val_indices = {idx for idx, _ in indexed_samples[:val_count]}
+        else:
+            sample_labels = {
+                idx: self._sample_entity_types(sample) for idx, sample in indexed_samples
+            }
+            label_frequency: Counter = Counter()
+            for labels in sample_labels.values():
+                label_frequency.update(labels)
+
+            label_targets = {
+                label: max(1, int(round(count * eval_ratio)))
+                for label, count in label_frequency.items()
+            }
+            val_label_counts: Counter = Counter()
+            val_indices = set()
+
+            def rarity_score(item: tuple[int, dict]) -> tuple[float, float]:
+                idx, _sample = item
+                labels = sample_labels[idx]
+                if not labels:
+                    return (0.0, rng.random())
+                return (
+                    sum(1.0 / label_frequency[label] for label in labels),
+                    rng.random(),
+                )
+
+            for idx, _sample in sorted(
+                indexed_samples, key=rarity_score, reverse=True
+            ):
+                if len(val_indices) >= val_count:
+                    break
+                labels = sample_labels[idx]
+                if not labels:
+                    continue
+                if any(
+                    val_label_counts[label] < label_targets[label] for label in labels
+                ):
+                    val_indices.add(idx)
+                    val_label_counts.update(labels)
+
+            for idx, _sample in indexed_samples:
+                if len(val_indices) >= val_count:
+                    break
+                val_indices.add(idx)
+
+            covered_labels = sum(
+                1 for label in label_frequency if val_label_counts[label] > 0
+            )
+            logging.info(
+                "Balanced validation split: %d/%d entity types represented",
+                covered_labels,
+                len(label_frequency),
+            )
+
+        train_samples = [
+            sample
+            for idx, sample in enumerate(formatted_samples)
+            if idx not in val_indices
+        ]
+        val_samples = [
+            sample for idx, sample in enumerate(formatted_samples) if idx in val_indices
+        ]
+        return train_samples, val_samples
+
     def prepare_datasets(
         self, subsample_count: int = 0
     ) -> tuple[Dataset, Dataset, dict, dict]:
@@ -455,9 +553,10 @@ class DatasetProcessor:
         all_samples = [s for s in all_samples if s is not None]
 
         # Subsample local dataset if requested
-        if subsample_count > 0 and len(all_samples) > subsample_count:
+        sample_limit = subsample_count or self.config.max_samples
+        if sample_limit > 0 and len(all_samples) > sample_limit:
             random.Random(self.config.seed).shuffle(all_samples)
-            all_samples = all_samples[:subsample_count]
+            all_samples = all_samples[:sample_limit]
             logging.info(f"Local dataset: {len(all_samples)} samples (capped)")
 
         # Add ai4privacy samples if configured (-1 = none, 0 = all, N = limit)
@@ -508,14 +607,9 @@ class DatasetProcessor:
         if len(formatted_samples) == 0:
             raise ValueError("No samples could be tokenized!")
 
-        # Shuffle before splitting to prevent ordered-batch bias
-        random.seed(42)
-        random.shuffle(formatted_samples)
-
-        # Split into train and validation
-        split_idx = int(len(formatted_samples) * (1 - self.config.eval_size_ratio))
-        train_samples = formatted_samples[:split_idx]
-        val_samples = formatted_samples[split_idx:]
+        # Split into train and validation. The default split is rare-label aware so
+        # macro F1 and best-checkpoint selection are less sensitive to common labels.
+        train_samples, val_samples = self._split_train_validation(formatted_samples)
 
         # Create HuggingFace datasets
         train_dataset = Dataset.from_list(train_samples)

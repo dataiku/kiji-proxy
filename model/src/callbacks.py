@@ -65,6 +65,8 @@ class CleanMetricsCallback(TrainerCallback):
         entity_metrics = {}
         for key, val in metrics.items():
             if key.startswith("eval_pii_f1_") and key not in (
+                "eval_pii_f1_macro",
+                "eval_pii_f1_weighted",
                 "eval_pii_f1_micro_avg",
                 "eval_pii_f1_macro_avg",
                 "eval_pii_f1_weighted_avg",

@@ -48,10 +48,14 @@ class TrainingConfig:
     use_wandb: bool = False
     use_custom_loss: bool = True
     class_weights: dict[int, float] = field(default_factory=dict)
+    auxiliary_ce_loss_weight: float = (
+        0.2  # Weighted token CE added to CRF loss (0.0 disables)
+    )
 
     # Dataset settings
     eval_size_ratio: float = 0.1  # Validation set size as ratio of training
     max_eval_samples: int = 0  # Cap eval set size (0 = no cap)
+    balanced_validation_split: bool = True
     max_sequence_length: int = 512
     training_samples_dir: str = "model/dataset/data_samples/training_samples"  # Use training samples by default, exported from Label Studio
 
@@ -84,6 +88,7 @@ class TrainingConfig:
         logging.info(f"  Max Samples: {self.max_samples}")
         logging.info(f"  Output Dir: {self.output_dir}")
         logging.info(f"  Custom Loss: {self.use_custom_loss}")
+        logging.info(f"  Auxiliary CE Loss Weight: {self.auxiliary_ce_loss_weight}")
 
 
 class EnvironmentSetup:

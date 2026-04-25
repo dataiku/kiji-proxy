@@ -80,6 +80,7 @@ class DetailedPIIModelLoader:
         self.tokenizer = None
         self.pii_label2id = None
         self.pii_id2label = None
+        self.coref_id2label = None
         self.device = get_device()
 
     def load_model(self):
@@ -108,16 +109,21 @@ class DetailedPIIModelLoader:
 
         # Load model config to get base model name
         config_path = Path(self.model_path) / "config.json"
+        model_type_defaults = {
+            "bert": "bert-base-cased",
+            "distilbert": "distilbert-base-cased",
+            "roberta": "roberta-base",
+            "deberta-v2": "microsoft/deberta-v3-base",
+        }
         if config_path.exists():
             with config_path.open() as f:
                 model_config = json.load(f)
-            # Try to get base model name from config
-            base_model_name = model_config.get("_name_or_path") or model_config.get(
-                "model_type", "distilbert"
-            )
-            # Convert model_type to full model name if needed
-            if base_model_name == "distilbert":
-                base_model_name = "distilbert-base-cased"
+            base_model_name = model_config.get("_name_or_path", "")
+            if not base_model_name or base_model_name in model_type_defaults:
+                model_type = model_config.get("model_type", "distilbert")
+                base_model_name = model_type_defaults.get(
+                    model_type, "microsoft/deberta-v3-base"
+                )
         else:
             base_model_name = "microsoft/deberta-v3-base"
             logging.warning(
@@ -259,21 +265,42 @@ class DetailedPIIModelLoader:
             outputs = self.model(**inputs)
             # Get PII logits and predictions
             pii_logits = outputs["pii_logits"][0]  # [seq_len, num_labels]
-            pii_predictions = torch.argmax(pii_logits, dim=-1)  # [seq_len]
+            if hasattr(self.model, "decode"):
+                pii_prediction_ids = self.model.decode(
+                    outputs["pii_logits"], inputs["attention_mask"]
+                )[0]
+            else:
+                pii_prediction_ids = torch.argmax(pii_logits, dim=-1).cpu().tolist()
             pii_probs = F.softmax(pii_logits, dim=-1)  # [seq_len, num_labels]
 
-            # Get co-reference logits and predictions
-            coref_logits = outputs["coref_logits"][0]  # [seq_len, num_coref_labels]
-            coref_predictions = torch.argmax(coref_logits, dim=-1)  # [seq_len]
-            coref_probs = F.softmax(coref_logits, dim=-1)  # [seq_len, num_coref_labels]
+            # Older multi-task checkpoints may expose co-reference logits. Current
+            # PII-only checkpoints do not, so keep the detailed script usable.
+            coref_logits = outputs.get("coref_logits")
+            if coref_logits is not None:
+                coref_logits = coref_logits[0]  # [seq_len, num_coref_labels]
+                coref_predictions = torch.argmax(coref_logits, dim=-1)  # [seq_len]
+                coref_probs = F.softmax(coref_logits, dim=-1)  # [seq_len, num_coref_labels]
+            else:
+                coref_predictions = None
+                coref_probs = None
 
         # Convert to lists
         tokens = self.tokenizer.convert_ids_to_tokens(inputs["input_ids"][0])
+        if len(pii_prediction_ids) < len(tokens):
+            pii_prediction_ids = pii_prediction_ids + [0] * (
+                len(tokens) - len(pii_prediction_ids)
+            )
+        pii_prediction_ids = pii_prediction_ids[: len(tokens)]
         pii_pred_labels = [
-            self.pii_id2label.get(p.item(), "O") for p in pii_predictions
+            self.pii_id2label.get(int(label_id), "O")
+            for label_id in pii_prediction_ids
         ]
-        pii_pred_ids = [p.item() for p in pii_predictions]
-        coref_pred_ids = [p.item() for p in coref_predictions]
+        pii_pred_ids = [int(label_id) for label_id in pii_prediction_ids]
+        coref_pred_ids = (
+            [p.item() for p in coref_predictions]
+            if coref_predictions is not None
+            else [0] * len(tokens)
+        )
 
         # Get top-k predictions for PII
         pii_top_k_list = []
@@ -293,25 +320,35 @@ class DetailedPIIModelLoader:
 
         # Get top-k predictions for co-reference
         coref_top_k_list = []
-        for i in range(len(tokens)):
-            top_k_probs, top_k_indices = torch.topk(
-                coref_probs[i], k=min(top_k, len(self.coref_id2label))
-            )
-            top_k_items = [
-                {
-                    "label": self.coref_id2label.get(
-                        idx.item(), f"CLUSTER_{idx.item()}"
-                    ),
-                    "label_id": idx.item(),
-                    "probability": prob.item(),
-                }
-                for prob, idx in zip(top_k_probs, top_k_indices, strict=True)
+        if coref_probs is not None and self.coref_id2label:
+            for i in range(len(tokens)):
+                top_k_probs, top_k_indices = torch.topk(
+                    coref_probs[i], k=min(top_k, len(self.coref_id2label))
+                )
+                top_k_items = [
+                    {
+                        "label": self.coref_id2label.get(
+                            idx.item(), f"CLUSTER_{idx.item()}"
+                        ),
+                        "label_id": idx.item(),
+                        "probability": prob.item(),
+                    }
+                    for prob, idx in zip(top_k_probs, top_k_indices, strict=True)
+                ]
+                coref_top_k_list.append(top_k_items)
+        else:
+            coref_top_k_list = [
+                [{"label": "NO_COREF", "label_id": 0, "probability": 1.0}]
+                for _ in tokens
             ]
-            coref_top_k_list.append(top_k_items)
 
         # Convert probabilities to lists
         pii_prob_list = [probs.cpu().tolist() for probs in pii_probs]
-        coref_prob_list = [probs.cpu().tolist() for probs in coref_probs]
+        coref_prob_list = (
+            [probs.cpu().tolist() for probs in coref_probs]
+            if coref_probs is not None
+            else [[1.0] for _ in tokens]
+        )
 
         end_time = time.perf_counter()
         inference_time_ms = (end_time - start_time) * 1000
@@ -331,7 +368,8 @@ class DetailedPIIModelLoader:
 
         if show_logits:
             result["pii_logits"] = pii_logits.cpu().tolist()
-            result["coref_logits"] = coref_logits.cpu().tolist()
+            if coref_logits is not None:
+                result["coref_logits"] = coref_logits.cpu().tolist()
 
         return result
 

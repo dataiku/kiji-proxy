@@ -1,5 +1,6 @@
 """Tokenization utilities for training samples."""
 
+import logging
 import re
 from typing import Any
 
@@ -18,6 +19,38 @@ class TokenizationProcessor:
         self.tokenizer = tokenizer
         self.label2id = label2id
         self.id2label = id2label
+
+    def _drop_overlapping_positions(
+        self, positions: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """Drop overlapping spans before string replacement.
+
+        A single token can only have one BIO label. If the source annotations contain
+        nested or overlapping spans, keep the longest span and drop the shorter one
+        so label replacement cannot corrupt neighboring text.
+        """
+        kept: list[dict[str, Any]] = []
+        dropped = 0
+
+        for item in sorted(
+            positions,
+            key=lambda x: (-(x["end"] - x["start"]), x["start"], x["label"]),
+        ):
+            overlaps_kept = any(
+                item["start"] < kept_item["end"] and kept_item["start"] < item["end"]
+                for kept_item in kept
+            )
+            if overlaps_kept:
+                dropped += 1
+                continue
+            kept.append(item)
+
+        if dropped:
+            logging.getLogger(__name__).debug(
+                "Dropped %d overlapping privacy-mask span(s)", dropped
+            )
+
+        return sorted(kept, key=lambda x: x["start"], reverse=True)
 
     def _find_privacy_mask_positions(
         self, text: str, privacy_mask: list[dict[str, str]]
@@ -58,9 +91,7 @@ class TokenizationProcessor:
                 )
 
         # Sort by start position (reverse order for replacement)
-        return sorted(
-            privacy_mask_with_positions, key=lambda x: x["start"], reverse=True
-        )
+        return self._drop_overlapping_positions(privacy_mask_with_positions)
 
     def _create_word_labels(
         self, text: str, privacy_mask_with_positions: list[dict[str, Any]]

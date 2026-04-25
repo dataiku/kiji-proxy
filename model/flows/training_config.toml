@@ -13,9 +13,11 @@ torch_compile = true       # torch.compile optimization (10-20% speedup on H100)
 
 warmup_steps = 500        # Gradual LR ramp-up to stabilize early training
 weight_decay = 0.01       # L2 regularization strength
+auxiliary_ce_loss_weight = 0.2  # Weighted token CE added to CRF loss for rare labels
 
 # Early stopping settings
-max_eval_samples = 2000         # Cap eval set size for faster evaluation
+max_eval_samples = 0            # Cap eval set size for faster evaluation (0 = no cap)
+balanced_validation_split = true
 early_stopping_enabled = true
 early_stopping_patience = 3   # Number of epochs with no improvement before stopping
 early_stopping_threshold = 0.005  # Minimum improvement (0.5%) to qualify as improvement

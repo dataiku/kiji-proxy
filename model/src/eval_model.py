@@ -74,6 +74,7 @@ class PIIModelLoader:
         self.tokenizer = None
         self.pii_label2id = None
         self.pii_id2label = None
+        self.coref_id2label = None
         self.device = get_device()
 
     def load_model(self):
@@ -102,16 +103,21 @@ class PIIModelLoader:
 
         # Load model config to get base model name
         config_path = Path(self.model_path) / "config.json"
+        model_type_defaults = {
+            "bert": "bert-base-cased",
+            "distilbert": "distilbert-base-cased",
+            "roberta": "roberta-base",
+            "deberta-v2": "microsoft/deberta-v3-base",
+        }
         if config_path.exists():
             with config_path.open() as f:
                 model_config = json.load(f)
-            # Try to get base model name from config
-            base_model_name = model_config.get("_name_or_path") or model_config.get(
-                "model_type", "distilbert"
-            )
-            # Convert model_type to full model name if needed
-            if base_model_name == "distilbert":
-                base_model_name = "distilbert-base-cased"
+            base_model_name = model_config.get("_name_or_path", "")
+            if not base_model_name or base_model_name in model_type_defaults:
+                model_type = model_config.get("model_type", "distilbert")
+                base_model_name = model_type_defaults.get(
+                    model_type, "microsoft/deberta-v3-base"
+                )
         else:
             base_model_name = "microsoft/deberta-v3-base"
             logging.warning(
@@ -243,13 +249,25 @@ class PIIModelLoader:
         # Run inference
         with torch.no_grad():
             outputs = self.model(**inputs)
-            # Get PII predictions
-            pii_predictions = torch.argmax(outputs["pii_logits"], dim=-1)[0]
+            if hasattr(self.model, "decode"):
+                pii_prediction_ids = self.model.decode(
+                    outputs["pii_logits"], inputs["attention_mask"]
+                )[0]
+            else:
+                pii_prediction_ids = (
+                    torch.argmax(outputs["pii_logits"], dim=-1)[0].cpu().tolist()
+                )
 
         # Convert predictions to labels
         tokens = self.tokenizer.convert_ids_to_tokens(inputs["input_ids"][0])
+        if len(pii_prediction_ids) < len(tokens):
+            pii_prediction_ids = pii_prediction_ids + [0] * (
+                len(tokens) - len(pii_prediction_ids)
+            )
+        pii_prediction_ids = pii_prediction_ids[: len(tokens)]
         predicted_labels = [
-            self.pii_id2label.get(p.item(), "O") for p in pii_predictions
+            self.pii_id2label.get(int(label_id), "O")
+            for label_id in pii_prediction_ids
         ]
 
         # Extract entities
