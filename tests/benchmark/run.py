@@ -29,6 +29,8 @@ from model.dataset.huggingface.import_ai4privacy import convert_ai4privacy_sampl
 # ---------------------------------------------------------------------------
 
 DEFAULT_ENTITY_CONFIDENCE_THRESHOLD = 0.25
+MAX_SEQ_LEN = 512
+CHUNK_OVERLAP = 64
 
 
 def viterbi_decode(
@@ -122,6 +124,50 @@ def token_starts_at_previous_end(
     return int(offsets[previous_token_index][1]) == int(offsets[token_index][0])
 
 
+def chunk_ranges(num_tokens: int) -> list[tuple[int, int]]:
+    """Split token indices into backend-equivalent overlapping chunks."""
+    if num_tokens <= MAX_SEQ_LEN:
+        return [(0, num_tokens)]
+
+    ranges = []
+    stride = MAX_SEQ_LEN - CHUNK_OVERLAP
+    if stride <= 0:
+        raise ValueError("CHUNK_OVERLAP must be smaller than MAX_SEQ_LEN")
+
+    for start in range(0, num_tokens, stride):
+        end = min(start + MAX_SEQ_LEN, num_tokens)
+        ranges.append((start, end))
+        if end >= num_tokens:
+            break
+    return ranges
+
+
+def merge_chunk_spans(spans: list[tuple[int, int, str]]) -> list[tuple[int, int, str]]:
+    """Merge duplicate/overlapping entity spans produced by chunk overlap."""
+    if not spans:
+        return []
+
+    merged: list[tuple[int, int, str]] = []
+    for span in sorted(spans, key=lambda x: (x[0], -(x[1] - x[0]), x[2])):
+        if span[0] >= span[1]:
+            continue
+        if not merged or span[0] >= merged[-1][1]:
+            merged.append(span)
+            continue
+
+        last = merged[-1]
+        if span[2] == last[2]:
+            merged[-1] = (last[0], max(last[1], span[1]), last[2])
+            continue
+
+        last_len = last[1] - last[0]
+        span_len = span[1] - span[0]
+        if span_len > last_len:
+            merged[-1] = span
+
+    return merged
+
+
 class OnnxPIIModel:
     """Thin wrapper around the quantized ONNX model for inference."""
 
@@ -169,6 +215,7 @@ class OnnxPIIModel:
             self.transitions = None
             self.start_transitions = None
             self.end_transitions = None
+        self.uses_crf = self.transitions is not None
 
     def _decoded_label(
         self,
@@ -237,22 +284,28 @@ class OnnxPIIModel:
             end -= 1
         return start, end
 
-    def predict(self, text: str) -> list[tuple[int, int, str]]:
-        """Return list of (start, end, label) spans detected in text."""
-        inputs = self.tokenizer(
-            text,
-            return_tensors="np",
-            truncation=True,
-            max_length=512,
-            return_offsets_mapping=True,
-        )
-        offset_mapping = inputs.pop("offset_mapping")[0]
+    def _predict_chunk(
+        self,
+        text: str,
+        input_ids: list[int],
+        offset_mapping: np.ndarray,
+    ) -> list[tuple[int, int, str]]:
+        """Return spans for one token chunk with original-text offsets."""
+        if not input_ids:
+            return []
+
+        num_tokens = len(input_ids)
+        pad_token_id = self.tokenizer.pad_token_id or 0
+        padded_input_ids = input_ids + [pad_token_id] * (MAX_SEQ_LEN - num_tokens)
+        padded_attention_mask = [1] * num_tokens + [0] * (MAX_SEQ_LEN - num_tokens)
+        input_ids_array = np.asarray([padded_input_ids], dtype=np.int64)
+        attention_mask = np.asarray([padded_attention_mask], dtype=np.int64)
         ort_inputs = {
-            "input_ids": inputs["input_ids"],
-            "attention_mask": inputs["attention_mask"],
+            "input_ids": input_ids_array,
+            "attention_mask": attention_mask,
         }
         logits = self.session.run(None, ort_inputs)[0]  # [1, seq, labels]
-        seq_logits = logits[0]  # (seq_len, num_labels)
+        seq_logits = logits[0][:num_tokens]  # (seq_len, num_labels)
 
         if self.transitions is not None:
             # Use Viterbi decoding with CRF transition constraints
@@ -265,7 +318,7 @@ class OnnxPIIModel:
         else:
             predictions = np.argmax(logits, axis=-1)[0]
 
-        tokens = self.tokenizer.convert_ids_to_tokens(inputs["input_ids"][0])
+        tokens = self.tokenizer.convert_ids_to_tokens(input_ids)
         entities: list[tuple[int, int, str]] = []
         cur_label: str | None = None
         cur_start = 0
@@ -289,7 +342,7 @@ class OnnxPIIModel:
                 self.tokenizer.cls_token,
                 self.tokenizer.sep_token,
                 self.tokenizer.pad_token,
-            ):
+            ) or int(offset[1]) <= int(offset[0]):
                 continue
 
             label, confidence = self._decoded_label(index, predictions, seq_logits)
@@ -333,6 +386,27 @@ class OnnxPIIModel:
 
         finish_current()
         return entities
+
+    def predict(self, text: str) -> list[tuple[int, int, str]]:
+        """Return list of (start, end, label) spans detected in text."""
+        inputs = self.tokenizer(
+            text,
+            truncation=False,
+            return_offsets_mapping=True,
+        )
+        input_ids = inputs["input_ids"]
+        offset_mapping = np.asarray(inputs.pop("offset_mapping"), dtype=np.int64)
+
+        entities = []
+        for start, end in chunk_ranges(len(input_ids)):
+            entities.extend(
+                self._predict_chunk(
+                    text,
+                    input_ids[start:end],
+                    offset_mapping[start:end],
+                )
+            )
+        return merge_chunk_spans(entities)
 
 
 # ---------------------------------------------------------------------------
@@ -574,6 +648,7 @@ def main() -> int:
         args.model_path,
         entity_confidence_threshold=args.confidence_threshold,
     )
+    print(f"  CRF decoding: {'enabled' if model.uses_crf else 'disabled'}")
 
     lang_desc = f" (language={args.language})" if args.language else ""
     print(f"Loading {args.num} samples from ai4privacy/pii-masking-300k{lang_desc} ...")
@@ -621,6 +696,9 @@ def main() -> int:
         "language": args.language,
         "model_path": args.model_path,
         "confidence_threshold": args.confidence_threshold,
+        "uses_crf": model.uses_crf,
+        "max_sequence_length": MAX_SEQ_LEN,
+        "chunk_overlap": CHUNK_OVERLAP,
         "exact_span_f1": round(exact_micro_f1, 4),
         "exact_span_macro_f1": round(exact_macro_f1, 4),
         "relaxed_overlap_f1": round(relaxed_micro_f1, 4),

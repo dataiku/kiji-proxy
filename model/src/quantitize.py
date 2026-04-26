@@ -44,6 +44,11 @@ except ImportError:
     sys.path.insert(0, str(Path(__file__).parent))
     from model_signing import sign_trained_model
 
+try:
+    from model.src.checkpoint_utils import load_compatible_state_dict
+except ImportError:
+    from checkpoint_utils import load_compatible_state_dict
+
 # Define command-line flags
 FLAGS = flags.FLAGS
 
@@ -175,14 +180,16 @@ def load_model(
                 model_weights_path, map_location="cpu", weights_only=False
             )
 
-        # Handle state dict that might have 'model.' prefix
-        if any(k.startswith("model.") for k in state_dict.keys()):
-            state_dict = {
-                k.replace("model.", ""): v
-                for k, v in state_dict.items()
-                if k.startswith("model.")
-            }
-        model.load_state_dict(state_dict, strict=False)
+        load_info = load_compatible_state_dict(
+            model,
+            state_dict,
+            source=str(model_weights_path),
+        )
+        if load_info.unexpected_keys:
+            logging.warning(
+                "⚠️  Ignoring unexpected checkpoint keys: %s",
+                load_info.unexpected_keys[:20],
+            )
         logging.info("✅ Model weights loaded")
     else:
         raise FileNotFoundError(f"Model weights not found in {model_path}")

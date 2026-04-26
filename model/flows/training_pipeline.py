@@ -154,9 +154,7 @@ class PIITrainingPipeline(FlowSpec):
             balanced_validation_split=training_cfg.get(
                 "balanced_validation_split", True
             ),
-            auxiliary_ce_loss_weight=training_cfg.get(
-                "auxiliary_ce_loss_weight", 0.2
-            ),
+            auxiliary_ce_loss_weight=training_cfg.get("auxiliary_ce_loss_weight", 0.2),
             audit_allowlist=cfg.get("data", {}).get("audit_allowlist", ""),
         )
         self.skip_export = cfg.get("pipeline", {}).get("skip_export", False)
@@ -368,6 +366,13 @@ class PIITrainingPipeline(FlowSpec):
 
         from src.quantitize import export_to_onnx, load_model, quantize_model
 
+        if self.skip_quantization:
+            print("Skipping quantization by configuration")
+            self.quantized_model_path = None
+            self.quantized_model = None
+            self.next(self.sign_model)
+            return
+
         try:
             model_path = current.model.loaded["trained_model"]
             model, label_mappings, tokenizer = load_model(model_path)
@@ -405,6 +410,7 @@ class PIITrainingPipeline(FlowSpec):
             print(f"Quantization failed: {e}")
             self.quantized_model_path = None
             self.quantized_model = None
+            raise
 
         self.next(self.sign_model)
 

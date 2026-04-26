@@ -38,6 +38,23 @@ try:
 except ImportError:
     from .model import PIIDetectionModel
 
+try:
+    from model.src.checkpoint_utils import (
+        load_compatible_state_dict,
+        normalize_state_dict_keys,
+    )
+except ImportError:
+    try:
+        from src.checkpoint_utils import (
+            load_compatible_state_dict,
+            normalize_state_dict_keys,
+        )
+    except ImportError:
+        from .checkpoint_utils import (
+            load_compatible_state_dict,
+            normalize_state_dict_keys,
+        )
+
 
 # =============================================================================
 # DEVICE UTILITIES
@@ -155,13 +172,7 @@ class PIIModelLoader:
                     model_weights_path, map_location="cpu", weights_only=False
                 )
 
-            # Handle state dict that might have 'model.' prefix
-            if any(k.startswith("model.") for k in state_dict.keys()):
-                state_dict = {
-                    k.replace("model.", ""): v
-                    for k, v in state_dict.items()
-                    if k.startswith("model.")
-                }
+            state_dict = normalize_state_dict_keys(state_dict)
 
         logging.info("📋 Model configuration:")
         logging.info(f"   Base model: {base_model_name}")
@@ -188,15 +199,18 @@ class PIIModelLoader:
                 ) as f:
                     for key in f.keys():
                         state_dict[key] = f.get_tensor(key)
-                # Handle state dict that might have 'model.' prefix
-                if any(k.startswith("model.") for k in state_dict.keys()):
-                    state_dict = {
-                        k.replace("model.", ""): v
-                        for k, v in state_dict.items()
-                        if k.startswith("model.")
-                    }
+                state_dict = normalize_state_dict_keys(state_dict)
 
-            self.model.load_state_dict(state_dict, strict=False)
+            load_info = load_compatible_state_dict(
+                self.model,
+                state_dict,
+                source=str(model_weights_path),
+            )
+            if load_info.unexpected_keys:
+                logging.warning(
+                    "⚠️  Ignoring unexpected checkpoint keys: %s",
+                    load_info.unexpected_keys[:20],
+                )
             logging.info("✅ Model weights loaded")
         else:
             logging.warning(
