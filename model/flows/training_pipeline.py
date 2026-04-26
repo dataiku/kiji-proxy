@@ -6,7 +6,7 @@ This pipeline orchestrates:
 2. Dataset loading and preprocessing from model/dataset/data_samples/training_samples/
 3. PII detection model training
 4. Model evaluation
-5. Model quantization (ONNX)
+5. Model export (ONNX, with optional quantized side artifact)
 6. Model signing (cryptographic hash)
 
 Usage:
@@ -158,7 +158,7 @@ class PIITrainingPipeline(FlowSpec):
             audit_allowlist=cfg.get("data", {}).get("audit_allowlist", ""),
         )
         self.skip_export = cfg.get("pipeline", {}).get("skip_export", False)
-        self.skip_quantization = cfg.get("pipeline", {}).get("skip_quantization", False)
+        self.skip_quantization = cfg.get("pipeline", {}).get("skip_quantization", True)
         self.skip_signing = cfg.get("pipeline", {}).get("skip_signing", False)
         self.subsample_count = int(
             os.environ.get(
@@ -358,7 +358,7 @@ class PIITrainingPipeline(FlowSpec):
     @model(load="trained_model")
     @step
     def quantize_model(self):
-        """Quantize model to ONNX format."""
+        """Export model to ONNX and optionally produce a quantized side artifact."""
 
         import shutil
 
@@ -373,19 +373,12 @@ class PIITrainingPipeline(FlowSpec):
             quantize_model as quantize_onnx_model,
         )
 
-        if self.skip_quantization:
-            print("Skipping quantization by configuration")
-            self.quantized_model_path = None
-            self.quantized_model = None
-            self.next(self.sign_model)
-            return
-
         try:
             model_path = current.model.loaded["trained_model"]
             model, label_mappings, tokenizer = load_model(model_path)
 
-            quantized_output = "model/quantized"
-            output_path = Path(quantized_output)
+            exported_output = "model/quantized"
+            output_path = Path(exported_output)
             output_path.mkdir(parents=True, exist_ok=True)
             for stale_name in (
                 "model.onnx",
@@ -397,59 +390,76 @@ class PIITrainingPipeline(FlowSpec):
                 if stale_path.exists():
                     stale_path.unlink()
 
-            export_to_onnx(model, tokenizer, quantized_output)
+            export_to_onnx(model, tokenizer, exported_output)
 
             with (output_path / "label_mappings.json").open("w") as f:
                 json.dump(label_mappings, f, indent=2)
 
-            # Copy config.json so ORTModel can auto-load the quantized model
+            # Copy config.json so ORTModel can auto-load the exported model.
             config_src = Path(model_path) / "config.json"
             if config_src.exists():
                 shutil.copy(config_src, output_path / "config.json")
 
             export_parity = run_parity_benchmark(
                 model_path,
-                quantized_output,
+                exported_output,
                 onnx_file="model.onnx",
                 confidence_threshold=0.0,
             )
             print(format_parity_report(export_parity))
             assert_parity(export_parity)
 
-            quantize_onnx_model(str(output_path), str(output_path))
+            quantized_parity = None
+            self.quantized_model_path = None
+            if self.skip_quantization:
+                print("Skipping quantized side artifact by configuration")
+            else:
+                try:
+                    quantize_onnx_model(str(output_path), str(output_path))
+                    quantized_parity = run_parity_benchmark(
+                        model_path,
+                        exported_output,
+                        onnx_file="model_quantized.onnx",
+                        confidence_threshold=0.0,
+                    )
+                    print(format_parity_report(quantized_parity))
+                    assert_parity(quantized_parity)
+                    self.quantized_model_path = str(output_path / "model_quantized.onnx")
+                    print("Quantized side artifact passed parity")
+                except Exception as quantization_error:
+                    failed_quantized = output_path / "model_quantized.onnx"
+                    if failed_quantized.exists():
+                        failed_quantized.unlink()
+                    print(
+                        "Quantized side artifact failed parity and will not be used: "
+                        f"{quantization_error}"
+                    )
 
-            quantized_parity = run_parity_benchmark(
-                model_path,
-                quantized_output,
-                onnx_file="model_quantized.onnx",
-                confidence_threshold=0.0,
-            )
-            print(format_parity_report(quantized_parity))
-            assert_parity(quantized_parity)
-            self.parity_reports = {
+            parity_reports = {
                 "export": export_parity.to_dict(),
-                "quantized": quantized_parity.to_dict(),
             }
+            if quantized_parity is not None:
+                parity_reports["quantized"] = quantized_parity.to_dict()
+            self.parity_reports = parity_reports
 
-            # Remove non-quantized model after quantization
-            non_quantized = output_path / "model.onnx"
-            if non_quantized.exists():
-                non_quantized.unlink()
-                print(f"Removed non-quantized ONNX model: {non_quantized}")
-
-            self.quantized_model_path = quantized_output
-            self.quantized_model = current.checkpoint.save(
-                quantized_output,
-                metadata={"quantization_mode": "avx512_vnni"},
-                name="quantized_model",
+            self.exported_model_path = exported_output
+            self.exported_model = current.checkpoint.save(
+                exported_output,
+                metadata={
+                    "default_onnx_file": "model.onnx",
+                    "quantized_model_path": self.quantized_model_path,
+                },
+                name="exported_model",
                 latest=True,
             )
-            print(f"Quantized model saved: {quantized_output}")
+
+            print(f"Exported ONNX model saved: {exported_output}/model.onnx")
 
         except Exception as e:
-            print(f"Quantization failed: {e}")
+            print(f"ONNX export failed: {e}")
+            self.exported_model_path = None
+            self.exported_model = None
             self.quantized_model_path = None
-            self.quantized_model = None
             self.parity_reports = None
             raise
 
@@ -457,7 +467,7 @@ class PIITrainingPipeline(FlowSpec):
 
     # @pypi(packages=SIGNING_PACKAGES, python="3.13")
     @checkpoint
-    @model(load=["trained_model"])  # Only require trained_model; quantized is optional
+    @model(load=["trained_model"])  # Keep trained model as a fallback if export failed.
     @step
     def sign_model(self):
         """Sign model with cryptographic hash."""
@@ -467,18 +477,18 @@ class PIITrainingPipeline(FlowSpec):
             # Get private key path from environment
             private_key_path = os.getenv("MODEL_SIGNING_KEY_PATH")
 
-            # Try to load quantized model if it exists
-            quantized_path = None
-            if getattr(self, "quantized_model", None) is not None:
+            # Sign the exported ONNX directory by default. This is the artifact the app loads.
+            exported_path = None
+            if getattr(self, "exported_model", None) is not None:
                 try:
-                    quantized_path = current.checkpoint.load(self.quantized_model)
-                    print("Loaded quantized model from checkpoint")
+                    exported_path = current.checkpoint.load(self.exported_model)
+                    print("Loaded exported ONNX model from checkpoint")
                 except Exception as e:
-                    print(f"Could not load quantized model: {e}")
+                    print(f"Could not load exported ONNX model: {e}")
 
-            if quantized_path:
-                model_to_sign = quantized_path
-                model_type = "quantized"
+            if exported_path:
+                model_to_sign = exported_path
+                model_type = "onnx"
             else:
                 model_to_sign = current.model.loaded["trained_model"]
                 model_type = "trained"
@@ -519,6 +529,7 @@ class PIITrainingPipeline(FlowSpec):
             },
             "dataset": {},
             "metrics": self.training_metrics,
+            "exported": self.exported_model_path is not None,
             "quantized": self.quantized_model_path is not None,
             "signed": self.model_signature is not None,
             "parity": getattr(self, "parity_reports", None),

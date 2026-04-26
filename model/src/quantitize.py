@@ -4,8 +4,8 @@ Quantize PII Detection Model to ONNX Format
 This script:
 1. Loads the trained PII detection model
 2. Exports it to ONNX format
-3. Quantizes the model for faster inference
-4. Saves the quantized model
+3. Optionally writes a quantized side artifact
+4. Keeps model.onnx as the default exported model
 
 Usage:
     # Basic usage (uses default paths):
@@ -19,15 +19,11 @@ Usage:
 """
 
 import json
-import os
 import sys
 from pathlib import Path
 
-import onnx
 import torch
 from absl import app, flags, logging
-from optimum.onnxruntime import ORTQuantizer
-from optimum.onnxruntime.configuration import AutoQuantizationConfig
 from safetensors import safe_open
 from transformers import AutoTokenizer
 
@@ -359,6 +355,10 @@ def quantize_model(
     """
     logging.info("🔢 Quantizing model...")
 
+    import onnx
+    from optimum.onnxruntime import ORTQuantizer
+    from optimum.onnxruntime.configuration import AutoQuantizationConfig
+
     output_path = Path(output_path)
     output_path.mkdir(parents=True, exist_ok=True)
 
@@ -428,7 +428,7 @@ def main(argv):
     """
     Orchestrates loading a trained PII detection model, exporting it to ONNX, optionally quantizing the ONNX model, signing and saving artifacts (tokenizer, label mappings, config), and handling errors.
 
-    This function performs high-level orchestration for the CLI: it loads the trained model and tokenizer from FLAGS.model_path, exports the model to ONNX in FLAGS.output_path, signs the exported model, writes label mappings and (if present) the original config.json to the output directory, and — unless --skip_quantization is set — quantizes the ONNX model. On successful quantization the non-quantized ONNX file is removed. Any unhandled exception is logged and causes process exit with code 1.
+    This function performs high-level orchestration for the CLI: it loads the trained model and tokenizer from FLAGS.model_path, exports the model to ONNX in FLAGS.output_path, signs the exported model, writes label mappings and (if present) the original config.json to the output directory, and — unless --skip_quantization is set — writes a quantized side artifact. The non-quantized model.onnx remains the default production model. Any unhandled exception is logged and causes process exit with code 1.
 
     Parameters:
         argv: Ignored. Present to match the CLI entrypoint signature.
@@ -476,18 +476,10 @@ def main(argv):
         logging.info("✅ Quantization Complete!")
         logging.info("=" * 80)
         logging.info(f"Model saved to: {FLAGS.output_path}")
-        if FLAGS.skip_quantization:
-            logging.info(
-                f"saved non-quantized ONNX model: {output_path / 'model.onnx'}"
-            )
-        else:
-            os.remove(output_path / "model.onnx")
-            logging.info(
-                f"removed non-quantized ONNX model: {output_path / 'model.onnx'}"
-            )
+        logging.info(f"saved default ONNX model: {output_path / 'model.onnx'}")
         if not FLAGS.skip_quantization:
             logging.info(
-                f"saved quantized ONNX model: {output_path / 'model_quantized.onnx'}"
+                f"saved quantized side artifact: {output_path / 'model_quantized.onnx'}"
             )
 
     except Exception as e:

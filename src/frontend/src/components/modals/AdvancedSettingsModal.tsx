@@ -362,7 +362,7 @@ export default function AdvancedSettingsModal({
             </div>
 
             <p className="text-xs text-slate-500 mt-1">
-              Directory must contain: model_quantized.onnx, tokenizer.json,
+              Directory must contain: model.onnx, tokenizer.json,
               label_mappings.json
             </p>
 

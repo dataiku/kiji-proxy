@@ -8,7 +8,7 @@ Metaflow pipeline for PII detection model training.
 2. Dataset loading and preprocessing
 3. PII detection model training
 4. Model evaluation
-5. Model export/quantization (ONNX) with parity checks - Linux only
+5. Model export (ONNX) with parity checks; quantization is disabled by default
 6. Model signing (cryptographic hash)
 
 ## Usage
@@ -17,7 +17,7 @@ Metaflow pipeline for PII detection model training.
 # Run locally (from project root)
 uv run --extra training --extra signing python model/flows/training_pipeline.py run
 
-# With quantization (Linux only)
+# ONNX export currently uses the dependencies in the quantization extra.
 uv run --extra training --extra quantization --extra signing python model/flows/training_pipeline.py run
 
 # Custom config file
@@ -40,7 +40,7 @@ Run the checkpoint-vs-ONNX parity check directly:
 uv run python -m model.src.parity_benchmark \
   --checkpoint ./model/trained \
   --onnx-model ./model/quantized \
-  --onnx-file model_quantized.onnx
+  --onnx-file model.onnx
 ```
 
 ## Configuration

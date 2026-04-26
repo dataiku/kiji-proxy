@@ -59,9 +59,9 @@ def main() -> int:
     args = ap.parse_args()
 
     model_dir = Path(args.model_path)
-    onnx_file = model_dir / "model_quantized.onnx"
+    onnx_file = model_dir / "model.onnx"
     if not onnx_file.exists():
-        onnx_file = model_dir / "model.onnx"
+        onnx_file = model_dir / "model_quantized.onnx"
 
     # Print model metadata
     print(f"Model directory: {model_dir.resolve()}")

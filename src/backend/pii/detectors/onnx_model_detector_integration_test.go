@@ -12,7 +12,7 @@ import (
 
 // Test paths - adjust based on your local setup or use environment variables
 var (
-	testModelPath     = getEnvOrDefault("ONNX_MODEL_PATH", "../../../../model/quantized/model_quantized.onnx")
+	testModelPath     = getEnvOrDefault("ONNX_MODEL_PATH", "../../../../model/quantized/model.onnx")
 	testTokenizerPath = getEnvOrDefault("ONNX_TOKENIZER_PATH", "../../../../model/quantized/tokenizer.json")
 )
 

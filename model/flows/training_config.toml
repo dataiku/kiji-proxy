@@ -47,7 +47,7 @@ audit_allowlist = "model/dataset/data_samples/training_samples/audit_ledger.tsv"
 [pipeline]
 # Skip Label Studio export and use existing data from paths.training_samples_dir
 skip_export = true
-# Skip ONNX quantization
-skip_quantization = false
+# Skip ONNX quantization. model.onnx is the production artifact for now.
+skip_quantization = true
 # Skip model signing
 skip_signing = false

@@ -200,7 +200,7 @@ func DefaultConfig() *Config {
 			MistralProviderConfig:   defaultMistralProviderConfig,
 		},
 		ProxyPort:          ":8080",
-		ONNXModelPath:      "model/quantized/model_quantized.onnx",
+		ONNXModelPath:      "model/quantized/model.onnx",
 		TokenizerPath:      "model/quantized/tokenizer.json",
 		ONNXModelDirectory: "model/quantized",
 		UIPath:             "./src/frontend/dist",

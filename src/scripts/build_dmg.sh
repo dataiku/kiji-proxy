@@ -39,9 +39,8 @@ if [ -d "src/frontend/resources/pii_onnx_model" ]; then
     echo "✅ Removed old pii_onnx_model directory"
 fi
 
-# Remove any large unquantized models
-find . -name "model.onnx" -type f -size +100M -exec rm -f {} \; 2>/dev/null || true
-echo "✅ Removed large unquantized model files"
+# Keep model.onnx: it is the parity-checked production model the app loads.
+echo "✅ Keeping unquantized model.onnx for packaging"
 
 echo ""
 echo "📦 Step 1: Setting up Python environment and dependencies..."
@@ -163,8 +162,8 @@ echo "📦 Step 6: Verifying LFS files are downloaded..."
 echo "-----------------------------------------------"
 
 # Check if model file exists
-if [ ! -f "model/quantized/model_quantized.onnx" ]; then
-    echo "❌ Model file not found: model/quantized/model_quantized.onnx"
+if [ ! -f "model/quantized/model.onnx" ]; then
+    echo "❌ Model file not found: model/quantized/model.onnx"
     echo "Available files in model/quantized/:"
     ls -la model/quantized/ || echo "Directory not found"
     exit 1
@@ -172,9 +171,9 @@ fi
 
 # Check file size to ensure it's not an LFS pointer
 if command -v stat >/dev/null 2>&1; then
-    MODEL_SIZE=$(stat -f%z "model/quantized/model_quantized.onnx" 2>/dev/null || stat -c%s "model/quantized/model_quantized.onnx" 2>/dev/null || echo "0")
+    MODEL_SIZE=$(stat -f%z "model/quantized/model.onnx" 2>/dev/null || stat -c%s "model/quantized/model.onnx" 2>/dev/null || echo "0")
 else
-    MODEL_SIZE=$(wc -c < "model/quantized/model_quantized.onnx" 2>/dev/null || echo "0")
+    MODEL_SIZE=$(wc -c < "model/quantized/model.onnx" 2>/dev/null || echo "0")
 fi
 
 echo "Model file size: ${MODEL_SIZE} bytes"
@@ -182,7 +181,7 @@ echo "Model file size: ${MODEL_SIZE} bytes"
 if [ "$MODEL_SIZE" -lt 1000 ]; then
     echo "❌ Model file appears to be an LFS pointer file (too small: ${MODEL_SIZE} bytes)"
     echo "File contents (first 10 lines):"
-    head -10 "model/quantized/model_quantized.onnx"
+    head -10 "model/quantized/model.onnx"
     echo ""
     echo "Attempting to fix by pulling LFS files again..."
 
@@ -190,7 +189,7 @@ if [ "$MODEL_SIZE" -lt 1000 ]; then
         git lfs pull --include="model/quantized/*" || echo "⚠️  git lfs pull failed"
 
         # Re-check after pull
-        NEW_SIZE=$(stat -f%z "model/quantized/model_quantized.onnx" 2>/dev/null || stat -c%s "model/quantized/model_quantized.onnx" 2>/dev/null || wc -c < "model/quantized/model_quantized.onnx" 2>/dev/null || echo "0")
+        NEW_SIZE=$(stat -f%z "model/quantized/model.onnx" 2>/dev/null || stat -c%s "model/quantized/model.onnx" 2>/dev/null || wc -c < "model/quantized/model.onnx" 2>/dev/null || echo "0")
         if [ "$NEW_SIZE" -lt 1000 ]; then
             echo "❌ Still appears to be LFS pointer after explicit pull. LFS download failed."
             exit 1
@@ -207,7 +206,7 @@ fi
 
 # Verify other critical model files
 echo "Verifying other model files..."
-for file in tokenizer.json vocab.txt model_manifest.json; do
+for file in model.onnx.data tokenizer.json vocab.txt model_manifest.json; do
     if [ -f "model/quantized/$file" ]; then
         size=$(stat -f%z "model/quantized/$file" 2>/dev/null || stat -c%s "model/quantized/$file" 2>/dev/null || wc -c < "model/quantized/$file" 2>/dev/null || echo "0")
         echo "✅ $file: ${size} bytes"
@@ -248,14 +247,8 @@ if [ -d "model/quantized" ]; then
     fi
 
     # Verify model files after copying
-    COPIED_MODEL_SIZE=$(stat -f%z "src/backend/model/quantized/model_quantized.onnx" 2>/dev/null || stat -c%s "src/backend/model/quantized/model_quantized.onnx" 2>/dev/null || wc -c < "src/backend/model/quantized/model_quantized.onnx" 2>/dev/null || echo "0")
+    COPIED_MODEL_SIZE=$(stat -f%z "src/backend/model/quantized/model.onnx" 2>/dev/null || stat -c%s "src/backend/model/quantized/model.onnx" 2>/dev/null || wc -c < "src/backend/model/quantized/model.onnx" 2>/dev/null || echo "0")
     echo "✅ Model files copied to src/backend/model/quantized/ for embedding (${COPIED_MODEL_SIZE} bytes)"
-
-    # Remove large unquantized model if it exists (save 249MB)
-    if [ -f "src/backend/model/quantized/model.onnx" ]; then
-        rm -f src/backend/model/quantized/model.onnx
-        echo "✅ Removed unquantized model.onnx from embedding (saves ~249MB)"
-    fi
 else
     echo "❌ Model directory not found: model/quantized"
     echo "   This will cause runtime errors - the app needs the model files"
@@ -338,14 +331,13 @@ fi
 if [ -d "model/quantized" ]; then
     mkdir -p src/frontend/resources/model/quantized
 
-    # Copy files excluding large unquantized model
     if command -v rsync >/dev/null 2>&1; then
-        rsync -a --delete --exclude='model.onnx' model/quantized/ src/frontend/resources/model/quantized/
-        echo "✅ Model files synced to resources/model/quantized/ (excluding model.onnx, rsync)"
+        rsync -a --delete model/quantized/ src/frontend/resources/model/quantized/
+        echo "✅ Model files synced to resources/model/quantized/ (rsync)"
     else
         mkdir -p src/frontend/resources/model/quantized
-        find model/quantized -type f ! -name "model.onnx" -exec cp {} src/frontend/resources/model/quantized/ \;
-        echo "✅ Model files copied to resources/model/quantized/ (excluding model.onnx)"
+        find model/quantized -type f -exec cp {} src/frontend/resources/model/quantized/ \;
+        echo "✅ Model files copied to resources/model/quantized/"
     fi
 
     # Remove duplicate quantized directory - not needed since we have model/quantized
@@ -534,12 +526,10 @@ if [ -f "${DMG_FILES[0]}" ]; then
     echo "📊 Final DMG size: $DMG_SIZE"
     echo ""
     echo "💾 Size optimizations applied:"
-    echo "   ✅ Removed unquantized model.onnx (saves ~249MB)"
     echo "   ✅ Removed duplicate model directories (saves ~64MB)"
     echo "   ✅ Removed pii_onnx_model directory (saves ~313MB)"
     echo "   ✅ Used ULFO compression (better than UDZO)"
     echo "   ✅ Maximum electron-builder compression"
-    echo "   ⚡ Total potential savings: ~626MB+"
 fi
 echo ""
 echo "✅ DMG build complete!"

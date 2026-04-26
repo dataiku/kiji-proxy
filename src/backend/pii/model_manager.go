@@ -201,9 +201,15 @@ func (mm *ModelManager) validateDirectory(dir string) (*ModelConfig, error) {
 		return nil, fmt.Errorf("path is not a directory: %s", dir)
 	}
 
+	modelFilename := "model.onnx"
+	if _, err := os.Stat(filepath.Join(dir, modelFilename)); os.IsNotExist(err) {
+		// Backward compatibility for older model directories.
+		modelFilename = "model_quantized.onnx"
+	}
+
 	// Required files
 	requiredFiles := []string{
-		"model_quantized.onnx",
+		modelFilename,
 		"tokenizer.json",
 		"label_mappings.json",
 	}
@@ -228,12 +234,12 @@ func (mm *ModelManager) validateDirectory(dir string) (*ModelConfig, error) {
 	}
 
 	config := &ModelConfig{
-		ModelPath:     filepath.Join(absDir, "model_quantized.onnx"),
+		ModelPath:     filepath.Join(absDir, modelFilename),
 		TokenizerPath: filepath.Join(absDir, "tokenizer.json"),
 		LabelMapPath:  filepath.Join(absDir, "label_mappings.json"),
 	}
 
-	log.Printf("[ModelManager] Validated directory: %s", absDir)
+	log.Printf("[ModelManager] Validated directory: %s using %s", absDir, modelFilename)
 	return config, nil
 }
 

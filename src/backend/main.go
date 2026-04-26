@@ -107,6 +107,11 @@ func run(configPath *string) error {
 
 	// Debug: Check for model files in various locations
 	modelPaths := []string{
+		"model/quantized/model.onnx",
+		"quantized/model.onnx",
+		"./model.onnx",
+		"resources/model/quantized/model.onnx",
+		"resources/quantized/model.onnx",
 		"model/quantized/model_quantized.onnx",
 		"quantized/model_quantized.onnx",
 		"./model_quantized.onnx",
@@ -139,10 +144,10 @@ func run(configPath *string) error {
 		} else {
 			log.Println("Model files extracted successfully")
 			// Debug: Verify extracted files
-			if _, err := os.Stat("model/quantized/model_quantized.onnx"); err == nil {
-				log.Println("✅ Extracted model file verified at: model/quantized/model_quantized.onnx")
+			if _, err := os.Stat("model/quantized/model.onnx"); err == nil {
+				log.Println("✅ Extracted model file verified at: model/quantized/model.onnx")
 			} else {
-				log.Printf("❌ Extracted model file NOT found at: model/quantized/model_quantized.onnx (error: %v)", err)
+				log.Printf("❌ Extracted model file NOT found at: model/quantized/model.onnx (error: %v)", err)
 			}
 		}
 

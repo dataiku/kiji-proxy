@@ -181,9 +181,9 @@ def load_onnx_model(
     logging.info(f"Loading ONNX model from: {model_path}")
 
     # Find ONNX model file
-    onnx_file = model_path / "model_quantized.onnx"
+    onnx_file = model_path / "model.onnx"
     if not onnx_file.exists():
-        onnx_file = model_path / "model.onnx"
+        onnx_file = model_path / "model_quantized.onnx"
     if not onnx_file.exists():
         onnx_files = list(model_path.glob("*.onnx"))
         if onnx_files:

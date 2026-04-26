@@ -85,7 +85,6 @@
       "assets/icon.png",
       "assets/icon-16.png",
       "assets/arrow.png",
-      "!**/model.onnx",
       "!**/pii_onnx_model/**/*",
       "!**/*.map",
       "!**/.DS_Store"
@@ -101,7 +100,6 @@
         "to": "resources",
         "filter": [
           "**/*",
-          "!**/model.onnx",
           "!**/pii_onnx_model/**/*"
         ]
       }

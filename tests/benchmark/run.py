@@ -169,7 +169,7 @@ def merge_chunk_spans(spans: list[tuple[int, int, str]]) -> list[tuple[int, int,
 
 
 class OnnxPIIModel:
-    """Thin wrapper around the quantized ONNX model for inference."""
+    """Thin wrapper around the exported ONNX model for inference."""
 
     def __init__(
         self,
@@ -181,9 +181,9 @@ class OnnxPIIModel:
         if onnx_filename is not None:
             onnx_file = model_dir / onnx_filename
         else:
-            onnx_file = model_dir / "model_quantized.onnx"
+            onnx_file = model_dir / "model.onnx"
             if not onnx_file.exists():
-                onnx_file = model_dir / "model.onnx"
+                onnx_file = model_dir / "model_quantized.onnx"
         if not onnx_file.exists():
             raise FileNotFoundError(f"No ONNX model found in {model_dir}")
         self.onnx_file = onnx_file
@@ -615,7 +615,7 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument(
         "--model-path",
         default="./model/quantized",
-        help="Path to the quantized ONNX model directory.",
+        help="Path to the exported ONNX model directory.",
     )
     ap.add_argument(
         "--onnx-file",
