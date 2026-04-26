@@ -1,7 +1,6 @@
 """Tokenization utilities for training samples."""
 
 import logging
-import re
 from typing import Any
 
 from transformers import AutoTokenizer
@@ -91,60 +90,6 @@ class TokenizationProcessor:
         # Sort by start position (reverse order for replacement)
         return self._drop_overlapping_positions(privacy_mask_with_positions)
 
-    def _split_words_with_spans(
-        self, text: str
-    ) -> tuple[list[str], list[tuple[int, int]]]:
-        """Split text like ``str.split`` while keeping original character spans."""
-        words = []
-        spans = []
-        for match in re.finditer(r"\S+", text):
-            words.append(match.group(0))
-            spans.append((match.start(), match.end()))
-        return words, spans
-
-    def _create_word_labels(
-        self, text: str, privacy_mask_with_positions: list[dict[str, Any]]
-    ) -> list[str]:
-        """Create word-level BIO labels from privacy mask positions.
-
-        Each word gets a BIO-prefixed label: ``B-LABEL`` for the first word
-        of an entity span and ``I-LABEL`` for subsequent words.  Words outside
-        any entity span receive ``O``.
-        """
-        # Replace sensitive text with BIO-prefixed label placeholders.
-        # privacy_mask_with_positions is sorted by start descending, so
-        # replacing from the end preserves earlier offsets.
-        text_with_labels = text
-        for item in privacy_mask_with_positions:
-            label = item["label"]
-            start = item["start"]
-            end = item["end"]
-            value = item["value"]
-
-            word_count = len(value.split())
-            bio_labels = [f"B-{label}"] + [f"I-{label}"] * (word_count - 1)
-            replacement = " ".join(bio_labels)
-            text_with_labels = (
-                text_with_labels[:start] + replacement + text_with_labels[end:]
-            )
-
-        # Split into words and parse BIO labels
-        words = text_with_labels.split()
-        word_labels = []
-        for word in words:
-            match = re.search(r"(\w[\w-]*)", word)
-            if match:
-                token = match.group(1)
-                # Check for BIO-prefixed PII labels (e.g. B-EMAIL, I-FIRSTNAME)
-                if token.startswith(("B-", "I-")):
-                    word_labels.append(token)
-                else:
-                    word_labels.append("O")
-            else:
-                word_labels.append("O")
-
-        return word_labels
-
     def _is_punctuation_only(self, token_text: str) -> bool:
         """Check if a token contains only punctuation characters."""
         stripped = token_text.strip()
@@ -177,27 +122,28 @@ class TokenizationProcessor:
                 return True
         return False
 
-    def _absolute_token_offsets(
+    def _best_entity_for_token(
         self,
-        word_ids: list[int | None],
-        token_offsets: list[tuple[int, int]] | None,
-        word_spans: list[tuple[int, int]],
-    ) -> list[tuple[int, int]]:
-        """Convert split-word tokenizer offsets back to original text offsets."""
-        if token_offsets is None:
-            return [(-1, -1)] * len(word_ids)
+        token_start: int,
+        token_end: int,
+        privacy_mask_with_positions: list[dict[str, Any]],
+    ) -> dict[str, Any] | None:
+        """Return the entity span with the largest overlap for a token."""
+        best_entity = None
+        best_overlap = 0
 
-        absolute_offsets = []
-        for word_idx, token_offset in zip(word_ids, token_offsets, strict=True):
-            if word_idx is None or word_idx >= len(word_spans):
-                absolute_offsets.append((-1, -1))
-                continue
+        for item in privacy_mask_with_positions:
+            entity_start = item.get("start", 0)
+            entity_end = item.get("end", 0)
+            overlap = max(
+                0,
+                min(token_end, entity_end) - max(token_start, entity_start),
+            )
+            if overlap > best_overlap:
+                best_overlap = overlap
+                best_entity = item
 
-            word_start, _word_end = word_spans[word_idx]
-            token_start, token_end = token_offset
-            absolute_offsets.append((word_start + token_start, word_start + token_end))
-
-        return absolute_offsets
+        return best_entity
 
     def _get_label_id(self, bio_label: str) -> int:
         """Get the label ID for a BIO-prefixed label (e.g. ``B-EMAIL``, ``I-SSN``, ``O``)."""
@@ -205,60 +151,62 @@ class TokenizationProcessor:
             return 0
         return self.label2id.get(bio_label, 0)
 
-    def _align_labels_with_tokens(
+    def _align_labels_with_offsets(
         self,
-        word_labels: list[str],
-        word_ids: list[int | None],
-        token_texts: list[str] | None = None,
-        token_offsets: list[tuple[int, int]] | None = None,
-        privacy_mask_with_positions: list[dict[str, Any]] | None = None,
+        token_offsets: list[tuple[int, int]] | None,
+        token_texts: list[str] | None,
+        privacy_mask_with_positions: list[dict[str, Any]],
     ) -> list[int]:
-        """Align word-level BIO labels with token IDs.
+        """Align BIO labels directly from character spans to token offsets."""
+        if token_offsets is None:
+            return []
 
-        ``word_labels`` already carry the correct BIO prefix (``B-LABEL``,
-        ``I-LABEL``, or ``O``).  Sub-word tokens that continue the same
-        word receive the ``I-`` variant of their word's label.
-        """
+        sorted_positions = sorted(
+            privacy_mask_with_positions,
+            key=lambda item: (item["start"], item["end"], item["label"]),
+        )
         label_ids = []
-        prev_word_idx = None
+        prev_entity_key = None
 
-        for idx, word_idx in enumerate(word_ids):
-            # Handle special tokens and out-of-bounds
-            if word_idx is None or word_idx >= len(word_labels):
+        for idx, (token_start, token_end) in enumerate(token_offsets):
+            if token_end <= token_start:
                 label_ids.append(-100)
+                prev_entity_key = None
                 continue
 
-            bio_label = word_labels[word_idx]
             token_text = (
                 token_texts[idx] if token_texts and idx < len(token_texts) else ""
             )
-            is_punct = self._is_punctuation_only(token_text)
+            entity = self._best_entity_for_token(
+                token_start,
+                token_end,
+                sorted_positions,
+            )
+            if entity is None:
+                label_ids.append(0)
+                prev_entity_key = None
+                continue
 
-            # Determine effective label for this token
-            if is_punct:
-                base = (
-                    bio_label[2:] if bio_label.startswith(("B-", "I-")) else bio_label
-                )
-                token_start, token_end = (
-                    token_offsets[idx]
-                    if token_offsets and idx < len(token_offsets)
-                    else (-1, -1)
-                )
-                if base != "O" and not self._token_overlaps_entity(
-                    token_start, token_end, base, privacy_mask_with_positions
-                ):
-                    bio_label = "O"
+            label = entity["label"]
+            entity_key = (entity["start"], entity["end"], label)
+            prefix = "I" if entity_key == prev_entity_key else "B"
 
-            # Sub-word continuation: second+ token of the same word gets I-
-            if word_idx == prev_word_idx and bio_label.startswith("B-"):
-                bio_label = "I-" + bio_label[2:]
+            # Keep punctuation that is inside the entity span (email dots, phone
+            # separators), but leave standalone punctuation outside spans as O.
+            if self._is_punctuation_only(
+                token_text
+            ) and not self._token_overlaps_entity(
+                token_start,
+                token_end,
+                label,
+                sorted_positions,
+            ):
+                label_ids.append(0)
+                prev_entity_key = None
+                continue
 
-            label_ids.append(self._get_label_id(bio_label))
-            prev_word_idx = word_idx
-
-        # Truncate to max_length if needed
-        if len(label_ids) > 512:
-            label_ids = label_ids[:511] + [-100]
+            label_ids.append(self._get_label_id(f"{prefix}-{label}"))
+            prev_entity_key = entity_key
 
         return label_ids
 
@@ -271,29 +219,13 @@ class TokenizationProcessor:
             text, privacy_mask
         )
 
-        # Create word-level labels
-        word_labels = self._create_word_labels(text, privacy_mask_with_positions)
-
-        # Tokenize the original text
-        words_original, word_spans = self._split_words_with_spans(text)
         tokenized = self.tokenizer(
-            words_original,
+            text,
             truncation=True,
-            is_split_into_words=True,
             max_length=512,
             return_offsets_mapping=True,
         )
-
-        # Get word IDs for alignment
-        try:
-            word_ids = tokenized.word_ids(batch_index=0)
-        except (TypeError, AttributeError):
-            word_ids = tokenized.word_ids()
-
         token_offsets = tokenized.get("offset_mapping")
-        absolute_token_offsets = self._absolute_token_offsets(
-            word_ids, token_offsets, word_spans
-        )
 
         # Get token texts to check for punctuation-only tokens
         # Use raw token strings for better punctuation detection
@@ -335,12 +267,12 @@ class TokenizationProcessor:
         except (TypeError, KeyError, IndexError, AttributeError):
             token_texts = None
 
-        # Align labels with tokens
-        label_ids = self._align_labels_with_tokens(
-            word_labels,
-            word_ids,
+        # Align labels directly from annotation character spans. This handles
+        # compact formats such as XML/JSON/email addresses where entities are
+        # embedded inside a whitespace-delimited "word".
+        label_ids = self._align_labels_with_offsets(
+            token_offsets,
             token_texts,
-            absolute_token_offsets,
             privacy_mask_with_positions,
         )
 
