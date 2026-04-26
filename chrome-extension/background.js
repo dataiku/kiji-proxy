@@ -153,7 +153,12 @@ function scheduleNextCheck() {
 // --- Lifecycle ---
 
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.storage.local.set({ checksTotal: 0, piiFound: 0, connected: false });
+  chrome.storage.local.set({
+    checksTotal: 0,
+    piiMasked: 0,
+    connected: false,
+  });
+  chrome.storage.local.remove("piiFound");
   loadSettingsAndCheck();
   loadDomainsAndRegister();
 });
@@ -213,12 +218,8 @@ async function handlePIICheck(text) {
     return { success: false, error, url };
   }
 
-  chrome.storage.local.get({ checksTotal: 0, piiFound: 0 }, (result) => {
-    const updates = { checksTotal: result.checksTotal + 1 };
-    if (data.pii_found) {
-      updates.piiFound = result.piiFound + 1;
-    }
-    chrome.storage.local.set(updates);
+  chrome.storage.local.get({ checksTotal: 0 }, (result) => {
+    chrome.storage.local.set({ checksTotal: result.checksTotal + 1 });
   });
 
   return { success: true, data };
@@ -230,24 +231,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true; // keep channel open for async sendResponse
   }
 
-  if (message.type === "pii-check") {
-    chrome.storage.local.get({ checksTotal: 0, piiFound: 0 }, (result) => {
-      const updates = { checksTotal: result.checksTotal + 1 };
-      if (message.found) {
-        updates.piiFound = result.piiFound + 1;
-      }
-      chrome.storage.local.set(updates);
+  if (message.type === "pii-masked") {
+    const count = Number.isFinite(message.count)
+      ? Math.max(0, Math.floor(message.count))
+      : 0;
+    chrome.storage.local.get({ piiMasked: 0 }, (result) => {
+      chrome.storage.local.set({ piiMasked: result.piiMasked + count });
     });
   }
 
   if (message.type === "get-status") {
     chrome.storage.local.get(
-      { connected: false, checksTotal: 0, piiFound: 0 },
+      { connected: false, checksTotal: 0, piiMasked: 0 },
       (result) => {
         sendResponse({
           connected: result.connected,
           checksTotal: result.checksTotal,
-          piiFound: result.piiFound,
+          piiMasked: result.piiMasked,
           backendUrl: backendUrl,
         });
       }
@@ -258,12 +258,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "refresh-status") {
     checkHealth().then(() => {
       chrome.storage.local.get(
-        { connected: false, checksTotal: 0, piiFound: 0 },
+        { connected: false, checksTotal: 0, piiMasked: 0 },
         (result) => {
           sendResponse({
             connected: result.connected,
             checksTotal: result.checksTotal,
-            piiFound: result.piiFound,
+            piiMasked: result.piiMasked,
             backendUrl: backendUrl,
           });
         }

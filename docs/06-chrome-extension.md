@@ -60,7 +60,7 @@ chrome-extension/
 1. `background.js` dynamically registers `content.js` on user-configured domains
 2. `content.js` intercepts form submission, sends text to the backend `/api/pii/check` endpoint
 3. If PII is found, a modal is shown with mask/cancel/send options
-4. `content.js` reports check results to `background.js` for stats tracking
+4. `background.js` records each completed check, and `content.js` reports how many entities were masked when the masked version is used
 5. `background.js` runs periodic health checks and updates the badge icon
 
 ## Configuration
@@ -176,7 +176,7 @@ Required for any extension that handles user data. Host it at a public URL (GitH
 
 - **What data is collected:** Text from chat input fields on configured domains, only at the moment of submission
 - **Where data is sent:** To a user-configured backend server (default: localhost). No data is sent to third parties.
-- **What is stored:** The extension stores settings (backend URL, domain list) and session statistics (check count, PII detection count) locally. No message content is stored.
+- **What is stored:** The extension stores settings (backend URL, domain list) and session statistics (check count, masked PII entity count) locally. No message content is stored.
 - **Data retention:** Session statistics are cleared on extension reinstall. No message content is retained.
 - **User control:** Users choose which domains are intercepted and where data is sent. All PII checking can be bypassed via "Send Anyway."
 
