@@ -289,6 +289,16 @@
   let lastCheckError = null;
   let contextInvalidated = false;
 
+  function countMaskedEntities(result) {
+    if (Array.isArray(result?.detected_entities)) {
+      return result.detected_entities.length;
+    }
+    if (result?.entities && typeof result.entities === "object") {
+      return Object.keys(result.entities).length;
+    }
+    return result?.pii_found ? 1 : 0;
+  }
+
   function isExtensionAlive() {
     try {
       return !!(chrome.runtime && chrome.runtime.id);
@@ -403,18 +413,6 @@
         return;
       }
 
-      // Notify background service worker of the check result
-      if (isExtensionAlive()) {
-        try {
-          chrome.runtime.sendMessage({
-            type: "pii-check",
-            found: result.pii_found,
-          });
-        } catch (e) {
-          // Background may not be available
-        }
-      }
-
       if (result.pii_found) {
         console.log("Kiji Privacy Proxy Extension: PII detected");
         showPIIModal(result, text, (action, maskedText) => {
@@ -425,6 +423,16 @@
             case "use-masked":
               setInputText(maskedText);
               maskedTextPending = maskedText;
+              if (isExtensionAlive()) {
+                try {
+                  chrome.runtime.sendMessage({
+                    type: "pii-masked",
+                    count: countMaskedEntities(result),
+                  });
+                } catch (e) {
+                  // Background may not be available
+                }
+              }
               // Don't auto-submit, let user review the masked text first
               break;
             case "send-anyway":
