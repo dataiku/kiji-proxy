@@ -409,6 +409,7 @@ class PIITrainingPipeline(FlowSpec):
         self.next(self.sign_model)
 
     # @pypi(packages=SIGNING_PACKAGES, python="3.13")
+    @checkpoint
     @model(load=["trained_model"])  # Only require trained_model; quantized is optional
     @step
     def sign_model(self):
