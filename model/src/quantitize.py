@@ -2,8 +2,8 @@
 Quantize PII Detection Model to ONNX Format
 
 This script:
-1. Loads the trained multi-task PII detection model
-2. Exports it to ONNX format (PII detection only for compatibility)
+1. Loads the trained PII detection model
+2. Exports it to ONNX format
 3. Quantizes the model for faster inference
 4. Saves the quantized model
 
@@ -426,7 +426,7 @@ def quantize_model(
 
 def main(argv):
     """
-    Orchestrates loading a trained multi-task PII detection model, exporting it to ONNX, optionally quantizing the ONNX model, signing and saving artifacts (tokenizer, label mappings, config), and handling errors.
+    Orchestrates loading a trained PII detection model, exporting it to ONNX, optionally quantizing the ONNX model, signing and saving artifacts (tokenizer, label mappings, config), and handling errors.
 
     This function performs high-level orchestration for the CLI: it loads the trained model and tokenizer from FLAGS.model_path, exports the model to ONNX in FLAGS.output_path, signs the exported model, writes label mappings and (if present) the original config.json to the output directory, and — unless --skip_quantization is set — quantizes the ONNX model. On successful quantization the non-quantized ONNX file is removed. Any unhandled exception is logged and causes process exit with code 1.
 

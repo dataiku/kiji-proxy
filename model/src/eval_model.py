@@ -2,9 +2,9 @@
 PII Detection Model Evaluation Script
 
 This script:
-1. Loads a trained multi-task PII detection model (local)
+1. Loads a trained PII detection model (local)
 2. Runs inference on test cases
-3. Displays detected PII entities and co-reference clusters
+3. Displays detected PII entities
 
 Usage:
     # Using local model:
@@ -13,8 +13,7 @@ Usage:
     # With custom number of test cases:
     python eval_model.py --local-model "./model/trained" --num-tests 5
 
-The script evaluates both PII detection and co-reference resolution capabilities
-of the multi-task model, showing detected entities and how they are clustered.
+The script evaluates PII detection behavior on a small set of fixed examples.
 """
 
 import argparse
@@ -34,9 +33,12 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 try:
-    from model.model import PIIDetectionModel
+    from model.src.model import PIIDetectionModel
 except ImportError:
-    from .model import PIIDetectionModel
+    try:
+        from .model import PIIDetectionModel
+    except ImportError:
+        from model import PIIDetectionModel
 
 try:
     from model.src.checkpoint_utils import (
@@ -54,6 +56,11 @@ except ImportError:
             load_compatible_state_dict,
             normalize_state_dict_keys,
         )
+
+try:
+    from .span_decoder import Span, group_bio_spans
+except ImportError:
+    from span_decoder import Span, group_bio_spans
 
 
 # =============================================================================
@@ -77,7 +84,7 @@ def get_device():
 
 
 class PIIModelLoader:
-    """Loads and manages multi-task PII detection model."""
+    """Loads and manages a PII detection model."""
 
     def __init__(self, model_path: str):
         """
@@ -91,11 +98,10 @@ class PIIModelLoader:
         self.tokenizer = None
         self.pii_label2id = None
         self.pii_id2label = None
-        self.coref_id2label = None
         self.device = get_device()
 
     def load_model(self):
-        """Load multi-task model, tokenizer, and label mappings."""
+        """Load model, tokenizer, and label mappings."""
         logging.info(f"\n📥 Loading model from: {self.model_path}")
 
         # Load label mappings
@@ -225,22 +231,16 @@ class PIIModelLoader:
         )
         logging.info(f"✅ Loaded model on device: {device_name}")
 
-    def predict(
-        self, text: str
-    ) -> tuple[
-        list[tuple[str, str, int, int]], dict[int, list[tuple[str, int, int]]], float
-    ]:
+    def predict_spans(self, text: str) -> tuple[list[Span], float]:
         """
-        Run inference on input text and measure inference time.
+        Run inference on input text and return character spans.
 
         Args:
             text: Input text to analyze
 
         Returns:
-            Tuple of (entities, coref_clusters, inference_time_ms)
-            - entities: List of tuples (entity_text, label, start_pos, end_pos)
-            - coref_clusters: Dict mapping cluster_id to list of (text, start_pos, end_pos)
-            - inference_time_ms: Time taken for inference in milliseconds
+            Tuple of (spans, inference_time_ms), where each span is
+            ``(start_pos, end_pos, label)``.
         """
         if self.model is None or self.tokenizer is None:
             raise ValueError("Model not loaded. Call load_model() first.")
@@ -272,7 +272,6 @@ class PIIModelLoader:
                     torch.argmax(outputs["pii_logits"], dim=-1)[0].cpu().tolist()
                 )
 
-        # Convert predictions to labels
         tokens = self.tokenizer.convert_ids_to_tokens(inputs["input_ids"][0])
         if len(pii_prediction_ids) < len(tokens):
             pii_prediction_ids = pii_prediction_ids + [0] * (
@@ -283,124 +282,39 @@ class PIIModelLoader:
             self.pii_id2label.get(int(label_id), "O") for label_id in pii_prediction_ids
         ]
 
-        # Extract entities
-        entities = []
-        current_entity = None
-        current_label = None
-        current_start = None
-        current_end = None
-
-        # Helper function to strip trailing punctuation from entity text
-        def strip_trailing_punctuation(text: str) -> tuple[str, int]:
-            """Strip trailing punctuation and return cleaned text and number of chars stripped."""
-            punctuation = ",.;:!?)]}"
-            stripped = text.rstrip(punctuation)
-            chars_stripped = len(text) - len(stripped)
-            return stripped, chars_stripped
-
-        for _idx, (token, label, offset) in enumerate(
-            zip(tokens, predicted_labels, offset_mapping, strict=True)
-        ):
-            # Skip special tokens
-            if (
-                token
-                in [
-                    self.tokenizer.cls_token,
-                    self.tokenizer.sep_token,
-                    self.tokenizer.pad_token,
-                ]
-                or label == "IGNORE"
-            ):
-                continue
-
-            # Check if this is a PII token
-            if label.startswith("B-"):
-                # Save previous entity if exists
-                if current_entity is not None:
-                    entity_text = text[current_start:current_end]
-                    # Strip trailing punctuation
-                    entity_text, chars_stripped = strip_trailing_punctuation(
-                        entity_text
-                    )
-                    if entity_text:  # Only add if there's text left after stripping
-                        entities.append(
-                            (
-                                entity_text,
-                                current_label,
-                                current_start,
-                                current_end - chars_stripped,
-                            )
-                        )
-
-                current_label = label[2:]  # Remove "B-" prefix
-                current_start = offset[0].item()
-                current_end = offset[1].item()
-                current_entity = token
-
-            elif label.startswith("I-") and current_entity is not None:
-                # Continue current entity if the label matches. Punctuation inside
-                # the entity span, such as dots in emails/URLs, is preserved here
-                # and only trailing sentence punctuation is stripped at finalization.
-                if current_label == label[2:]:
-                    current_end = offset[1].item()
-                else:
-                    # Different label - save previous and start new
-                    entity_text = text[current_start:current_end]
-                    # Strip trailing punctuation
-                    entity_text, chars_stripped = strip_trailing_punctuation(
-                        entity_text
-                    )
-                    if entity_text:  # Only add if there's text left after stripping
-                        entities.append(
-                            (
-                                entity_text,
-                                current_label,
-                                current_start,
-                                current_end - chars_stripped,
-                            )
-                        )
-
-                    current_label = label[2:]
-                    current_start = offset[0].item()
-                    current_end = offset[1].item()
-                    current_entity = token
-
-            elif current_entity is not None:  # "O" label or entity ended
-                # Save previous entity if exists
-                entity_text = text[current_start:current_end]
-                # Strip trailing punctuation
-                entity_text, chars_stripped = strip_trailing_punctuation(entity_text)
-                if entity_text:  # Only add if there's text left after stripping
-                    entities.append(
-                        (
-                            entity_text,
-                            current_label,
-                            current_start,
-                            current_end - chars_stripped,
-                        )
-                    )
-                current_entity = None
-                current_label = None
-
-        # Don't forget the last entity
-        if current_entity is not None:
-            entity_text = text[current_start:current_end]
-            # Strip trailing punctuation
-            entity_text, chars_stripped = strip_trailing_punctuation(entity_text)
-            if entity_text:  # Only add if there's text left after stripping
-                entities.append(
-                    (
-                        entity_text,
-                        current_label,
-                        current_start,
-                        current_end - chars_stripped,
-                    )
-                )
+        special_tokens = {
+            token
+            for token in (
+                self.tokenizer.cls_token,
+                self.tokenizer.sep_token,
+                self.tokenizer.pad_token,
+            )
+            if token is not None
+        }
+        spans = group_bio_spans(
+            text,
+            tokens,
+            offset_mapping,
+            predicted_labels,
+            special_tokens=special_tokens,
+        )
 
         end_time = time.perf_counter()
         inference_time_ms = (end_time - start_time) * 1000
 
-        return entities, {}, inference_time_ms
+        return spans, inference_time_ms
+
+    def predict(self, text: str) -> tuple[list[tuple[str, str, int, int]], float]:
+        """
+        Run inference on input text and return display-ready PII entities.
+
+        Returns:
+            Tuple of (entities, inference_time_ms). Entities are
+            ``(entity_text, label, start_pos, end_pos)``.
+        """
+        spans, inference_time_ms = self.predict_spans(text)
+        entities = [(text[start:end], label, start, end) for start, end, label in spans]
+        return entities, inference_time_ms
 
 
 # =============================================================================
@@ -429,10 +343,8 @@ TEST_CASES = [
 def print_results(
     text: str,
     entities: list[tuple[str, str, int, int]],
-    coref_clusters: dict[int, list[tuple[str, int, int]]],
     case_num: int,
     inference_time_ms: float,
-    coref_id2label: dict[int, str] | None = None,
 ):
     """
     Print inference results in a formatted way.
@@ -440,10 +352,8 @@ def print_results(
     Args:
         text: Original input text
         entities: List of detected entities
-        coref_clusters: Dict mapping cluster_id to list of (text, start_pos, end_pos)
         case_num: Test case number
         inference_time_ms: Inference time in milliseconds
-        coref_id2label: Optional mapping from cluster ID to label name
     """
     logging.info(f"\n{'=' * 80}")
     logging.info(f"Test Case {case_num}")
@@ -457,21 +367,6 @@ def print_results(
             logging.info(f"  • [{label}] '{entity_text}' (position {start}-{end})")
     else:
         logging.info("  (No PII entities detected)")
-
-    logging.info("\n🔗 Co-reference Clusters:")
-    if coref_clusters:
-        # Sort clusters by ID for consistent output
-        for cluster_id in sorted(coref_clusters.keys()):
-            if coref_id2label and cluster_id in coref_id2label:
-                cluster_label = coref_id2label[cluster_id]
-            else:
-                cluster_label = f"CLUSTER_{cluster_id}"
-            spans = coref_clusters[cluster_id]
-            logging.info(f"  • {cluster_label} ({len(spans)} mention(s)):")
-            for token_text, start, end in spans:
-                logging.info(f"      - '{token_text}' (position {start}-{end})")
-    else:
-        logging.info("  (No co-reference clusters detected)")
 
 
 def main():
@@ -535,20 +430,16 @@ def main():
 
     inference_times = []
     total_entities = 0
-    total_clusters = 0
 
     for i, test_text in enumerate(TEST_CASES[: args.num_tests], 1):
-        entities, coref_clusters, inference_time_ms = loader.predict(test_text)
+        entities, inference_time_ms = loader.predict(test_text)
         inference_times.append(inference_time_ms)
         total_entities += len(entities)
-        total_clusters += len(coref_clusters)
         print_results(
             test_text,
             entities,
-            coref_clusters,
             i,
             inference_time_ms,
-            loader.coref_id2label,
         )
 
     # Calculate statistics
@@ -574,10 +465,6 @@ def main():
     logging.info(f"  Total PII entities detected: {total_entities}")
     logging.info(
         f"  Average entities per test: {total_entities / len(inference_times):.1f}"
-    )
-    logging.info(f"  Total co-reference clusters detected: {total_clusters}")
-    logging.info(
-        f"  Average clusters per test: {total_clusters / len(inference_times):.1f}"
     )
     logging.info(f"{'=' * 80}\n")
 

@@ -70,7 +70,7 @@ def main(
     # Prepare datasets
     logging.info("\n3️⃣  Preparing datasets...")
     dataset_processor = DatasetProcessor(config)
-    train_dataset, val_dataset, mappings, _ = dataset_processor.prepare_datasets()
+    train_dataset, val_dataset, mappings = dataset_processor.prepare_datasets()
 
     # Initialize trainer
     logging.info("\n4️⃣  Initializing trainer...")

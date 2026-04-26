@@ -76,9 +76,9 @@ class PIILabels:
 class DatasetProcessor:
     """Handles dataset loading and processing from local JSON files."""
 
-    # Coreference marker labels used in Label Studio annotations.
+    # Non-PII marker labels used in Label Studio annotations.
     # These are not PII entities and should not be included in the NER target.
-    _COREFERENCE_LABELS = {"PRONOUN", "REFERENCE", "MENTION", "pronoun", "reference"}
+    _NON_PII_LABELS = {"PRONOUN", "REFERENCE", "MENTION", "pronoun", "reference"}
 
     def __init__(self, config):
         """
@@ -109,7 +109,7 @@ class DatasetProcessor:
             file_name: Name of the file being processed (for error messages)
 
         Returns:
-            Training format sample with 'text', 'privacy_mask', and 'coreferences'
+            Training format sample with 'text' and 'privacy_mask'
             Returns None if the sample cannot be converted
         """
         try:
@@ -133,95 +133,32 @@ class DatasetProcessor:
             if not result:
                 return None
 
-            # Parse entities and relations from result
-            entities = {}  # entity_id -> entity info
-            relations = []  # list of relations
+            # Parse entity annotations from result. Relation annotations are ignored
+            # because the active model trains only token-level PII labels.
+            entities = []
 
             for item in result:
                 # Entity annotation (has "value" field)
                 if "value" in item:
-                    entity_id = item["id"]
                     value = item.get("value", {})
                     labels = value.get("labels", [])
-                    entities[entity_id] = {
-                        "text": value.get("text", ""),
-                        "label": labels[0] if labels else None,
-                        "start": value.get("start"),
-                        "end": value.get("end"),
-                    }
-                # Relation annotation (has "from_id" field)
-                elif "from_id" in item:
-                    relations.append(
+                    entities.append(
                         {
-                            "from_id": item["from_id"],
-                            "to_id": item["to_id"],
-                            "type": item.get("type", "relation"),
+                            "text": value.get("text", ""),
+                            "label": labels[0] if labels else None,
+                            "start": value.get("start"),
+                            "end": value.get("end"),
                         }
                     )
 
             def is_pii_entity(entity: dict) -> bool:
                 label = entity.get("label")
-                return bool(label) and label not in self._COREFERENCE_LABELS
+                return bool(label) and label not in self._NON_PII_LABELS
 
             # Build privacy_mask from entities
             privacy_mask = []
-
-            # Build coreferences from relations
-            # Group entities by their target (to_id)
-            entity_references = {}  # to_id -> list of from_ids
-            for relation in relations:
-                to_id = relation["to_id"]
-                from_id = relation["from_id"]
-                if to_id not in entity_references:
-                    entity_references[to_id] = []
-                entity_references[to_id].append(from_id)
-
-            # Track which entities are part of coreference clusters
-            processed_entities = set()
-            coreferences = []
-            cluster_id = 0  # Start cluster IDs at 0
-
-            # Build coreference clusters
-            for main_entity_id, referencing_ids in entity_references.items():
-                if main_entity_id not in entities:
-                    continue
-
-                main_entity = entities[main_entity_id]
-
-                # Add main entity to privacy_mask (skip if no label or a coreference marker)
-                if main_entity_id not in processed_entities:
-                    if is_pii_entity(main_entity):
-                        privacy_mask.append(
-                            {
-                                "value": main_entity["text"],
-                                "label": main_entity["label"],
-                                "start": main_entity["start"],
-                                "end": main_entity["end"],
-                            }
-                        )
-                    processed_entities.add(main_entity_id)
-
-                # Build coreference cluster with mentions
-                mentions = [main_entity["text"]]
-                for ref_id in referencing_ids:
-                    if ref_id in entities:
-                        mentions.append(entities[ref_id]["text"])
-                        processed_entities.add(ref_id)
-
-                # Add coreference cluster if there are multiple mentions
-                if len(mentions) > 1:
-                    coreferences.append(
-                        {
-                            "mentions": mentions,
-                            "entity_type": main_entity["label"],
-                            "cluster_id": cluster_id,
-                        }
-                    )
-                    cluster_id += 1
-
-            # Add remaining entities (not part of coreferences) to privacy_mask
-            for entity_id, entity in entities.items():
-                if entity_id not in processed_entities and is_pii_entity(entity):
+            for entity in entities:
+                if is_pii_entity(entity):
                     privacy_mask.append(
                         {
                             "value": entity["text"],
@@ -235,7 +172,6 @@ class DatasetProcessor:
             return {
                 "text": text,
                 "privacy_mask": privacy_mask,
-                "coreferences": coreferences,
                 "language": ls_sample.get("data", {}).get("language"),
                 "country": ls_sample.get("data", {}).get("country"),
             }
@@ -249,7 +185,7 @@ class DatasetProcessor:
         Check if a converted sample contains non-standard NER labels.
 
         Samples with labels outside STANDARD_PII_LABELS would confuse the model
-        during training and should be skipped entirely. Coreference marker labels
+        during training and should be skipped entirely. Non-PII marker labels
         (PRONOUN, REFERENCE, MENTION) are ignored since they are not NER entities.
 
         Args:
@@ -264,7 +200,7 @@ class DatasetProcessor:
             if (
                 label
                 and label not in standard_labels
-                and label not in self._COREFERENCE_LABELS
+                and label not in self._NON_PII_LABELS
             ):
                 return True
         return False
@@ -418,7 +354,7 @@ class DatasetProcessor:
             num_samples: Number of samples to load (0 = all).
 
         Returns:
-            List of sample dicts with text, privacy_mask, coreferences, language, country.
+            List of sample dicts with text, privacy_mask, language, and country.
         """
         from datasets import load_dataset
 
@@ -536,7 +472,7 @@ class DatasetProcessor:
 
     def prepare_datasets(
         self, subsample_count: int = 0
-    ) -> tuple[Dataset, Dataset, dict, dict]:
+    ) -> tuple[Dataset, Dataset, dict]:
         """
         Prepare training and validation datasets from local JSON files.
         Tokenization is performed on-the-fly during dataset preparation.
@@ -545,7 +481,7 @@ class DatasetProcessor:
             subsample_count: Limit to N samples (0 = use all)
 
         Returns:
-            Tuple of (train_dataset, val_dataset, label_mappings, coref_info)
+            Tuple of (train_dataset, val_dataset, label_mappings)
         """
         # Load local samples (raw text, privacy_mask)
         all_samples = self.load_training_samples()
@@ -640,9 +576,4 @@ class DatasetProcessor:
         logging.info(f"  Validation samples: {len(val_dataset)}")
         logging.info(f"  PII labels: {len(pii_label2id)}")
 
-        return (
-            train_dataset,
-            val_dataset,
-            mappings,
-            {},
-        )
+        return train_dataset, val_dataset, mappings

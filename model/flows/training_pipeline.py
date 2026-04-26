@@ -4,7 +4,7 @@ Metaflow pipeline for PII detection model training.
 This pipeline orchestrates:
 1. Data export from Label Studio (optional, can be skipped)
 2. Dataset loading and preprocessing from model/dataset/data_samples/training_samples/
-3. Model training with multi-task learning
+3. PII detection model training
 4. Model evaluation
 5. Model quantization (ONNX)
 6. Model signing (cryptographic hash)
@@ -235,7 +235,7 @@ class PIITrainingPipeline(FlowSpec):
 
         # Process the dataset
         processor = DatasetProcessor(self.config)
-        train_dataset, val_dataset, mappings, _ = processor.prepare_datasets(
+        train_dataset, val_dataset, mappings = processor.prepare_datasets(
             subsample_count=self.subsample_count
         )
 
@@ -256,7 +256,7 @@ class PIITrainingPipeline(FlowSpec):
     @checkpoint
     @step
     def train_model(self):
-        """Train the multi-task PII detection model."""
+        """Train the PII detection model."""
         from src.trainer import PIITrainer
 
         if current.checkpoint.is_loaded:
@@ -278,8 +278,6 @@ class PIITrainingPipeline(FlowSpec):
             "eval_pii_f1_macro": results.get("eval_pii_f1_macro"),
             "eval_pii_precision_weighted": results.get("eval_pii_precision_weighted"),
             "eval_pii_recall_weighted": results.get("eval_pii_recall_weighted"),
-            "eval_coref_f1_weighted": results.get("eval_coref_f1_weighted"),
-            "eval_coref_f1_macro": results.get("eval_coref_f1_macro"),
         }
 
         self.model_path = self.config.output_dir
@@ -340,7 +338,7 @@ class PIITrainingPipeline(FlowSpec):
 
         inference_times = []
         for text in test_cases:
-            _, _, inference_time = loader.predict(text)
+            _, inference_time = loader.predict(text)
             inference_times.append(inference_time)
 
         self.avg_inference_time_ms = sum(inference_times) / len(inference_times)
@@ -364,7 +362,16 @@ class PIITrainingPipeline(FlowSpec):
 
         import shutil
 
-        from src.quantitize import export_to_onnx, load_model, quantize_model
+        from src.parity_benchmark import (
+            assert_parity,
+            format_parity_report,
+            run_parity_benchmark,
+        )
+        from src.quantitize import (
+            export_to_onnx,
+            load_model,
+            quantize_model as quantize_onnx_model,
+        )
 
         if self.skip_quantization:
             print("Skipping quantization by configuration")
@@ -378,9 +385,20 @@ class PIITrainingPipeline(FlowSpec):
             model, label_mappings, tokenizer = load_model(model_path)
 
             quantized_output = "model/quantized"
+            output_path = Path(quantized_output)
+            output_path.mkdir(parents=True, exist_ok=True)
+            for stale_name in (
+                "model.onnx",
+                "model.onnx.data",
+                "model_quantized.onnx",
+                "crf_transitions.json",
+            ):
+                stale_path = output_path / stale_name
+                if stale_path.exists():
+                    stale_path.unlink()
+
             export_to_onnx(model, tokenizer, quantized_output)
 
-            output_path = Path(quantized_output)
             with (output_path / "label_mappings.json").open("w") as f:
                 json.dump(label_mappings, f, indent=2)
 
@@ -389,7 +407,29 @@ class PIITrainingPipeline(FlowSpec):
             if config_src.exists():
                 shutil.copy(config_src, output_path / "config.json")
 
-            quantize_model(str(output_path), str(output_path))
+            export_parity = run_parity_benchmark(
+                model_path,
+                quantized_output,
+                onnx_file="model.onnx",
+                confidence_threshold=0.0,
+            )
+            print(format_parity_report(export_parity))
+            assert_parity(export_parity)
+
+            quantize_onnx_model(str(output_path), str(output_path))
+
+            quantized_parity = run_parity_benchmark(
+                model_path,
+                quantized_output,
+                onnx_file="model_quantized.onnx",
+                confidence_threshold=0.0,
+            )
+            print(format_parity_report(quantized_parity))
+            assert_parity(quantized_parity)
+            self.parity_reports = {
+                "export": export_parity.to_dict(),
+                "quantized": quantized_parity.to_dict(),
+            }
 
             # Remove non-quantized model after quantization
             non_quantized = output_path / "model.onnx"
@@ -410,6 +450,7 @@ class PIITrainingPipeline(FlowSpec):
             print(f"Quantization failed: {e}")
             self.quantized_model_path = None
             self.quantized_model = None
+            self.parity_reports = None
             raise
 
         self.next(self.sign_model)
@@ -480,6 +521,7 @@ class PIITrainingPipeline(FlowSpec):
             "metrics": self.training_metrics,
             "quantized": self.quantized_model_path is not None,
             "signed": self.model_signature is not None,
+            "parity": getattr(self, "parity_reports", None),
         }
 
 

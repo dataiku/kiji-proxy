@@ -175,13 +175,18 @@ class OnnxPIIModel:
         self,
         model_dir: str,
         entity_confidence_threshold: float = DEFAULT_ENTITY_CONFIDENCE_THRESHOLD,
+        onnx_filename: str | None = None,
     ):
         model_dir = Path(model_dir)
-        onnx_file = model_dir / "model_quantized.onnx"
-        if not onnx_file.exists():
-            onnx_file = model_dir / "model.onnx"
+        if onnx_filename is not None:
+            onnx_file = model_dir / onnx_filename
+        else:
+            onnx_file = model_dir / "model_quantized.onnx"
+            if not onnx_file.exists():
+                onnx_file = model_dir / "model.onnx"
         if not onnx_file.exists():
             raise FileNotFoundError(f"No ONNX model found in {model_dir}")
+        self.onnx_file = onnx_file
 
         mappings_path = model_dir / "label_mappings.json"
         with mappings_path.open() as f:
@@ -613,6 +618,11 @@ def parse_args() -> argparse.Namespace:
         help="Path to the quantized ONNX model directory.",
     )
     ap.add_argument(
+        "--onnx-file",
+        default=None,
+        help="Specific ONNX file name inside --model-path, e.g. model.onnx.",
+    )
+    ap.add_argument(
         "--report",
         default=str(Path(__file__).parent / "reports" / "latest.json"),
         help="Path to write the JSON report.",
@@ -647,6 +657,7 @@ def main() -> int:
     model = OnnxPIIModel(
         args.model_path,
         entity_confidence_threshold=args.confidence_threshold,
+        onnx_filename=args.onnx_file,
     )
     print(f"  CRF decoding: {'enabled' if model.uses_crf else 'disabled'}")
 
@@ -695,6 +706,7 @@ def main() -> int:
         "seed": args.seed,
         "language": args.language,
         "model_path": args.model_path,
+        "onnx_file": str(model.onnx_file),
         "confidence_threshold": args.confidence_threshold,
         "uses_crf": model.uses_crf,
         "max_sequence_length": MAX_SEQ_LEN,

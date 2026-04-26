@@ -324,7 +324,7 @@ class PIITrainer:
                 logging.warning(f"Warning: wandb not available ({e})")
                 self.config.use_wandb = False
 
-    def load_label_mappings(self, mappings: dict, coref_info: dict | None = None):
+    def load_label_mappings(self, mappings: dict):
         """Load label mappings from dataset processor."""
         self.pii_label2id = mappings["pii"]["label2id"]
         self.pii_id2label = {int(k): v for k, v in mappings["pii"]["id2label"].items()}

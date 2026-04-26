@@ -6,9 +6,9 @@ Metaflow pipeline for PII detection model training.
 
 1. Data export from Label Studio (optional, can be skipped with `pipeline.skip_export = true`)
 2. Dataset loading and preprocessing
-3. Model training with multi-task learning
+3. PII detection model training
 4. Model evaluation
-5. Model quantization (ONNX) - Linux only
+5. Model export/quantization (ONNX) with parity checks - Linux only
 6. Model signing (cryptographic hash)
 
 ## Usage
@@ -32,6 +32,15 @@ Or use the helper script:
 ```bash
 ./model/flows/run_training.sh
 ./model/flows/run_training.sh --config custom_config.toml
+```
+
+Run the checkpoint-vs-ONNX parity check directly:
+
+```bash
+uv run python -m model.src.parity_benchmark \
+  --checkpoint ./model/trained \
+  --onnx-model ./model/quantized \
+  --onnx-file model_quantized.onnx
 ```
 
 ## Configuration
