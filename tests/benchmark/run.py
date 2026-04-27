@@ -739,7 +739,11 @@ def main() -> int:
             )
         print(f"Running inference with {args.workers} worker processes ...")
         tasks = [(i, sample["text"]) for i, sample in enumerate(samples)]
-        chunksize = max(1, len(tasks) // (args.workers * 16))
+        # Keep chunks small so tqdm updates frequently. imap_unordered batches
+        # results per chunk, so a large chunksize delays the first bar tick by
+        # chunksize × per-sample time. 16 keeps IPC overhead negligible while
+        # giving smooth progress.
+        chunksize = max(1, min(16, len(tasks) // (args.workers * 64)))
         ctx = mp.get_context("spawn")
         with ctx.Pool(
             processes=args.workers,
