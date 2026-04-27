@@ -1,5 +1,11 @@
 # kiji-privacy-proxy
 
+## 0.6.1
+
+### Patch Changes
+
+- 84fd07b: fix: correct uri for unquantized model
+
 ## 0.6.0
 
 ### Minor Changes
