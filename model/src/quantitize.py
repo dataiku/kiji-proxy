@@ -45,6 +45,14 @@ try:
 except ImportError:
     from checkpoint_utils import load_compatible_state_dict
 
+try:
+    from model.src.onnx_quantization import (
+        SUPPORTED_QUANTIZATION_MODES,
+        quantize_onnx_model,
+    )
+except ImportError:
+    from onnx_quantization import SUPPORTED_QUANTIZATION_MODES, quantize_onnx_model
+
 # Define command-line flags
 FLAGS = flags.FLAGS
 
@@ -59,7 +67,7 @@ flags.DEFINE_string(
 flags.DEFINE_enum(
     "quantization_mode",
     "avx512_vnni",
-    ["avx512_vnni", "avx2", "q8"],
+    ["avx512_vnni", "avx512", "avx2"],
     "Quantization mode",
 )
 
@@ -354,74 +362,22 @@ def quantize_model(
 
     """
     logging.info("🔢 Quantizing model...")
-
-    import onnx
-    from optimum.onnxruntime import ORTQuantizer
-    from optimum.onnxruntime.configuration import AutoQuantizationConfig
-
-    output_path = Path(output_path)
-    output_path.mkdir(parents=True, exist_ok=True)
-
-    # Use optimum for quantization
-    # ORTQuantizer expects a model directory, not a file path
-
-    # Create quantizer from model directory with explicit file name
-    model_dir = Path(onnx_path).parent if Path(onnx_path).is_file() else Path(onnx_path)
-
-    # Remove old quantized model if it exists to avoid "too many ONNX files" error
-    old_quantized = model_dir / "model_quantized.onnx"
-    if old_quantized.exists():
-        logging.info(f"   Removing old quantized model: {old_quantized}")
-        old_quantized.unlink()
-
-    quantizer = ORTQuantizer.from_pretrained(str(model_dir), file_name="model.onnx")
-
-    # Select quantization config based on mode
-    if quantization_mode == "avx512_vnni":
-        qconfig = AutoQuantizationConfig.avx512_vnni(is_static=False)
-    elif quantization_mode == "avx2":
-        qconfig = AutoQuantizationConfig.avx2(is_static=False)
-    elif quantization_mode == "q8":
-        qconfig = AutoQuantizationConfig.q8()
-    else:
+    if quantization_mode not in SUPPORTED_QUANTIZATION_MODES:
         logging.warning(
             f"Unknown quantization mode: {quantization_mode}, using avx512_vnni"
         )
-        qconfig = AutoQuantizationConfig.avx512_vnni(is_static=False)
-
+        quantization_mode = "avx512_vnni"
     logging.info(f"   Using quantization mode: {quantization_mode}")
 
-    # Quantize
-    quantizer.quantize(save_dir=str(output_path), quantization_config=qconfig)
+    result = quantize_onnx_model(
+        onnx_path,
+        output_path,
+        quantization_mode=quantization_mode,
+    )
 
-    logging.info(f"✅ Quantized model saved to: {output_path}")
-
-    # Load and inspect the quantized model
-    quantized_model_path = output_path / "model_quantized.onnx"
-    if not quantized_model_path.exists():
-        # Try to find any .onnx file
-        onnx_files = list(output_path.glob("*.onnx"))
-        if onnx_files:
-            quantized_model_path = onnx_files[0]
-            logging.info(f"   Found quantized model: {quantized_model_path.name}")
-
-    if quantized_model_path.exists():
-        model_onnx = onnx.load(str(quantized_model_path))
-        logging.info("\n📊 Quantized Model Information:")
-        logging.info(f"   Inputs: {[input.name for input in model_onnx.graph.input]}")
-        logging.info(
-            f"   Outputs: {[output.name for output in model_onnx.graph.output]}"
-        )
-
-        # # signing model
-        # model_hash = sign_trained_model(quantized_model_path)
-        # logging.info(f"   Model hash: {model_hash}")
-
-        # Get model size
-        model_size_mb = quantized_model_path.stat().st_size / (1024 * 1024)
-        logging.info(f"   Model size: {model_size_mb:.2f} MB")
-    else:
-        logging.warning("⚠️  Could not find quantized model file")
+    logging.info(f"✅ Quantized model saved to: {result.output_model}")
+    logging.info("\n📊 Quantized Model Information:")
+    logging.info(f"   Model size: {result.size_mb:.2f} MB")
 
 
 def main(argv):

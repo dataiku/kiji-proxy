@@ -1,0 +1,51 @@
+{
+  "name": "baseline-unquantized-cuda-auto-1000",
+  "created_at": "2026-04-27T19:10:00Z",
+  "command": "uv run python -m tests.benchmark.run --num 1000 --model-path ./model/quantized --onnx-file model.onnx --report tests/benchmark/reports/baseline-gpu-auto.json",
+  "dataset": "ai4privacy/pii-masking-300k",
+  "num_samples": 1000,
+  "seed": 42,
+  "language": null,
+  "model_path": "./model/quantized",
+  "onnx_file": "model/quantized/model.onnx",
+  "model_size_mb": 703.4,
+  "requested_execution_provider": "auto",
+  "available_execution_providers": [
+    "TensorrtExecutionProvider",
+    "CUDAExecutionProvider",
+    "CPUExecutionProvider"
+  ],
+  "session_execution_providers": [
+    "CUDAExecutionProvider",
+    "CPUExecutionProvider"
+  ],
+  "confidence_threshold": 0.25,
+  "uses_crf": true,
+  "max_sequence_length": 512,
+  "chunk_overlap": 64,
+  "metrics": {
+    "exact_span_f1": 0.9254,
+    "exact_span_macro_f1": 0.8775,
+    "relaxed_overlap_f1": 0.9453,
+    "relaxed_overlap_macro_f1": 0.8958,
+    "latency_ms": {
+      "p50": 28.57,
+      "p95": 38.83,
+      "p99": 47.44,
+      "mean": 29.49
+    }
+  },
+  "comparison_to_cpu_baseline": {
+    "exact_span_f1_delta": 0.0002,
+    "exact_span_macro_f1_delta": 0.0002,
+    "relaxed_overlap_f1_delta": 0.0,
+    "relaxed_overlap_macro_f1_delta": -0.0001,
+    "latency_speedup": {
+      "p50": 10.86,
+      "p95": 8.47,
+      "p99": 8.71,
+      "mean": 10.61
+    }
+  },
+  "raw_report": "tests/benchmark/reports/baseline-gpu-auto.json"
+}

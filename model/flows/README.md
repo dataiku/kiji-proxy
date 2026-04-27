@@ -43,6 +43,27 @@ uv run python -m model.src.parity_benchmark \
   --onnx-file model.onnx
 ```
 
+Run quantization experiments without overwriting the production export:
+
+```bash
+uv run --extra quantization python -m model.src.quantization_sweep \
+  --onnx-model ./model/quantized \
+  --checkpoint ./model/trained
+```
+
+This writes one directory per quantization mode under
+`model/quantization_experiments/` and records sizes and optional parity results
+in `summary.json`.
+
+Quantize a single existing ONNX file without training:
+
+```bash
+uv run --extra quantization python -m model.src.post_quantize_onnx \
+  ./model/quantized/model.onnx \
+  --mode avx2 \
+  --output ./model/quantization_experiments/avx2
+```
+
 ## Configuration
 
 Edit `training_config.toml` to change:

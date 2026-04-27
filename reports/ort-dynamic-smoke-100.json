@@ -1,0 +1,88 @@
+{
+  "name": "ort-dynamic-smoke-100",
+  "created_at": "2026-04-27T19:45:00Z",
+  "baseline_report": "tests/benchmark/reports/baseline-cpu-100.json",
+  "baseline": {
+    "exact_span_f1": 0.9292,
+    "relaxed_overlap_f1": 0.9572,
+    "latency_ms": {
+      "p50": 309.53,
+      "mean": 315.48
+    },
+    "model_size_mb": 703.4
+  },
+  "variants": [
+    {
+      "name": "ort-dynamic-matmul-qint8",
+      "method": "ort_dynamic",
+      "op_types": [
+        "MatMul"
+      ],
+      "weight_type": "QInt8",
+      "per_channel": false,
+      "reduce_range": false,
+      "model_size_mb": 513.95,
+      "exact_span_f1": 0.0,
+      "relaxed_overlap_f1": 0.0,
+      "latency_ms": {
+        "p50": 231.63,
+        "mean": 233.29
+      },
+      "raw_report": "tests/benchmark/reports/ort-dynamic-matmul-qint8-cpu-100.json"
+    },
+    {
+      "name": "ort-dynamic-matmul-quint8",
+      "method": "ort_dynamic",
+      "op_types": [
+        "MatMul"
+      ],
+      "weight_type": "QUInt8",
+      "per_channel": false,
+      "reduce_range": false,
+      "model_size_mb": 513.95,
+      "exact_span_f1": 0.0,
+      "relaxed_overlap_f1": 0.0,
+      "latency_ms": {
+        "p50": 303.59,
+        "mean": 304.33
+      },
+      "raw_report": "tests/benchmark/reports/ort-dynamic-matmul-quint8-cpu-100.json"
+    },
+    {
+      "name": "ort-dynamic-matmul-qint8-reduce-range",
+      "method": "ort_dynamic",
+      "op_types": [
+        "MatMul"
+      ],
+      "weight_type": "QInt8",
+      "per_channel": false,
+      "reduce_range": true,
+      "model_size_mb": 513.95,
+      "exact_span_f1": 0.0,
+      "relaxed_overlap_f1": 0.0,
+      "latency_ms": {
+        "p50": 236.86,
+        "mean": 246.08
+      },
+      "raw_report": "tests/benchmark/reports/ort-dynamic-matmul-qint8-reduce-range-cpu-100.json"
+    },
+    {
+      "name": "ort-dynamic-matmul-qint8-threshold0",
+      "method": "ort_dynamic",
+      "op_types": [
+        "MatMul"
+      ],
+      "weight_type": "QInt8",
+      "confidence_threshold": 0.0,
+      "model_size_mb": 513.95,
+      "exact_span_f1": 0.0,
+      "relaxed_overlap_f1": 0.0,
+      "latency_ms": {
+        "p50": 231.42,
+        "mean": 232.78
+      },
+      "raw_report": "tests/benchmark/reports/ort-dynamic-matmul-qint8-cpu-100-threshold0.json"
+    }
+  ],
+  "decision": "all_raw_ort_dynamic_matmul_variants_failed_smoke"
+}

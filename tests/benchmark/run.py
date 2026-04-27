@@ -31,6 +31,39 @@ from model.dataset.huggingface.import_ai4privacy import convert_ai4privacy_sampl
 DEFAULT_ENTITY_CONFIDENCE_THRESHOLD = 0.25
 MAX_SEQ_LEN = 512
 CHUNK_OVERLAP = 64
+DEFAULT_EXECUTION_PROVIDER = "cpu"
+
+
+def select_onnx_providers(execution_provider: str) -> list[str]:
+    """Select ONNX Runtime providers, avoiding TensorRT."""
+    available = ort.get_available_providers()
+
+    if execution_provider == "cpu":
+        if "CPUExecutionProvider" not in available:
+            raise RuntimeError(
+                f"CPUExecutionProvider is not available. Available providers: {available}"
+            )
+        return ["CPUExecutionProvider"]
+
+    if execution_provider == "cuda":
+        if "CUDAExecutionProvider" not in available:
+            raise RuntimeError(
+                "CUDAExecutionProvider is not available. Install an ONNX Runtime "
+                f"build with CUDA support. Available providers: {available}"
+            )
+        return ["CUDAExecutionProvider", "CPUExecutionProvider"]
+
+    if execution_provider != "auto":
+        raise ValueError(f"Unknown execution provider mode: {execution_provider}")
+
+    if "CUDAExecutionProvider" in available:
+        return ["CUDAExecutionProvider", "CPUExecutionProvider"]
+    if "CPUExecutionProvider" in available:
+        return ["CPUExecutionProvider"]
+    raise RuntimeError(
+        "Neither CUDAExecutionProvider nor CPUExecutionProvider is available. "
+        f"Available providers: {available}"
+    )
 
 
 def viterbi_decode(
@@ -176,6 +209,7 @@ class OnnxPIIModel:
         model_dir: str,
         entity_confidence_threshold: float = DEFAULT_ENTITY_CONFIDENCE_THRESHOLD,
         onnx_filename: str | None = None,
+        execution_provider: str = DEFAULT_EXECUTION_PROVIDER,
     ):
         model_dir = Path(model_dir)
         if onnx_filename is not None:
@@ -200,11 +234,15 @@ class OnnxPIIModel:
 
         opts = ort.SessionOptions()
         opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+        providers = select_onnx_providers(execution_provider)
+        self.requested_execution_provider = execution_provider
+        self.available_providers = ort.get_available_providers()
         self.session = ort.InferenceSession(
             str(onnx_file),
             sess_options=opts,
-            providers=["CPUExecutionProvider"],
+            providers=providers,
         )
+        self.providers = self.session.get_providers()
 
         # Load CRF transition parameters for Viterbi decoding
         crf_path = model_dir / "crf_transitions.json"
@@ -635,6 +673,12 @@ def parse_args() -> argparse.Namespace:
         help="Minimum token confidence before treating a label as O. Mirrors backend default.",
     )
     ap.add_argument(
+        "--execution-provider",
+        choices=["auto", "cuda", "cpu"],
+        default=DEFAULT_EXECUTION_PROVIDER,
+        help="ONNX Runtime provider mode. Defaults to CPU for apples-to-apples quantization benchmarks.",
+    )
+    ap.add_argument(
         "--language",
         default=None,
         help="Filter samples by language (e.g. 'English', 'German'). Default: all languages.",
@@ -658,7 +702,11 @@ def main() -> int:
         args.model_path,
         entity_confidence_threshold=args.confidence_threshold,
         onnx_filename=args.onnx_file,
+        execution_provider=args.execution_provider,
     )
+    print(f"  Requested provider: {args.execution_provider}")
+    print(f"  Available providers: {model.available_providers}")
+    print(f"  Session providers: {model.providers}")
     print(f"  CRF decoding: {'enabled' if model.uses_crf else 'disabled'}")
 
     lang_desc = f" (language={args.language})" if args.language else ""
@@ -707,6 +755,9 @@ def main() -> int:
         "language": args.language,
         "model_path": args.model_path,
         "onnx_file": str(model.onnx_file),
+        "requested_execution_provider": args.execution_provider,
+        "available_execution_providers": model.available_providers,
+        "session_execution_providers": model.providers,
         "confidence_threshold": args.confidence_threshold,
         "uses_crf": model.uses_crf,
         "max_sequence_length": MAX_SEQ_LEN,

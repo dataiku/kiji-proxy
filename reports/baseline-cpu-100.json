@@ -1,0 +1,31 @@
+{
+  "name": "baseline-cpu-100",
+  "created_at": "2026-04-27T19:30:00Z",
+  "command": "uv run python -m tests.benchmark.run --num 100 --model-path ./model/quantized --onnx-file model.onnx --report tests/benchmark/reports/baseline-cpu-100.json",
+  "dataset": "ai4privacy/pii-masking-300k",
+  "num_samples": 100,
+  "seed": 42,
+  "language": null,
+  "model_path": "./model/quantized",
+  "onnx_file": "model/quantized/model.onnx",
+  "model_size_mb": 703.4,
+  "requested_execution_provider": "cpu",
+  "session_execution_providers": [
+    "CPUExecutionProvider"
+  ],
+  "confidence_threshold": 0.25,
+  "uses_crf": true,
+  "metrics": {
+    "exact_span_f1": 0.9292,
+    "exact_span_macro_f1": 0.9236,
+    "relaxed_overlap_f1": 0.9572,
+    "relaxed_overlap_macro_f1": 0.9517,
+    "latency_ms": {
+      "p50": 309.53,
+      "p95": 327.64,
+      "p99": 440.26,
+      "mean": 315.48
+    }
+  },
+  "raw_report": "tests/benchmark/reports/baseline-cpu-100.json"
+}

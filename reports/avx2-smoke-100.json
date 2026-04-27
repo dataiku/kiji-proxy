@@ -1,0 +1,48 @@
+{
+  "name": "avx2-smoke-100",
+  "created_at": "2026-04-27T19:25:00Z",
+  "quantization_command": "uv run --extra quantization python -m model.src.post_quantize_onnx ./model/quantized/model.onnx --mode avx2 --output ./model/quantization_experiments/avx2 --copy-artifacts",
+  "benchmark_command": "uv run python -m tests.benchmark.run --num 100 --model-path ./model/quantization_experiments/avx2 --onnx-file model_quantized.onnx --report tests/benchmark/reports/avx2-smoke-100.json",
+  "dataset": "ai4privacy/pii-masking-300k",
+  "num_samples": 100,
+  "seed": 42,
+  "language": null,
+  "model_path": "./model/quantization_experiments/avx2",
+  "onnx_file": "model/quantization_experiments/avx2/model_quantized.onnx",
+  "model_size_mb": 233.08,
+  "requested_execution_provider": "auto",
+  "session_execution_providers": [
+    "CUDAExecutionProvider",
+    "CPUExecutionProvider"
+  ],
+  "confidence_threshold": 0.25,
+  "uses_crf": true,
+  "metrics": {
+    "exact_span_f1": 0.5145,
+    "exact_span_macro_f1": 0.4981,
+    "relaxed_overlap_f1": 0.5988,
+    "relaxed_overlap_macro_f1": 0.5775,
+    "latency_ms": {
+      "p50": 194.77,
+      "p95": 209.14,
+      "p99": 300.3,
+      "mean": 199.31
+    }
+  },
+  "comparison_to_100_sample_cuda_baseline": {
+    "baseline_report": "tests/benchmark/reports/baseline-gpu-auto-100.json",
+    "exact_span_f1_delta": -0.4147,
+    "exact_span_macro_f1_delta": -0.4255,
+    "relaxed_overlap_f1_delta": -0.3584,
+    "relaxed_overlap_macro_f1_delta": -0.3742,
+    "latency_ratio_quantized_over_baseline": {
+      "p50": 6.62,
+      "p95": 5.16,
+      "p99": 6.59,
+      "mean": 6.39
+    }
+  },
+  "decision": "failed_smoke_do_not_promote",
+  "raw_report": "tests/benchmark/reports/avx2-smoke-100.json",
+  "quantization_report": "model/quantization_experiments/avx2/quantization_report.json"
+}

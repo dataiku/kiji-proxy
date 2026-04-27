@@ -1,0 +1,29 @@
+{
+  "name": "baseline-unquantized-1000",
+  "created_at": "2026-04-27T19:00:49Z",
+  "command": "uv run python -m tests.benchmark.run --num 1000",
+  "dataset": "ai4privacy/pii-masking-300k",
+  "num_samples": 1000,
+  "seed": 42,
+  "language": null,
+  "model_path": "./model/quantized",
+  "onnx_file": "model/quantized/model.onnx",
+  "model_size_mb": 703.4,
+  "confidence_threshold": 0.25,
+  "uses_crf": true,
+  "max_sequence_length": 512,
+  "chunk_overlap": 64,
+  "metrics": {
+    "exact_span_f1": 0.9252,
+    "exact_span_macro_f1": 0.8773,
+    "relaxed_overlap_f1": 0.9453,
+    "relaxed_overlap_macro_f1": 0.8959,
+    "latency_ms": {
+      "p50": 310.4,
+      "p95": 328.97,
+      "p99": 413.18,
+      "mean": 312.89
+    }
+  },
+  "raw_report": "tests/benchmark/reports/latest.json"
+}
