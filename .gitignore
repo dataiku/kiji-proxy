@@ -80,6 +80,7 @@ build/
 src/frontend/resources
 src/backend/model/
 model/trained/
+model/quantization_experiments/
 
 # model signing key
 model/keys/**

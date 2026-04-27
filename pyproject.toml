@@ -62,6 +62,7 @@ quantization = [
     "onnxruntime>=1.16.0",
     "onnxscript>=0.1.0",  # Required by torch.onnx.export
     "ml_dtypes>=0.5.0",
+    "onnxruntime-gpu>=1.16.0",
 ]
 
 # Model signing and verification
