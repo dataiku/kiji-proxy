@@ -1,5 +1,11 @@
 # kiji-privacy-proxy
 
+## 0.6.0
+
+### Minor Changes
+
+- 9d6aae3: New model version, updated chrome extension
+
 ## 0.5.4
 
 ### Patch Changes
