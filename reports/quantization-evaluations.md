@@ -53,6 +53,10 @@ CUDA rerun notes:
 | ort-dynamic-matmul-qint8 | raw ORT dynamic `MatMul`, `QInt8` | failed smoke | Exact and relaxed F1 were both `0.0000`, including at threshold `0`. |
 | ort-dynamic-matmul-quint8 | raw ORT dynamic `MatMul`, `QUInt8` | failed smoke | Exact and relaxed F1 were both `0.0000`. |
 | ort-dynamic-matmul-qint8-reduce-range | raw ORT dynamic `MatMul`, `QInt8`, reduced range | failed smoke | Exact and relaxed F1 were both `0.0000`. |
+| ort-static-qdq-minmax-matmul-u8s8-cal25 | raw ORT static `QDQ`, `MinMax`, `MatMul`, `QUInt8/QInt8` | failed smoke | Exact and relaxed F1 were both `0.0000`. |
+| ort-static-qoperator-minmax-matmul-u8s8-cal25 | raw ORT static `QOperator`, `MinMax`, `MatMul`, `QUInt8/QInt8` | failed smoke | Exact and relaxed F1 were both `0.0000`. |
+| ort-optimized-fp32-all-cpu | ORT graph optimization `all`, CPU | viable smoke | Preserved F1 and improved p50/p95 modestly, but model grew to `737.40 MB` and ORT warned it may be hardware-specific. |
+| ort-optimized-fp32-extended-cpu | ORT graph optimization `extended`, CPU | mixed smoke | Preserved F1, p50 improved modestly, p95 regressed on 100-sample smoke. |
 | q8 | `q8` | unsupported | Current Optimum version does not expose `AutoQuantizationConfig.q8()`. |
 
 ## Smoke Tests
@@ -67,6 +71,10 @@ CUDA rerun notes:
 | ort-dynamic-matmul-quint8-cpu | 100 | `CPUExecutionProvider` | 0.0000 | 0.0000 | 0.0000 | 0.0000 | 303.59 | 316.04 | 320.12 | 304.33 | 513.95 | `tests/benchmark/reports/ort-dynamic-matmul-quint8-cpu-100.json` |
 | ort-dynamic-matmul-qint8-reduce-range-cpu | 100 | `CPUExecutionProvider` | 0.0000 | 0.0000 | 0.0000 | 0.0000 | 236.86 | 285.01 | 298.66 | 246.08 | 513.95 | `tests/benchmark/reports/ort-dynamic-matmul-qint8-reduce-range-cpu-100.json` |
 | ort-dynamic-matmul-qint8-threshold0-cpu | 100 | `CPUExecutionProvider` | 0.0000 | 0.0000 | 0.0000 | 0.0000 | 231.42 | 247.18 | 256.73 | 232.78 | 513.95 | `tests/benchmark/reports/ort-dynamic-matmul-qint8-cpu-100-threshold0.json` |
+| ort-static-qdq-minmax-matmul-u8s8-cal25-cpu | 100 | `CPUExecutionProvider` | 0.0000 | 0.0000 | 0.0000 | 0.0000 | 308.45 | 323.16 | 345.53 | 310.30 | 460.18 | `tests/benchmark/reports/ort-static-qdq-minmax-matmul-u8s8-cal25-cpu-100.json` |
+| ort-static-qoperator-minmax-matmul-u8s8-cal25-cpu | 100 | `CPUExecutionProvider` | 0.0000 | 0.0000 | 0.0000 | 0.0000 | 260.59 | 302.05 | 330.28 | 264.95 | 514.09 | `tests/benchmark/reports/ort-static-qoperator-minmax-matmul-u8s8-cal25-cpu-100.json` |
+| ort-optimized-fp32-all-cpu | 100 | `CPUExecutionProvider` | 0.9292 | 0.9236 | 0.9572 | 0.9517 | 301.82 | 316.95 | 326.52 | 303.30 | 737.40 | `tests/benchmark/reports/ort-optimized-fp32-all-cpu-100.json` |
+| ort-optimized-fp32-extended-cpu | 100 | `CPUExecutionProvider` | 0.9292 | 0.9236 | 0.9572 | 0.9517 | 298.97 | 404.07 | 428.84 | 309.14 | 737.40 | `tests/benchmark/reports/ort-optimized-fp32-extended-cpu-100.json` |
 
 AVX2 smoke deltas versus 100-sample CUDA baseline:
 
@@ -93,6 +101,19 @@ Raw ORT dynamic MatMul smoke notes:
 - `QInt8`, `QUInt8`, and `QInt8` with `--reduce-range` all produced `0.0000` exact and relaxed F1.
 - Retesting `QInt8` with `--confidence-threshold 0` still produced `0.0000` F1, so this is not only confidence calibration.
 - These variants are smaller than baseline (`513.95 MB`) and some are faster on CPU, but the decoded model output is unusable.
+
+Raw ORT static calibration smoke notes:
+
+- `QDQ + MinMax + MatMul + QUInt8/QInt8` with 25 calibration samples produced `0.0000` F1.
+- `QOperator + MinMax + MatMul + QUInt8/QInt8` with 25 calibration samples also produced `0.0000` F1.
+- Since both calibrated variants fail exactly like raw dynamic variants, the next useful step is logits/parity debugging around quantized `MatMul` output scale rather than testing more blind quantization combinations.
+
+FP32 graph optimization notes:
+
+- `ORT_ENABLE_ALL` preserved F1 exactly on the 100-sample smoke and improved p50 by `1.03x`, p95 by `1.03x`, and p99 by `1.35x`.
+- `ORT_ENABLE_ALL` increased model size from `703.40 MB` to `737.40 MB` and emitted an ONNX Runtime warning that the serialized model may contain hardware-specific NCHWc optimizations.
+- `ORT_ENABLE_EXTENDED` also preserved F1, but p95 regressed on the 100-sample smoke despite a modest p50 improvement.
+- If we continue with graph optimization, run `ORT_ENABLE_ALL` on 1000 CPU samples before deciding whether the small latency gain is worth the larger, environment-specific artifact.
 
 ## Decision Criteria
 

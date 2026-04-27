@@ -205,6 +205,124 @@ def quantize_onnx_model_dynamic(
     )
 
 
+class TokenCalibrationDataReader:
+    """Calibration reader for the exported token-classification ONNX model."""
+
+    def __init__(
+        self,
+        texts: list[str],
+        tokenizer_dir: str | Path,
+        *,
+        max_length: int = 512,
+    ):
+        import numpy as np
+        from transformers import AutoTokenizer
+
+        self._numpy = np
+        self._tokenizer = AutoTokenizer.from_pretrained(str(tokenizer_dir))
+        self._texts = texts
+        self._max_length = max_length
+        self._index = 0
+
+    def get_next(self) -> dict | None:
+        if self._index >= len(self._texts):
+            return None
+
+        text = self._texts[self._index]
+        self._index += 1
+        inputs = self._tokenizer(
+            text,
+            truncation=True,
+            max_length=self._max_length,
+            padding="max_length",
+            return_tensors="np",
+        )
+        return {
+            "input_ids": inputs["input_ids"].astype(self._numpy.int64),
+            "attention_mask": inputs["attention_mask"].astype(self._numpy.int64),
+        }
+
+
+def quantize_onnx_model_static(
+    onnx_path: str | Path,
+    output_path: str | Path,
+    *,
+    mode: str,
+    calibration_texts: list[str],
+    quant_format: str = "QDQ",
+    calibration_method: str = "MinMax",
+    activation_type: str = "QUInt8",
+    weight_type: str = "QInt8",
+    op_types_to_quantize: list[str] | None = None,
+    per_channel: bool = False,
+    reduce_range: bool = False,
+    copy_artifacts: bool = False,
+) -> QuantizationResult:
+    """Quantize with ONNX Runtime static calibration."""
+    import onnx
+    from onnxruntime.quantization import (
+        CalibrationMethod,
+        QuantFormat,
+        QuantType,
+        quantize_static,
+    )
+
+    if not calibration_texts:
+        raise ValueError("Static quantization requires at least one calibration text")
+
+    source_model = resolve_source_onnx_path(onnx_path)
+    model_dir = source_model.parent
+    output_dir = Path(output_path)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    if copy_artifacts:
+        copy_runtime_artifacts(model_dir, output_dir)
+
+    quantized_model_path = output_dir / "model_quantized.onnx"
+    if quantized_model_path.exists():
+        quantized_model_path.unlink()
+
+    try:
+        resolved_quant_format = getattr(QuantFormat, quant_format)
+        resolved_calibration_method = getattr(CalibrationMethod, calibration_method)
+        resolved_activation_type = getattr(QuantType, activation_type)
+        resolved_weight_type = getattr(QuantType, weight_type)
+    except AttributeError as exc:
+        raise ValueError(
+            "Invalid static quantization option. "
+            "Check quant format, calibration method, activation type, and weight type."
+        ) from exc
+
+    reader = TokenCalibrationDataReader(calibration_texts, model_dir)
+    quantize_static(
+        model_input=str(source_model),
+        model_output=str(quantized_model_path),
+        calibration_data_reader=reader,
+        quant_format=resolved_quant_format,
+        op_types_to_quantize=op_types_to_quantize,
+        per_channel=per_channel,
+        reduce_range=reduce_range,
+        activation_type=resolved_activation_type,
+        weight_type=resolved_weight_type,
+        calibrate_method=resolved_calibration_method,
+    )
+
+    model_onnx = onnx.load(str(quantized_model_path))
+    input_names = [input_tensor.name for input_tensor in model_onnx.graph.input]
+    output_names = [output_tensor.name for output_tensor in model_onnx.graph.output]
+    if not input_names or not output_names:
+        raise ValueError(f"Invalid quantized ONNX graph: {quantized_model_path}")
+
+    size_mb = quantized_model_path.stat().st_size / (1024 * 1024)
+    return QuantizationResult(
+        method="ort_static",
+        mode=mode,
+        source_model=str(source_model),
+        output_model=str(quantized_model_path),
+        size_mb=size_mb,
+    )
+
+
 def write_quantization_report(
     report_path: str | Path,
     results: list[QuantizationResult],

@@ -1,0 +1,57 @@
+{
+  "name": "ort-static-calibration-smoke-100",
+  "created_at": "2026-04-27T20:05:00Z",
+  "baseline_report": "tests/benchmark/reports/baseline-cpu-100.json",
+  "baseline": {
+    "exact_span_f1": 0.9292,
+    "relaxed_overlap_f1": 0.9572,
+    "latency_ms": {
+      "p50": 309.53,
+      "mean": 315.48
+    },
+    "model_size_mb": 703.4
+  },
+  "variants": [
+    {
+      "name": "ort-static-qdq-minmax-matmul-u8s8-cal25",
+      "method": "ort_static",
+      "quant_format": "QDQ",
+      "calibration_method": "MinMax",
+      "calibration_samples": 25,
+      "op_types": [
+        "MatMul"
+      ],
+      "activation_type": "QUInt8",
+      "weight_type": "QInt8",
+      "model_size_mb": 460.18,
+      "exact_span_f1": 0.0,
+      "relaxed_overlap_f1": 0.0,
+      "latency_ms": {
+        "p50": 308.45,
+        "mean": 310.3
+      },
+      "raw_report": "tests/benchmark/reports/ort-static-qdq-minmax-matmul-u8s8-cal25-cpu-100.json"
+    },
+    {
+      "name": "ort-static-qoperator-minmax-matmul-u8s8-cal25",
+      "method": "ort_static",
+      "quant_format": "QOperator",
+      "calibration_method": "MinMax",
+      "calibration_samples": 25,
+      "op_types": [
+        "MatMul"
+      ],
+      "activation_type": "QUInt8",
+      "weight_type": "QInt8",
+      "model_size_mb": 514.09,
+      "exact_span_f1": 0.0,
+      "relaxed_overlap_f1": 0.0,
+      "latency_ms": {
+        "p50": 260.59,
+        "mean": 264.95
+      },
+      "raw_report": "tests/benchmark/reports/ort-static-qoperator-minmax-matmul-u8s8-cal25-cpu-100.json"
+    }
+  ],
+  "decision": "all_static_calibrated_matmul_variants_failed_smoke"
+}

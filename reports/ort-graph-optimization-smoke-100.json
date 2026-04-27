@@ -1,0 +1,65 @@
+{
+  "name": "ort-graph-optimization-smoke-100",
+  "created_at": "2026-04-27T20:25:00Z",
+  "baseline_report": "tests/benchmark/reports/baseline-cpu-100.json",
+  "baseline": {
+    "exact_span_f1": 0.9292,
+    "relaxed_overlap_f1": 0.9572,
+    "latency_ms": {
+      "p50": 309.53,
+      "p95": 327.64,
+      "p99": 440.26,
+      "mean": 315.48
+    },
+    "model_size_mb": 703.4
+  },
+  "variants": [
+    {
+      "name": "ort-optimized-fp32-all-cpu",
+      "method": "ort_graph_optimization",
+      "level": "all",
+      "provider": "cpu",
+      "model_size_mb": 737.4,
+      "exact_span_f1": 0.9292,
+      "relaxed_overlap_f1": 0.9572,
+      "latency_ms": {
+        "p50": 301.82,
+        "p95": 316.95,
+        "p99": 326.52,
+        "mean": 303.3
+      },
+      "latency_speedup": {
+        "p50": 1.03,
+        "p95": 1.03,
+        "p99": 1.35,
+        "mean": 1.04
+      },
+      "raw_report": "tests/benchmark/reports/ort-optimized-fp32-all-cpu-100.json",
+      "optimization_report": "model/quantization_experiments/ort_optimized_fp32_all_cpu/optimization_report.json"
+    },
+    {
+      "name": "ort-optimized-fp32-extended-cpu",
+      "method": "ort_graph_optimization",
+      "level": "extended",
+      "provider": "cpu",
+      "model_size_mb": 737.4,
+      "exact_span_f1": 0.9292,
+      "relaxed_overlap_f1": 0.9572,
+      "latency_ms": {
+        "p50": 298.97,
+        "p95": 404.07,
+        "p99": 428.84,
+        "mean": 309.14
+      },
+      "latency_speedup": {
+        "p50": 1.04,
+        "p95": 0.81,
+        "p99": 1.03,
+        "mean": 1.02
+      },
+      "raw_report": "tests/benchmark/reports/ort-optimized-fp32-extended-cpu-100.json",
+      "optimization_report": "model/quantization_experiments/ort_optimized_fp32_extended_cpu/optimization_report.json"
+    }
+  ],
+  "decision": "ort_enable_all_is_viable_for_full_cpu_benchmark_but_size_and_portability_are_tradeoffs"
+}

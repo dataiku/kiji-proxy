@@ -6,6 +6,10 @@ Raw benchmark output from `tests.benchmark.run` is still written under
 `tests/benchmark/reports/`. Use this folder for human-readable summaries,
 comparisons, and decision notes before promoting a model artifact.
 
+Start with `quantization-evaluations.md` for the experiment table and
+`crf-viterbi-quantization-findings.md` for the current explanation of why the
+int8 variants are failing.
+
 ## Current Evaluation Flow
 
 1. Run the unquantized baseline.
