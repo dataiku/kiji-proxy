@@ -46,11 +46,10 @@ function setStatus({ connected, host, backendUrl }) {
   }
 }
 
-function setStats({ checksTotal = 0, piiMasked = 0 }) {
+function setStats({ checksTotal = 0, piiFound = 0 }) {
   document.getElementById("checks-total").textContent =
     checksTotal.toLocaleString();
-  document.getElementById("pii-masked").textContent =
-    piiMasked.toLocaleString();
+  document.getElementById("pii-found").textContent = piiFound.toLocaleString();
 }
 
 let lastBackendUrl = null;
@@ -67,7 +66,7 @@ function applyState(state) {
   });
   setStats({
     checksTotal: state.checksTotal ?? 0,
-    piiMasked: state.piiMasked ?? 0,
+    piiFound: state.piiFound ?? 0,
   });
 }
 
@@ -91,9 +90,9 @@ function subscribeToLiveUpdates() {
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== "local") return;
 
-    if (changes.connected || changes.checksTotal || changes.piiMasked) {
+    if (changes.connected || changes.checksTotal || changes.piiFound) {
       chrome.storage.local.get(
-        { connected: false, checksTotal: 0, piiMasked: 0 },
+        { connected: false, checksTotal: 0, piiFound: 0 },
         (result) => {
           applyState({ ...result, backendUrl: lastBackendUrl });
         }
