@@ -22,6 +22,7 @@ from pathlib import Path
 import numpy as np
 import onnxruntime as ort
 from datasets import load_dataset
+from tqdm import tqdm
 from transformers import AutoTokenizer
 
 from model.dataset.huggingface.import_ai4privacy import convert_ai4privacy_sample
@@ -750,18 +751,20 @@ def main() -> int:
                 1,
             ),
         ) as pool:
-            completed = 0
-            for index, predicted, elapsed_ms in pool.imap_unordered(
-                _predict_worker, tasks, chunksize=chunksize
+            for index, predicted, elapsed_ms in tqdm(
+                pool.imap_unordered(_predict_worker, tasks, chunksize=chunksize),
+                total=len(tasks),
+                unit="sample",
+                smoothing=0.05,
             ):
                 latencies.append(elapsed_ms)
                 exact_metrics.update(samples[index]["entities"], predicted)
                 relaxed_metrics.update(samples[index]["entities"], predicted)
-                completed += 1
-                if completed % 200 == 0:
-                    print(f"  Processed {completed}/{len(samples)} ...")
     else:
-        for i, sample in enumerate(samples):
+        iterator = enumerate(samples)
+        if not args.verbose:
+            iterator = tqdm(iterator, total=len(samples), unit="sample")
+        for i, sample in iterator:
             t0 = time.perf_counter()
             predicted = model.predict(sample["text"])
             elapsed_ms = (time.perf_counter() - t0) * 1000
@@ -776,8 +779,6 @@ def main() -> int:
                     predicted,
                     elapsed_ms,
                 )
-            elif (i + 1) % 200 == 0:
-                print(f"  Processed {i + 1}/{len(samples)} ...")
 
     # Build report
     lat_arr = np.asarray(latencies, dtype=float)
