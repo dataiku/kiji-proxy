@@ -30,7 +30,7 @@
 Built by [575 Lab](https://www.dataiku.com/company/dataiku-for-the-future/open-source/) - Dataiku's Open Source Office.
 
 <div align="center">
-  <img src="src/frontend/assets/ui_screenshot.png" alt="Kiji Privacy Proxy UI" height="600">
+  <img src="src/frontend/assets/ui_screencast.gif" alt="Kiji Privacy Proxy UI" height="600">
 </div>
 
 ---
@@ -44,8 +44,13 @@ When using AI services like OpenAI or Anthropic, sensitive data in your prompts 
 - **🔄 Transparent Restoration** - Restores original data in responses so your app works normally
 - **🚀 Zero Code Changes** - Works as a transparent proxy with automatic configuration (PAC) on macOS
 - **🌐 Browser-Ready** - Automatic proxy setup for Safari, Chrome - no environment variables needed
+- **🧩 Chrome Extension** - Inline PII detection for ChatGPT, Claude, Gemini, and other AI chat sites ([details](docs/06-chrome-extension.md))
 - **🏃 Fast Local Inference** - ONNX-optimized model runs locally, no external API calls
 - **💻 Easy to Use** - Desktop app for macOS, standalone server for Linux
+
+<div align="center">
+  <img src="src/frontend/assets/chrome_extension_screencast.gif" alt="Kiji PII Guard Chrome extension intercepting input on ChatGPT" width="700">
+</div>
 
 **Use Cases:**
 - Protect customer data when using ChatGPT for customer support
