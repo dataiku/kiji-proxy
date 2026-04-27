@@ -21,9 +21,6 @@ except ImportError:
     from eval_model import PIIModelLoader
     from span_decoder import Span
 
-from tests.benchmark.run import OnnxPIIModel, load_ai4privacy_samples
-
-
 PARITY_TEXTS = [
     "My name is John Smith and my email is john.smith@email.com.",
     "Call Sarah Johnson at 555-123-4567. She was born on March 15, 1985.",
@@ -103,6 +100,8 @@ def _load_texts(
     if num_ai4privacy <= 0:
         return texts
 
+    from tests.benchmark.run import load_ai4privacy_samples
+
     samples = load_ai4privacy_samples(num_ai4privacy, seed=seed, language=language)
     texts.extend(sample["text"] for sample in samples)
     return texts
@@ -127,6 +126,8 @@ def run_parity_benchmark(
     )
     if not sample_texts:
         raise ValueError("No parity texts were provided")
+
+    from tests.benchmark.run import OnnxPIIModel
 
     pytorch_model = PIIModelLoader(checkpoint_path)
     pytorch_model.load_model()
