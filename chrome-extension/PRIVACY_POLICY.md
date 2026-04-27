@@ -15,7 +15,7 @@ The Kiji Privacy Proxy Extension checks text you type into AI chat services (suc
 ### What data is stored locally
 
 - **Settings:** your backend server URL and the list of monitored domains (stored in `chrome.storage.sync`).
-- **Session statistics:** the number of messages checked and the number containing PII (stored in `chrome.storage.local`). These counters reset when the extension is reinstalled.
+- **Session statistics:** the number of messages checked and the number of PII entities masked after you choose the masked version (stored in `chrome.storage.local`). These counters reset when the extension is reinstalled.
 
 ### What data is transmitted
 
@@ -55,4 +55,3 @@ Updates to this policy will be posted in the extension's GitHub repository. The 
 ## Contact
 
 For questions about this privacy policy or the extension's data practices, please open an issue at: https://github.com/dataiku/kiji-proxy/issues
-
