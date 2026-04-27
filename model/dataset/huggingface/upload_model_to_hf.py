@@ -19,26 +19,33 @@ if str(project_root) not in sys.path:
 
 from model.dataset.label_utils import LabelUtils  # noqa: E402
 
-# Files to upload per variant
-_TRAINED_MODEL_FILES = [
+# Files to upload per variant. "required" must exist; "optional" is uploaded
+# if present (tokenizer file naming varies between BERT-style `vocab.txt` and
+# SentencePiece-style `spm.model`).
+_OPTIONAL_TOKENIZER_FILES = ["vocab.txt", "spm.model", "added_tokens.json"]
+
+_TRAINED_REQUIRED_FILES = [
     "model.safetensors",
+    "config.json",
     "label_mappings.json",
     "tokenizer_config.json",
     "tokenizer.json",
-    "vocab.txt",
     "special_tokens_map.json",
 ]
+_TRAINED_OPTIONAL_FILES = _OPTIONAL_TOKENIZER_FILES
 
-_QUANTIZED_MODEL_FILES = [
+_QUANTIZED_REQUIRED_FILES = [
     "model_quantized.onnx",
-    "model.onnx.data",
     "ort_config.json",
     "label_mappings.json",
-    "model_manifest.json",
     "tokenizer_config.json",
     "tokenizer.json",
-    "vocab.txt",
     "special_tokens_map.json",
+]
+_QUANTIZED_OPTIONAL_FILES = [
+    "model.onnx.data",
+    "model_manifest.json",
+    *_OPTIONAL_TOKENIZER_FILES,
 ]
 
 
@@ -232,7 +239,7 @@ def _generate_quantized_model_card(
     # Compute file sizes for the manifest table
     model_path = Path(model_dir)
     file_rows = ""
-    for f in _QUANTIZED_MODEL_FILES:
+    for f in [*_QUANTIZED_REQUIRED_FILES, *_QUANTIZED_OPTIONAL_FILES]:
         fpath = model_path / f
         if fpath.exists():
             size = fpath.stat().st_size
@@ -437,14 +444,20 @@ def upload_model_to_huggingface(
         raise ValueError(f"Model directory not found: {model_dir}")
 
     # Select files for this variant
-    model_files = (
-        _TRAINED_MODEL_FILES if variant == "trained" else _QUANTIZED_MODEL_FILES
-    )
+    if variant == "trained":
+        required_files = _TRAINED_REQUIRED_FILES
+        optional_files = _TRAINED_OPTIONAL_FILES
+    else:
+        required_files = _QUANTIZED_REQUIRED_FILES
+        optional_files = _QUANTIZED_OPTIONAL_FILES
 
     # Verify required files exist
-    missing = [f for f in model_files if not (model_path / f).exists()]
+    missing = [f for f in required_files if not (model_path / f).exists()]
     if missing:
         raise ValueError(f"Missing required model files: {missing}")
+
+    present_optional = [f for f in optional_files if (model_path / f).exists()]
+    model_files = required_files + present_optional
 
     print(f"Uploading {variant} model from {model_dir}")
     for f in model_files:
