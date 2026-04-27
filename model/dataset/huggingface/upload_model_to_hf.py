@@ -7,15 +7,17 @@
 
 import json
 import os
+import struct
 import sys
+import tomllib
 from pathlib import Path
 
 from huggingface_hub import create_repo, upload_folder
 
 # Add project root to path for imports
-project_root = Path(__file__).parent.parent.parent.parent
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
+PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from model.dataset.label_utils import LabelUtils  # noqa: E402
 
@@ -45,26 +47,93 @@ _QUANTIZED_REQUIRED_FILES = [
     "special_tokens_map.json",
 ]
 _QUANTIZED_OPTIONAL_FILES = [
+    "config.json",
     "ort_config.json",
     "model.onnx.data",
     "model_manifest.json",
+    "crf_transitions.json",
     *_OPTIONAL_TOKENIZER_FILES,
 ]
 
 
-def _load_label_info(model_dir: str) -> tuple[int, int, list[str]]:
-    """Load label mappings and return (num_pii_labels, num_coref_labels, pii_entities)."""
+def _load_label_info(model_dir: str) -> tuple[int, list[str]]:
+    """Load label mappings and return (num_pii_labels, pii_entities)."""
     mappings_path = Path(model_dir) / "label_mappings.json"
     if not mappings_path.exists():
-        return 0, 0, []
+        return 0, []
     with mappings_path.open() as f:
         mappings = json.load(f)
     pii_label2id = mappings.get("pii", {}).get("label2id", {})
     num_pii_labels = len(pii_label2id)
     pii_entities = sorted({k[2:] for k in pii_label2id if k.startswith("B-")})
-    coref_id2label = mappings.get("coref", {}).get("id2label", {})
-    num_coref_labels = len(coref_id2label)
-    return num_pii_labels, num_coref_labels, pii_entities
+    return num_pii_labels, pii_entities
+
+
+def _load_model_config(model_dir: str) -> dict:
+    """Load HuggingFace `config.json` from the model directory (or empty dict)."""
+    cfg_path = Path(model_dir) / "config.json"
+    if not cfg_path.exists():
+        return {}
+    with cfg_path.open() as f:
+        return json.load(f)
+
+
+def _load_training_config() -> dict:
+    """Load training hyperparameters from the project's training_config.toml."""
+    cfg_path = PROJECT_ROOT / "model" / "flows" / "training_config.toml"
+    if not cfg_path.exists():
+        return {}
+    with cfg_path.open("rb") as f:
+        return tomllib.load(f)
+
+
+def _count_safetensors_params(path: Path) -> int:
+    """Count tensor elements declared in a safetensors header without loading weights."""
+    if not path.exists():
+        return 0
+    with path.open("rb") as f:
+        header_size = struct.unpack("<Q", f.read(8))[0]
+        header = json.loads(f.read(header_size))
+    total = 0
+    for key, info in header.items():
+        if key == "__metadata__":
+            continue
+        n = 1
+        for dim in info.get("shape", []):
+            n *= dim
+        total += n
+    return total
+
+
+def _format_param_count(n: int) -> str:
+    if n >= 1_000_000_000:
+        return f"{n / 1e9:.2f}B"
+    if n >= 1_000_000:
+        return f"{n / 1e6:.0f}M"
+    if n >= 1_000:
+        return f"{n / 1e3:.0f}K"
+    return str(n)
+
+
+_MODEL_TYPE_DISPLAY = {
+    "deberta-v2": "DeBERTa-v3",
+    "deberta": "DeBERTa",
+    "distilbert": "DistilBERT",
+    "roberta": "RoBERTa",
+    "bert": "BERT",
+    "xlm-roberta": "XLM-RoBERTa",
+}
+
+
+def _encoder_display_name(config: dict, base_model: str) -> str:
+    model_type = config.get("model_type", "")
+    if model_type in _MODEL_TYPE_DISPLAY:
+        return _MODEL_TYPE_DISPLAY[model_type]
+    if "deberta-v3" in base_model:
+        return "DeBERTa-v3"
+    if "distilbert" in base_model:
+        return "DistilBERT"
+    return model_type or "Transformer"
 
 
 def _pii_label_rows(pii_entities: list[str]) -> str:
@@ -91,22 +160,48 @@ def _generate_trained_model_card(
     quantized_repo_id: str | None,
 ) -> str:
     """Generate a model card for the trained (SafeTensors) model."""
-    num_pii_labels, num_coref_labels, pii_entities = _load_label_info(model_dir)
+    num_pii_labels, pii_entities = _load_label_info(model_dir)
+    config = _load_model_config(model_dir)
+    training = _load_training_config()
 
     model_file = Path(model_dir) / "model.safetensors"
     model_size_mb = (
         model_file.stat().st_size / (1024 * 1024) if model_file.exists() else 0
     )
+    param_count = _count_safetensors_params(model_file)
+    param_str = _format_param_count(param_count) if param_count else "—"
+
+    encoder_name = _encoder_display_name(config, base_model)
+    hidden_size = config.get("hidden_size", 768)
+    bottleneck_size = hidden_size // 2
+    model_type_tag = config.get("model_type") or (
+        "deberta-v2" if "deberta" in base_model else "transformer"
+    )
 
     label_rows = _pii_label_rows(pii_entities)
     yaml_lang_block = _yaml_language_block()
+
+    train_cfg = training.get("training", {}) if training else {}
+    num_epochs = train_cfg.get("num_epochs", "—")
+    batch_size = train_cfg.get("batch_size", "—")
+    learning_rate = train_cfg.get("learning_rate", "—")
+    weight_decay = train_cfg.get("weight_decay", "—")
+    warmup_steps = train_cfg.get("warmup_steps", "—")
+    bf16 = train_cfg.get("bf16", False)
+    aux_ce_weight = train_cfg.get("auxiliary_ce_loss_weight", 0.0)
+    es_patience = train_cfg.get("early_stopping_patience", "—")
+    es_threshold = train_cfg.get("early_stopping_threshold")
+    es_threshold_str = (
+        f"{es_threshold * 100:.2f}%" if isinstance(es_threshold, (int, float)) else "—"
+    )
+    precision_str = "bf16 mixed precision" if bf16 else "fp32"
 
     dataset_section = ""
     if dataset_repo_id:
         dataset_section = f"""
 ## Training Data
 
-Trained on the [{dataset_repo_id}](https://huggingface.co/datasets/{dataset_repo_id}) dataset — a synthetic multilingual PII dataset with entity annotations and coreference resolution.
+Trained on the [{dataset_repo_id}](https://huggingface.co/datasets/{dataset_repo_id}) dataset — a synthetic multilingual PII dataset with entity annotations.
 """
 
     derived_section = ""
@@ -116,8 +211,14 @@ Trained on the [{dataset_repo_id}](https://huggingface.co/datasets/{dataset_repo
 
 | Variant | Format | Repository |
 |---------|--------|------------|
-| Quantized (INT8) | ONNX | [{quantized_repo_id}](https://huggingface.co/{quantized_repo_id}) |
+| Quantized | ONNX | [{quantized_repo_id}](https://huggingface.co/{quantized_repo_id}) |
 """
+
+    aux_loss_clause = (
+        f" + {aux_ce_weight}×class-weighted token cross-entropy"
+        if aux_ce_weight
+        else ""
+    )
 
     card = f"""---
 language:
@@ -129,62 +230,62 @@ tags:
 - pii
 - privacy
 - ner
-- coreference-resolution
-- distilbert
-- multi-task
+- token-classification
+- crf
+- {model_type_tag}
 base_model: {base_model}
 ---
 
 # Kiji PII Detection Model
 
-Multi-task DistilBERT model for detecting Personally Identifiable Information (PII) in text with coreference resolution. Fine-tuned from [`{base_model}`](https://huggingface.co/{base_model}).
+Token classification model for detecting Personally Identifiable Information (PII) in text. Fine-tuned from [`{base_model}`](https://huggingface.co/{base_model}) and decoded with a CRF layer for valid BIO sequence prediction.
 
 ## Model Summary
 
 | | |
 |---|---|
 | **Base model** | [{base_model}](https://huggingface.co/{base_model}) |
-| **Architecture** | Shared DistilBERT encoder + two linear classification heads |
-| **Parameters** | ~66M |
+| **Architecture** | {encoder_name} encoder + MLP token classifier + CRF |
+| **Parameters** | {param_str} |
 | **Model size** | {model_size_mb:.0f} MB (SafeTensors) |
-| **Tasks** | PII token classification ({num_pii_labels} labels) + coreference detection ({num_coref_labels} labels) |
+| **Hidden size** | {hidden_size} |
+| **Task** | PII token classification ({num_pii_labels} BIO labels) |
 | **PII entity types** | {len(pii_entities)} |
+| **Decoder** | CRF (Viterbi) |
 | **Max sequence length** | 512 tokens |
 
 ## Architecture
 
 ```
 Input (input_ids, attention_mask)
-        |
-  DistilBERT Encoder (shared, hidden_size=768)
-        |
-   +----+----+
-   |         |
-PII Head  Coref Head
-(768->{num_pii_labels})  (768->{num_coref_labels})
+        │
+  {encoder_name} encoder (hidden_size={hidden_size})
+        │
+  Dropout → Linear({hidden_size} → {bottleneck_size}) → GELU → Dropout
+        │
+  Linear({bottleneck_size} → {num_pii_labels})        [BIO emission scores]
+        │
+  CRF                                  [valid BIO transitions]
+        │
+  Predicted label sequence
 ```
 
-The model uses multi-task learning: a shared DistilBERT encoder feeds into two independent linear classification heads. Both tasks are trained simultaneously with equal loss weighting, which acts as regularization and improves PII detection generalization.
+The token classifier emits per-token BIO scores; a learned CRF layer enforces valid transitions (e.g., an `I-EMAIL` cannot follow a `B-PHONENUMBER`). The training loss is the CRF negative log-likelihood{aux_loss_clause}. At inference time, predictions are produced by Viterbi decoding.
 
 ## Usage
 
+The repository contains the encoder weights, MLP head, and CRF parameters in a single SafeTensors file. The architecture is custom (`PIIDetectionModel`) and is not loadable via `AutoModelForTokenClassification` — see `model/src/model.py` in the source repository for the head + CRF wiring.
+
 ```python
-import torch
 from transformers import AutoTokenizer
-
-# Load tokenizer
-tokenizer = AutoTokenizer.from_pretrained("{repo_id}")
-
-# The model uses a custom MultiTaskPIIDetectionModel architecture.
-# Load weights manually:
 from safetensors.torch import load_file
-weights = load_file("{repo_id}/model.safetensors")  # or local path
 
-# Tokenize
+tokenizer = AutoTokenizer.from_pretrained("{repo_id}")
+weights = load_file("model.safetensors")  # downloaded from this repo
+
 text = "Contact John Smith at john.smith@example.com or call +1-555-123-4567."
 inputs = tokenizer(text, return_tensors="pt", truncation=True, max_length=512)
-
-# See the label_mappings.json file for PII label definitions
+# See label_mappings.json for the BIO label set.
 ```
 
 ## PII Labels (BIO tagging)
@@ -197,33 +298,27 @@ The model uses BIO tagging with {len(pii_entities)} entity types:
 
 Each entity type has `B-` (beginning) and `I-` (inside) variants, plus `O` for non-PII tokens.
 
-## Coreference Labels
-
-| Label | Description |
-|-------|-------------|
-| `NO_COREF` | Token is not part of a coreference cluster |
-| `CLUSTER_0`-`CLUSTER_3` | Token belongs to coreference cluster 0-3 |
-
 ## Training
 
 | | |
 |---|---|
-| **Epochs** | 15 (with early stopping) |
-| **Batch size** | 16 |
-| **Learning rate** | 3e-5 |
-| **Weight decay** | 0.01 |
-| **Warmup steps** | 200 |
-| **Early stopping** | patience=3, threshold=1% |
-| **Loss** | Multi-task: PII cross-entropy + coreference cross-entropy (equal weights) |
+| **Epochs** | {num_epochs} (with early stopping) |
+| **Batch size** | {batch_size} |
+| **Learning rate** | {learning_rate} |
+| **Weight decay** | {weight_decay} |
+| **Warmup steps** | {warmup_steps} |
+| **Precision** | {precision_str} |
+| **Early stopping** | patience={es_patience}, threshold={es_threshold_str} |
+| **Loss** | CRF NLL{aux_loss_clause} |
 | **Optimizer** | AdamW |
-| **Metric** | Weighted F1 (PII task) |
+| **Metric** | Weighted F1 (token-level) |
 {dataset_section}{derived_section}
 ## Limitations
 
-- Trained on **synthetically generated** data — may not generalize to all real-world text
-- Coreference head supports up to 4 clusters per sequence
-- Optimized for the 6 languages in the training data ({", ".join(LabelUtils.LANGUAGE_CODES.keys())})
+- Trained on **synthetically generated** data — may not generalize perfectly to all real-world text
+- Optimized for the {len(LabelUtils.LANGUAGE_CODES)} languages in the training data ({", ".join(LabelUtils.LANGUAGE_CODES.keys())})
 - Max sequence length is 512 tokens
+- CRF transitions are learned from training data — rare BIO transitions may be underweighted
 """
     return card.strip() + "\n"
 
@@ -235,12 +330,12 @@ def _generate_quantized_model_card(
     dataset_repo_id: str | None,
     onnx_filename: str = "model_quantized.onnx",
 ) -> str:
-    """Generate a model card for the quantized (ONNX INT8) model."""
-    num_pii_labels, num_coref_labels, pii_entities = _load_label_info(model_dir)
+    """Generate a model card for the quantized (ONNX) model."""
+    num_pii_labels, pii_entities = _load_label_info(model_dir)
+    config = _load_model_config(model_dir)
     label_rows = _pii_label_rows(pii_entities)
     yaml_lang_block = _yaml_language_block()
 
-    # Compute file sizes for the manifest table
     model_path = Path(model_dir)
     file_rows = ""
     candidate_files = [
@@ -248,7 +343,11 @@ def _generate_quantized_model_card(
         *_QUANTIZED_REQUIRED_FILES,
         *_QUANTIZED_OPTIONAL_FILES,
     ]
+    seen: set[str] = set()
     for f in candidate_files:
+        if f in seen:
+            continue
+        seen.add(f)
         fpath = model_path / f
         if fpath.exists():
             size = fpath.stat().st_size
@@ -258,36 +357,57 @@ def _generate_quantized_model_card(
                 size_str = f"{size / 1024:.1f} KB"
             file_rows += f"| `{f}` | {size_str} |\n"
 
-    # Load quantization config for details
+    # Detect whether the ONNX file is actually quantized (vs plain export).
+    is_quantized = "quantized" in onnx_filename
+    has_crf_json = (model_path / "crf_transitions.json").exists()
+
+    # Load quantization config for details (only when the uploaded ONNX is the
+    # quantized variant; ort_config.json may exist alongside an unquantized
+    # model.onnx in mixed-export pipelines).
     ort_config_path = model_path / "ort_config.json"
     quant_details = ""
-    if ort_config_path.exists():
+    if "quantized" in onnx_filename and ort_config_path.exists():
         with ort_config_path.open() as f:
             ort_config = json.load(f)
         q = ort_config.get("quantization", {})
-        operators = ", ".join(q.get("operators_to_quantize", []))
-        quant_details = f"""
+        if q:
+            operators = ", ".join(q.get("operators_to_quantize", []))
+            quant_details = f"""
 ## Quantization Details
 
 | | |
 |---|---|
 | **Method** | Dynamic quantization (ONNX Runtime / Optimum) |
-| **Weights** | {q.get("weights_dtype", "QInt8")} (symmetric, per-channel) |
-| **Activations** | {q.get("activations_dtype", "QUInt8")} (asymmetric, per-tensor) |
+| **Weights** | {q.get("weights_dtype", "QInt8")} |
+| **Activations** | {q.get("activations_dtype", "QUInt8")} |
 | **Mode** | {q.get("mode", "IntegerOps")} |
 | **Format** | {q.get("format", "QOperator")} |
 | **Operators quantized** | {operators} |
 """
 
-    # Base model reference (the trained model)
-    base_model_value = trained_repo_id or "microsoft/deberta-v3-small"
+    # Pick a base_model value; the trained repo if known, else fall back to config or v3-base
+    base_model_value = (
+        trained_repo_id
+        or config.get("_name_or_path")
+        or "microsoft/deberta-v3-base"
+    )
+
+    encoder_name = _encoder_display_name(config, base_model_value)
+    hidden_size = config.get("hidden_size", 768)
+    model_type_tag = config.get("model_type") or (
+        "deberta-v2" if "deberta" in base_model_value else "transformer"
+    )
+
+    title_suffix = "ONNX (Quantized)" if is_quantized else "ONNX"
+    format_label = "ONNX (INT8 dynamic quantization)" if is_quantized else "ONNX"
+    quant_tags = "\n- quantized\n- int8" if is_quantized else ""
 
     trained_section = ""
     if trained_repo_id:
         trained_section = f"""
 ## Source Model
 
-This is a quantized version of [{trained_repo_id}](https://huggingface.co/{trained_repo_id}) — a multi-task DistilBERT model fine-tuned for PII detection with coreference resolution.
+ONNX export of [{trained_repo_id}](https://huggingface.co/{trained_repo_id}) — the {encoder_name} encoder fine-tuned for PII token classification with a CRF decoder.
 """
 
     dataset_section = ""
@@ -295,7 +415,7 @@ This is a quantized version of [{trained_repo_id}](https://huggingface.co/{train
         dataset_section = f"""
 ## Training Data
 
-The source model was trained on the [{dataset_repo_id}](https://huggingface.co/datasets/{dataset_repo_id}) dataset — a synthetic multilingual PII dataset with entity annotations and coreference resolution.
+The source model was trained on the [{dataset_repo_id}](https://huggingface.co/datasets/{dataset_repo_id}) dataset — a synthetic multilingual PII dataset with entity annotations.
 """
 
     lineage_section = ""
@@ -305,13 +425,21 @@ The source model was trained on the [{dataset_repo_id}](https://huggingface.co/d
             lineage_rows += f"| Dataset | [{dataset_repo_id}](https://huggingface.co/datasets/{dataset_repo_id}) |\n"
         if trained_repo_id:
             lineage_rows += f"| Trained model | [{trained_repo_id}](https://huggingface.co/{trained_repo_id}) |\n"
-        lineage_rows += f"| **Quantized model** | **{repo_id}** (this repo) |\n"
+        lineage_rows += f"| **ONNX model** | **{repo_id}** (this repo) |\n"
         lineage_section = f"""
 ## Lineage
 
 | Stage | Repository |
 |-------|------------|
 {lineage_rows}"""
+
+    crf_paragraph = (
+        " The CRF transition parameters are exported separately as `crf_transitions.json`; "
+        "downstream code should perform Viterbi decoding using these transitions to convert "
+        "emission logits into a valid BIO label sequence."
+        if has_crf_json
+        else ""
+    )
 
     card = f"""---
 language:
@@ -323,27 +451,27 @@ tags:
 - pii
 - privacy
 - ner
-- coreference-resolution
-- distilbert
-- multi-task
-- onnx
-- quantized
-- int8
+- token-classification
+- crf
+- {model_type_tag}
+- onnx{quant_tags}
 base_model: {base_model_value}
 ---
 
-# Kiji PII Detection Model (ONNX Quantized)
+# Kiji PII Detection Model ({title_suffix})
 
-INT8-quantized ONNX version of the Kiji PII detection model for efficient CPU inference. Detects Personally Identifiable Information (PII) in text with coreference resolution.
+ONNX export of the Kiji PII detection model for efficient CPU inference. The ONNX graph contains the encoder and the token classification head; it emits per-token BIO emission scores.{crf_paragraph}
 {trained_section}
 ## Model Summary
 
 | | |
 |---|---|
-| **Format** | ONNX (INT8 quantized) |
-| **Architecture** | Shared DistilBERT encoder + two classification heads |
-| **Tasks** | PII token classification ({num_pii_labels} labels) + coreference detection ({num_coref_labels} labels) |
+| **Format** | {format_label} |
+| **Architecture** | {encoder_name} encoder + MLP token classifier (CRF transitions exported as JSON) |
+| **Hidden size** | {hidden_size} |
+| **Task** | PII token classification ({num_pii_labels} BIO labels) |
 | **PII entity types** | {len(pii_entities)} |
+| **ONNX outputs** | `pii_logits` — shape `(batch, seq_len, {num_pii_labels})` |
 | **Max sequence length** | 512 tokens |
 | **Runtime** | ONNX Runtime |
 
@@ -355,26 +483,30 @@ INT8-quantized ONNX version of the Kiji PII detection model for efficient CPU in
 ## Usage
 
 ```python
+import json
 import numpy as np
 from onnxruntime import InferenceSession
 from transformers import AutoTokenizer
 
-# Load tokenizer and model
 tokenizer = AutoTokenizer.from_pretrained("{repo_id}")
-session = InferenceSession("{repo_id}/{onnx_filename}")  # or local path
+session = InferenceSession("{onnx_filename}")  # downloaded from this repo
 
-# Tokenize
 text = "Contact John Smith at john.smith@example.com or call +1-555-123-4567."
 inputs = tokenizer(text, return_tensors="np", truncation=True, max_length=512)
 
-# Run inference
-outputs = session.run(None, dict(inputs))
-pii_logits, coref_logits = outputs  # (1, seq_len, {num_pii_labels}), (1, seq_len, {num_coref_labels})
+# ONNX session expects int64 input_ids and attention_mask.
+ort_inputs = {{
+    "input_ids": inputs["input_ids"].astype("int64"),
+    "attention_mask": inputs["attention_mask"].astype("int64"),
+}}
+(pii_logits,) = session.run(["pii_logits"], ort_inputs)
 
-# Decode PII predictions
-pii_predictions = np.argmax(pii_logits, axis=-1)[0]
-
-# See label_mappings.json for label ID -> label name mapping
+# For best accuracy, decode `pii_logits` with the CRF transitions:
+#   crf = json.load(open("crf_transitions.json"))
+#   labels = viterbi_decode(pii_logits[0], crf)   # implement using start/end/transitions
+# A simple argmax baseline (no CRF) is also available:
+labels = np.argmax(pii_logits, axis=-1)[0]
+# See label_mappings.json for label ID -> label name.
 ```
 
 ## PII Labels (BIO tagging)
@@ -386,21 +518,14 @@ The model uses BIO tagging with {len(pii_entities)} entity types:
 {label_rows}
 
 Each entity type has `B-` (beginning) and `I-` (inside) variants, plus `O` for non-PII tokens.
-
-## Coreference Labels
-
-| Label | Description |
-|-------|-------------|
-| `NO_COREF` | Token is not part of a coreference cluster |
-| `CLUSTER_0`-`CLUSTER_3` | Token belongs to coreference cluster 0-3 |
 {dataset_section}{lineage_section}
 ## Limitations
 
-- Trained on **synthetically generated** data — may not generalize to all real-world text
-- Coreference head supports up to 4 clusters per sequence
-- Optimized for the 6 languages in the training data ({", ".join(LabelUtils.LANGUAGE_CODES.keys())})
+- Trained on **synthetically generated** data — may not generalize perfectly to all real-world text
+- Optimized for the {len(LabelUtils.LANGUAGE_CODES)} languages in the training data ({", ".join(LabelUtils.LANGUAGE_CODES.keys())})
 - Max sequence length is 512 tokens
-- Quantization may slightly reduce accuracy compared to the full-precision model
+- The ONNX graph emits emission logits only; valid BIO sequences require Viterbi decoding with the exported CRF transitions
+{"- Dynamic quantization may slightly reduce accuracy compared to the full-precision model" if is_quantized else ""}
 """
     return card.strip() + "\n"
 
