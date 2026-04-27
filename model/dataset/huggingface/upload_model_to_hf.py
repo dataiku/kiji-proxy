@@ -34,15 +34,18 @@ _TRAINED_REQUIRED_FILES = [
 ]
 _TRAINED_OPTIONAL_FILES = _OPTIONAL_TOKENIZER_FILES
 
+# The quantized ONNX file is named `model_quantized.onnx` by Optimum's dynamic
+# quantization, but custom export pipelines may produce `model.onnx`. Either
+# satisfies the requirement.
+_QUANTIZED_MODEL_FILE_CANDIDATES = ["model_quantized.onnx", "model.onnx"]
 _QUANTIZED_REQUIRED_FILES = [
-    "model_quantized.onnx",
-    "ort_config.json",
     "label_mappings.json",
     "tokenizer_config.json",
     "tokenizer.json",
     "special_tokens_map.json",
 ]
 _QUANTIZED_OPTIONAL_FILES = [
+    "ort_config.json",
     "model.onnx.data",
     "model_manifest.json",
     *_OPTIONAL_TOKENIZER_FILES,
@@ -230,6 +233,7 @@ def _generate_quantized_model_card(
     model_dir: str,
     trained_repo_id: str | None,
     dataset_repo_id: str | None,
+    onnx_filename: str = "model_quantized.onnx",
 ) -> str:
     """Generate a model card for the quantized (ONNX INT8) model."""
     num_pii_labels, num_coref_labels, pii_entities = _load_label_info(model_dir)
@@ -239,7 +243,12 @@ def _generate_quantized_model_card(
     # Compute file sizes for the manifest table
     model_path = Path(model_dir)
     file_rows = ""
-    for f in [*_QUANTIZED_REQUIRED_FILES, *_QUANTIZED_OPTIONAL_FILES]:
+    candidate_files = [
+        *_QUANTIZED_MODEL_FILE_CANDIDATES,
+        *_QUANTIZED_REQUIRED_FILES,
+        *_QUANTIZED_OPTIONAL_FILES,
+    ]
+    for f in candidate_files:
         fpath = model_path / f
         if fpath.exists():
             size = fpath.stat().st_size
@@ -352,7 +361,7 @@ from transformers import AutoTokenizer
 
 # Load tokenizer and model
 tokenizer = AutoTokenizer.from_pretrained("{repo_id}")
-session = InferenceSession("{repo_id}/model_quantized.onnx")  # or local path
+session = InferenceSession("{repo_id}/{onnx_filename}")  # or local path
 
 # Tokenize
 text = "Contact John Smith at john.smith@example.com or call +1-555-123-4567."
@@ -456,8 +465,23 @@ def upload_model_to_huggingface(
     if missing:
         raise ValueError(f"Missing required model files: {missing}")
 
+    # For the quantized variant, exactly one of the candidate ONNX filenames
+    # must be present.
+    quantized_model_file: str | None = None
+    if variant == "quantized":
+        present_candidates = [
+            f for f in _QUANTIZED_MODEL_FILE_CANDIDATES if (model_path / f).exists()
+        ]
+        if not present_candidates:
+            raise ValueError(
+                f"Missing quantized ONNX model file (expected one of {_QUANTIZED_MODEL_FILE_CANDIDATES})"
+            )
+        quantized_model_file = present_candidates[0]
+
     present_optional = [f for f in optional_files if (model_path / f).exists()]
     model_files = required_files + present_optional
+    if quantized_model_file:
+        model_files = [quantized_model_file, *model_files]
 
     print(f"Uploading {variant} model from {model_dir}")
     for f in model_files:
@@ -484,6 +508,7 @@ def upload_model_to_huggingface(
             model_dir=model_dir,
             trained_repo_id=trained_repo_id,
             dataset_repo_id=dataset_repo_id,
+            onnx_filename=quantized_model_file or "model_quantized.onnx",
         )
 
     # Write model card to the model directory temporarily
