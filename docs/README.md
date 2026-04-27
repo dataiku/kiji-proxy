@@ -97,6 +97,22 @@ Deep dive into advanced features, security, and troubleshooting.
 
 ---
 
+### [Chapter 6: Chrome Extension](06-chrome-extension.md)
+
+Build, configure, and publish the Kiji PII Guard Chrome extension that intercepts AI chat input in the browser.
+
+**Topics:**
+- Local development and loading the unpacked extension
+- Extension architecture and backend integration
+- Switching to optional host permissions for the Web Store
+- Preparing store listing assets and privacy policy
+- Submitting and updating a published extension
+- CI/CD integration and automating Web Store uploads
+
+**Start here if you're:** Working on the Chrome extension or shipping it to the Chrome Web Store.
+
+---
+
 ### [Chapter 7: Customizing the PII Model](07-customizing-pii-model.md)
 
 Train a custom PII detection model with your own entity types, data, and domain-specific needs.
@@ -138,7 +154,7 @@ Train a custom PII detection model with your own entity types, data, and domain-
 
 ### Advanced
 - [HTTPS/MITM Setup](05-advanced-topics.md#transparent-proxy--mitm)
-- [Automatic Proxy (PAC) Setup](transparent-proxy-setup.md)
+- [Automatic Proxy (PAC) Setup](05-advanced-topics.md#transparent-proxy--mitm)
 - [Model Signing](05-advanced-topics.md#model-signing)
 - [Troubleshooting](05-advanced-topics.md#build-troubleshooting)
 
