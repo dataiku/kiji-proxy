@@ -396,6 +396,17 @@ ln -sfn ../../../node_modules/electron-builder node_modules/electron-builder
 ln -sfn ../../../node_modules/electron-updater node_modules/electron-updater
 ln -sfn ../../../node_modules/@sentry node_modules/@sentry
 
+# Force @electron/osx-sign to use isbinaryfile v5 (root copy) instead of its nested v4.
+# v4.0.10 crashes with "RangeError: Invalid array length" while signing large protobuf
+# files like the unquantized ONNX model — its protobuf detection lacks an early-exit
+# guard that v5+ has. Deleting the nested copy lets Node's module resolution fall back
+# to the v5 already at the workspace root.
+PROXY_NESTED_ISBF="$PROJECT_ROOT/node_modules/@electron/osx-sign/node_modules/isbinaryfile"
+if [ -d "$PROXY_NESTED_ISBF" ]; then
+    rm -rf "$PROXY_NESTED_ISBF"
+    echo "✅ Removed nested isbinaryfile@4 from @electron/osx-sign (uses root v5)"
+fi
+
 # Verify symlinks
 if [ -L "node_modules/electron" ]; then
     echo "✅ Electron symlink created"

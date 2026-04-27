@@ -134,7 +134,7 @@ jobs:
         run: |
           git lfs pull
           # Verify model file is not an LFS pointer
-          MODEL_SIZE=$(stat -f%z "model/quantized/model_quantized.onnx" 2>/dev/null || echo "0")
+          MODEL_SIZE=$(stat -f%z "model/quantized/model.onnx" 2>/dev/null || echo "0")
           echo "Model file size: ${MODEL_SIZE} bytes"
           if [ "$MODEL_SIZE" -lt 1000 ]; then
             echo "❌ Model file appears to be an LFS pointer (too small)"
@@ -299,7 +299,7 @@ jobs:
         run: |
           git lfs pull
           # Verify model file is not an LFS pointer
-          MODEL_SIZE=$(stat -c%s "model/quantized/model_quantized.onnx" 2>/dev/null || echo "0")
+          MODEL_SIZE=$(stat -c%s "model/quantized/model.onnx" 2>/dev/null || echo "0")
           echo "Model file size: ${MODEL_SIZE} bytes"
           if [ "$MODEL_SIZE" -lt 1000 ]; then
             echo "❌ Model file appears to be an LFS pointer (too small)"

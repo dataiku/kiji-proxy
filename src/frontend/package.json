@@ -149,7 +149,8 @@
       },
       "format": "UDZO",
       "artifactName": "${productName}-${version}.${ext}",
-      "sign": false
+      "sign": false,
+      "size": "3g"
     },
     "win": {
       "target": [
