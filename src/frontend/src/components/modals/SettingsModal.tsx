@@ -33,14 +33,14 @@ const PROVIDER_INFO: Record<
 > = {
   openai: {
     name: "OpenAI",
-    defaultModel: "gpt-3.5-turbo",
+    defaultModel: "gpt-4o-mini",
     placeholder: "sk-...",
     helpLink:
       "https://help.openai.com/en/articles/4936850-where-do-i-find-my-openai-api-key",
   },
   anthropic: {
     name: "Anthropic",
-    defaultModel: "claude-3-haiku-20240307",
+    defaultModel: "claude-haiku-4-5",
     placeholder: "sk-ant-...",
     helpLink: "https://platform.claude.com/docs/en/get-started",
   },
