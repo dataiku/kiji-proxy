@@ -28,7 +28,7 @@ export function apiUrl(path: string, isElectron: boolean): string {
 }
 
 export function getModel(provider: ProviderType, customModel: string): string {
-  return customModel || DEFAULT_MODELS[provider] || "gpt-3.5-turbo";
+  return customModel || DEFAULT_MODELS[provider] || "gpt-4o-mini";
 }
 
 export function buildRequestBody(

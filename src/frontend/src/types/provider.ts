@@ -14,8 +14,8 @@ export interface ProvidersConfig {
 
 // Default models per provider
 export const DEFAULT_MODELS: Record<ProviderType, string> = {
-  openai: "gpt-3.5-turbo",
-  anthropic: "claude-3-haiku-20240307",
+  openai: "gpt-4o-mini",
+  anthropic: "claude-haiku-4-5",
   gemini: "gemini-flash-latest",
   mistral: "mistral-small-latest",
 };
