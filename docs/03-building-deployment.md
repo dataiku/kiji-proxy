@@ -40,7 +40,7 @@ Both builds include:
 
 ### Common Requirements
 
-- **Go:** 1.21+ with CGO enabled
+- **Go:** 1.25+ with CGO enabled
 - **Node.js:** 20.x+
 - **Rust/Cargo:** Latest stable
 - **Git LFS:** For model files
@@ -49,7 +49,7 @@ Both builds include:
 ### Platform-Specific
 
 **macOS:**
-- **Python:** 3.11+ (for ONNX Runtime)
+- **Python:** 3.13+ (for ONNX Runtime)
 - **Xcode Command Line Tools:** `xcode-select --install`
 - **Target OS:** macOS 10.13+
 
@@ -61,7 +61,7 @@ Both builds include:
 
 ```bash
 # Check versions
-go version          # >= 1.21
+go version          # >= 1.25
 node --version      # >= 20
 rustc --version     # >= 1.56
 git lfs version     # >= 2.0

@@ -18,7 +18,7 @@ This guide covers setting up your development environment, debugging workflows, 
 ### Prerequisites
 
 **Required:**
-- **Go 1.21+** with CGO enabled
+- **Go 1.25+** with CGO enabled
 - **Node.js 20+** and npm
 - **Rust toolchain** (latest stable)
 - **Git LFS** for model files
@@ -28,7 +28,7 @@ This guide covers setting up your development environment, debugging workflows, 
 
 **macOS:**
 - Xcode Command Line Tools: `xcode-select --install`
-- Python 3.11+ (for ONNX Runtime)
+- Python 3.13+ (for ONNX Runtime)
 
 **Linux:**
 - Build essentials: `sudo apt-get install build-essential gcc g++`
@@ -74,7 +74,7 @@ sudo apt-get install golang-go
 # Or download from https://go.dev/dl/
 
 # Verify
-go version  # Should show go1.21+
+go version  # Should show go1.25+
 ```
 
 **Delve Debugger:**

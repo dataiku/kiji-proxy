@@ -469,7 +469,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.13'
       
       - name: Install dependencies
         run: |
@@ -522,7 +522,7 @@ jobs:
 
 ```yaml
 train-and-sign:
-  image: python:3.11
+  image: python:3.13
   stage: train
   script:
     - pip install -e ".[training,quantization,signing]"
@@ -656,7 +656,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.13'
       
       - name: Install dependencies
         run: |
@@ -684,7 +684,7 @@ python model/src/model_signing.py model/quantized
 
 ```yaml
 train-and-sign-oidc:
-  image: python:3.11
+  image: python:3.13
   stage: train
   id_tokens:
     SIGSTORE_ID_TOKEN:
