@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Kiji Privacy Proxy Extension",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Checks for PII before submitting text to AI chat services",
   "permissions": [
     "storage",
