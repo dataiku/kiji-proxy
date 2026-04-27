@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import multiprocessing as mp
+import os
 import sys
 import time
 from collections import defaultdict
@@ -176,6 +178,8 @@ class OnnxPIIModel:
         model_dir: str,
         entity_confidence_threshold: float = DEFAULT_ENTITY_CONFIDENCE_THRESHOLD,
         onnx_filename: str | None = None,
+        intra_op_num_threads: int | None = None,
+        inter_op_num_threads: int | None = None,
     ):
         model_dir = Path(model_dir)
         if onnx_filename is not None:
@@ -200,6 +204,10 @@ class OnnxPIIModel:
 
         opts = ort.SessionOptions()
         opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+        if intra_op_num_threads is not None:
+            opts.intra_op_num_threads = intra_op_num_threads
+        if inter_op_num_threads is not None:
+            opts.inter_op_num_threads = inter_op_num_threads
         self.session = ort.InferenceSession(
             str(onnx_file),
             sess_options=opts,
@@ -412,6 +420,39 @@ class OnnxPIIModel:
                 )
             )
         return merge_chunk_spans(entities)
+
+
+# ---------------------------------------------------------------------------
+# Worker pool helpers (one OnnxPIIModel per process)
+# ---------------------------------------------------------------------------
+
+
+_worker_model: OnnxPIIModel | None = None
+
+
+def _init_worker(
+    model_path: str,
+    confidence_threshold: float,
+    onnx_filename: str | None,
+    intra_op_threads: int,
+) -> None:
+    global _worker_model
+    _worker_model = OnnxPIIModel(
+        model_path,
+        entity_confidence_threshold=confidence_threshold,
+        onnx_filename=onnx_filename,
+        intra_op_num_threads=intra_op_threads,
+        inter_op_num_threads=1,
+    )
+
+
+def _predict_worker(item: tuple[int, str]) -> tuple[int, list[tuple[int, int, str]], float]:
+    index, text = item
+    assert _worker_model is not None, "worker model not initialized"
+    t0 = time.perf_counter()
+    predicted = _worker_model.predict(text)
+    elapsed_ms = (time.perf_counter() - t0) * 1000
+    return index, predicted, elapsed_ms
 
 
 # ---------------------------------------------------------------------------
@@ -644,9 +685,23 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Print per-sample detections (only allowed when --num < 50).",
     )
+    ap.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help=(
+            "Number of worker processes for inference (default: 1). "
+            "Use a value <= os.cpu_count(). When >1, latency_ms reflects "
+            "CPU-contended per-sample wall time, not single-request latency."
+        ),
+    )
     args = ap.parse_args()
     if args.verbose and args.num >= 50:
         ap.error("--verbose is only allowed with --num < 50")
+    if args.verbose and args.workers > 1:
+        ap.error("--verbose requires --workers 1")
+    if args.workers < 1:
+        ap.error("--workers must be >= 1")
     return args
 
 
@@ -674,23 +729,55 @@ def main() -> int:
     relaxed_metrics = RelaxedOverlapMetrics()
     latencies: list[float] = []
 
-    for i, sample in enumerate(samples):
-        t0 = time.perf_counter()
-        predicted = model.predict(sample["text"])
-        elapsed_ms = (time.perf_counter() - t0) * 1000
-        latencies.append(elapsed_ms)
-        exact_metrics.update(sample["entities"], predicted)
-        relaxed_metrics.update(sample["entities"], predicted)
-        if args.verbose:
-            print_sample_detections(
-                i,
-                sample["text"],
-                sample["entities"],
-                predicted,
-                elapsed_ms,
+    if args.workers > 1:
+        cpu_count = os.cpu_count() or 1
+        if args.workers > cpu_count:
+            print(
+                f"  Warning: --workers={args.workers} exceeds os.cpu_count()={cpu_count}",
+                file=sys.stderr,
             )
-        elif (i + 1) % 200 == 0:
-            print(f"  Processed {i + 1}/{len(samples)} ...")
+        print(f"Running inference with {args.workers} worker processes ...")
+        tasks = [(i, sample["text"]) for i, sample in enumerate(samples)]
+        chunksize = max(1, len(tasks) // (args.workers * 16))
+        ctx = mp.get_context("spawn")
+        with ctx.Pool(
+            processes=args.workers,
+            initializer=_init_worker,
+            initargs=(
+                args.model_path,
+                args.confidence_threshold,
+                args.onnx_file,
+                1,
+            ),
+        ) as pool:
+            completed = 0
+            for index, predicted, elapsed_ms in pool.imap_unordered(
+                _predict_worker, tasks, chunksize=chunksize
+            ):
+                latencies.append(elapsed_ms)
+                exact_metrics.update(samples[index]["entities"], predicted)
+                relaxed_metrics.update(samples[index]["entities"], predicted)
+                completed += 1
+                if completed % 200 == 0:
+                    print(f"  Processed {completed}/{len(samples)} ...")
+    else:
+        for i, sample in enumerate(samples):
+            t0 = time.perf_counter()
+            predicted = model.predict(sample["text"])
+            elapsed_ms = (time.perf_counter() - t0) * 1000
+            latencies.append(elapsed_ms)
+            exact_metrics.update(sample["entities"], predicted)
+            relaxed_metrics.update(sample["entities"], predicted)
+            if args.verbose:
+                print_sample_detections(
+                    i,
+                    sample["text"],
+                    sample["entities"],
+                    predicted,
+                    elapsed_ms,
+                )
+            elif (i + 1) % 200 == 0:
+                print(f"  Processed {i + 1}/{len(samples)} ...")
 
     # Build report
     lat_arr = np.asarray(latencies, dtype=float)
@@ -711,6 +798,7 @@ def main() -> int:
         "uses_crf": model.uses_crf,
         "max_sequence_length": MAX_SEQ_LEN,
         "chunk_overlap": CHUNK_OVERLAP,
+        "workers": args.workers,
         "exact_span_f1": round(exact_micro_f1, 4),
         "exact_span_macro_f1": round(exact_macro_f1, 4),
         "relaxed_overlap_f1": round(relaxed_micro_f1, 4),
