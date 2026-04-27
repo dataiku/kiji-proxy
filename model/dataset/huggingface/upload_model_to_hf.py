@@ -387,9 +387,7 @@ def _generate_quantized_model_card(
 
     # Pick a base_model value; the trained repo if known, else fall back to config or v3-base
     base_model_value = (
-        trained_repo_id
-        or config.get("_name_or_path")
-        or "microsoft/deberta-v3-base"
+        trained_repo_id or config.get("_name_or_path") or "microsoft/deberta-v3-base"
     )
 
     encoder_name = _encoder_display_name(config, base_model_value)
