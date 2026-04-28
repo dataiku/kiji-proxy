@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -168,6 +169,10 @@ func (p *Providers) GetProviderFromPath(host string, path string, body *[]byte, 
 
 func (p *Providers) GetProviderFromHost(host string, logPrefix string) (*Provider, error) {
 	var provider Provider
+
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
 
 	switch host {
 	case p.OpenAIProvider.apiDomain:
