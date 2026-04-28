@@ -177,10 +177,6 @@ See [transparent-proxy-setup.md](transparent-proxy-setup.md) for complete detail
    ```bash
    # Copy to /opt
    sudo cp -r . /opt/kiji-privacy-proxy
-
-   # Create service user
-   sudo useradd -r -s /bin/false kiji
-   sudo chown -R kiji:kiji /opt/kiji-privacy-proxy
    ```
 
 3. **Configure Environment:**
@@ -203,12 +199,6 @@ See [transparent-proxy-setup.md](transparent-proxy-setup.md) for complete detail
    # Check status
    sudo systemctl status kiji-proxy
    ```
-
-   > **Note (Linux):** The binary resolves the data directory (`~/.kiji-proxy/`) via the home directory of the user it runs as. The `useradd -r` flag creates a system user with no home directory, which causes a startup failure. Create the home directory manually before starting the service:
-   > ```bash
-   > sudo mkdir -p /home/kiji
-   > sudo chown kiji:kiji /home/kiji
-   > ```
 
 **Installing CA Certificate (Required for HTTPS):**
 
