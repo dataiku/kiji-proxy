@@ -44,10 +44,8 @@ cd kiji-proxy
 # 2. Pull model files
 git lfs pull
 
-# 3. Build tokenizers library
-cd build/tokenizers
-make build
-cd ../..
+# 3. Download tokenizers library
+make setup-tokenizers
 
 # 4. Install ONNX Runtime
 # See "Installing ONNX Runtime" section below
@@ -104,9 +102,13 @@ source .venv/bin/activate
 # Install ONNX Runtime
 pip install onnxruntime
 
-# Find and copy library
+# Find and copy library (macOS)
 LIB_PATH=$(find .venv -name "libonnxruntime*.dylib" | head -1)
 cp "$LIB_PATH" ./build/libonnxruntime.1.24.2.dylib
+
+# Find and copy library (Linux)
+LIB_PATH=$(find .venv -name "libonnxruntime.so.*" | head -1)
+cp "$LIB_PATH" ./build/libonnxruntime.so
 ```
 
 **Option 2: Via UV (Faster):**
@@ -120,9 +122,13 @@ uv venv --python 3.13
 source .venv/bin/activate
 uv pip install onnxruntime
 
-# Copy library
+# Copy library (macOS)
 LIB_PATH=$(find .venv -name "libonnxruntime*.dylib" | head -1)
 cp "$LIB_PATH" ./build/libonnxruntime.1.24.2.dylib
+
+# Copy library (Linux)
+LIB_PATH=$(find .venv -name "libonnxruntime.so.*" | head -1)
+cp "$LIB_PATH" ./build/libonnxruntime.so
 ```
 
 **Option 3: Manual Download:**
@@ -151,13 +157,10 @@ ls -lh build/libonnxruntime.*
 The Rust tokenizers library must be built before running the Go backend.
 
 ```bash
-cd build/tokenizers
-make build
-cd ../..
+make setup-tokenizers
 
 # Verify
 ls -lh build/tokenizers/libtokenizers.a
-# Should show ~15MB static library
 ```
 
 **Cross-Platform Builds:**
@@ -693,13 +696,10 @@ ls -lh model/quantized/model_quantized.onnx
 ### "Tokenizers library not found"
 
 ```bash
-# Build tokenizers
-cd build/tokenizers
-make build
+make setup-tokenizers
 
 # Verify
-ls -lh libtokenizers.a
-# Should be ~15MB
+ls -lh build/tokenizers/libtokenizers.a
 ```
 
 ### "ONNX Runtime not found"
@@ -710,6 +710,21 @@ export ONNXRUNTIME_SHARED_LIBRARY_PATH="./build/libonnxruntime.1.24.2.dylib"
 
 # Linux
 export LD_LIBRARY_PATH="./build:$LD_LIBRARY_PATH"
+```
+
+### "`ruff` command not found"
+
+```bash
+# Install Python dev dependencies
+make install-dev
+```
+
+### "golangci-lint: configuration file for v2 used with v1"
+
+The project requires golangci-lint v2. Reinstall with the v2 module path:
+
+```bash
+go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
 ```
 
 ### "CGO errors"

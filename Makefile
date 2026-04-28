@@ -3,6 +3,7 @@
 .PHONY: test test-go test-all test-e2e test-e2e-dataset
 .PHONY: clean clean-venv clean-all
 .PHONY: build-dmg build-linux verify-linux
+.PHONY: setup-onnx setup-tokenizers
 .PHONY: electron-build electron-run electron electron-dev electron-install
 .PHONY: list show shell jupyter info quickstart
 .PHONY: pr
@@ -238,6 +239,28 @@ setup-onnx: ## Set up ONNX Runtime library for development
 		else \
 			echo "$(YELLOW)⚠️  Could not find ONNX library, continuing anyway$(NC)"; \
 		fi; \
+	fi
+
+setup-tokenizers: ## Download pre-built tokenizers library for development
+	@echo "$(BLUE)Setting up tokenizers library...$(NC)"
+	@mkdir -p build/tokenizers
+	@if [ -f "build/tokenizers/libtokenizers.a" ]; then \
+		echo "$(GREEN)✅ Tokenizers library already exists$(NC)"; \
+	else \
+		TOKENIZERS_VERSION=$$(go list -m -f '{{.Version}}' github.com/daulet/tokenizers | sed 's/^v//'); \
+		if [ "$$(uname)" = "Darwin" ]; then \
+			ARCH=$$(uname -m | sed 's/x86_64/amd64/;s/arm64/aarch64/'); \
+			PLATFORM="darwin-$$ARCH"; \
+		else \
+			PLATFORM="linux-amd64"; \
+		fi; \
+		echo "$(BLUE)Downloading libtokenizers v$$TOKENIZERS_VERSION for $$PLATFORM...$(NC)"; \
+		curl -L -o build/tokenizers/libtokenizers.tar.gz \
+			"https://github.com/daulet/tokenizers/releases/download/v$${TOKENIZERS_VERSION}/libtokenizers.$${PLATFORM}.tar.gz"; \
+		tar -xzf build/tokenizers/libtokenizers.tar.gz -C build/tokenizers/; \
+		rm build/tokenizers/libtokenizers.tar.gz; \
+		ranlib build/tokenizers/libtokenizers.a; \
+		echo "$(GREEN)✅ Tokenizers library installed$(NC)"; \
 	fi
 
 build-go: ## Build Go binary for development

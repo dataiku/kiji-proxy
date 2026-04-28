@@ -99,7 +99,7 @@ The standalone backend runs as a headless server. Configure via environment vari
    ```bash
    # Mount DMG
    open Kiji-Privacy-Proxy-*.dmg
-   
+
    # Drag to Applications folder
    # Or via command line:
    cp -r "/Volumes/Kiji Privacy Proxy/Kiji Privacy Proxy.app" /Applications/
@@ -163,11 +163,11 @@ See [transparent-proxy-setup.md](transparent-proxy-setup.md) for complete detail
    ```bash
    # Download
    wget https://github.com/dataiku/kiji-proxy/releases/download/v{version}/kiji-privacy-proxy-{version}-linux-amd64.tar.gz
-   
+
    # Verify checksum (optional)
    wget https://github.com/dataiku/kiji-proxy/releases/download/v{version}/kiji-privacy-proxy-{version}-linux-amd64.tar.gz.sha256
    sha256sum -c kiji-privacy-proxy-{version}-linux-amd64.tar.gz.sha256
-   
+
    # Extract
    tar -xzf kiji-privacy-proxy-{version}-linux-amd64.tar.gz
    cd kiji-privacy-proxy-{version}-linux-amd64
@@ -177,10 +177,6 @@ See [transparent-proxy-setup.md](transparent-proxy-setup.md) for complete detail
    ```bash
    # Copy to /opt
    sudo cp -r . /opt/kiji-privacy-proxy
-   
-   # Create service user
-   sudo useradd -r -s /bin/false kiji
-   sudo chown -R kiji:kiji /opt/kiji-privacy-proxy
    ```
 
 3. **Configure Environment:**
@@ -199,7 +195,7 @@ See [transparent-proxy-setup.md](transparent-proxy-setup.md) for complete detail
    sudo systemctl daemon-reload
    sudo systemctl enable kiji-proxy
    sudo systemctl start kiji-proxy
-   
+
    # Check status
    sudo systemctl status kiji-proxy
    ```
@@ -277,12 +273,12 @@ sudo trust extract-compat
    export OPENAI_API_KEY="your-key"
    export HTTP_PROXY=http://127.0.0.1:8081
    export HTTPS_PROXY=http://127.0.0.1:8081
-   
+
    # Make request through proxy
    curl https://api.openai.com/v1/models \
      -H "Authorization: Bearer $OPENAI_API_KEY"
    ```
-   
+
    **Note:** Linux doesn't support automatic PAC configuration. Always use `HTTP_PROXY` environment variables.
 
 ### Configuration
