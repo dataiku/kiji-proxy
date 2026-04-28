@@ -46,7 +46,10 @@ This directory contains all CI/CD workflows for the Kiji Privacy Proxy project.
 
 This tag push then triggers the release workflow (`release.yml`).
 
-**Requires:** `PAT_TOKEN` repository secret (to allow tag push to trigger other workflows).
+**Requires:** a GitHub App installed on this repository with `Contents: Read and write`
+and `Pull requests: Read and write`, plus the `GITHUB_APP_CLIENT_ID` repository
+variable and `GITHUB_APP_PRIVATE_KEY` repository secret. The app token allows the
+tag push to trigger the release workflow.
 
 ---
 
