@@ -1,5 +1,11 @@
 # kiji-privacy-proxy
 
+## 1.0.0
+
+### Major Changes
+
+- d3a1fa2: Promote Kiji Privacy Proxy to 1.0.0 (general availability).
+
 ## 0.6.1
 
 ### Patch Changes
