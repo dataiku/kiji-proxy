@@ -29,7 +29,7 @@
     "http-proxy-middleware": "^3.0.5",
     "lucide-react": "^1.7.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1",
+    "react-dom": "^19.2.5",
     "shepherd.js": "^15.2.1"
   },
   "devDependencies": {
@@ -41,7 +41,7 @@
     "@electron/notarize": "^3.1.1",
     "@tailwindcss/postcss": "^4.1.18",
     "@types/react": "^18.3.12",
-    "@types/react-dom": "^18.3.1",
+    "@types/react-dom": "^19.2.3",
     "@typescript-eslint/eslint-plugin": "^8.58.2",
     "@typescript-eslint/parser": "^8.58.1",
     "autoprefixer": "^10.5.0",
