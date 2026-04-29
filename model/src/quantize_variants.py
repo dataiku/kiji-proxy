@@ -16,6 +16,8 @@ Variants:
     fp32                  Reference, no quantization (copy of source).
     fp16                  Float16 conversion via ORT's converter.
     int8_dyn_default      onnxruntime.quantize_dynamic with library defaults.
+    int8_dyn_reduce_range quantize_dynamic with reduce_range=True (7-bit weights,
+                          sidesteps MLAS S8S8 overflow on x86 without VNNI).
     int8_dyn_avx512_vnni  Optimum AVX-512 VNNI dynamic INT8 (current prod).
     int8_dyn_avx2         Optimum AVX2 dynamic INT8.
     int8_dyn_avx512       Optimum AVX-512 (non-VNNI) dynamic INT8.
@@ -38,6 +40,7 @@ ALL_VARIANTS = [
     "fp32",
     "fp16",
     "int8_dyn_default",
+    "int8_dyn_reduce_range",
     "int8_dyn_avx512_vnni",
     "int8_dyn_avx2",
     "int8_dyn_avx512",
@@ -106,6 +109,23 @@ def build_int8_dyn_default(source: Path, dest: Path) -> None:
         model_output=str(dest / "model.onnx"),
         weight_type=QuantType.QInt8,
         per_channel=False,
+    )
+    report_size(dest / "model.onnx")
+
+
+def build_int8_dyn_reduce_range(source: Path, dest: Path) -> None:
+    # reduce_range=True clamps weights to 7 bits, sidestepping the MLAS S8S8
+    # accumulator-overflow issue on x86 CPUs without VNNI dispatch.
+    print(f"[int8_dyn_reduce_range] quantize_dynamic reduce_range=True -> {dest}")
+    from onnxruntime.quantization import QuantType, quantize_dynamic
+
+    copy_support_files(source, dest)
+    quantize_dynamic(
+        model_input=str(source / "model.onnx"),
+        model_output=str(dest / "model.onnx"),
+        weight_type=QuantType.QInt8,
+        per_channel=False,
+        reduce_range=True,
     )
     report_size(dest / "model.onnx")
 
@@ -263,6 +283,7 @@ VARIANT_BUILDERS = {
     "fp32": build_fp32,
     "fp16": build_fp16,
     "int8_dyn_default": build_int8_dyn_default,
+    "int8_dyn_reduce_range": build_int8_dyn_reduce_range,
     "int8_dyn_avx512_vnni": build_int8_dyn_avx512_vnni,
     "int8_dyn_avx2": build_int8_dyn_avx2,
     "int8_dyn_avx512": build_int8_dyn_avx512,
