@@ -39,10 +39,24 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Comma-separated list of variant names to run (default: all found).",
     )
+    p.add_argument(
+        "--providers",
+        default="cpu",
+        help=(
+            "Comma-separated ORT execution providers, in priority order, "
+            "passed through to tests.benchmark.run (e.g. 'cuda,cpu'). Default: cpu."
+        ),
+    )
     return p.parse_args()
 
 
-def run_variant(variant_dir: Path, num: int, seed: int, language: str | None) -> dict:
+def run_variant(
+    variant_dir: Path,
+    num: int,
+    seed: int,
+    language: str | None,
+    providers: str,
+) -> dict:
     report_path = variant_dir / "benchmark_report.json"
     cmd = [
         sys.executable,
@@ -56,6 +70,8 @@ def run_variant(variant_dir: Path, num: int, seed: int, language: str | None) ->
         str(report_path),
         "--seed",
         str(seed),
+        "--providers",
+        providers,
     ]
     if language:
         cmd.extend(["--language", language])
@@ -95,6 +111,7 @@ def run_variant(variant_dir: Path, num: int, seed: int, language: str | None) ->
         "latency_ms": report.get("latency_ms", {}),
         "f1_per_mb": round(exact_f1 / size_mb, 6) if size_mb > 0 else 0.0,
         "num_samples": report.get("num_samples", 0),
+        "providers": report.get("providers", []),
         "report_path": str(report_path),
     }
 
@@ -152,7 +169,9 @@ def main() -> int:
 
     rows = []
     for variant_dir in candidates:
-        rows.append(run_variant(variant_dir, args.num, args.seed, args.language))
+        rows.append(
+            run_variant(variant_dir, args.num, args.seed, args.language, args.providers)
+        )
 
     report_path = Path(args.report).resolve()
     report_path.parent.mkdir(parents=True, exist_ok=True)
@@ -162,6 +181,7 @@ def main() -> int:
                 "num_samples_requested": args.num,
                 "seed": args.seed,
                 "language": args.language,
+                "providers_requested": args.providers,
                 "variants": rows,
             },
             f,

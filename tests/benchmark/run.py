@@ -168,6 +168,28 @@ def merge_chunk_spans(spans: list[tuple[int, int, str]]) -> list[tuple[int, int,
     return merged
 
 
+PROVIDER_ALIASES = {
+    "cpu": "CPUExecutionProvider",
+    "cuda": "CUDAExecutionProvider",
+    "tensorrt": "TensorrtExecutionProvider",
+    "trt": "TensorrtExecutionProvider",
+    "coreml": "CoreMLExecutionProvider",
+    "rocm": "ROCMExecutionProvider",
+    "dml": "DmlExecutionProvider",
+    "directml": "DmlExecutionProvider",
+}
+
+
+def resolve_providers(providers: list[str] | None) -> list[str]:
+    """Map short aliases like 'cuda' to full ORT provider names.
+
+    Pass-through for already-resolved names. Defaults to CPU when None/empty.
+    """
+    if not providers:
+        return ["CPUExecutionProvider"]
+    return [PROVIDER_ALIASES.get(p.lower(), p) for p in providers]
+
+
 class OnnxPIIModel:
     """Thin wrapper around the exported ONNX model for inference."""
 
@@ -176,6 +198,7 @@ class OnnxPIIModel:
         model_dir: str,
         entity_confidence_threshold: float = DEFAULT_ENTITY_CONFIDENCE_THRESHOLD,
         onnx_filename: str | None = None,
+        providers: list[str] | None = None,
     ):
         model_dir = Path(model_dir)
         if onnx_filename is not None:
@@ -203,8 +226,9 @@ class OnnxPIIModel:
         self.session = ort.InferenceSession(
             str(onnx_file),
             sess_options=opts,
-            providers=["CPUExecutionProvider"],
+            providers=resolve_providers(providers),
         )
+        self.active_providers = self.session.get_providers()
 
         # Load CRF transition parameters for Viterbi decoding
         crf_path = model_dir / "crf_transitions.json"
@@ -644,6 +668,15 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Print per-sample detections (only allowed when --num < 50).",
     )
+    ap.add_argument(
+        "--providers",
+        default="cpu",
+        help=(
+            "Comma-separated ORT execution providers, in priority order "
+            "(e.g. 'cuda,cpu', 'tensorrt,cuda,cpu', 'coreml,cpu'). "
+            "Aliases: " + ", ".join(sorted(PROVIDER_ALIASES)) + ". Default: cpu."
+        ),
+    )
     args = ap.parse_args()
     if args.verbose and args.num >= 50:
         ap.error("--verbose is only allowed with --num < 50")
@@ -654,12 +687,16 @@ def main() -> int:
     args = parse_args()
 
     print(f"Loading ONNX model from {args.model_path} ...")
+    requested_providers = [p.strip() for p in args.providers.split(",") if p.strip()]
     model = OnnxPIIModel(
         args.model_path,
         entity_confidence_threshold=args.confidence_threshold,
         onnx_filename=args.onnx_file,
+        providers=requested_providers,
     )
     print(f"  CRF decoding: {'enabled' if model.uses_crf else 'disabled'}")
+    print(f"  Requested providers: {resolve_providers(requested_providers)}")
+    print(f"  Active providers:    {model.active_providers}")
 
     lang_desc = f" (language={args.language})" if args.language else ""
     print(f"Loading {args.num} samples from ai4privacy/pii-masking-300k{lang_desc} ...")
@@ -709,6 +746,7 @@ def main() -> int:
         "onnx_file": str(model.onnx_file),
         "confidence_threshold": args.confidence_threshold,
         "uses_crf": model.uses_crf,
+        "providers": model.active_providers,
         "max_sequence_length": MAX_SEQ_LEN,
         "chunk_overlap": CHUNK_OVERLAP,
         "exact_span_f1": round(exact_micro_f1, 4),
