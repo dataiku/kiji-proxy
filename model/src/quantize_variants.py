@@ -16,12 +16,18 @@ Variants:
     fp32                  Reference, no quantization (copy of source).
     fp16                  Float16 conversion via ORT's converter.
     int8_dyn_default      onnxruntime.quantize_dynamic with library defaults.
-    int8_dyn_reduce_range quantize_dynamic with reduce_range=True (7-bit weights,
-                          sidesteps MLAS S8S8 overflow on x86 without VNNI).
-    int8_dyn_avx512_vnni  Optimum AVX-512 VNNI dynamic INT8 (current prod).
+    int8_dyn_reduce_range quantize_dynamic with reduce_range=True (7-bit weights;
+                          no effect for U8/S8 dynamic, kept for comparison).
+    int8_dyn_avx512_vnni  Optimum AVX-512 VNNI dynamic INT8 (current prod, S8/S8).
+    int8_dyn_avx512_vnni_reduce_range
+                          Optimum AVX-512 VNNI dynamic INT8 with reduce_range=True
+                          (7-bit weights, sidesteps MLAS S8S8 overflow on x86).
     int8_dyn_avx2         Optimum AVX2 dynamic INT8.
     int8_dyn_avx512       Optimum AVX-512 (non-VNNI) dynamic INT8.
     int8_static           Optimum static INT8 calibrated on ai4privacy samples.
+    int8_matmul_weight_only
+                          MatMul 8-bit weight-only RTN, block_size=128.
+                          Activations stay fp32 -> no S8S8 path, embedding fp32.
     int4_rtn_block32      MatMul 4-bit weight-only RTN, block_size=32 (higher accuracy).
     int4_rtn_block128     MatMul 4-bit weight-only RTN, block_size=128 (smaller).
     int4_hqq_block64      MatMul 4-bit weight-only HQQ, block_size=64.
@@ -42,9 +48,11 @@ ALL_VARIANTS = [
     "int8_dyn_default",
     "int8_dyn_reduce_range",
     "int8_dyn_avx512_vnni",
+    "int8_dyn_avx512_vnni_reduce_range",
     "int8_dyn_avx2",
     "int8_dyn_avx512",
     "int8_static",
+    "int8_matmul_weight_only",
     "int4_rtn_block32",
     "int4_rtn_block128",
     "int4_hqq_block64",
@@ -130,7 +138,7 @@ def build_int8_dyn_reduce_range(source: Path, dest: Path) -> None:
     report_size(dest / "model.onnx")
 
 
-def _optimum_dynamic(source: Path, dest: Path, mode: str) -> None:
+def _optimum_dynamic(source: Path, dest: Path, mode: str, *, reduce_range: bool = False) -> None:
     """Run an Optimum ``AutoQuantizationConfig`` preset."""
     from optimum.onnxruntime import ORTQuantizer
     from optimum.onnxruntime.configuration import AutoQuantizationConfig
@@ -147,6 +155,9 @@ def _optimum_dynamic(source: Path, dest: Path, mode: str) -> None:
     else:
         raise ValueError(f"unknown optimum mode: {mode}")
 
+    if reduce_range:
+        qconfig.reduce_range = True
+
     quantizer.quantize(save_dir=str(dest), quantization_config=qconfig)
     quantized = dest / "model_quantized.onnx"
     if quantized.exists():
@@ -157,6 +168,15 @@ def _optimum_dynamic(source: Path, dest: Path, mode: str) -> None:
 def build_int8_dyn_avx512_vnni(source: Path, dest: Path) -> None:
     print(f"[int8_dyn_avx512_vnni] optimum avx512_vnni -> {dest}")
     _optimum_dynamic(source, dest, "avx512_vnni")
+
+
+def build_int8_dyn_avx512_vnni_reduce_range(source: Path, dest: Path) -> None:
+    # Optimum avx512_vnni preset uses S8/S8 (signed activations × signed weights).
+    # On x86 CPUs without VNNI dispatch this hits MLAS S8S8 accumulator overflow.
+    # reduce_range=True clamps weights to 7 bits so the i32 accumulator can't
+    # saturate, at the cost of one effective bit of weight precision.
+    print(f"[int8_dyn_avx512_vnni_reduce_range] optimum avx512_vnni reduce_range=True -> {dest}")
+    _optimum_dynamic(source, dest, "avx512_vnni", reduce_range=True)
 
 
 def build_int8_dyn_avx2(source: Path, dest: Path) -> None:
@@ -227,11 +247,12 @@ def _matmul_nbits_quantize(
     source: Path,
     dest: Path,
     *,
+    bits: int,
     block_size: int,
     algorithm: str,
     is_symmetric: bool = True,
 ) -> None:
-    """Run ONNX Runtime's MatMulNBitsQuantizer (weight-only 4-bit on MatMul ops)."""
+    """Run ONNX Runtime's MatMulNBitsQuantizer (weight-only on MatMul ops)."""
     import onnx
     from onnxruntime.quantization.matmul_nbits_quantizer import (
         HQQWeightOnlyQuantConfig,
@@ -250,7 +271,7 @@ def _matmul_nbits_quantize(
 
     quantizer = MatMulNBitsQuantizer(
         model=str(source / "model.onnx"),
-        bits=4,
+        bits=bits,
         block_size=block_size,
         is_symmetric=is_symmetric,
         algo_config=algo_config,
@@ -265,18 +286,26 @@ def _matmul_nbits_quantize(
 
 
 def build_int4_rtn_block32(source: Path, dest: Path) -> None:
-    print(f"[int4_rtn_block32] MatMulNBits RTN block_size=32 -> {dest}")
-    _matmul_nbits_quantize(source, dest, block_size=32, algorithm="rtn")
+    print(f"[int4_rtn_block32] MatMulNBits RTN bits=4 block_size=32 -> {dest}")
+    _matmul_nbits_quantize(source, dest, bits=4, block_size=32, algorithm="rtn")
 
 
 def build_int4_rtn_block128(source: Path, dest: Path) -> None:
-    print(f"[int4_rtn_block128] MatMulNBits RTN block_size=128 -> {dest}")
-    _matmul_nbits_quantize(source, dest, block_size=128, algorithm="rtn")
+    print(f"[int4_rtn_block128] MatMulNBits RTN bits=4 block_size=128 -> {dest}")
+    _matmul_nbits_quantize(source, dest, bits=4, block_size=128, algorithm="rtn")
 
 
 def build_int4_hqq_block64(source: Path, dest: Path) -> None:
-    print(f"[int4_hqq_block64] MatMulNBits HQQ block_size=64 -> {dest}")
-    _matmul_nbits_quantize(source, dest, block_size=64, algorithm="hqq")
+    print(f"[int4_hqq_block64] MatMulNBits HQQ bits=4 block_size=64 -> {dest}")
+    _matmul_nbits_quantize(source, dest, bits=4, block_size=64, algorithm="hqq")
+
+
+def build_int8_matmul_weight_only(source: Path, dest: Path) -> None:
+    # Weight-only int8 on MatMul ops. Activations stay fp32 → no S8S8 path,
+    # no accumulator overflow on x86. Same op coverage as the int4 variants
+    # (embedding Gather stays fp32).
+    print(f"[int8_matmul_weight_only] MatMulNBits RTN bits=8 block_size=128 -> {dest}")
+    _matmul_nbits_quantize(source, dest, bits=8, block_size=128, algorithm="rtn")
 
 
 VARIANT_BUILDERS = {
@@ -285,9 +314,11 @@ VARIANT_BUILDERS = {
     "int8_dyn_default": build_int8_dyn_default,
     "int8_dyn_reduce_range": build_int8_dyn_reduce_range,
     "int8_dyn_avx512_vnni": build_int8_dyn_avx512_vnni,
+    "int8_dyn_avx512_vnni_reduce_range": build_int8_dyn_avx512_vnni_reduce_range,
     "int8_dyn_avx2": build_int8_dyn_avx2,
     "int8_dyn_avx512": build_int8_dyn_avx512,
     "int8_static": build_int8_static,
+    "int8_matmul_weight_only": build_int8_matmul_weight_only,
     "int4_rtn_block32": build_int4_rtn_block32,
     "int4_rtn_block128": build_int4_rtn_block128,
     "int4_hqq_block64": build_int4_hqq_block64,
