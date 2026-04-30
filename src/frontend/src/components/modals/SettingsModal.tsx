@@ -12,6 +12,7 @@ import {
   Settings2,
   Lock,
   Unlock,
+  Globe,
 } from "lucide-react";
 
 type ProviderType = "openai" | "anthropic" | "gemini" | "mistral";
@@ -19,7 +20,16 @@ type ProviderType = "openai" | "anthropic" | "gemini" | "mistral";
 interface ProviderSettings {
   hasApiKey: boolean;
   model: string;
+  baseUrl?: string;
 }
+
+// Providers that support a user-configurable custom endpoint URL.
+// OpenAI's API shape is also implemented by many third-party servers
+// (LM Studio, Ollama, Together, vLLM, …), so we expose the base URL
+// only for that provider for now.
+const PROVIDERS_WITH_CUSTOM_ENDPOINT: ReadonlySet<ProviderType> = new Set([
+  "openai",
+]);
 
 interface ProvidersConfig {
   activeProvider: ProviderType;
@@ -29,7 +39,14 @@ interface ProvidersConfig {
 // Provider display information
 const PROVIDER_INFO: Record<
   ProviderType,
-  { name: string; defaultModel: string; placeholder: string; helpLink: string }
+  {
+    name: string;
+    defaultModel: string;
+    placeholder: string;
+    helpLink: string;
+    defaultBaseUrl?: string;
+    baseUrlPlaceholder?: string;
+  }
 > = {
   openai: {
     name: "OpenAI",
@@ -37,6 +54,8 @@ const PROVIDER_INFO: Record<
     placeholder: "sk-...",
     helpLink:
       "https://help.openai.com/en/articles/4936850-where-do-i-find-my-openai-api-key",
+    defaultBaseUrl: "https://api.openai.com/v1",
+    baseUrlPlaceholder: "https://api.openai.com/v1",
   },
   anthropic: {
     name: "Anthropic",
@@ -128,6 +147,15 @@ export default function SettingsModal({
     mistral: "",
   });
 
+  const [providerBaseUrls, setProviderBaseUrls] = useState<
+    Record<ProviderType, string>
+  >({
+    openai: "",
+    anthropic: "",
+    gemini: "",
+    mistral: "",
+  });
+
   const loadSettings = async () => {
     if (!window.electronAPI) return;
 
@@ -136,8 +164,14 @@ export default function SettingsModal({
       const config = await window.electronAPI.getProvidersConfig();
       setProvidersConfig(config);
 
-      // Load models from config
+      // Load models and base URLs from config
       const models: Record<ProviderType, string> = {
+        openai: "",
+        anthropic: "",
+        gemini: "",
+        mistral: "",
+      };
+      const baseUrls: Record<ProviderType, string> = {
         openai: "",
         anthropic: "",
         gemini: "",
@@ -145,8 +179,10 @@ export default function SettingsModal({
       };
       for (const provider of PROVIDER_ORDER) {
         models[provider] = config.providers[provider]?.model || "";
+        baseUrls[provider] = config.providers[provider]?.baseUrl || "";
       }
       setProviderModels(models);
+      setProviderBaseUrls(baseUrls);
 
       // Clear API key inputs
       setProviderApiKeys({
@@ -212,9 +248,26 @@ export default function SettingsModal({
           setIsSaving(false);
           return;
         }
-      }
 
-      setMessage({ type: "success", text: "Settings saved successfully!" });
+        // Save custom base URL (only meaningful for providers that expose it,
+        // but the backend stores it generically per provider)
+        if (PROVIDERS_WITH_CUSTOM_ENDPOINT.has(provider)) {
+          const baseUrlResult = await window.electronAPI.setProviderBaseUrl(
+            provider,
+            providerBaseUrls[provider].trim()
+          );
+          if (!baseUrlResult.success) {
+            setMessage({
+              type: "error",
+              text:
+                baseUrlResult.error ||
+                `Failed to save ${PROVIDER_INFO[provider].name} endpoint URL`,
+            });
+            setIsSaving(false);
+            return;
+          }
+        }
+      }
 
       // Reload config to update hasApiKey status
       const updatedConfig = await window.electronAPI.getProvidersConfig();
@@ -227,6 +280,23 @@ export default function SettingsModal({
         gemini: "",
         mistral: "",
       });
+
+      // Restart the backend so the new API keys / endpoint URLs take effect.
+      // Without this, the Go process keeps using whatever env vars it spawned with.
+      setMessage({ type: "success", text: "Saved. Restarting backend..." });
+      const restartResult = await window.electronAPI.restartBackend();
+      if (!restartResult.success) {
+        setMessage({
+          type: "error",
+          text:
+            restartResult.error ||
+            "Settings saved, but backend restart failed. Restart the app to apply.",
+        });
+        setIsSaving(false);
+        return;
+      }
+
+      setMessage({ type: "success", text: "Settings saved and applied!" });
 
       setTimeout(() => {
         onClose();
@@ -483,6 +553,36 @@ export default function SettingsModal({
                               Default: {info.defaultModel}
                             </p>
                           </div>
+
+                          {/* Custom Endpoint URL (OpenAI-compatible providers only) */}
+                          {PROVIDERS_WITH_CUSTOM_ENDPOINT.has(provider) && (
+                            <div>
+                              <label className="block text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
+                                <Globe className="w-4 h-4" />
+                                Custom Endpoint URL
+                              </label>
+                              <input
+                                type="url"
+                                value={providerBaseUrls[provider]}
+                                onChange={(e) =>
+                                  setProviderBaseUrls((prev) => ({
+                                    ...prev,
+                                    [provider]: e.target.value,
+                                  }))
+                                }
+                                placeholder={
+                                  info.baseUrlPlaceholder ||
+                                  "https://api.example.com/v1"
+                                }
+                                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:border-blue-500 focus:outline-none font-mono text-sm placeholder:text-gray-400"
+                              />
+                              <p className="text-xs text-slate-500 mt-1">
+                                {info.defaultBaseUrl
+                                  ? `Default: ${info.defaultBaseUrl}. Override to use an OpenAI-compatible endpoint (LM Studio, Ollama, vLLM, etc.).`
+                                  : "Override to use a custom endpoint."}
+                              </p>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

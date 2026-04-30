@@ -6,6 +6,7 @@ type ProviderType = "openai" | "anthropic" | "gemini" | "mistral";
 interface ProviderSettings {
   hasApiKey: boolean;
   model: string; // Custom model or empty string for default
+  baseUrl?: string; // Custom endpoint URL (currently only used by OpenAI for OpenAI-compatible APIs)
 }
 
 interface ProvidersConfig {
@@ -33,7 +34,13 @@ interface ElectronAPI {
     provider: ProviderType,
     model: string
   ) => Promise<{ success: boolean; error?: string }>;
+  getProviderBaseUrl: (provider: ProviderType) => Promise<string>;
+  setProviderBaseUrl: (
+    provider: ProviderType,
+    baseUrl: string
+  ) => Promise<{ success: boolean; error?: string }>;
   getProvidersConfig: () => Promise<ProvidersConfig>;
+  restartBackend: () => Promise<{ success: boolean; error?: string }>;
 
   // Other settings
   getCACertSetupDismissed: () => Promise<boolean>;
