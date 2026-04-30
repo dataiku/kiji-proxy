@@ -193,7 +193,7 @@ if [ -f /tmp/kiji-verify.log ]; then
         "special_tokens_map.json"
         "tokenizer_config.json"
         "label_mappings.json"
-        "model.onnx"
+        "model_quantized.onnx"
     )
 
     for file in "${TOKENIZER_FILES[@]}"; do

@@ -6,8 +6,10 @@ This pipeline orchestrates:
 2. Dataset loading and preprocessing from model/dataset/data_samples/training_samples/
 3. PII detection model training
 4. Model evaluation
-5. Model export (ONNX, with optional quantized side artifact)
-6. Model signing (cryptographic hash)
+5. ONNX export (fp32) + quantization variant generation via model.src.quantize_variants
+6. Sweep eval — benchmarks every variant against ai4privacy/pii-masking-300k and
+   fails the run if the primary variant (fp16 by default) drops below threshold
+7. Model signing — fp32 export + every variant gets an independent signature
 
 Usage:
     # Run locally (with uv extras)
@@ -158,9 +160,30 @@ class PIITrainingPipeline(FlowSpec):
             audit_allowlist=cfg.get("data", {}).get("audit_allowlist", ""),
         )
         self.skip_export = cfg.get("pipeline", {}).get("skip_export", False)
-        self.skip_quantization = cfg.get("pipeline", {}).get("skip_quantization", True)
+        self.skip_quantization = cfg.get("pipeline", {}).get("skip_quantization", False)
         self.skip_signing = cfg.get("pipeline", {}).get("skip_signing", False)
-        self.quantization_mode = cfg.get("pipeline", {}).get("quantization_mode", "fp16")
+        # Comma-separated variant names (or "all") — passed straight to
+        # model/src/quantize_variants.py. Defaults to the 9 production-ready
+        # variants we actually ship; excludes int8_static (slow, needs
+        # calibration data) and the *_reduce_range / matmul_weight_only
+        # experiments.
+        self.quantization_variants = cfg.get("pipeline", {}).get(
+            "quantization_variants",
+            "fp32,fp16,int8_dyn_default,int8_dyn_avx512_vnni,int8_dyn_avx512,"
+            "int8_dyn_avx2,int4_rtn_block32,int4_rtn_block128,int4_hqq_block64",
+        )
+        # Sweep eval knobs
+        self.sweep_num_samples = int(
+            cfg.get("pipeline", {}).get("sweep_num_samples", 1000)
+        )
+        self.sweep_seed = int(cfg.get("pipeline", {}).get("sweep_seed", 42))
+        # Primary variant is the one that ships in the DMG; pipeline fails
+        # if its sweep F1 drops below the threshold so we don't accidentally
+        # regress the production artifact.
+        self.primary_variant = cfg.get("pipeline", {}).get("primary_variant", "fp16")
+        self.primary_variant_min_f1 = float(
+            cfg.get("pipeline", {}).get("primary_variant_min_f1", 0.85)
+        )
         self.subsample_count = int(
             os.environ.get(
                 "NUM_SAMPLES",
@@ -359,25 +382,33 @@ class PIITrainingPipeline(FlowSpec):
     @model(load="trained_model")
     @step
     def quantize_model(self):
-        """Export model to ONNX and optionally produce a quantized side artifact."""
+        """Export model to ONNX (fp32) and build all quantization variants.
+
+        Produces:
+          * ``model/quantized/model.onnx`` — fp32 reference; parity-checked
+            against the trained PyTorch model.
+          * ``model/quant_variants/<variant>/model.onnx`` — one directory per
+            entry in ``self.quantization_variants``; each is self-contained
+            (tokenizer + label mappings + manifest). The end-to-end quality
+            of each variant is measured by the downstream ``sweep_eval`` step.
+        """
 
         import shutil
+        import subprocess
+        import sys
 
         from src.parity_benchmark import (
             assert_parity,
             format_parity_report,
             run_parity_benchmark,
         )
-        from src.quantitize import (
-            export_to_onnx,
-            load_model,
-            quantize_model as quantize_onnx_model,
-        )
+        from src.quantitize import export_to_onnx, load_model
 
         try:
             model_path = current.model.loaded["trained_model"]
             model, label_mappings, tokenizer = load_model(model_path)
 
+            # 1. Export PyTorch -> ONNX (fp32 source for variants)
             exported_output = "model/quantized"
             output_path = Path(exported_output)
             output_path.mkdir(parents=True, exist_ok=True)
@@ -390,9 +421,6 @@ class PIITrainingPipeline(FlowSpec):
                 stale_path = output_path / stale_name
                 if stale_path.exists():
                     stale_path.unlink()
-            # Also clear dtype-suffixed siblings from prior runs (model_fp16.onnx,
-            # model_int8_*.onnx) so the signed bundle never carries a stale build
-            # from a different mode.
             for stale in output_path.glob("model_fp16.onnx"):
                 stale.unlink()
             for stale in output_path.glob("model_int8_*.onnx"):
@@ -403,11 +431,11 @@ class PIITrainingPipeline(FlowSpec):
             with (output_path / "label_mappings.json").open("w") as f:
                 json.dump(label_mappings, f, indent=2)
 
-            # Copy config.json so ORTModel can auto-load the exported model.
             config_src = Path(model_path) / "config.json"
             if config_src.exists():
                 shutil.copy(config_src, output_path / "config.json")
 
+            # 2. Parity-check the fp32 export vs the trained PyTorch model.
             export_parity = run_parity_benchmark(
                 model_path,
                 exported_output,
@@ -417,75 +445,158 @@ class PIITrainingPipeline(FlowSpec):
             print(format_parity_report(export_parity))
             assert_parity(export_parity)
 
-            quantized_parity = None
-            self.quantized_model_path = None
-            self.quantized_dtype_path = None
-            if self.skip_quantization:
-                print("Skipping quantized side artifact by configuration")
-            else:
-                try:
-                    dtype_path = quantize_onnx_model(
-                        str(output_path),
-                        str(output_path),
-                        quantization_mode=self.quantization_mode,
-                    )
-                    print(
-                        f"Quantized side artifact ({self.quantization_mode}) "
-                        f"saved: {dtype_path}"
-                    )
-                    quantized_parity = run_parity_benchmark(
-                        model_path,
-                        exported_output,
-                        onnx_file="model_quantized.onnx",
-                        confidence_threshold=0.0,
-                    )
-                    print(format_parity_report(quantized_parity))
-                    assert_parity(quantized_parity)
-                    self.quantized_model_path = str(output_path / "model_quantized.onnx")
-                    self.quantized_dtype_path = str(dtype_path)
-                    print("Quantized side artifact passed parity")
-                except Exception as quantization_error:
-                    for failed in (
-                        output_path / "model_quantized.onnx",
-                        output_path / f"model_{self.quantization_mode}.onnx",
-                        output_path / f"model_int8_{self.quantization_mode}.onnx",
-                    ):
-                        if failed.exists():
-                            failed.unlink()
-                    print(
-                        "Quantized side artifact failed parity and will not be used: "
-                        f"{quantization_error}"
-                    )
-
-            parity_reports = {
-                "export": export_parity.to_dict(),
-            }
-            if quantized_parity is not None:
-                parity_reports["quantized"] = quantized_parity.to_dict()
-            self.parity_reports = parity_reports
-
             self.exported_model_path = exported_output
             self.exported_model = current.checkpoint.save(
                 exported_output,
-                metadata={
-                    "default_onnx_file": "model.onnx",
-                    "quantized_model_path": self.quantized_model_path,
-                    "quantized_dtype_path": self.quantized_dtype_path,
-                    "quantization_mode": self.quantization_mode,
-                },
+                metadata={"default_onnx_file": "model.onnx"},
                 name="exported_model",
                 latest=True,
             )
+            self.parity_reports = {"export": export_parity.to_dict()}
+
+            # 3. Build quantization variants.
+            variants_output = "model/quant_variants"
+            if Path(variants_output).exists():
+                shutil.rmtree(variants_output)
+
+            if self.skip_quantization:
+                print("Skipping variant generation by configuration")
+                self.variants_path = None
+                self.quantized_variants = None
+            else:
+                cmd = [
+                    sys.executable,
+                    "-m",
+                    "model.src.quantize_variants",
+                    "--source",
+                    exported_output,
+                    "--output",
+                    variants_output,
+                    "--variants",
+                    self.quantization_variants,
+                ]
+                print(f"\nRunning: {' '.join(cmd)}")
+                result = subprocess.run(cmd, check=False)
+                if result.returncode != 0:
+                    raise RuntimeError(
+                        f"quantize_variants failed (exit {result.returncode})"
+                    )
+
+                built = sorted(
+                    d.name
+                    for d in Path(variants_output).iterdir()
+                    if d.is_dir() and (d / "model.onnx").exists()
+                )
+                if not built:
+                    raise RuntimeError(
+                        f"quantize_variants produced no variants under {variants_output}"
+                    )
+                print(f"Built {len(built)} variant(s): {built}")
+
+                self.variants_path = variants_output
+                self.quantized_variants = current.checkpoint.save(
+                    variants_output,
+                    metadata={
+                        "variants_built": ",".join(built),
+                        "variants_requested": self.quantization_variants,
+                    },
+                    name="quantized_variants",
+                    latest=True,
+                )
 
             print(f"Exported ONNX model saved: {exported_output}/model.onnx")
 
         except Exception as e:
-            print(f"ONNX export failed: {e}")
+            print(f"Quantize step failed: {e}")
             self.exported_model_path = None
             self.exported_model = None
-            self.quantized_model_path = None
+            self.variants_path = None
+            self.quantized_variants = None
             self.parity_reports = None
             raise
+
+        self.next(self.sweep_eval)
+
+    # @pypi(packages=QUANTIZATION_PACKAGES, python="3.13")
+    @environment(vars={"TOKENIZERS_PARALLELISM": "false"})
+    @step
+    def sweep_eval(self):
+        """Run the benchmark sweep across every quantization variant.
+
+        Delegates to ``tests.benchmark.sweep_quants``, which iterates each
+        variant directory and invokes ``tests.benchmark.run`` (against the
+        ai4privacy/pii-masking-300k eval split). Results land as a metaflow
+        artifact (``self.sweep_report``) and the pipeline fails closed if the
+        primary variant's exact-span F1 drops below ``primary_variant_min_f1``.
+        """
+        import subprocess
+        import sys
+
+        self.sweep_report = None
+
+        if getattr(self, "quantized_variants", None) is None:
+            print("No variants produced (quantization skipped) — skipping sweep_eval")
+        else:
+            variants_path = current.checkpoint.load(self.quantized_variants)
+            print(f"Loaded variants from checkpoint: {variants_path}")
+
+            report_path = Path("tests/benchmark/reports/quant_sweep.json")
+            report_path.parent.mkdir(parents=True, exist_ok=True)
+            if report_path.exists():
+                report_path.unlink()
+
+            cmd = [
+                sys.executable,
+                "-m",
+                "tests.benchmark.sweep_quants",
+                "--variants-dir",
+                str(variants_path),
+                "--num",
+                str(self.sweep_num_samples),
+                "--seed",
+                str(self.sweep_seed),
+                "--report",
+                str(report_path),
+            ]
+            print(f"Running: {' '.join(cmd)}")
+            result = subprocess.run(cmd, check=False)
+
+            if report_path.exists():
+                with report_path.open() as f:
+                    self.sweep_report = json.load(f)
+
+            # sweep_quants exits 2 if any individual variant failed; we still
+            # accept the report so partial results are visible, but we fail
+            # the pipeline if the *primary* variant didn't make the threshold.
+            primary_row = None
+            if self.sweep_report:
+                for v in self.sweep_report.get("variants", []):
+                    if v.get("variant") == self.primary_variant:
+                        primary_row = v
+                        break
+
+            if primary_row is None:
+                raise RuntimeError(
+                    f"Primary variant '{self.primary_variant}' missing from sweep "
+                    f"report. sweep_quants exit code: {result.returncode}"
+                )
+            if primary_row.get("status") != "ok":
+                raise RuntimeError(
+                    f"Primary variant '{self.primary_variant}' did not benchmark "
+                    f"successfully: {primary_row}"
+                )
+            primary_f1 = float(primary_row.get("exact_f1") or 0.0)
+            if primary_f1 < self.primary_variant_min_f1:
+                raise RuntimeError(
+                    f"Primary variant '{self.primary_variant}' exact F1 "
+                    f"{primary_f1:.4f} is below threshold "
+                    f"{self.primary_variant_min_f1:.4f}; refusing to ship."
+                )
+            print(
+                f"Primary variant '{self.primary_variant}' OK: "
+                f"exact_f1={primary_f1:.4f}, "
+                f"p50={primary_row.get('latency_ms', {}).get('p50', '?')}ms"
+            )
 
         self.next(self.sign_model)
 
@@ -494,52 +605,89 @@ class PIITrainingPipeline(FlowSpec):
     @model(load=["trained_model"])  # Keep trained model as a fallback if export failed.
     @step
     def sign_model(self):
-        """Sign model with cryptographic hash."""
-        try:
-            from src.model_signing import sign_trained_model
+        """Sign the fp32 export and every quantization variant.
 
-            # Get private key path from environment
+        Each directory gets an independent signature + manifest written by
+        ``model_signing.sign_trained_model``. Output is collected in
+        ``self.model_signatures`` keyed by variant name (plus ``fp32`` for the
+        ``model/quantized/`` reference bundle).
+        """
+        from src.model_signing import sign_trained_model
+
+        signatures: dict[str, dict] = {}
+
+        if self.skip_signing:
+            print("Skipping model signing by configuration")
+        else:
             private_key_path = os.getenv("MODEL_SIGNING_KEY_PATH")
+            signing_method = "private_key" if private_key_path else "hash_only"
+            signed_at = datetime.utcnow().isoformat()
 
-            # Sign the exported ONNX directory by default. This is the artifact the app loads.
-            exported_path = None
+            # 1. Sign the fp32 export (or fall back to the trained PyTorch dir).
+            fp32_path = None
             if getattr(self, "exported_model", None) is not None:
                 try:
-                    exported_path = current.checkpoint.load(self.exported_model)
-                    print("Loaded exported ONNX model from checkpoint")
+                    fp32_path = current.checkpoint.load(self.exported_model)
                 except Exception as e:
-                    print(f"Could not load exported ONNX model: {e}")
+                    print(f"Could not load exported ONNX checkpoint: {e}")
 
-            if exported_path:
-                model_to_sign = exported_path
-                model_type = "onnx"
+            if fp32_path is None:
+                fp32_path = current.model.loaded["trained_model"]
+                fp32_kind = "trained"
             else:
-                model_to_sign = current.model.loaded["trained_model"]
-                model_type = "trained"
+                fp32_kind = "onnx"
 
-            model_hash = sign_trained_model(
-                model_to_sign, private_key_path=private_key_path
-            )
-            # Surface the dtype-suffixed quantized artifact in the signing log so
-            # it's clear from the run output that the fp16 (or int8) model is
-            # part of the signed bundle alongside the fp32 model.onnx.
-            if model_type == "onnx" and getattr(self, "quantized_dtype_path", None):
-                print(
-                    f"Signed bundle includes quantized artifact: "
-                    f"{self.quantized_dtype_path} (mode={self.quantization_mode})"
-                )
-            self.model_signature = {
-                "sha256": model_hash,
-                "signed_at": datetime.utcnow().isoformat(),
-                "model_type": model_type,
-                "signing_method": ("private_key" if private_key_path else "hash_only"),
-            }
-            print(f"Signed ({model_type}): {model_hash[:16]}...")
+            try:
+                h = sign_trained_model(fp32_path, private_key_path=private_key_path)
+                signatures["fp32"] = {
+                    "sha256": h,
+                    "path": str(fp32_path),
+                    "kind": fp32_kind,
+                    "signing_method": signing_method,
+                    "signed_at": signed_at,
+                }
+                print(f"Signed fp32 ({fp32_kind}): {h[:16]}...")
+            except Exception as e:
+                print(f"Failed to sign fp32 bundle: {e}")
+                signatures["fp32"] = {"error": str(e), "path": str(fp32_path)}
 
-        except Exception as e:
-            print(f"Signing failed: {e}")
-            self.model_signature = None
+            # 2. Sign every quantization variant directory.
+            if getattr(self, "quantized_variants", None) is not None:
+                try:
+                    variants_path = current.checkpoint.load(self.quantized_variants)
+                except Exception as e:
+                    print(f"Could not load variants checkpoint: {e}")
+                    variants_path = None
 
+                if variants_path is not None:
+                    for variant_dir in sorted(Path(variants_path).iterdir()):
+                        if not variant_dir.is_dir():
+                            continue
+                        if not (variant_dir / "model.onnx").exists():
+                            continue
+                        try:
+                            h = sign_trained_model(
+                                str(variant_dir), private_key_path=private_key_path
+                            )
+                            signatures[variant_dir.name] = {
+                                "sha256": h,
+                                "path": str(variant_dir),
+                                "kind": "variant",
+                                "signing_method": signing_method,
+                                "signed_at": signed_at,
+                            }
+                            print(f"Signed {variant_dir.name}: {h[:16]}...")
+                        except Exception as e:
+                            print(f"Failed to sign {variant_dir.name}: {e}")
+                            signatures[variant_dir.name] = {
+                                "error": str(e),
+                                "path": str(variant_dir),
+                            }
+
+        self.model_signatures = signatures or None
+        # Keep the legacy single-signature artifact for back-compat with any
+        # external readers (UI, status pages) that key off `model_signature`.
+        self.model_signature = signatures.get("fp32") if signatures else None
         self.next(self.end)
 
     # @pypi(packages=BASE_PACKAGES, python="3.13")
@@ -552,6 +700,27 @@ class PIITrainingPipeline(FlowSpec):
         start_time = datetime.fromisoformat(self.pipeline_start_time)
         duration = (end_time - start_time).total_seconds()
 
+        sweep_report = getattr(self, "sweep_report", None)
+        sweep_summary = None
+        if sweep_report:
+            ok_variants = [
+                v for v in sweep_report.get("variants", []) if v.get("status") == "ok"
+            ]
+            sweep_summary = {
+                "num_variants_ok": len(ok_variants),
+                "num_variants_total": len(sweep_report.get("variants", [])),
+                "primary_variant": self.primary_variant,
+                "primary_variant_exact_f1": next(
+                    (
+                        v.get("exact_f1")
+                        for v in sweep_report.get("variants", [])
+                        if v.get("variant") == self.primary_variant
+                    ),
+                    None,
+                ),
+            }
+
+        signatures = getattr(self, "model_signatures", None) or {}
         self.pipeline_summary = {
             "duration_seconds": duration,
             "config": {
@@ -562,8 +731,11 @@ class PIITrainingPipeline(FlowSpec):
             "dataset": {},
             "metrics": self.training_metrics,
             "exported": self.exported_model_path is not None,
-            "quantized": self.quantized_model_path is not None,
-            "signed": self.model_signature is not None,
+            "variants_built": getattr(self, "variants_path", None) is not None,
+            "num_variants_signed": sum(
+                1 for v in signatures.values() if "sha256" in v
+            ),
+            "sweep": sweep_summary,
             "parity": getattr(self, "parity_reports", None),
         }
 

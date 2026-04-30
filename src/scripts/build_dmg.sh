@@ -39,8 +39,9 @@ if [ -d "src/frontend/resources/pii_onnx_model" ]; then
     echo "✅ Removed old pii_onnx_model directory"
 fi
 
-# Keep model.onnx: it is the parity-checked production model the app loads.
-echo "✅ Keeping unquantized model.onnx for packaging"
+# Model variant is selected after LFS verification (see "Selecting model variant" below).
+# Defaults to fp16; override with `MODEL_VARIANT=<name> make build-dmg`.
+echo "ℹ️  Model variant: ${MODEL_VARIANT:-fp16} (set MODEL_VARIANT=<name> to override)"
 
 echo ""
 echo "📦 Step 1: Setting up Python environment and dependencies..."
@@ -216,6 +217,75 @@ for file in model.onnx.data tokenizer.json vocab.txt model_manifest.json; do
 done
 
 echo ""
+echo "📦 Selecting model variant..."
+echo "------------------------------"
+
+# Pick which pre-built quantization variant from model/quant_variants/ to ship.
+# Defaults to fp16 (best size/quality tradeoff for Apple Silicon CPU+CoreML EP).
+MODEL_VARIANT="${MODEL_VARIANT:-fp16}"
+VARIANT_DIR="model/quant_variants/$MODEL_VARIANT"
+STAGING_DIR="build/model_for_packaging"
+
+if [ ! -d "$VARIANT_DIR" ]; then
+    echo "❌ Unknown MODEL_VARIANT='$MODEL_VARIANT' — directory not found at $VARIANT_DIR"
+    echo "   Available variants:"
+    ls model/quant_variants/ 2>/dev/null | sed 's/^/     - /'
+    exit 1
+fi
+
+if [ ! -f "$VARIANT_DIR/model.onnx" ]; then
+    echo "❌ Variant model.onnx missing at $VARIANT_DIR/model.onnx"
+    exit 1
+fi
+
+# LFS pointer check on the selected variant (mirrors the model/quantized/ check above)
+VARIANT_SIZE=$(stat -f%z "$VARIANT_DIR/model.onnx" 2>/dev/null || stat -c%s "$VARIANT_DIR/model.onnx" 2>/dev/null || echo "0")
+if [ "$VARIANT_SIZE" -lt 1000 ]; then
+    echo "⚠️  Variant model.onnx is an LFS pointer (${VARIANT_SIZE} bytes) — pulling..."
+    if ! git lfs pull --include="$VARIANT_DIR/*"; then
+        echo "❌ git lfs pull failed for $VARIANT_DIR"
+        exit 1
+    fi
+    VARIANT_SIZE=$(stat -f%z "$VARIANT_DIR/model.onnx" 2>/dev/null || stat -c%s "$VARIANT_DIR/model.onnx" 2>/dev/null || echo "0")
+    if [ "$VARIANT_SIZE" -lt 1000 ]; then
+        echo "❌ Still LFS pointer after pull — abort"
+        exit 1
+    fi
+fi
+VARIANT_MB=$(( VARIANT_SIZE / 1024 / 1024 ))
+echo "✅ MODEL_VARIANT=$MODEL_VARIANT (${VARIANT_MB} MB at $VARIANT_DIR/model.onnx)"
+
+# Stage exactly what gets embedded/packaged. Source is the variant's
+# self-contained directory; rename model.onnx → model_quantized.onnx so the
+# Go backend's preferred lookup (pii/model_manager.go:208) picks it up.
+# The variant's model_manifest.json is excluded here (its file paths reference
+# the pre-rename layout) and regenerated post-rename to reflect what actually
+# ships, so /model-security returns the correct hashes.
+rm -rf "$STAGING_DIR"
+mkdir -p "$STAGING_DIR"
+if command -v rsync >/dev/null 2>&1; then
+    rsync -a \
+        --exclude='benchmark_report.json' \
+        --exclude='smoke.json' \
+        --exclude='model_manifest.json' \
+        "$VARIANT_DIR/" "$STAGING_DIR/"
+else
+    cp -r "$VARIANT_DIR/." "$STAGING_DIR/"
+    rm -f "$STAGING_DIR/benchmark_report.json" \
+          "$STAGING_DIR/smoke.json" \
+          "$STAGING_DIR/model_manifest.json"
+fi
+mv "$STAGING_DIR/model.onnx" "$STAGING_DIR/model_quantized.onnx"
+
+uv run python -c "
+import sys; sys.path.insert(0, '.')
+from model.src.quantize_variants import write_manifest
+from pathlib import Path
+write_manifest(Path('$STAGING_DIR'))
+"
+echo "✅ Staged $MODEL_VARIANT/model.onnx → $STAGING_DIR/model_quantized.onnx (manifest regenerated)"
+
+echo ""
 echo "📦 Step 7: Preparing files for Go embedding..."
 echo "----------------------------------------------"
 
@@ -236,24 +306,18 @@ else
     exit 1
 fi
 
-# Copy model files to src/backend/model/quantized/ for embedding
-if [ -d "model/quantized" ]; then
-    mkdir -p src/backend/model/quantized
-    # Use rsync for faster copying if available
-    if command -v rsync >/dev/null 2>&1; then
-        rsync -a --delete model/quantized/ src/backend/model/quantized/
-    else
-        cp -r model/quantized/* src/backend/model/quantized/
-    fi
-
-    # Verify model files after copying
-    COPIED_MODEL_SIZE=$(stat -f%z "src/backend/model/quantized/model.onnx" 2>/dev/null || stat -c%s "src/backend/model/quantized/model.onnx" 2>/dev/null || wc -c < "src/backend/model/quantized/model.onnx" 2>/dev/null || echo "0")
-    echo "✅ Model files copied to src/backend/model/quantized/ for embedding (${COPIED_MODEL_SIZE} bytes)"
+# Copy staged variant files to src/backend/model/quantized/ for Go embedding.
+# Source is the staging dir built above (NOT model/quantized/), so the embedded
+# bundle contains only the selected variant — renamed to model_quantized.onnx.
+mkdir -p src/backend/model/quantized
+if command -v rsync >/dev/null 2>&1; then
+    rsync -a --delete "$STAGING_DIR/" src/backend/model/quantized/
 else
-    echo "❌ Model directory not found: model/quantized"
-    echo "   This will cause runtime errors - the app needs the model files"
-    exit 1
+    rm -rf src/backend/model/quantized/*
+    cp -r "$STAGING_DIR/." src/backend/model/quantized/
 fi
+COPIED_MODEL_SIZE=$(stat -f%z "src/backend/model/quantized/model_quantized.onnx" 2>/dev/null || stat -c%s "src/backend/model/quantized/model_quantized.onnx" 2>/dev/null || echo "0")
+echo "✅ Variant '$MODEL_VARIANT' staged for embedding at src/backend/model/quantized/model_quantized.onnx (${COPIED_MODEL_SIZE} bytes)"
 
 echo ""
 echo "📦 Step 8: Building Go binary..."
@@ -326,28 +390,22 @@ else
     echo "⚠️  ONNX library not found at build/libonnxruntime.1.24.2.dylib"
 fi
 
-# Copy model files to quantized directory (matches what Go binary expects after extraction)
-# NOTE: Since files are embedded in Go binary, we only need ONE copy in resources
-if [ -d "model/quantized" ]; then
-    mkdir -p src/frontend/resources/model/quantized
-
-    if command -v rsync >/dev/null 2>&1; then
-        rsync -a --delete model/quantized/ src/frontend/resources/model/quantized/
-        echo "✅ Model files synced to resources/model/quantized/ (rsync)"
-    else
-        mkdir -p src/frontend/resources/model/quantized
-        find model/quantized -type f -exec cp {} src/frontend/resources/model/quantized/ \;
-        echo "✅ Model files copied to resources/model/quantized/"
-    fi
-
-    # Remove duplicate quantized directory - not needed since we have model/quantized
-    # This saves 64MB of duplicate files
-    if [ -d "src/frontend/resources/quantized" ]; then
-        rm -rf src/frontend/resources/quantized
-        echo "✅ Removed duplicate quantized directory (saves ~64MB)"
-    fi
+# Copy staged variant files to Electron resources (sibling to embedded copy
+# inside the Go binary — kept in sync so out-of-binary lookups also succeed).
+mkdir -p src/frontend/resources/model/quantized
+if command -v rsync >/dev/null 2>&1; then
+    rsync -a --delete "$STAGING_DIR/" src/frontend/resources/model/quantized/
+    echo "✅ Variant '$MODEL_VARIANT' synced to resources/model/quantized/ (rsync)"
 else
-    echo "❌ Model directory not found: model/quantized"
+    rm -rf src/frontend/resources/model/quantized/*
+    cp -r "$STAGING_DIR/." src/frontend/resources/model/quantized/
+    echo "✅ Variant '$MODEL_VARIANT' copied to resources/model/quantized/"
+fi
+
+# Remove legacy duplicate quantized directory if present from older builds
+if [ -d "src/frontend/resources/quantized" ]; then
+    rm -rf src/frontend/resources/quantized
+    echo "✅ Removed legacy duplicate quantized directory"
 fi
 
 # Final cleanup: Remove any pii_onnx_model directories that shouldn't be there
@@ -537,8 +595,9 @@ if [ -f "${DMG_FILES[0]}" ]; then
     echo "📊 Final DMG size: $DMG_SIZE"
     echo ""
     echo "💾 Size optimizations applied:"
-    echo "   ✅ Removed duplicate model directories (saves ~64MB)"
-    echo "   ✅ Removed pii_onnx_model directory (saves ~313MB)"
+    echo "   ✅ Model variant: $MODEL_VARIANT (~${VARIANT_MB} MB; fp32 baseline is ~703 MB)"
+    echo "   ✅ Removed duplicate model directories"
+    echo "   ✅ Removed pii_onnx_model directory"
     echo "   ✅ Used ULFO compression (better than UDZO)"
     echo "   ✅ Maximum electron-builder compression"
 fi

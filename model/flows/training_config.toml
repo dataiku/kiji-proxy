@@ -47,7 +47,21 @@ audit_allowlist = "model/dataset/data_samples/training_samples/audit_ledger.tsv"
 [pipeline]
 # Skip Label Studio export and use existing data from paths.training_samples_dir
 skip_export = true
-# Skip ONNX quantization. model.onnx is the production artifact for now.
-skip_quantization = true
-# Skip model signing
+# Skip variant generation (fp32 export still runs). Default: build all variants.
+skip_quantization = false
+# Skip model signing (fp32 + every variant gets signed otherwise)
 skip_signing = false
+
+# Variants to build. Comma-separated names from model/src/quantize_variants.py,
+# or "all". Default omits int8_static (slow, needs calibration) and the
+# *_reduce_range / matmul_weight_only experiments.
+quantization_variants = "fp32,fp16,int8_dyn_default,int8_dyn_avx512_vnni,int8_dyn_avx512,int8_dyn_avx2,int4_rtn_block32,int4_rtn_block128,int4_hqq_block64"
+
+# Sweep eval knobs — passed to tests.benchmark.sweep_quants
+sweep_num_samples = 1000
+sweep_seed = 42
+
+# Primary variant gating: pipeline fails if this variant's exact-span F1
+# drops below the threshold. Defaults match what build_dmg.sh ships.
+primary_variant = "fp16"
+primary_variant_min_f1 = 0.85

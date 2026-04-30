@@ -166,15 +166,83 @@ echo "✅ ONNX Runtime library verified at: $BUILD_DIR/libonnxruntime.so.${ONNX_
 echo "✅ ONNX Runtime symlink verified at: $BUILD_DIR/libonnxruntime.so"
 
 echo ""
-echo "📦 Step 3: Copying model files for embedding..."
-echo "-----------------------------------------------"
+echo "📦 Step 3: Selecting model variant and staging for embedding..."
+echo "----------------------------------------------------------------"
 
-# Copy model files to backend for embedding
-echo "Copying model files to backend..."
+# Pick which pre-built quantization variant from model/quant_variants/ to ship.
+# Defaults to fp16 (matches build_dmg.sh). Override with `MODEL_VARIANT=<name>`.
+# Future split: build_linux_cpu.sh will set int8_dyn_avx512_vnni for x86 CPU,
+# build_linux_gpu.sh will keep fp16 (when CUDA EP wiring lands in Go).
+MODEL_VARIANT="${MODEL_VARIANT:-fp16}"
+VARIANT_DIR="model/quant_variants/$MODEL_VARIANT"
+STAGING_DIR="build/model_for_packaging"
+
+if [ ! -d "$VARIANT_DIR" ]; then
+    echo "❌ Unknown MODEL_VARIANT='$MODEL_VARIANT' — directory not found at $VARIANT_DIR"
+    echo "   Available variants:"
+    ls model/quant_variants/ 2>/dev/null | sed 's/^/     - /'
+    exit 1
+fi
+
+if [ ! -f "$VARIANT_DIR/model.onnx" ]; then
+    echo "❌ Variant model.onnx missing at $VARIANT_DIR/model.onnx"
+    exit 1
+fi
+
+# LFS pointer check on the selected variant
+VARIANT_SIZE=$(stat -c%s "$VARIANT_DIR/model.onnx" 2>/dev/null || stat -f%z "$VARIANT_DIR/model.onnx" 2>/dev/null || echo "0")
+if [ "$VARIANT_SIZE" -lt 1000 ]; then
+    echo "⚠️  Variant model.onnx is an LFS pointer (${VARIANT_SIZE} bytes) — pulling..."
+    if ! git lfs pull --include="$VARIANT_DIR/*"; then
+        echo "❌ git lfs pull failed for $VARIANT_DIR"
+        exit 1
+    fi
+    VARIANT_SIZE=$(stat -c%s "$VARIANT_DIR/model.onnx" 2>/dev/null || stat -f%z "$VARIANT_DIR/model.onnx" 2>/dev/null || echo "0")
+    if [ "$VARIANT_SIZE" -lt 1000 ]; then
+        echo "❌ Still LFS pointer after pull — abort"
+        exit 1
+    fi
+fi
+VARIANT_MB=$(( VARIANT_SIZE / 1024 / 1024 ))
+echo "✅ MODEL_VARIANT=$MODEL_VARIANT (${VARIANT_MB} MB at $VARIANT_DIR/model.onnx)"
+
+# Stage exactly what gets embedded. Source is the variant's self-contained
+# directory; rename model.onnx → model_quantized.onnx so the Go backend's
+# preferred lookup (pii/model_manager.go:208) picks it up. Manifest is
+# regenerated post-rename so /model-security ships correct hashes.
+rm -rf "$STAGING_DIR"
+mkdir -p "$STAGING_DIR"
+if command -v rsync >/dev/null 2>&1; then
+    rsync -a \
+        --exclude='benchmark_report.json' \
+        --exclude='smoke.json' \
+        --exclude='model_manifest.json' \
+        "$VARIANT_DIR/" "$STAGING_DIR/"
+else
+    cp -r "$VARIANT_DIR/." "$STAGING_DIR/"
+    rm -f "$STAGING_DIR/benchmark_report.json" \
+          "$STAGING_DIR/smoke.json" \
+          "$STAGING_DIR/model_manifest.json"
+fi
+mv "$STAGING_DIR/model.onnx" "$STAGING_DIR/model_quantized.onnx"
+
+uv run python -c "
+import sys; sys.path.insert(0, '.')
+from model.src.quantize_variants import write_manifest
+from pathlib import Path
+write_manifest(Path('$STAGING_DIR'))
+"
+echo "✅ Staged $MODEL_VARIANT/model.onnx → $STAGING_DIR/model_quantized.onnx (manifest regenerated)"
+
+# Copy staged variant to src/backend/model/quantized/ for Go embedding
 rm -rf src/backend/model/quantized
-mkdir -p src/backend/model
-cp -r model/quantized src/backend/model/
-echo "✅ Model files copied to backend"
+mkdir -p src/backend/model/quantized
+if command -v rsync >/dev/null 2>&1; then
+    rsync -a --delete "$STAGING_DIR/" src/backend/model/quantized/
+else
+    cp -r "$STAGING_DIR/." src/backend/model/quantized/
+fi
+echo "✅ Variant '$MODEL_VARIANT' staged for embedding at src/backend/model/quantized/"
 
 echo ""
 echo "📦 Step 4: Building Go binary for Linux..."
@@ -374,6 +442,7 @@ cd "$PROJECT_ROOT"
 echo ""
 echo "✅ Build complete!"
 echo ""
+echo "Model variant embedded: $MODEL_VARIANT (${VARIANT_MB} MB)"
 echo "Package created at: ${RELEASE_DIR}/${PACKAGE_NAME}.tar.gz"
 echo "SHA256: $(cat ${RELEASE_DIR}/${PACKAGE_NAME}.tar.gz.sha256)"
 echo ""

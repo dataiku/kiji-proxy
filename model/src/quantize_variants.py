@@ -42,6 +42,12 @@ import sys
 import time
 from pathlib import Path
 
+try:
+    from model.src.model_signing import ModelSigner
+except ImportError:
+    sys.path.insert(0, str(Path(__file__).parent))
+    from model_signing import ModelSigner  # type: ignore[no-redef]
+
 ALL_VARIANTS = [
     "fp32",
     "fp16",
@@ -69,8 +75,10 @@ SUPPORT_FILES = [
     "crf_transitions.json",
     "config.json",
     "ort_config.json",
-    "model_manifest.json",
 ]
+# model_manifest.json is intentionally not in SUPPORT_FILES — copying the
+# source manifest leaves stale fp32 hashes in every variant. Each variant
+# gets a freshly generated manifest via write_manifest() after build.
 
 
 def copy_support_files(source: Path, dest: Path) -> None:
@@ -80,6 +88,18 @@ def copy_support_files(source: Path, dest: Path) -> None:
         src = source / name
         if src.exists():
             shutil.copy2(src, dest / name)
+
+
+def write_manifest(dest: Path) -> None:
+    """Write a fresh model_manifest.json describing the variant's actual files.
+
+    Any pre-existing manifest is removed first so its bytes don't poison the
+    hash walk that ModelSigner.generate_model_manifest performs.
+    """
+    manifest_path = dest / "model_manifest.json"
+    if manifest_path.exists():
+        manifest_path.unlink()
+    ModelSigner(str(dest)).generate_model_manifest(str(manifest_path))
 
 
 def report_size(onnx_path: Path) -> float:
@@ -369,7 +389,8 @@ def main() -> int:
     for name in requested:
         dest = output / name
         if (dest / "model.onnx").exists():
-            print(f"\n=== {name}: already exists at {dest}, skipping ===")
+            print(f"\n=== {name}: already exists at {dest}, refreshing manifest ===")
+            write_manifest(dest)
             size_mb = (dest / "model.onnx").stat().st_size / (1024 * 1024)
             summary.append({"variant": name, "status": "skipped", "size_mb": round(size_mb, 1)})
             continue
@@ -380,6 +401,7 @@ def main() -> int:
                 VARIANT_BUILDERS[name](source, dest, args.calibration_samples)
             else:
                 VARIANT_BUILDERS[name](source, dest)
+            write_manifest(dest)
             elapsed = time.perf_counter() - t0
             size_mb = (dest / "model.onnx").stat().st_size / (1024 * 1024)
             summary.append(

@@ -1,8 +1,8 @@
 {
-  "model_path": "model/quantized",
+  "model_path": "model/quant_variants/fp16",
   "hashes": {
-    "sha256": "2b657df1f9a2ce0c65070266908a207165d6ee4f4f2ced2a47c3f3ca94e09f9e",
-    "sha512": "42ba785db5778ce27f827f58c62b9276cf3482f1d94434803d933e85dd0e57818d90e5e5d9875b20855c1e259607945ecce06083e9797ea10662f0beb14da2e4"
+    "sha256": "ac118bd55861fe06bb59f13a5d6ecfdc761d44f188b4dff428bc7dce4dbf37c4",
+    "sha512": "41d0cec5e30bcd5f209fa9226e14ec950c1aadef66bfd78916513231334d642f31f4a92cb821b09214f8e5c5d668d4c208dfab5ee8f86f1693704ff7e239d196"
   },
   "files": [
     {
@@ -10,8 +10,16 @@
       "sha256": "dc046d04c9b0ada7ae6f1dc89c465801799acdf0c9a6aab8c15a1b2d5ca4e91f"
     },
     {
+      "path": "benchmark_report.json",
+      "sha256": "3a8cce27a374dea6a96ddc5c0e52adb3d735bec91da53de62aaa05c2445213dc"
+    },
+    {
+      "path": "config.json",
+      "sha256": "08da16ed5b6ce46b77c019c6422d2114b205bce9359b18897b530df7466d812a"
+    },
+    {
       "path": "crf_transitions.json",
-      "sha256": "76495a466f6d6ceee4c711a1c0b76928d43e2738ad8502f055cccc7608debdca"
+      "sha256": "d21835927cc4cba5b93389142e0c43b94fcf65999d1d2767d2712dd7e5a37ad6"
     },
     {
       "path": "label_mappings.json",
@@ -19,23 +27,15 @@
     },
     {
       "path": "model.onnx",
-      "sha256": "b73a20b720af5efd22b9ba3d53bdffcbb927699f85880ed7b61a4b3ccd63e75c"
-    },
-    {
-      "path": "model.onnx.data",
-      "sha256": "1c501151bcd0798cbeb0e9b9a5713b412c5d29d61e891da35c3eac769e9a71a8"
-    },
-    {
-      "path": "model_manifest.json",
-      "sha256": "22904eaab43572e8aa408a68fc0c92515f7938b1a1be8d40358d9b9a83144e29"
-    },
-    {
-      "path": "model_quantized.onnx",
-      "sha256": "4d0b8990e1cf2d451bc41ea32e01e1c4aaee2fadc509a986cc2e8a77378edb20"
+      "sha256": "aa1792524936a9abcc24ff0155adda8c33966d1bc265c3fddebab1dc8f8ecb9f"
     },
     {
       "path": "ort_config.json",
       "sha256": "713d4cdeb867f45c821d5f2bc226ed33ac3afcce49a83b1b95dc7b45aca116f9"
+    },
+    {
+      "path": "smoke.json",
+      "sha256": "01c98e978f30e7f5cbe515f25268b5db40090b6e64bb69edfcca2cb55fac6354"
     },
     {
       "path": "special_tokens_map.json",
@@ -55,7 +55,7 @@
     },
     {
       "path": "vocab.txt",
-      "sha256": "bb6d0840f6963a9f8760965ffd0529509b756e349cd4dc57011d3de5778524c7"
+      "sha256": "eeaa9875b23b04b4c54ef759d03db9d1ba1554838f8fb26c5d96fa551df93d02"
     }
   ]
 }
