@@ -201,10 +201,13 @@ func (mm *ModelManager) validateDirectory(dir string) (*ModelConfig, error) {
 		return nil, fmt.Errorf("path is not a directory: %s", dir)
 	}
 
-	modelFilename := "model.onnx"
+	// Prefer the quantized side artifact (fp16 or int8 depending on how the
+	// directory was built; ``model_quantized.onnx`` is the canonical alias
+	// written by model/src/quantitize.py). Fall back to the fp32 ``model.onnx``
+	// when no quantized build is present.
+	modelFilename := "model_quantized.onnx"
 	if _, err := os.Stat(filepath.Join(dir, modelFilename)); os.IsNotExist(err) {
-		// Backward compatibility for older model directories.
-		modelFilename = "model_quantized.onnx"
+		modelFilename = "model.onnx"
 	}
 
 	// Required files

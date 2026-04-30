@@ -59,8 +59,9 @@ flags.DEFINE_string(
 flags.DEFINE_enum(
     "quantization_mode",
     "avx512_vnni",
-    ["avx512_vnni", "avx2", "q8"],
-    "Quantization mode",
+    ["avx512_vnni", "avx2", "q8", "fp16"],
+    "Quantization mode. 'fp16' converts weights+activations to float16 instead "
+    "of running an INT8 quantizer; useful for GPU inference (CUDA / TensorRT EP).",
 )
 
 flags.DEFINE_integer("opset", 18, "ONNX opset version")
@@ -350,78 +351,103 @@ def quantize_model(
     Parameters:
         onnx_path (str): Path to the ONNX model file or to a directory containing ONNX model files. If a file path is provided, its parent directory will be used.
         output_path (str): Directory where the quantized model and related artifacts will be written. The directory will be created if it does not exist.
-        quantization_mode (str): Quantization configuration to use. Supported values include "avx512_vnni", "avx2", and "q8"; unknown values default to "avx512_vnni".
+        quantization_mode (str): Compression to apply.
+            - "avx512_vnni" / "avx2" / "q8": INT8 dynamic quantization via Optimum.
+            - "fp16": float16 conversion via onnxruntime's float16 converter
+              (input/output dtypes preserved). Recommended for CUDA / TensorRT EPs.
+            Unknown INT8 values default to "avx512_vnni".
 
     """
     logging.info("🔢 Quantizing model...")
 
+    import shutil
+
     import onnx
-    from optimum.onnxruntime import ORTQuantizer
-    from optimum.onnxruntime.configuration import AutoQuantizationConfig
 
     output_path = Path(output_path)
     output_path.mkdir(parents=True, exist_ok=True)
 
-    # Use optimum for quantization
-    # ORTQuantizer expects a model directory, not a file path
-
-    # Create quantizer from model directory with explicit file name
+    # ORTQuantizer expects a model directory, not a file path.
     model_dir = Path(onnx_path).parent if Path(onnx_path).is_file() else Path(onnx_path)
 
-    # Remove old quantized model if it exists to avoid "too many ONNX files" error
-    old_quantized = model_dir / "model_quantized.onnx"
-    if old_quantized.exists():
-        logging.info(f"   Removing old quantized model: {old_quantized}")
-        old_quantized.unlink()
-
-    quantizer = ORTQuantizer.from_pretrained(str(model_dir), file_name="model.onnx")
-
-    # Select quantization config based on mode
-    if quantization_mode == "avx512_vnni":
-        qconfig = AutoQuantizationConfig.avx512_vnni(is_static=False)
-    elif quantization_mode == "avx2":
-        qconfig = AutoQuantizationConfig.avx2(is_static=False)
-    elif quantization_mode == "q8":
-        qconfig = AutoQuantizationConfig.q8()
+    # Dtype-suffixed sibling so multiple builds (fp16 + int8 variants) can
+    # co-exist in one directory. ``model_quantized.onnx`` is also written as a
+    # backwards-compatible alias pointing at this same artifact for downstream
+    # consumers (Go backend, smoke tests, training pipeline).
+    if quantization_mode == "fp16":
+        dtype_filename = "model_fp16.onnx"
     else:
-        logging.warning(
-            f"Unknown quantization mode: {quantization_mode}, using avx512_vnni"
-        )
-        qconfig = AutoQuantizationConfig.avx512_vnni(is_static=False)
+        dtype_filename = f"model_int8_{quantization_mode}.onnx"
+    dtype_path = output_path / dtype_filename
+    alias_path = output_path / "model_quantized.onnx"
+
+    # Remove the alias to avoid Optimum's "too many ONNX files" error and to
+    # ensure the alias reflects the build we're about to produce. Existing
+    # dtype-suffixed siblings from prior builds are preserved.
+    for stale in (alias_path, output_path / "model_quantized.onnx"):
+        if stale.exists() and stale != dtype_path:
+            logging.info(f"   Removing previous alias: {stale}")
+            stale.unlink()
 
     logging.info(f"   Using quantization mode: {quantization_mode}")
 
-    # Quantize
-    quantizer.quantize(save_dir=str(output_path), quantization_config=qconfig)
+    if quantization_mode == "fp16":
+        # Float16 conversion — keeps model layout identical, just shrinks weights
+        # and activations to fp16. keep_io_types=True leaves input_ids /
+        # attention_mask / pii_logits as their original dtypes so callers don't
+        # need to change.
+        from onnxruntime.transformers.float16 import convert_float_to_float16
 
-    logging.info(f"✅ Quantized model saved to: {output_path}")
+        source_onnx = model_dir / "model.onnx"
+        model_proto = onnx.load(str(source_onnx))
+        fp16_proto = convert_float_to_float16(model_proto, keep_io_types=True)
+        onnx.save(fp16_proto, str(dtype_path))
+    else:
+        from optimum.onnxruntime import ORTQuantizer
+        from optimum.onnxruntime.configuration import AutoQuantizationConfig
 
-    # Load and inspect the quantized model
-    quantized_model_path = output_path / "model_quantized.onnx"
-    if not quantized_model_path.exists():
-        # Try to find any .onnx file
-        onnx_files = list(output_path.glob("*.onnx"))
-        if onnx_files:
-            quantized_model_path = onnx_files[0]
-            logging.info(f"   Found quantized model: {quantized_model_path.name}")
+        quantizer = ORTQuantizer.from_pretrained(str(model_dir), file_name="model.onnx")
 
-    if quantized_model_path.exists():
-        model_onnx = onnx.load(str(quantized_model_path))
+        if quantization_mode == "avx512_vnni":
+            qconfig = AutoQuantizationConfig.avx512_vnni(is_static=False)
+        elif quantization_mode == "avx2":
+            qconfig = AutoQuantizationConfig.avx2(is_static=False)
+        elif quantization_mode == "q8":
+            qconfig = AutoQuantizationConfig.q8()
+        else:
+            logging.warning(
+                f"Unknown quantization mode: {quantization_mode}, using avx512_vnni"
+            )
+            qconfig = AutoQuantizationConfig.avx512_vnni(is_static=False)
+
+        # Optimum writes to ``<save_dir>/model_quantized.onnx``. Move it to the
+        # dtype-suffixed name; the alias copy is created below.
+        quantizer.quantize(save_dir=str(output_path), quantization_config=qconfig)
+        optimum_output = output_path / "model_quantized.onnx"
+        if optimum_output.exists() and optimum_output != dtype_path:
+            optimum_output.replace(dtype_path)
+
+    # Maintain ``model_quantized.onnx`` as the canonical alias for the most
+    # recent build, for backwards compatibility with downstream consumers.
+    shutil.copy2(dtype_path, alias_path)
+
+    logging.info(f"✅ Quantized model saved to: {dtype_path}")
+    logging.info(f"   Alias for backwards compat: {alias_path}")
+
+    if dtype_path.exists():
+        model_onnx = onnx.load(str(dtype_path))
         logging.info("\n📊 Quantized Model Information:")
         logging.info(f"   Inputs: {[input.name for input in model_onnx.graph.input]}")
         logging.info(
             f"   Outputs: {[output.name for output in model_onnx.graph.output]}"
         )
 
-        # # signing model
-        # model_hash = sign_trained_model(quantized_model_path)
-        # logging.info(f"   Model hash: {model_hash}")
-
-        # Get model size
-        model_size_mb = quantized_model_path.stat().st_size / (1024 * 1024)
+        model_size_mb = dtype_path.stat().st_size / (1024 * 1024)
         logging.info(f"   Model size: {model_size_mb:.2f} MB")
     else:
         logging.warning("⚠️  Could not find quantized model file")
+
+    return dtype_path
 
 
 def main(argv):
@@ -466,9 +492,12 @@ def main(argv):
             logging.info("✅ Config file copied")
 
         # Quantize if requested
+        dtype_artifact: Path | None = None
         if not FLAGS.skip_quantization:
             # The output_path directory now contains model.onnx, use it for quantization
-            quantize_model(str(output_path), str(output_path), FLAGS.quantization_mode)
+            dtype_artifact = quantize_model(
+                str(output_path), str(output_path), FLAGS.quantization_mode
+            )
         else:
             logging.info("⏭️  Skipping quantization (--skip_quantization)")
 
@@ -477,9 +506,10 @@ def main(argv):
         logging.info("=" * 80)
         logging.info(f"Model saved to: {FLAGS.output_path}")
         logging.info(f"saved default ONNX model: {output_path / 'model.onnx'}")
-        if not FLAGS.skip_quantization:
+        if dtype_artifact is not None:
+            logging.info(f"saved quantized side artifact: {dtype_artifact}")
             logging.info(
-                f"saved quantized side artifact: {output_path / 'model_quantized.onnx'}"
+                f"  + alias for backwards compat: {output_path / 'model_quantized.onnx'}"
             )
 
     except Exception as e:

@@ -105,18 +105,20 @@ func run(configPath *string) error {
 	}
 	log.Printf("ONNXRUNTIME_SHARED_LIBRARY_PATH: %s", os.Getenv("ONNXRUNTIME_SHARED_LIBRARY_PATH"))
 
-	// Debug: Check for model files in various locations
+	// Debug: Check for model files in various locations.
+	// Quantized side artifact (fp16 or int8) is preferred; fp32 model.onnx is
+	// the fallback when no quantized build is present.
 	modelPaths := []string{
-		"model/quantized/model.onnx",
-		"quantized/model.onnx",
-		"./model.onnx",
-		"resources/model/quantized/model.onnx",
-		"resources/quantized/model.onnx",
 		"model/quantized/model_quantized.onnx",
 		"quantized/model_quantized.onnx",
 		"./model_quantized.onnx",
 		"resources/model/quantized/model_quantized.onnx",
 		"resources/quantized/model_quantized.onnx",
+		"model/quantized/model.onnx",
+		"quantized/model.onnx",
+		"./model.onnx",
+		"resources/model/quantized/model.onnx",
+		"resources/quantized/model.onnx",
 	}
 	for _, path := range modelPaths {
 		if _, err := os.Stat(path); err == nil {
@@ -143,11 +145,14 @@ func run(configPath *string) error {
 			log.Println("Falling back to file system model files")
 		} else {
 			log.Println("Model files extracted successfully")
-			// Debug: Verify extracted files
-			if _, err := os.Stat("model/quantized/model.onnx"); err == nil {
-				log.Println("✅ Extracted model file verified at: model/quantized/model.onnx")
+			// Debug: Verify extracted files. Match the new default which is the
+			// quantized side artifact, falling back to fp32 model.onnx.
+			if _, err := os.Stat("model/quantized/model_quantized.onnx"); err == nil {
+				log.Println("✅ Extracted model file verified at: model/quantized/model_quantized.onnx")
+			} else if _, err := os.Stat("model/quantized/model.onnx"); err == nil {
+				log.Println("✅ Extracted model file verified at: model/quantized/model.onnx (fp32 fallback)")
 			} else {
-				log.Printf("❌ Extracted model file NOT found at: model/quantized/model.onnx (error: %v)", err)
+				log.Printf("❌ No extracted model file found at model/quantized/model_quantized.onnx or model.onnx (last error: %v)", err)
 			}
 		}
 

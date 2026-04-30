@@ -160,6 +160,7 @@ class PIITrainingPipeline(FlowSpec):
         self.skip_export = cfg.get("pipeline", {}).get("skip_export", False)
         self.skip_quantization = cfg.get("pipeline", {}).get("skip_quantization", True)
         self.skip_signing = cfg.get("pipeline", {}).get("skip_signing", False)
+        self.quantization_mode = cfg.get("pipeline", {}).get("quantization_mode", "fp16")
         self.subsample_count = int(
             os.environ.get(
                 "NUM_SAMPLES",
@@ -389,6 +390,13 @@ class PIITrainingPipeline(FlowSpec):
                 stale_path = output_path / stale_name
                 if stale_path.exists():
                     stale_path.unlink()
+            # Also clear dtype-suffixed siblings from prior runs (model_fp16.onnx,
+            # model_int8_*.onnx) so the signed bundle never carries a stale build
+            # from a different mode.
+            for stale in output_path.glob("model_fp16.onnx"):
+                stale.unlink()
+            for stale in output_path.glob("model_int8_*.onnx"):
+                stale.unlink()
 
             export_to_onnx(model, tokenizer, exported_output)
 
@@ -411,11 +419,20 @@ class PIITrainingPipeline(FlowSpec):
 
             quantized_parity = None
             self.quantized_model_path = None
+            self.quantized_dtype_path = None
             if self.skip_quantization:
                 print("Skipping quantized side artifact by configuration")
             else:
                 try:
-                    quantize_onnx_model(str(output_path), str(output_path))
+                    dtype_path = quantize_onnx_model(
+                        str(output_path),
+                        str(output_path),
+                        quantization_mode=self.quantization_mode,
+                    )
+                    print(
+                        f"Quantized side artifact ({self.quantization_mode}) "
+                        f"saved: {dtype_path}"
+                    )
                     quantized_parity = run_parity_benchmark(
                         model_path,
                         exported_output,
@@ -425,11 +442,16 @@ class PIITrainingPipeline(FlowSpec):
                     print(format_parity_report(quantized_parity))
                     assert_parity(quantized_parity)
                     self.quantized_model_path = str(output_path / "model_quantized.onnx")
+                    self.quantized_dtype_path = str(dtype_path)
                     print("Quantized side artifact passed parity")
                 except Exception as quantization_error:
-                    failed_quantized = output_path / "model_quantized.onnx"
-                    if failed_quantized.exists():
-                        failed_quantized.unlink()
+                    for failed in (
+                        output_path / "model_quantized.onnx",
+                        output_path / f"model_{self.quantization_mode}.onnx",
+                        output_path / f"model_int8_{self.quantization_mode}.onnx",
+                    ):
+                        if failed.exists():
+                            failed.unlink()
                     print(
                         "Quantized side artifact failed parity and will not be used: "
                         f"{quantization_error}"
@@ -448,6 +470,8 @@ class PIITrainingPipeline(FlowSpec):
                 metadata={
                     "default_onnx_file": "model.onnx",
                     "quantized_model_path": self.quantized_model_path,
+                    "quantized_dtype_path": self.quantized_dtype_path,
+                    "quantization_mode": self.quantization_mode,
                 },
                 name="exported_model",
                 latest=True,
@@ -496,6 +520,14 @@ class PIITrainingPipeline(FlowSpec):
             model_hash = sign_trained_model(
                 model_to_sign, private_key_path=private_key_path
             )
+            # Surface the dtype-suffixed quantized artifact in the signing log so
+            # it's clear from the run output that the fp16 (or int8) model is
+            # part of the signed bundle alongside the fp32 model.onnx.
+            if model_type == "onnx" and getattr(self, "quantized_dtype_path", None):
+                print(
+                    f"Signed bundle includes quantized artifact: "
+                    f"{self.quantized_dtype_path} (mode={self.quantization_mode})"
+                )
             self.model_signature = {
                 "sha256": model_hash,
                 "signed_at": datetime.utcnow().isoformat(),
