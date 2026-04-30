@@ -519,6 +519,7 @@ class PIITrainingPipeline(FlowSpec):
 
     # @pypi(packages=QUANTIZATION_PACKAGES, python="3.13")
     @environment(vars={"TOKENIZERS_PARALLELISM": "false"})
+    @checkpoint
     @step
     def sweep_eval(self):
         """Run the benchmark sweep across every quantization variant.
