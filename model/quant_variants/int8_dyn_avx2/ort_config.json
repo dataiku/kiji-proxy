@@ -1,0 +1,33 @@
+{
+  "one_external_file": true,
+  "opset": null,
+  "optimization": {},
+  "quantization": {
+    "activations_dtype": "QUInt8",
+    "activations_symmetric": false,
+    "format": "QOperator",
+    "is_static": false,
+    "mode": "IntegerOps",
+    "nodes_to_exclude": [],
+    "nodes_to_quantize": [],
+    "operators_to_quantize": [
+      "Conv",
+      "MatMul",
+      "Attention",
+      "LSTM",
+      "Gather",
+      "Transpose",
+      "EmbedLayerNormalization"
+    ],
+    "per_channel": true,
+    "qdq_add_pair_to_weight": false,
+    "qdq_dedicated_pair": false,
+    "qdq_op_type_per_channel_support_to_axis": {
+      "MatMul": 1
+    },
+    "reduce_range": false,
+    "weights_dtype": "QUInt8",
+    "weights_symmetric": true
+  },
+  "use_external_data_format": false
+}

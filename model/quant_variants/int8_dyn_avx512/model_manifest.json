@@ -1,0 +1,61 @@
+{
+  "model_path": "model/quant_variants/int8_dyn_avx512",
+  "hashes": {
+    "sha256": "3419dee67af8893e555450b712189d9913d73426a88e4bf423d6289fede11f35",
+    "sha512": "576846732e9a1f3a48ad8ae5c2c94a5a0a6f462ee449073139692214844a784c8f76fd0ea04e8132e996e29dd92065f48a04bb7807e75775d6623eda6846bfd2"
+  },
+  "files": [
+    {
+      "path": "added_tokens.json",
+      "sha256": "dc046d04c9b0ada7ae6f1dc89c465801799acdf0c9a6aab8c15a1b2d5ca4e91f"
+    },
+    {
+      "path": "benchmark_report.json",
+      "sha256": "77be8c9b92d3761a6cc7f4d4c93af8db4a12f781e644da7784370406a3a2d670"
+    },
+    {
+      "path": "config.json",
+      "sha256": "08da16ed5b6ce46b77c019c6422d2114b205bce9359b18897b530df7466d812a"
+    },
+    {
+      "path": "crf_transitions.json",
+      "sha256": "54e20922cdd3a63b97a0e57627c009ff484f6b0b5593e574c50980ec41e68801"
+    },
+    {
+      "path": "label_mappings.json",
+      "sha256": "603307cb87520281858a7f2de08d2e72a748e128f33789fc242a9e030a8ac7a9"
+    },
+    {
+      "path": "model.onnx",
+      "sha256": "645939eb8161ccca69572dd4ca31c508bd4bd8d1fc1a24b9debf51825821be5f"
+    },
+    {
+      "path": "model_manifest.json",
+      "sha256": "206f876216596ff430d633d4d7d8ad10d6bf32baa503bf1aa73f1eb5f8dba44b"
+    },
+    {
+      "path": "ort_config.json",
+      "sha256": "713d4cdeb867f45c821d5f2bc226ed33ac3afcce49a83b1b95dc7b45aca116f9"
+    },
+    {
+      "path": "special_tokens_map.json",
+      "sha256": "b2f1b2f15f29a6b6d9d6ea4eca1675d2c231a71477f151d48f79cc83a625ba21"
+    },
+    {
+      "path": "spm.model",
+      "sha256": "c679fbf93643d19aab7ee10c0b99e460bdbc02fedf34b92b05af343b4af586fd"
+    },
+    {
+      "path": "tokenizer.json",
+      "sha256": "4b4f60231058db4b5794e7b124bb7945bc8ade6719282de4d2e0372ee527b929"
+    },
+    {
+      "path": "tokenizer_config.json",
+      "sha256": "e6c4c771911c211618a2d46488dc7e9e499f051773cd4ff4faeca6fe55fdf569"
+    },
+    {
+      "path": "vocab.txt",
+      "sha256": "bb6d0840f6963a9f8760965ffd0529509b756e349cd4dc57011d3de5778524c7"
+    }
+  ]
+}

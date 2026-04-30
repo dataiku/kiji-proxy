@@ -1,8 +1,8 @@
 {
   "model_path": "model/quantized",
   "hashes": {
-    "sha256": "2b657df1f9a2ce0c65070266908a207165d6ee4f4f2ced2a47c3f3ca94e09f9e",
-    "sha512": "42ba785db5778ce27f827f58c62b9276cf3482f1d94434803d933e85dd0e57818d90e5e5d9875b20855c1e259607945ecce06083e9797ea10662f0beb14da2e4"
+    "sha256": "238706603a82e2bff5ca172b87ef1b0eab5914180261868d19b519b348a9985e",
+    "sha512": "4fe605b2280abad91271f7d60395bf5de8838315e2235bb0663ab6fb714624106f78acaf697fb1933edc0655efaa2c1552994e2ccf8e1a69ceb38a402b57c88a"
   },
   "files": [
     {
@@ -10,8 +10,12 @@
       "sha256": "dc046d04c9b0ada7ae6f1dc89c465801799acdf0c9a6aab8c15a1b2d5ca4e91f"
     },
     {
+      "path": "config.json",
+      "sha256": "08da16ed5b6ce46b77c019c6422d2114b205bce9359b18897b530df7466d812a"
+    },
+    {
       "path": "crf_transitions.json",
-      "sha256": "76495a466f6d6ceee4c711a1c0b76928d43e2738ad8502f055cccc7608debdca"
+      "sha256": "54e20922cdd3a63b97a0e57627c009ff484f6b0b5593e574c50980ec41e68801"
     },
     {
       "path": "label_mappings.json",
@@ -19,19 +23,11 @@
     },
     {
       "path": "model.onnx",
-      "sha256": "b73a20b720af5efd22b9ba3d53bdffcbb927699f85880ed7b61a4b3ccd63e75c"
-    },
-    {
-      "path": "model.onnx.data",
-      "sha256": "1c501151bcd0798cbeb0e9b9a5713b412c5d29d61e891da35c3eac769e9a71a8"
+      "sha256": "3a60169a70af422ddb89e4c5add4e8113aea219f1ff0870eeba9315e2bdc650c"
     },
     {
       "path": "model_manifest.json",
-      "sha256": "22904eaab43572e8aa408a68fc0c92515f7938b1a1be8d40358d9b9a83144e29"
-    },
-    {
-      "path": "model_quantized.onnx",
-      "sha256": "4d0b8990e1cf2d451bc41ea32e01e1c4aaee2fadc509a986cc2e8a77378edb20"
+      "sha256": "5290767771ce71d744c90c761b9df1c1b522ff2af0f24c93ca3fa73c1e7a3f97"
     },
     {
       "path": "ort_config.json",

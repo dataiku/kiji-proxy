@@ -1,0 +1,449 @@
+{
+  "dataset": "ai4privacy/pii-masking-300k",
+  "num_samples": 1000,
+  "seed": 42,
+  "language": null,
+  "model_path": "/home/hannes/kiji-proxy/model/quant_variants/int8_dyn_avx2",
+  "onnx_file": "/home/hannes/kiji-proxy/model/quant_variants/int8_dyn_avx2/model.onnx",
+  "confidence_threshold": 0.25,
+  "uses_crf": true,
+  "providers": [
+    "CPUExecutionProvider"
+  ],
+  "max_sequence_length": 512,
+  "chunk_overlap": 64,
+  "exact_span_f1": 0.4959,
+  "exact_span_macro_f1": 0.4941,
+  "relaxed_overlap_f1": 0.6174,
+  "relaxed_overlap_macro_f1": 0.6103,
+  "micro_f1": 0.4959,
+  "macro_f1": 0.4941,
+  "latency_ms": {
+    "p50": 276.94,
+    "p95": 290.92,
+    "p99": 297.56,
+    "mean": 277.85
+  },
+  "per_label": {
+    "BUILDINGNUM": {
+      "tp": 162,
+      "fp": 0,
+      "fn": 110,
+      "precision": 1.0,
+      "recall": 0.5956,
+      "f1": 0.7465
+    },
+    "CITY": {
+      "tp": 100,
+      "fp": 16,
+      "fn": 209,
+      "precision": 0.8621,
+      "recall": 0.3236,
+      "f1": 0.4706
+    },
+    "COUNTRY": {
+      "tp": 101,
+      "fp": 6,
+      "fn": 158,
+      "precision": 0.9439,
+      "recall": 0.39,
+      "f1": 0.5519
+    },
+    "DATEOFBIRTH": {
+      "tp": 112,
+      "fp": 67,
+      "fn": 183,
+      "precision": 0.6257,
+      "recall": 0.3797,
+      "f1": 0.4726
+    },
+    "DRIVERLICENSENUM": {
+      "tp": 94,
+      "fp": 238,
+      "fn": 284,
+      "precision": 0.2831,
+      "recall": 0.2487,
+      "f1": 0.2648
+    },
+    "EMAIL": {
+      "tp": 161,
+      "fp": 149,
+      "fn": 262,
+      "precision": 0.5194,
+      "recall": 0.3806,
+      "f1": 0.4393
+    },
+    "FIRSTNAME": {
+      "tp": 168,
+      "fp": 228,
+      "fn": 443,
+      "precision": 0.4242,
+      "recall": 0.275,
+      "f1": 0.3337
+    },
+    "NATIONALID": {
+      "tp": 205,
+      "fp": 201,
+      "fn": 207,
+      "precision": 0.5049,
+      "recall": 0.4976,
+      "f1": 0.5012
+    },
+    "PASSPORTID": {
+      "tp": 100,
+      "fp": 40,
+      "fn": 322,
+      "precision": 0.7143,
+      "recall": 0.237,
+      "f1": 0.3559
+    },
+    "PASSWORD": {
+      "tp": 102,
+      "fp": 69,
+      "fn": 178,
+      "precision": 0.5965,
+      "recall": 0.3643,
+      "f1": 0.4523
+    },
+    "PHONENUMBER": {
+      "tp": 203,
+      "fp": 56,
+      "fn": 118,
+      "precision": 0.7838,
+      "recall": 0.6324,
+      "f1": 0.7
+    },
+    "SSN": {
+      "tp": 283,
+      "fp": 121,
+      "fn": 76,
+      "precision": 0.7005,
+      "recall": 0.7883,
+      "f1": 0.7418
+    },
+    "STATE": {
+      "tp": 98,
+      "fp": 35,
+      "fn": 186,
+      "precision": 0.7368,
+      "recall": 0.3451,
+      "f1": 0.47
+    },
+    "STREET": {
+      "tp": 89,
+      "fp": 17,
+      "fn": 315,
+      "precision": 0.8396,
+      "recall": 0.2203,
+      "f1": 0.349
+    },
+    "SURNAME": {
+      "tp": 82,
+      "fp": 68,
+      "fn": 461,
+      "precision": 0.5467,
+      "recall": 0.151,
+      "f1": 0.2367
+    },
+    "USERNAME": {
+      "tp": 423,
+      "fp": 191,
+      "fn": 94,
+      "precision": 0.6889,
+      "recall": 0.8182,
+      "f1": 0.748
+    },
+    "ZIP": {
+      "tp": 120,
+      "fp": 28,
+      "fn": 157,
+      "precision": 0.8108,
+      "recall": 0.4332,
+      "f1": 0.5647
+    }
+  },
+  "exact_span": {
+    "micro_f1": 0.4959,
+    "macro_f1": 0.4941,
+    "per_label": {
+      "BUILDINGNUM": {
+        "tp": 162,
+        "fp": 0,
+        "fn": 110,
+        "precision": 1.0,
+        "recall": 0.5956,
+        "f1": 0.7465
+      },
+      "CITY": {
+        "tp": 100,
+        "fp": 16,
+        "fn": 209,
+        "precision": 0.8621,
+        "recall": 0.3236,
+        "f1": 0.4706
+      },
+      "COUNTRY": {
+        "tp": 101,
+        "fp": 6,
+        "fn": 158,
+        "precision": 0.9439,
+        "recall": 0.39,
+        "f1": 0.5519
+      },
+      "DATEOFBIRTH": {
+        "tp": 112,
+        "fp": 67,
+        "fn": 183,
+        "precision": 0.6257,
+        "recall": 0.3797,
+        "f1": 0.4726
+      },
+      "DRIVERLICENSENUM": {
+        "tp": 94,
+        "fp": 238,
+        "fn": 284,
+        "precision": 0.2831,
+        "recall": 0.2487,
+        "f1": 0.2648
+      },
+      "EMAIL": {
+        "tp": 161,
+        "fp": 149,
+        "fn": 262,
+        "precision": 0.5194,
+        "recall": 0.3806,
+        "f1": 0.4393
+      },
+      "FIRSTNAME": {
+        "tp": 168,
+        "fp": 228,
+        "fn": 443,
+        "precision": 0.4242,
+        "recall": 0.275,
+        "f1": 0.3337
+      },
+      "NATIONALID": {
+        "tp": 205,
+        "fp": 201,
+        "fn": 207,
+        "precision": 0.5049,
+        "recall": 0.4976,
+        "f1": 0.5012
+      },
+      "PASSPORTID": {
+        "tp": 100,
+        "fp": 40,
+        "fn": 322,
+        "precision": 0.7143,
+        "recall": 0.237,
+        "f1": 0.3559
+      },
+      "PASSWORD": {
+        "tp": 102,
+        "fp": 69,
+        "fn": 178,
+        "precision": 0.5965,
+        "recall": 0.3643,
+        "f1": 0.4523
+      },
+      "PHONENUMBER": {
+        "tp": 203,
+        "fp": 56,
+        "fn": 118,
+        "precision": 0.7838,
+        "recall": 0.6324,
+        "f1": 0.7
+      },
+      "SSN": {
+        "tp": 283,
+        "fp": 121,
+        "fn": 76,
+        "precision": 0.7005,
+        "recall": 0.7883,
+        "f1": 0.7418
+      },
+      "STATE": {
+        "tp": 98,
+        "fp": 35,
+        "fn": 186,
+        "precision": 0.7368,
+        "recall": 0.3451,
+        "f1": 0.47
+      },
+      "STREET": {
+        "tp": 89,
+        "fp": 17,
+        "fn": 315,
+        "precision": 0.8396,
+        "recall": 0.2203,
+        "f1": 0.349
+      },
+      "SURNAME": {
+        "tp": 82,
+        "fp": 68,
+        "fn": 461,
+        "precision": 0.5467,
+        "recall": 0.151,
+        "f1": 0.2367
+      },
+      "USERNAME": {
+        "tp": 423,
+        "fp": 191,
+        "fn": 94,
+        "precision": 0.6889,
+        "recall": 0.8182,
+        "f1": 0.748
+      },
+      "ZIP": {
+        "tp": 120,
+        "fp": 28,
+        "fn": 157,
+        "precision": 0.8108,
+        "recall": 0.4332,
+        "f1": 0.5647
+      }
+    }
+  },
+  "relaxed_same_label_overlap": {
+    "micro_f1": 0.6174,
+    "macro_f1": 0.6103,
+    "per_label": {
+      "BUILDINGNUM": {
+        "tp": 162,
+        "fp": 0,
+        "fn": 110,
+        "precision": 1.0,
+        "recall": 0.5956,
+        "f1": 0.7465
+      },
+      "CITY": {
+        "tp": 108,
+        "fp": 8,
+        "fn": 201,
+        "precision": 0.931,
+        "recall": 0.3495,
+        "f1": 0.5082
+      },
+      "COUNTRY": {
+        "tp": 105,
+        "fp": 2,
+        "fn": 154,
+        "precision": 0.9813,
+        "recall": 0.4054,
+        "f1": 0.5738
+      },
+      "DATEOFBIRTH": {
+        "tp": 156,
+        "fp": 23,
+        "fn": 139,
+        "precision": 0.8715,
+        "recall": 0.5288,
+        "f1": 0.6582
+      },
+      "DRIVERLICENSENUM": {
+        "tp": 139,
+        "fp": 193,
+        "fn": 239,
+        "precision": 0.4187,
+        "recall": 0.3677,
+        "f1": 0.3915
+      },
+      "EMAIL": {
+        "tp": 265,
+        "fp": 45,
+        "fn": 158,
+        "precision": 0.8548,
+        "recall": 0.6265,
+        "f1": 0.7231
+      },
+      "FIRSTNAME": {
+        "tp": 240,
+        "fp": 156,
+        "fn": 371,
+        "precision": 0.6061,
+        "recall": 0.3928,
+        "f1": 0.4767
+      },
+      "NATIONALID": {
+        "tp": 284,
+        "fp": 122,
+        "fn": 128,
+        "precision": 0.6995,
+        "recall": 0.6893,
+        "f1": 0.6944
+      },
+      "PASSPORTID": {
+        "tp": 129,
+        "fp": 11,
+        "fn": 293,
+        "precision": 0.9214,
+        "recall": 0.3057,
+        "f1": 0.4591
+      },
+      "PASSWORD": {
+        "tp": 156,
+        "fp": 15,
+        "fn": 124,
+        "precision": 0.9123,
+        "recall": 0.5571,
+        "f1": 0.6918
+      },
+      "PHONENUMBER": {
+        "tp": 245,
+        "fp": 14,
+        "fn": 76,
+        "precision": 0.9459,
+        "recall": 0.7632,
+        "f1": 0.8448
+      },
+      "SSN": {
+        "tp": 309,
+        "fp": 95,
+        "fn": 50,
+        "precision": 0.7649,
+        "recall": 0.8607,
+        "f1": 0.81
+      },
+      "STATE": {
+        "tp": 116,
+        "fp": 17,
+        "fn": 168,
+        "precision": 0.8722,
+        "recall": 0.4085,
+        "f1": 0.5564
+      },
+      "STREET": {
+        "tp": 105,
+        "fp": 1,
+        "fn": 299,
+        "precision": 0.9906,
+        "recall": 0.2599,
+        "f1": 0.4118
+      },
+      "SURNAME": {
+        "tp": 110,
+        "fp": 40,
+        "fn": 433,
+        "precision": 0.7333,
+        "recall": 0.2026,
+        "f1": 0.3175
+      },
+      "USERNAME": {
+        "tp": 466,
+        "fp": 148,
+        "fn": 51,
+        "precision": 0.759,
+        "recall": 0.9014,
+        "f1": 0.824
+      },
+      "ZIP": {
+        "tp": 146,
+        "fp": 2,
+        "fn": 131,
+        "precision": 0.9865,
+        "recall": 0.5271,
+        "f1": 0.6871
+      }
+    }
+  }
+}

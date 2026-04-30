@@ -1,0 +1,61 @@
+{
+  "model_path": "model/quant_variants/int4_rtn_block32",
+  "hashes": {
+    "sha256": "a45758b0ad6872974732e1e4b20a14b35fcbd6695be5eee498a7615e14f39a9d",
+    "sha512": "30b89daa5f92060d66143f7bb36247ab9c8783d809ac144315270cdc95259b6c4297bc19ca2f39eb252ffff93ef6b098d4e2e3636f4f2ef3f5f2703412b50976"
+  },
+  "files": [
+    {
+      "path": "added_tokens.json",
+      "sha256": "dc046d04c9b0ada7ae6f1dc89c465801799acdf0c9a6aab8c15a1b2d5ca4e91f"
+    },
+    {
+      "path": "benchmark_report.json",
+      "sha256": "9a3b48874bcc5f42cfe95890b11a025a17e7fcf70dd388202035f5d02ec798b0"
+    },
+    {
+      "path": "config.json",
+      "sha256": "08da16ed5b6ce46b77c019c6422d2114b205bce9359b18897b530df7466d812a"
+    },
+    {
+      "path": "crf_transitions.json",
+      "sha256": "54e20922cdd3a63b97a0e57627c009ff484f6b0b5593e574c50980ec41e68801"
+    },
+    {
+      "path": "label_mappings.json",
+      "sha256": "603307cb87520281858a7f2de08d2e72a748e128f33789fc242a9e030a8ac7a9"
+    },
+    {
+      "path": "model.onnx",
+      "sha256": "8003169fabbf43fd559944f6711f1e41f688c815794e9734c6c6e09e2d3fa03a"
+    },
+    {
+      "path": "model_manifest.json",
+      "sha256": "13cb045e5f7c9f07d4f968fb997e859e500ecc0a67f5a701535c91e6196de5ae"
+    },
+    {
+      "path": "ort_config.json",
+      "sha256": "713d4cdeb867f45c821d5f2bc226ed33ac3afcce49a83b1b95dc7b45aca116f9"
+    },
+    {
+      "path": "special_tokens_map.json",
+      "sha256": "b2f1b2f15f29a6b6d9d6ea4eca1675d2c231a71477f151d48f79cc83a625ba21"
+    },
+    {
+      "path": "spm.model",
+      "sha256": "c679fbf93643d19aab7ee10c0b99e460bdbc02fedf34b92b05af343b4af586fd"
+    },
+    {
+      "path": "tokenizer.json",
+      "sha256": "4b4f60231058db4b5794e7b124bb7945bc8ade6719282de4d2e0372ee527b929"
+    },
+    {
+      "path": "tokenizer_config.json",
+      "sha256": "e6c4c771911c211618a2d46488dc7e9e499f051773cd4ff4faeca6fe55fdf569"
+    },
+    {
+      "path": "vocab.txt",
+      "sha256": "bb6d0840f6963a9f8760965ffd0529509b756e349cd4dc57011d3de5778524c7"
+    }
+  ]
+}
