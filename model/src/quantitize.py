@@ -115,26 +115,33 @@ def load_model(
     tokenizer = AutoTokenizer.from_pretrained(model_path)
     logging.info("✅ Loaded tokenizer")
 
-    # Load model config
+    # Load model config. Quantization is DeBERTa-only going forward; avoid
+    # silently falling back across model families because that produces opaque
+    # embedding-size errors when an old checkpoint is passed in.
     config_path = model_path / "config.json"
-    # Map model_type shortnames to full HuggingFace model identifiers
-    model_type_defaults = {
-        "bert": "bert-base-cased",
-        "distilbert": "distilbert-base-cased",
-        "roberta": "roberta-base",
-        "deberta-v2": "microsoft/deberta-v3-base",
-    }
-
     if config_path.exists():
         with config_path.open() as f:
             model_config = json.load(f)
-        base_model_name = model_config.get("_name_or_path", "")
-        if not base_model_name or base_model_name in model_type_defaults:
-            model_type = model_config.get("model_type", "distilbert")
-            base_model_name = model_type_defaults.get(
-                model_type, "microsoft/deberta-v3-base"
+        model_type = model_config.get("model_type", "")
+        if model_type not in {"deberta-v2", "deberta"}:
+            raise RuntimeError(
+                f"Unsupported model_type {model_type!r} in {config_path}. "
+                "Quantization only supports DeBERTa checkpoints."
             )
+        base_model_name = (
+            model_config.get("_name_or_path") or "microsoft/deberta-v3-base"
+        )
+        if base_model_name in {"deberta-v2", "deberta"}:
+            base_model_name = "microsoft/deberta-v3-base"
     else:
+        tokenizer_class = tokenizer.__class__.__name__
+        if "deberta" not in tokenizer_class.lower():
+            raise RuntimeError(
+                f"config.json not found in {model_path}, and the tokenizer class "
+                f"is {tokenizer_class}, not DeBERTa. This looks like a stale "
+                "non-DeBERTa checkpoint; re-run training with a DeBERTa base model "
+                "or pass --model_path to a DeBERTa checkpoint directory."
+            )
         base_model_name = "microsoft/deberta-v3-base"
         logging.warning(
             "⚠️  config.json not found, using default: microsoft/deberta-v3-base"

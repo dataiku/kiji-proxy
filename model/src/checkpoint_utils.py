@@ -42,6 +42,46 @@ def load_compatible_state_dict(
 ) -> Any:
     """Load a checkpoint and fail if critical PII model weights are missing."""
     normalized = normalize_state_dict_keys(state_dict)
+
+    model_state = model.state_dict()
+    shape_mismatches = [
+        (key, tuple(value.shape), tuple(model_state[key].shape))
+        for key, value in normalized.items()
+        if key in model_state
+        and isinstance(value, torch.Tensor)
+        and value.shape != model_state[key].shape
+    ]
+    if shape_mismatches:
+        mismatch_preview = ", ".join(
+            f"{key}: checkpoint {checkpoint_shape} != model {model_shape}"
+            for key, checkpoint_shape, model_shape in shape_mismatches[:10]
+        )
+        if len(shape_mismatches) > 10:
+            mismatch_preview += ", ..."
+
+        hint = ""
+        embedding_mismatch = next(
+            (
+                (checkpoint_shape, model_shape)
+                for key, checkpoint_shape, model_shape in shape_mismatches
+                if key == "encoder.embeddings.word_embeddings.weight"
+            ),
+            None,
+        )
+        if embedding_mismatch is not None:
+            checkpoint_shape, model_shape = embedding_mismatch
+            hint = (
+                " The encoder vocabulary size differs "
+                f"({checkpoint_shape[0]} in the checkpoint vs {model_shape[0]} in "
+                "the selected base model), so this is likely a checkpoint from a "
+                "different base encoder."
+            )
+
+        raise RuntimeError(
+            f"Checkpoint {source} is incompatible with {model.__class__.__name__}. "
+            f"Shape mismatches: {mismatch_preview}.{hint}"
+        )
+
     incompatible = model.load_state_dict(normalized, strict=False)
 
     critical_missing = [
