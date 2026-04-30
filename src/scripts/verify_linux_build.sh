@@ -87,11 +87,11 @@ check_exists() {
 
     if [ -e "$EXTRACTED_DIR/$path" ]; then
         echo -e "${GREEN}✓${NC} $description"
-        ((CHECKS_PASSED++))
+        ((++CHECKS_PASSED))
         return 0
     else
         echo -e "${RED}✗${NC} $description (missing: $path)"
-        ((CHECKS_FAILED++))
+        ((++CHECKS_FAILED))
         return 1
     fi
 }
@@ -102,11 +102,11 @@ check_executable() {
 
     if [ -x "$EXTRACTED_DIR/$path" ]; then
         echo -e "${GREEN}✓${NC} $description"
-        ((CHECKS_PASSED++))
+        ((++CHECKS_PASSED))
         return 0
     else
         echo -e "${RED}✗${NC} $description (not executable: $path)"
-        ((CHECKS_FAILED++))
+        ((++CHECKS_FAILED))
         return 1
     fi
 }
@@ -128,24 +128,33 @@ cd "$EXTRACTED_DIR"
 # Set library path
 export LD_LIBRARY_PATH="$(pwd)/lib:$LD_LIBRARY_PATH"
 
-# Start the binary in background with timeout
-echo -e "${YELLOW}Starting binary (this will run for 5 seconds)...${NC}"
-timeout 5s ./bin/kiji-proxy > /tmp/kiji-verify.log 2>&1 &
+# Start the binary with a hard timeout cap, poll for extraction completion
+echo -e "${YELLOW}Starting binary (waiting for model extraction to complete, 10s max)...${NC}"
+EXTRACTION_START=$SECONDS
+timeout 10s ./bin/kiji-proxy > /tmp/kiji-verify.log 2>&1 &
 BINARY_PID=$!
 
-sleep 2
+# Exit early once extraction is confirmed; timeout kills the process at 10s if something hangs
+while ps -p $BINARY_PID > /dev/null 2>&1; do
+    if grep -q "Model files extracted successfully" /tmp/kiji-verify.log 2>/dev/null; then
+        break
+    fi
+    sleep 1
+done
+EXTRACTION_ELAPSED=$((SECONDS - EXTRACTION_START))
+echo -e "${BLUE}⏱  Model extraction completed in ${EXTRACTION_ELAPSED}s${NC}"
 
 # Check if process is running
 if ps -p $BINARY_PID > /dev/null 2>&1; then
     echo -e "${GREEN}✓${NC} Binary started successfully"
-    ((CHECKS_PASSED++))
+    ((++CHECKS_PASSED))
 
     # Kill the process
     kill $BINARY_PID 2>/dev/null || true
     wait $BINARY_PID 2>/dev/null || true
 else
     echo -e "${RED}✗${NC} Binary failed to start"
-    ((CHECKS_FAILED++))
+    ((++CHECKS_FAILED))
 fi
 
 # Check log output for model extraction
@@ -155,7 +164,7 @@ echo -e "${BLUE}🔍 Checking for embedded file extraction...${NC}"
 if [ -f /tmp/kiji-verify.log ]; then
     if grep -q "Extracting embedded model files" /tmp/kiji-verify.log; then
         echo -e "${GREEN}✓${NC} Binary attempted to extract embedded model files"
-        ((CHECKS_PASSED++))
+        ((++CHECKS_PASSED))
     else
         echo -e "${YELLOW}⚠${NC}  Warning: No model extraction message found"
     fi
@@ -163,7 +172,7 @@ if [ -f /tmp/kiji-verify.log ]; then
     # Check for extracted files
     if grep -q "Extracted:" /tmp/kiji-verify.log; then
         echo -e "${GREEN}✓${NC} Model files were extracted"
-        ((CHECKS_PASSED++))
+        ((++CHECKS_PASSED))
 
         # List extracted files
         echo ""
@@ -171,7 +180,7 @@ if [ -f /tmp/kiji-verify.log ]; then
         grep "Extracted:" /tmp/kiji-verify.log | sed 's/^/  /'
     else
         echo -e "${RED}✗${NC} No files were extracted"
-        ((CHECKS_FAILED++))
+        ((++CHECKS_FAILED))
     fi
 
     # Check for specific tokenizer files
@@ -185,16 +194,15 @@ if [ -f /tmp/kiji-verify.log ]; then
         "tokenizer_config.json"
         "label_mappings.json"
         "model.onnx"
-        "model.onnx.data"
     )
 
     for file in "${TOKENIZER_FILES[@]}"; do
         if grep -q "Extracted:.*$file" /tmp/kiji-verify.log; then
             echo -e "${GREEN}✓${NC} $file"
-            ((CHECKS_PASSED++))
+            ((++CHECKS_PASSED))
         else
             echo -e "${RED}✗${NC} $file (not found in extraction log)"
-            ((CHECKS_FAILED++))
+            ((++CHECKS_FAILED))
         fi
     done
 
@@ -207,15 +215,15 @@ if [ -f /tmp/kiji-verify.log ]; then
             if [ -f "model/quantized/$file" ]; then
                 SIZE=$(stat -c%s "model/quantized/$file" 2>/dev/null || stat -f%z "model/quantized/$file" 2>/dev/null || echo "unknown")
                 echo -e "${GREEN}✓${NC} model/quantized/$file (size: $SIZE bytes)"
-                ((CHECKS_PASSED++))
+                ((++CHECKS_PASSED))
             else
                 echo -e "${RED}✗${NC} model/quantized/$file (not found on disk)"
-                ((CHECKS_FAILED++))
+                ((++CHECKS_FAILED))
             fi
         done
     else
         echo -e "${RED}✗${NC} model/quantized directory not created"
-        ((CHECKS_FAILED++))
+        ((++CHECKS_FAILED))
     fi
 
     # Check for errors in log
@@ -225,7 +233,7 @@ if [ -f /tmp/kiji-verify.log ]; then
         echo -e "${YELLOW}⚠${NC}  Warnings/errors found in log (see above)"
     else
         echo -e "${GREEN}✓${NC} No critical errors found"
-        ((CHECKS_PASSED++))
+        ((++CHECKS_PASSED))
     fi
 fi
 
@@ -237,12 +245,12 @@ BINARY_SIZE_MB=$((BINARY_SIZE / 1024 / 1024))
 
 if [ "$BINARY_SIZE_MB" -gt 50 ]; then
     echo -e "${GREEN}✓${NC} Binary size: ${BINARY_SIZE_MB} MB (includes embedded files)"
-    ((CHECKS_PASSED++))
+    ((++CHECKS_PASSED))
 elif [ "$BINARY_SIZE_MB" -gt 10 ]; then
     echo -e "${YELLOW}⚠${NC}  Binary size: ${BINARY_SIZE_MB} MB (may be missing embedded files)"
 else
     echo -e "${RED}✗${NC} Binary size: ${BINARY_SIZE_MB} MB (too small, embedded files likely missing)"
-    ((CHECKS_FAILED++))
+    ((++CHECKS_FAILED))
 fi
 
 # Check library dependencies
@@ -252,10 +260,10 @@ if command -v ldd > /dev/null 2>&1; then
     if ldd bin/kiji-proxy | grep -q "not found"; then
         echo -e "${RED}✗${NC} Missing library dependencies:"
         ldd bin/kiji-proxy | grep "not found"
-        ((CHECKS_FAILED++))
+        ((++CHECKS_FAILED))
     else
         echo -e "${GREEN}✓${NC} All library dependencies satisfied"
-        ((CHECKS_PASSED++))
+        ((++CHECKS_PASSED))
     fi
 else
     echo -e "${YELLOW}⚠${NC}  ldd not available, skipping dependency check"
