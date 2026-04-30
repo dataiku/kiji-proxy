@@ -519,7 +519,6 @@ class PIITrainingPipeline(FlowSpec):
 
     # @pypi(packages=QUANTIZATION_PACKAGES, python="3.13")
     @environment(vars={"TOKENIZERS_PARALLELISM": "false"})
-    @checkpoint
     @step
     def sweep_eval(self):
         """Run the benchmark sweep across every quantization variant.
@@ -535,11 +534,14 @@ class PIITrainingPipeline(FlowSpec):
 
         self.sweep_report = None
 
-        if getattr(self, "quantized_variants", None) is None:
-            print("No variants produced (quantization skipped) — skipping sweep_eval")
+        variants_path = getattr(self, "variants_path", None)
+        if not variants_path or not Path(variants_path).exists():
+            print(
+                "No variants directory on disk "
+                f"(variants_path={variants_path!r}) — skipping sweep_eval"
+            )
         else:
-            variants_path = current.checkpoint.load(self.quantized_variants)
-            print(f"Loaded variants from checkpoint: {variants_path}")
+            print(f"Using variants directory: {variants_path}")
 
             report_path = Path("tests/benchmark/reports/quant_sweep.json")
             report_path.parent.mkdir(parents=True, exist_ok=True)
@@ -602,7 +604,6 @@ class PIITrainingPipeline(FlowSpec):
         self.next(self.sign_model)
 
     # @pypi(packages=SIGNING_PACKAGES, python="3.13")
-    @checkpoint
     @model(load=["trained_model"])  # Keep trained model as a fallback if export failed.
     @step
     def sign_model(self):
@@ -625,18 +626,12 @@ class PIITrainingPipeline(FlowSpec):
             signed_at = datetime.utcnow().isoformat()
 
             # 1. Sign the fp32 export (or fall back to the trained PyTorch dir).
-            fp32_path = None
-            if getattr(self, "exported_model", None) is not None:
-                try:
-                    fp32_path = current.checkpoint.load(self.exported_model)
-                except Exception as e:
-                    print(f"Could not load exported ONNX checkpoint: {e}")
-
-            if fp32_path is None:
+            fp32_path = getattr(self, "exported_model_path", None)
+            if fp32_path and Path(fp32_path).exists():
+                fp32_kind = "onnx"
+            else:
                 fp32_path = current.model.loaded["trained_model"]
                 fp32_kind = "trained"
-            else:
-                fp32_kind = "onnx"
 
             try:
                 h = sign_trained_model(fp32_path, private_key_path=private_key_path)
@@ -653,37 +648,31 @@ class PIITrainingPipeline(FlowSpec):
                 signatures["fp32"] = {"error": str(e), "path": str(fp32_path)}
 
             # 2. Sign every quantization variant directory.
-            if getattr(self, "quantized_variants", None) is not None:
-                try:
-                    variants_path = current.checkpoint.load(self.quantized_variants)
-                except Exception as e:
-                    print(f"Could not load variants checkpoint: {e}")
-                    variants_path = None
-
-                if variants_path is not None:
-                    for variant_dir in sorted(Path(variants_path).iterdir()):
-                        if not variant_dir.is_dir():
-                            continue
-                        if not (variant_dir / "model.onnx").exists():
-                            continue
-                        try:
-                            h = sign_trained_model(
-                                str(variant_dir), private_key_path=private_key_path
-                            )
-                            signatures[variant_dir.name] = {
-                                "sha256": h,
-                                "path": str(variant_dir),
-                                "kind": "variant",
-                                "signing_method": signing_method,
-                                "signed_at": signed_at,
-                            }
-                            print(f"Signed {variant_dir.name}: {h[:16]}...")
-                        except Exception as e:
-                            print(f"Failed to sign {variant_dir.name}: {e}")
-                            signatures[variant_dir.name] = {
-                                "error": str(e),
-                                "path": str(variant_dir),
-                            }
+            variants_path = getattr(self, "variants_path", None)
+            if variants_path and Path(variants_path).exists():
+                for variant_dir in sorted(Path(variants_path).iterdir()):
+                    if not variant_dir.is_dir():
+                        continue
+                    if not (variant_dir / "model.onnx").exists():
+                        continue
+                    try:
+                        h = sign_trained_model(
+                            str(variant_dir), private_key_path=private_key_path
+                        )
+                        signatures[variant_dir.name] = {
+                            "sha256": h,
+                            "path": str(variant_dir),
+                            "kind": "variant",
+                            "signing_method": signing_method,
+                            "signed_at": signed_at,
+                        }
+                        print(f"Signed {variant_dir.name}: {h[:16]}...")
+                    except Exception as e:
+                        print(f"Failed to sign {variant_dir.name}: {e}")
+                        signatures[variant_dir.name] = {
+                            "error": str(e),
+                            "path": str(variant_dir),
+                        }
 
         self.model_signatures = signatures or None
         # Keep the legacy single-signature artifact for back-compat with any
