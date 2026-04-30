@@ -23,11 +23,6 @@ func normalizeBaseURL(apiDomain string, useHttps bool) string {
 	// If apiDomain already has a scheme, parse it as-is
 	if strings.HasPrefix(apiDomain, "https://") || strings.HasPrefix(apiDomain, "http://") {
 		if parsed, err := url.Parse(apiDomain); err == nil {
-			if useHttps {
-				parsed.Scheme = "https"
-			} else {
-				parsed.Scheme = "http"
-			}
 			return strings.TrimSuffix(parsed.String(), "/")
 		}
 	}
@@ -83,6 +78,7 @@ type Providers struct {
 	AnthropicProvider *AnthropicProvider
 	GeminiProvider    *GeminiProvider
 	MistralProvider   *MistralProvider
+	CustomProvider    *CustomProvider
 }
 
 type ProviderRequest struct {
@@ -122,6 +118,8 @@ func (p *Providers) GetProviderFromPath(host string, path string, body *[]byte, 
 				provider = p.GeminiProvider
 			case ProviderTypeMistral:
 				provider = p.MistralProvider
+			case ProviderTypeCustom:
+				provider = p.CustomProvider
 			default:
 				log.Printf("%s [Provider] provider could not be determined from 'provider' field in request body, unknown provider: '%s'.", logPrefix, provider_field)
 			}
@@ -174,15 +172,17 @@ func (p *Providers) GetProviderFromHost(host string, logPrefix string) (*Provide
 		host = h
 	}
 
-	switch host {
-	case p.OpenAIProvider.apiDomain:
+	switch {
+	case p.OpenAIProvider != nil && providerHostMatches(host, p.OpenAIProvider.apiDomain):
 		provider = p.OpenAIProvider
-	case p.AnthropicProvider.apiDomain:
+	case p.AnthropicProvider != nil && providerHostMatches(host, p.AnthropicProvider.apiDomain):
 		provider = p.AnthropicProvider
-	case p.GeminiProvider.apiDomain:
+	case p.GeminiProvider != nil && providerHostMatches(host, p.GeminiProvider.apiDomain):
 		provider = p.GeminiProvider
-	case p.MistralProvider.apiDomain:
+	case p.MistralProvider != nil && providerHostMatches(host, p.MistralProvider.apiDomain):
 		provider = p.MistralProvider
+	case p.CustomProvider != nil && providerHostMatches(host, p.CustomProvider.apiDomain):
+		provider = p.CustomProvider
 	default:
 		log.Printf("%s [Provider] provider could not be determined from host '%s'.", logPrefix, host)
 		return &provider, fmt.Errorf("provider could not be determined from host: '%s'", host)
@@ -190,4 +190,29 @@ func (p *Providers) GetProviderFromHost(host string, logPrefix string) (*Provide
 
 	log.Printf("%s [Provider] '%s' provider detected from host '%s'.", logPrefix, provider.GetName(), host)
 	return &provider, nil
+}
+
+func providerHostMatches(host string, apiDomain string) bool {
+	return host == providerHost(apiDomain)
+}
+
+func providerHost(apiDomain string) string {
+	if apiDomain == "" {
+		return ""
+	}
+
+	value := apiDomain
+	if !strings.HasPrefix(value, "http://") && !strings.HasPrefix(value, "https://") {
+		value = "//" + value
+	}
+
+	if parsed, err := url.Parse(value); err == nil && parsed.Host != "" {
+		return parsed.Hostname()
+	}
+
+	host := strings.Split(apiDomain, "/")[0]
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		return h
+	}
+	return host
 }

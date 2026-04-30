@@ -264,7 +264,7 @@ export default function PrivacyProxyUI() {
             </div>
           )}
 
-          {isElectron && !settings.apiKey && (
+          {isElectron && !settings.apiKey && settings.activeProvider !== "custom" && (
             <div className="mt-4 p-2 bg-amber-50 border border-amber-200 rounded-lg inline-block">
               <p className="text-xs text-amber-800 flex items-center gap-2">
                 <AlertCircle className="w-4 h-4" />
@@ -308,6 +308,7 @@ export default function PrivacyProxyUI() {
                       "anthropic",
                       "gemini",
                       "mistral",
+                      "custom",
                     ] as ProviderType[]
                   ).map((provider) => (
                     <option key={provider} value={provider}>

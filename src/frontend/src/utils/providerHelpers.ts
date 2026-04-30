@@ -28,6 +28,9 @@ export function apiUrl(path: string, isElectron: boolean): string {
 }
 
 export function getModel(provider: ProviderType, customModel: string): string {
+  if (provider === "custom") {
+    return customModel;
+  }
   return customModel || DEFAULT_MODELS[provider] || "gpt-4o-mini";
 }
 
@@ -41,6 +44,7 @@ export function buildRequestBody(
   switch (provider) {
     case "openai":
     case "mistral":
+    case "custom":
       return {
         ...baseFields,
         model,
@@ -90,7 +94,7 @@ export function buildHeaders(
     case "gemini":
       headers["x-goog-api-key"] = providerApiKey;
       break;
-    default: // openai, mistral
+    default: // openai, mistral, custom
       headers["Authorization"] = `Bearer ${providerApiKey}`;
   }
 
@@ -104,6 +108,7 @@ export function getProviderEndpoint(
   switch (provider) {
     case "openai":
     case "mistral":
+    case "custom":
       return "/v1/chat/completions";
     case "anthropic":
       return "/v1/messages";
@@ -122,6 +127,7 @@ export function extractAssistantMessage(
     switch (provider) {
       case "openai":
       case "mistral":
+      case "custom":
         return data.choices?.[0]?.message?.content || "";
 
       case "anthropic":

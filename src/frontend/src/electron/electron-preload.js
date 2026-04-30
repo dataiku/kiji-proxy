@@ -49,7 +49,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     return await ipcRenderer.invoke("set-provider-model", provider, model);
   },
 
-  // Get custom base URL for a specific provider (e.g. for OpenAI-compatible endpoints)
+  // Get custom base URL for a specific provider (e.g. for OpenAI-compatible custom endpoints)
   getProviderBaseUrl: async (provider) => {
     return await ipcRenderer.invoke("get-provider-base-url", provider);
   },

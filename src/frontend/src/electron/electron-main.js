@@ -175,10 +175,11 @@ const getResourcesPath = () => {
 // Map of provider type → env var names understood by the Go backend.
 // Keep in sync with src/backend/main.go loadApplicationConfig().
 const PROVIDER_ENV_NAMES = {
-  openai: { apiKey: "OPENAI_API_KEY", baseUrl: "OPENAI_BASE_URL" },
+  openai: { apiKey: "OPENAI_API_KEY" },
   anthropic: { apiKey: "ANTHROPIC_API_KEY", baseUrl: "ANTHROPIC_BASE_URL" },
   gemini: { apiKey: "GEMINI_API_KEY", baseUrl: "GEMINI_BASE_URL" },
   mistral: { apiKey: "MISTRAL_API_KEY", baseUrl: "MISTRAL_BASE_URL" },
+  custom: { apiKey: "CUSTOM_API_KEY", baseUrl: "CUSTOM_BASE_URL" },
 };
 
 // Build env var pairs from the persisted Electron config so the Go backend
@@ -201,7 +202,7 @@ const buildProviderEnvFromConfig = () => {
       }
 
       const baseUrl = (providerCfg.baseUrl || "").trim();
-      if (baseUrl) {
+      if (baseUrl && names.baseUrl) {
         env[names.baseUrl] = baseUrl;
       }
     }
@@ -1110,7 +1111,7 @@ app.on("will-quit", () => {
 });
 
 // Valid provider types
-const VALID_PROVIDERS = ["openai", "anthropic", "gemini", "mistral"];
+const VALID_PROVIDERS = ["openai", "anthropic", "gemini", "mistral", "custom"];
 
 // Migrate old single-key config format to new multi-provider format
 const migrateConfig = (config) => {
@@ -1127,6 +1128,7 @@ const migrateConfig = (config) => {
     anthropic: { apiKey: "", encrypted: false, model: "" },
     gemini: { apiKey: "", encrypted: false, model: "" },
     mistral: { apiKey: "", encrypted: false, model: "" },
+    custom: { apiKey: "", encrypted: false, model: "", baseUrl: "" },
   };
 
   // Migrate old apiKey to openai provider
@@ -1478,6 +1480,7 @@ ipcMain.handle("get-providers-config", async () => {
         anthropic: { hasApiKey: false, model: "", baseUrl: "" },
         gemini: { hasApiKey: false, model: "", baseUrl: "" },
         mistral: { hasApiKey: false, model: "", baseUrl: "" },
+        custom: { hasApiKey: false, model: "", baseUrl: "" },
       },
     };
   }

@@ -184,6 +184,11 @@ func newTestHandler(t *testing.T, detector *mockDetector, upstreamServer *httpte
 				APIKey:            "sk-mistral-test",
 				AdditionalHeaders: map[string]string{},
 			},
+			CustomProviderConfig: config.ProviderConfig{
+				APIDomain:         "custom.example.com",
+				APIKey:            "sk-custom-test",
+				AdditionalHeaders: map[string]string{},
+			},
 		},
 		Logging: config.LoggingConfig{
 			LogRequests:    true,
@@ -214,6 +219,11 @@ func newTestHandler(t *testing.T, detector *mockDetector, upstreamServer *httpte
 		cfg.Providers.MistralProviderConfig.APIKey,
 		cfg.Providers.MistralProviderConfig.AdditionalHeaders,
 	)
+	customProvider := providers.NewCustomProvider(
+		cfg.Providers.CustomProviderConfig.APIDomain,
+		cfg.Providers.CustomProviderConfig.APIKey,
+		cfg.Providers.CustomProviderConfig.AdditionalHeaders,
+	)
 
 	defaultProviders, err := providers.NewDefaultProviders(cfg.Providers.DefaultProvidersConfig.OpenAISubpath)
 	if err != nil {
@@ -226,6 +236,7 @@ func newTestHandler(t *testing.T, detector *mockDetector, upstreamServer *httpte
 		AnthropicProvider: anthropicProvider,
 		GeminiProvider:    geminiProvider,
 		MistralProvider:   mistralProvider,
+		CustomProvider:    customProvider,
 	}
 
 	var det pii.Detector = detector
@@ -816,6 +827,7 @@ func TestHandler_ServeHTTP_Integration(t *testing.T) {
 		AnthropicProvider: providers.NewAnthropicProvider("api.anthropic.com", "sk-ant", nil),
 		GeminiProvider:    providers.NewGeminiProvider("generativelanguage.googleapis.com", "key", nil),
 		MistralProvider:   providers.NewMistralProvider("api.mistral.ai", "key", nil),
+		CustomProvider:    providers.NewCustomProvider("custom.example.com", "key", nil),
 	}
 
 	body := `{"model":"gpt-4","messages":[{"role":"user","content":"Hello world"}]}`
@@ -909,6 +921,7 @@ func TestHandler_ServeHTTP_DetailsQueryParam(t *testing.T) {
 		AnthropicProvider: providers.NewAnthropicProvider("api.anthropic.com", "sk-ant", nil),
 		GeminiProvider:    providers.NewGeminiProvider("generativelanguage.googleapis.com", "key", nil),
 		MistralProvider:   providers.NewMistralProvider("api.mistral.ai", "key", nil),
+		CustomProvider:    providers.NewCustomProvider("custom.example.com", "key", nil),
 	}
 
 	body := `{"model":"gpt-4","messages":[{"role":"user","content":"Hello world"}]}`

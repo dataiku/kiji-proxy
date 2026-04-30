@@ -183,6 +183,7 @@ func (s *Server) Start() error {
 	log.Printf("Forward Anthropic requests to: %s", s.config.Providers.AnthropicProviderConfig.APIDomain)
 	log.Printf("Forward Gemini requests to: %s", s.config.Providers.GeminiProviderConfig.APIDomain)
 	log.Printf("Forward Mistral requests to: %s", s.config.Providers.MistralProviderConfig.APIDomain)
+	log.Printf("Forward Custom Provider requests to: %s", s.config.Providers.CustomProviderConfig.APIDomain)
 
 	if s.handler != nil {
 		log.Println("PII detection enabled with ONNX model detector")

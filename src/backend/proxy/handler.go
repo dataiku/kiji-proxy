@@ -557,6 +557,11 @@ func NewHandler(cfg *config.Config) (*Handler, error) {
 		cfg.Providers.MistralProviderConfig.APIKey,
 		cfg.Providers.MistralProviderConfig.AdditionalHeaders,
 	)
+	customProvider := providers.NewCustomProvider(
+		cfg.Providers.CustomProviderConfig.APIDomain,
+		cfg.Providers.CustomProviderConfig.APIKey,
+		cfg.Providers.CustomProviderConfig.AdditionalHeaders,
+	)
 
 	defaultProviders, err := providers.NewDefaultProviders(
 		cfg.Providers.DefaultProvidersConfig.OpenAISubpath,
@@ -571,6 +576,7 @@ func NewHandler(cfg *config.Config) (*Handler, error) {
 		AnthropicProvider: anthropicProvider,
 		GeminiProvider:    geminiProvider,
 		MistralProvider:   mistralProvider,
+		CustomProvider:    customProvider,
 	}
 
 	// Create services

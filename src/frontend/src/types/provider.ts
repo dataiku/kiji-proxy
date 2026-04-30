@@ -1,10 +1,16 @@
 // Provider types shared across the application
 
-export type ProviderType = "openai" | "anthropic" | "gemini" | "mistral";
+export type ProviderType =
+  | "openai"
+  | "anthropic"
+  | "gemini"
+  | "mistral"
+  | "custom";
 
 export interface ProviderSettings {
   hasApiKey: boolean;
   model: string;
+  baseUrl?: string;
 }
 
 export interface ProvidersConfig {
@@ -18,6 +24,7 @@ export const DEFAULT_MODELS: Record<ProviderType, string> = {
   anthropic: "claude-haiku-4-5",
   gemini: "gemini-flash-latest",
   mistral: "mistral-small-latest",
+  custom: "",
 };
 
 // Provider display names
@@ -26,6 +33,7 @@ export const PROVIDER_NAMES: Record<ProviderType, string> = {
   anthropic: "Anthropic",
   gemini: "Gemini",
   mistral: "Mistral",
+  custom: "Custom Provider",
 };
 
 export interface ContentBlock {

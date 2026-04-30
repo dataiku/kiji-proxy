@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { isElectron } from "../../utils/providerHelpers";
+import type { ProvidersConfig, ProviderType } from "../../types/provider";
 import {
   X,
   Save,
@@ -15,26 +16,10 @@ import {
   Globe,
 } from "lucide-react";
 
-type ProviderType = "openai" | "anthropic" | "gemini" | "mistral";
-
-interface ProviderSettings {
-  hasApiKey: boolean;
-  model: string;
-  baseUrl?: string;
-}
-
 // Providers that support a user-configurable custom endpoint URL.
-// OpenAI's API shape is also implemented by many third-party servers
-// (LM Studio, Ollama, Together, vLLM, …), so we expose the base URL
-// only for that provider for now.
 const PROVIDERS_WITH_CUSTOM_ENDPOINT: ReadonlySet<ProviderType> = new Set([
-  "openai",
+  "custom",
 ]);
-
-interface ProvidersConfig {
-  activeProvider: ProviderType;
-  providers: Record<ProviderType, ProviderSettings>;
-}
 
 // Provider display information
 const PROVIDER_INFO: Record<
@@ -43,9 +28,11 @@ const PROVIDER_INFO: Record<
     name: string;
     defaultModel: string;
     placeholder: string;
-    helpLink: string;
-    defaultBaseUrl?: string;
+    helpLink?: string;
     baseUrlPlaceholder?: string;
+    modelHelpText?: string;
+    endpointHelpText?: string;
+    apiKeyOptional?: boolean;
   }
 > = {
   openai: {
@@ -54,8 +41,6 @@ const PROVIDER_INFO: Record<
     placeholder: "sk-...",
     helpLink:
       "https://help.openai.com/en/articles/4936850-where-do-i-find-my-openai-api-key",
-    defaultBaseUrl: "https://api.openai.com/v1",
-    baseUrlPlaceholder: "https://api.openai.com/v1",
   },
   anthropic: {
     name: "Anthropic",
@@ -75,6 +60,16 @@ const PROVIDER_INFO: Record<
     placeholder: "...",
     helpLink: "https://console.mistral.ai/api-keys",
   },
+  custom: {
+    name: "Custom Provider",
+    defaultModel: "your-model-id",
+    placeholder: "...",
+    baseUrlPlaceholder: "https://api.example.com/v1",
+    apiKeyOptional: true,
+    modelHelpText: "Use the exact model ID expected by your provider.",
+    endpointHelpText:
+      "Your custom provider must support an OpenAI-compliant chat completions API.",
+  },
 };
 
 const PROVIDER_ORDER: ProviderType[] = [
@@ -82,6 +77,7 @@ const PROVIDER_ORDER: ProviderType[] = [
   "anthropic",
   "gemini",
   "mistral",
+  "custom",
 ];
 
 interface SettingsModalProps {
@@ -110,6 +106,7 @@ export default function SettingsModal({
       anthropic: { hasApiKey: false, model: "" },
       gemini: { hasApiKey: false, model: "" },
       mistral: { hasApiKey: false, model: "" },
+      custom: { hasApiKey: false, model: "", baseUrl: "" },
     },
   });
 
@@ -126,6 +123,7 @@ export default function SettingsModal({
     anthropic: false,
     gemini: false,
     mistral: false,
+    custom: false,
   });
 
   // Form state for each provider (API key inputs and model overrides)
@@ -136,6 +134,7 @@ export default function SettingsModal({
     anthropic: "",
     gemini: "",
     mistral: "",
+    custom: "",
   });
 
   const [providerModels, setProviderModels] = useState<
@@ -145,6 +144,7 @@ export default function SettingsModal({
     anthropic: "",
     gemini: "",
     mistral: "",
+    custom: "",
   });
 
   const [providerBaseUrls, setProviderBaseUrls] = useState<
@@ -154,6 +154,7 @@ export default function SettingsModal({
     anthropic: "",
     gemini: "",
     mistral: "",
+    custom: "",
   });
 
   const loadSettings = async () => {
@@ -170,12 +171,14 @@ export default function SettingsModal({
         anthropic: "",
         gemini: "",
         mistral: "",
+        custom: "",
       };
       const baseUrls: Record<ProviderType, string> = {
         openai: "",
         anthropic: "",
         gemini: "",
         mistral: "",
+        custom: "",
       };
       for (const provider of PROVIDER_ORDER) {
         models[provider] = config.providers[provider]?.model || "";
@@ -190,6 +193,7 @@ export default function SettingsModal({
         anthropic: "",
         gemini: "",
         mistral: "",
+        custom: "",
       });
     } catch (error) {
       console.error("Error loading settings:", error);
@@ -279,6 +283,7 @@ export default function SettingsModal({
         anthropic: "",
         gemini: "",
         mistral: "",
+        custom: "",
       });
 
       // Restart the backend so the new API keys / endpoint URLs take effect.
@@ -409,6 +414,7 @@ export default function SettingsModal({
                   const info = PROVIDER_INFO[provider];
                   const config = providersConfig.providers[provider];
                   const isExpanded = expandedProvider === provider;
+                  const isApiKeyOptional = info.apiKeyOptional === true;
 
                   return (
                     <div
@@ -434,10 +440,16 @@ export default function SettingsModal({
                           className={`text-xs px-2 py-1 rounded ${
                             config?.hasApiKey
                               ? "bg-green-100 text-green-700"
+                              : isApiKeyOptional
+                              ? "bg-blue-100 text-blue-700"
                               : "bg-slate-100 text-slate-500"
                           }`}
                         >
-                          {config?.hasApiKey ? "Configured" : "Not Set"}
+                          {config?.hasApiKey
+                            ? "Configured"
+                            : isApiKeyOptional
+                            ? "Key Optional"
+                            : "Not Set"}
                         </span>
                       </button>
 
@@ -452,6 +464,7 @@ export default function SettingsModal({
                                 <label className="text-sm font-medium text-slate-600 flex items-center gap-2">
                                   <Key className="w-4 h-4" />
                                   {info.name} API Key
+                                  {isApiKeyOptional ? " (optional)" : ""}
                                 </label>
                                 {config?.hasApiKey && (
                                   <button
@@ -505,6 +518,8 @@ export default function SettingsModal({
                                     ? unlockedProviders[provider]
                                       ? "Enter new API key to update"
                                       : "API key is configured (unlock to edit)"
+                                    : isApiKeyOptional
+                                    ? `Optional ${info.name} API key (${info.placeholder})`
                                     : `Enter your ${info.name} API key (${info.placeholder})`
                                 }
                                 className={`w-full px-3 py-2 border rounded-lg focus:border-blue-500 focus:outline-none font-mono text-sm placeholder:text-gray-400 ${
@@ -521,14 +536,16 @@ export default function SettingsModal({
                             </div>
 
                             {/* Help link */}
-                            <a
-                              href={info.helpLink}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 hover:underline transition-colors mt-1"
-                            >
-                              How to get your {info.name} API key?
-                            </a>
+                            {info.helpLink && (
+                              <a
+                                href={info.helpLink}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 hover:underline transition-colors mt-1"
+                              >
+                                How to get your {info.name} API key?
+                              </a>
+                            )}
                           </div>
 
                           {/* Model Override */}
@@ -550,11 +567,11 @@ export default function SettingsModal({
                               className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:border-blue-500 focus:outline-none font-mono text-sm placeholder:text-gray-400"
                             />
                             <p className="text-xs text-slate-500 mt-1">
-                              Default: {info.defaultModel}
+                              {info.modelHelpText || `Default: ${info.defaultModel}`}
                             </p>
                           </div>
 
-                          {/* Custom Endpoint URL (OpenAI-compatible providers only) */}
+                          {/* Custom Endpoint URL */}
                           {PROVIDERS_WITH_CUSTOM_ENDPOINT.has(provider) && (
                             <div>
                               <label className="block text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
@@ -576,11 +593,16 @@ export default function SettingsModal({
                                 }
                                 className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:border-blue-500 focus:outline-none font-mono text-sm placeholder:text-gray-400"
                               />
-                              <p className="text-xs text-slate-500 mt-1">
-                                {info.defaultBaseUrl
-                                  ? `Default: ${info.defaultBaseUrl}. Override to use an OpenAI-compatible endpoint (LM Studio, Ollama, vLLM, etc.).`
-                                  : "Override to use a custom endpoint."}
-                              </p>
+                              {info.endpointHelpText ? (
+                                <p className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 mt-2">
+                                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                                  <span>{info.endpointHelpText}</span>
+                                </p>
+                              ) : (
+                                <p className="text-xs text-slate-500 mt-1">
+                                  Override to use a custom endpoint.
+                                </p>
+                              )}
                             </div>
                           )}
                         </div>

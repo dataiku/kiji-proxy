@@ -1,12 +1,17 @@
 // TypeScript declarations for Electron API exposed via preload script
 
 // Provider types for multi-provider support
-type ProviderType = "openai" | "anthropic" | "gemini" | "mistral";
+type ProviderType =
+  | "openai"
+  | "anthropic"
+  | "gemini"
+  | "mistral"
+  | "custom";
 
 interface ProviderSettings {
   hasApiKey: boolean;
   model: string; // Custom model or empty string for default
-  baseUrl?: string; // Custom endpoint URL (currently only used by OpenAI for OpenAI-compatible APIs)
+  baseUrl?: string; // Custom endpoint URL for OpenAI-compatible custom providers
 }
 
 interface ProvidersConfig {

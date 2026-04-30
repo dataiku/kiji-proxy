@@ -816,6 +816,7 @@ func newTestProviders(defaultOpenAI ProviderType) *Providers {
 		AnthropicProvider: NewAnthropicProvider("api.anthropic.com", "sk-ant", nil),
 		GeminiProvider:    NewGeminiProvider("generativelanguage.googleapis.com", "AIza", nil),
 		MistralProvider:   NewMistralProvider("api.mistral.ai", "sk-mistral", nil),
+		CustomProvider:    NewCustomProvider("custom.example.com", "sk-custom", nil),
 	}
 }
 
@@ -891,6 +892,13 @@ func TestProviders_GetProviderFromPath(t *testing.T) {
 			defaultOAI:   ProviderTypeOpenAI,
 			wantProvider: "Mistral",
 		},
+		{
+			name:         "provider field custom",
+			path:         "/v1/chat/completions",
+			body:         `{"provider":"custom","model":"custom-model","messages":[]}`,
+			defaultOAI:   ProviderTypeOpenAI,
+			wantProvider: "Custom Provider",
+		},
 	}
 
 	for _, tt := range tests {
@@ -941,6 +949,7 @@ func TestProviders_GetProviderFromHost(t *testing.T) {
 		{"Anthropic host", "api.anthropic.com", "Anthropic", false},
 		{"Gemini host", "generativelanguage.googleapis.com", "Gemini", false},
 		{"Mistral host", "api.mistral.ai", "Mistral", false},
+		{"Custom host", "custom.example.com", "Custom Provider", false},
 		{"unknown host", "unknown.example.com", "", true},
 	}
 
