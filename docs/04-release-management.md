@@ -18,7 +18,7 @@ Kiji Privacy Proxy uses [Changesets](https://github.com/changesets/changesets) f
 
 - **Semantic Versioning:** Automatic version bumping based on change types
 - **Changelog Generation:** Auto-generated from changesets
-- **Multi-Platform Builds:** Parallel macOS and Linux builds
+- **Multi-Platform Builds:** Parallel macOS, Linux, and Chrome extension builds
 - **GitHub Releases:** Automated release creation with artifacts
 
 ### Release Flow
@@ -28,16 +28,17 @@ Kiji Privacy Proxy uses [Changesets](https://github.com/changesets/changesets) f
    ↓
 2. Merge to Main
    ↓
-3. Changesets Bot Creates Version PR
+3. Changesets Bot Creates Version PR (label: release)
    ↓
 4. Merge Version PR
    ↓
-5. Tag Release
+5. release.yml: Builds artifacts (parallel) + Tags + Publishes
    ↓
-6. CI Builds Artifacts (parallel)
-   ↓
-7. GitHub Release Created
+6. GitHub Release Published
 ```
+
+Tagging is handled automatically by `release.yml`'s `create-release` job
+when a release-labeled PR merges — no manual `git tag` step.
 
 ## Changesets Workflow
 
@@ -199,42 +200,25 @@ Changesets automatically creates a PR titled "chore: version packages":
 
 **Step 5: Merge Version PR**
 
-Merge the version PR. This updates package.json and CHANGELOG.md.
+Merge the version PR (it carries the `release` label automatically). This
+updates `package.json` and `CHANGELOG.md`, and the merge itself triggers
+`release.yml`.
 
-**Step 6: Create Git Tag**
+**Step 6: Verify Release**
 
-```bash
-# Pull the version bump
-git checkout main
-git pull origin main
-
-# Verify version
-make info
-
-# Create annotated tag
-git tag -a v0.2.0 -m "Release v0.2.0
-
-New Features:
-- Custom PII detection rules
-- Enhanced HTTPS certificate handling
-
-Bug Fixes:
-- Fixed phone number detection with extensions
-"
-
-# Push tag
-git push origin v0.2.0
-```
-
-**Step 7: Verify Release**
-
-CI automatically:
+`release.yml` runs automatically on the merge and:
 - Builds macOS DMG (~15 min)
 - Builds Linux tarball (~12 min)
-- Creates GitHub Release
-- Attaches artifacts
+- Packages Chrome extension (~1 min)
+- Creates and pushes the `v{version}` tag
+- Publishes a single GitHub Release with all assets attached
 
 Check: https://github.com/dataiku/kiji-proxy/releases
+
+> The tag is created by the workflow using the auto-generated `GITHUB_TOKEN`.
+> You don't need to run `git tag` / `git push` manually unless you're cutting
+> an out-of-band release outside the Version-PR flow (see *Manual Release*
+> below).
 
 ### Manual Release
 
@@ -270,97 +254,118 @@ Workflows trigger automatically on tag push.
 
 ## CI/CD Workflows
 
-### Workflow Files
+### Workflow File
 
-The release process uses two separate GitHub Actions workflows:
+The entire release process runs in a single GitHub Actions workflow:
 
-1. **`.github/workflows/release-dmg.yml`** - macOS DMG build
-2. **`.github/workflows/release-linux.yml`** - Linux tarball build
+**`.github/workflows/release.yml`** — four jobs, three building in parallel:
 
-Both run in parallel when triggered.
+| Job | Runner | Output |
+|-----|--------|--------|
+| `build-dmg` | `macos-latest` | `Kiji-Privacy-Proxy-{version}.dmg`, `*-mac.zip`, `latest-mac.yml` |
+| `build-linux` | `ubuntu-latest` | `kiji-privacy-proxy-{version}-linux-amd64.tar.gz` (+ `.sha256`) |
+| `build-chrome` | `ubuntu-latest` | `kiji-privacy-proxy-extension-{version}.zip` (+ `.sha256`) |
+| `create-release` | `ubuntu-latest` | Tags `v{version}` (PR-merge path only), publishes GitHub Release |
+
+The three build jobs run concurrently. `create-release` waits for all three,
+then atomically creates the release with every asset attached
+(`gh release create --latest`).
 
 ### Trigger Conditions
 
-Workflows trigger on:
+`release.yml` runs on:
 
-1. **Tag Push:** `git push origin v0.1.1`
-2. **Version PR Merge:** Changesets version PR merged to main
-3. **Manual Trigger:** Workflow dispatch in GitHub Actions UI
+1. **Release PR merged** with the `release` label — the primary automated
+   path. The `create-release` job creates and pushes the `v{version}` tag
+   itself before publishing.
+2. **Tag Push** (`git push origin v0.1.1`) — for manual or out-of-band
+   releases. The tag must already exist; `create-release` skips the
+   tag-creation step on this path.
+3. **Manual Dispatch** via the Actions UI (`workflow_dispatch`) — for
+   re-running a build without creating a release (set `create_release=false`)
+   or for replaying a release on an existing tag.
 
-### macOS Workflow
+### macOS DMG Build (`build-dmg`)
 
-**Runner:** `macos-latest`
-
-**Steps:**
-1. Setup Go, Python, Node.js, Rust
-2. Cache LFS, Go modules, Python packages, Cargo, ONNX Runtime
-3. Verify Git LFS model files
-4. Install dependencies
-5. Build DMG via `make build-dmg`
-6. Upload artifact
-7. Create/update GitHub Release
-
-**Output:** `Kiji-Privacy-Proxy-{version}.dmg`
-
-**Build Time:** 5-8 minutes (cached), 15-20 minutes (cold)
-
-### Linux Workflow
-
-**Runner:** `ubuntu-latest`
+**Environment:** `DMG Build Environment` (holds signing/notarization secrets)
 
 **Steps:**
-1. Setup Go, Node.js, Rust
-2. Cache LFS, Go modules, Cargo, ONNX Runtime
+1. Verify signing secrets are present
+2. Setup Go, Python, Node.js, Rust, uv
+3. Cache LFS, tokenizers library, ONNX Runtime, npm
+4. Verify Git LFS model files
+5. Install Python / root / frontend dependencies
+6. Build DMG via `make build-dmg`
+7. Normalize artifact filenames
+8. Upload `dmg-assets` artifact (consumed by `create-release`)
+
+**Build Time:** 5–8 minutes (cached), 15–20 minutes (cold)
+
+### Linux Build (`build-linux`)
+
+**Steps:**
+1. Setup Go, Rust
+2. Cache LFS, Go modules, tokenizers library, ONNX Runtime
 3. Verify Git LFS model files
-4. Install dependencies
-5. Build via `build_linux.sh`
-6. Generate SHA256 checksum
-7. Upload artifact
-8. Create/update GitHub Release
+4. Build via `src/scripts/build_linux.sh`
+5. Upload `linux-assets` artifact
 
-**Output:**
-- `kiji-privacy-proxy-{version}-linux-amd64.tar.gz`
-- `kiji-privacy-proxy-{version}-linux-amd64.tar.gz.sha256`
+**Build Time:** 4–6 minutes (cached), 12–15 minutes (cold)
 
-**Build Time:** 4-6 minutes (cached), 12-15 minutes (cold)
+### Chrome Extension Build (`build-chrome`)
+
+**Steps:**
+1. Stamp the resolved version into `chrome-extension/manifest.json`
+2. Package the extension into a zip
+3. Generate SHA256 checksum
+4. Upload `chrome-assets` artifact
+
+**Build Time:** ~1 minute
+
+### Release Publication (`create-release`)
+
+**Permissions:** `contents: write`
+
+**Steps:**
+1. Download all build artifacts
+2. Generate release notes from the template
+3. **On the PR-merge path only:** create and push tag `v{version}` using
+   `GITHUB_TOKEN`
+4. Publish the GitHub Release with every asset (`gh release create --latest`)
 
 ### Parallel Execution
 
-Both workflows run simultaneously:
-
 ```
-Tag: v0.1.1
-    ↓
-    ├─→ macOS workflow (15 min) → DMG
-    └─→ Linux workflow (12 min) → Tarball
-           ↓
-    Both complete → Release created
+Release PR merge  (or tag push, or workflow_dispatch)
+       ↓
+       ├─→ build-dmg     (~15 min)
+       ├─→ build-linux   (~12 min)
+       └─→ build-chrome  (~1 min)
+                  ↓
+            create-release → Tag + Single GitHub Release
 ```
 
-**Total Time:** ~15 minutes (parallel) vs ~27 minutes (sequential)
+**Total Time:** ~15 minutes (gated by the slowest build).
 
-### Caching Strategy
+### Caching
 
-Both workflows cache:
+Cached across the three build jobs as appropriate:
 
-- **Git LFS objects** - Model files (~100MB)
-- **Go modules** - Dependencies from go.sum
-- **Rust/Cargo** - Tokenizers compilation
-- **ONNX Runtime** - Pre-built libraries (version 1.24.2)
-- **Python packages** (macOS only) - ONNX Runtime Python
-- **Node modules** - via `cache: 'npm'`
-
-**Cache Keys:** Platform-specific, invalidated on dependency changes
+- **Git LFS objects** — model files (~100 MB)
+- **Go modules** — keyed by `go.sum`
+- **Rust/Cargo / tokenizers** — keyed by tokenizers version parsed from `go.mod`
+- **ONNX Runtime** — pre-built libraries (version 1.24.2)
+- **Python packages** (macOS, via uv) — ONNX Runtime Python
+- **Node modules** — `actions/setup-node` `cache: npm`
 
 ### Artifacts
 
 **Retention:** 90 days
 
-**Naming:**
-- macOS: `kiji-privacy-proxy-{version}-dmg`
-- Linux: `kiji-privacy-proxy-{version}-linux`
-
-**Upload to Release:** Artifacts are automatically attached to GitHub Release
+Each build job uploads to a workflow-scoped artifact (`dmg-assets`,
+`linux-assets`, `chrome-assets`). `create-release` downloads them, flattens
+to a single directory, and attaches everything to the GitHub Release in one
+atomic `gh release create` call.
 
 ## Release Strategy
 
@@ -396,9 +401,9 @@ Both workflows cache:
 - [ ] Breaking changes documented
 - [ ] Migration guide written (if major)
 
-**After Tag Push:**
-- [ ] Monitor CI workflows
-- [ ] Verify artifacts built successfully
+**After Version PR Merge (or manual tag push):**
+- [ ] Monitor `release.yml` run
+- [ ] Verify artifacts built successfully (DMG, Linux tarball, Chrome zip)
 - [ ] Test downloads on both platforms
 - [ ] Verify version in built apps
 - [ ] Update release notes if needed
@@ -447,13 +452,19 @@ gh pr create --title "fix: critical bug" --label "hotfix"
 
 **4. Immediate Release:**
 
+Wait for the changesets bot to open the Version PR, then merge it (it carries
+the `release` label automatically). `release.yml` tags `v0.1.2` and publishes
+the release — no manual `git tag` / `git push` needed.
+
+If the bot is delayed and you need to ship now, you can also tag manually:
+
 ```bash
-# Wait for version PR, merge immediately
-# Tag and push
 git pull origin main
 git tag -a v0.1.2 -m "Hotfix: critical bug"
 git push origin v0.1.2
 ```
+
+The tag-push trigger fires `release.yml` the same way.
 
 ## Version Management
 

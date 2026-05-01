@@ -494,38 +494,20 @@ After pushing to main:
    - Changeset file removed
 4. Merge the PR
 
-**7. Create Release Tag:**
+**7. Wait for Release Builds:**
 
-After merging the version PR:
+Merging the Version PR (it carries the `release` label) automatically
+triggers `release.yml`, which:
 
-```bash
-# Pull latest changes
-git checkout main
-git pull origin main
+- Builds the macOS DMG (~15 minutes)
+- Builds the Linux tarball (~12 minutes)
+- Packages the Chrome extension (~1 minute)
+- Creates and pushes the `v1.0.1` tag
+- Publishes a single GitHub Release with all assets
 
-# Verify new version
-make info
+You don't need to run `git tag` or `git push` — the workflow does it for you.
 
-# Create annotated tag
-git tag -a v1.0.1 -m "Release version 1.0.1
-
-Summary of changes:
-- Feature 1
-- Feature 2
-- Bug fix 3
-"
-
-# Push tag
-git push origin v1.0.1
-```
-
-**8. Wait for Release Builds:**
-
-Both macOS and Linux builds start automatically:
-- macOS DMG build (~15 minutes)
-- Linux tarball build (~12 minutes)
-
-**9. Verify Release:**
+**8. Verify Release:**
 
 1. Go to [Releases](https://github.com/dataiku/kiji-proxy/releases)
 2. Find "Release v1.0.1"
@@ -534,7 +516,7 @@ Both macOS and Linux builds start automatically:
    - `kiji-privacy-proxy-1.0.1-linux-amd64.tar.gz`
    - `kiji-privacy-proxy-1.0.1-linux-amd64.tar.gz.sha256`
 
-**10. Test the Release:**
+**9. Test the Release:**
 
 Download and test on your platform:
 

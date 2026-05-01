@@ -103,7 +103,7 @@ https://poe.com/*
 
 ### Prepare the Extension
 
-The GitHub Actions workflow `release-chrome-extension.yml` produces a versioned zip file attached to each release. You can also build it manually:
+The `build-chrome` job in `.github/workflows/release.yml` produces a versioned zip file attached to each release. You can also build it manually:
 
 ```bash
 cd chrome-extension
@@ -217,7 +217,7 @@ The Chrome Web Store review will ask why each permission is needed:
 ## Updating a Published Extension
 
 1. Bump the `version` in `chrome-extension/manifest.json` (Chrome requires a higher version number for each upload)
-2. Package the zip (the CI workflow does this automatically on tag push)
+2. Package the zip (the CI workflow does this automatically on each release)
 3. Go to the Developer Dashboard, select the extension, and click **Package** > **Upload new package**
 4. Upload the new zip
 5. Submit for review
@@ -226,12 +226,15 @@ Chrome auto-updates installed extensions once the new version is approved (typic
 
 ## CI/CD Integration
 
-The `release-chrome-extension.yml` workflow runs on every `v*` tag push and:
+The Chrome extension is packaged by the `build-chrome` job inside
+`.github/workflows/release.yml`, which runs on every release (release-PR
+merge, `v*` tag push, or manual dispatch) and:
 
-1. Stamps the tag version into `manifest.json`
+1. Stamps the resolved version into `manifest.json`
 2. Packages the zip with SHA256 checksum
-3. Uploads both as build artifacts (90-day retention)
-4. Attaches to the GitHub Release with install instructions
+3. Uploads both as the `chrome-assets` build artifact (90-day retention)
+4. Hands the assets to `create-release`, which attaches them to the GitHub
+   Release with install instructions
 
 Users can download the zip from the GitHub release page and load it unpacked.
 
@@ -245,7 +248,7 @@ To fully automate publishing, add a step to the workflow that uploads to the Chr
    - Generate a refresh token
    - Add `CHROME_WEB_STORE_CLIENT_ID`, `CHROME_WEB_STORE_CLIENT_SECRET`, and `CHROME_WEB_STORE_REFRESH_TOKEN` as GitHub repository secrets
 
-2. **Add a publish step** to `release-chrome-extension.yml`:
+2. **Add a publish step** to the `build-chrome` job in `.github/workflows/release.yml`:
 
    ```yaml
    - name: Publish to Chrome Web Store
