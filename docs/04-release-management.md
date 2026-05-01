@@ -64,7 +64,7 @@ Fix PII detection for phone numbers with extensions
 **Interactive CLI (Recommended):**
 
 ```bash
-cd src/frontend
+cd .changeset
 npm run changeset
 ```
 
