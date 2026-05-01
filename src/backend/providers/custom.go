@@ -8,6 +8,7 @@ import (
 const (
 	ProviderTypeCustom      ProviderType = "custom"
 	ProviderAPIDomainCustom string       = "api.openai.com"
+	ProviderNameCustom      string       = "Custom Provider"
 )
 
 // CustomProvider uses the OpenAI-compatible chat completions API shape.
@@ -22,7 +23,7 @@ func NewCustomProvider(apiDomain string, apiKey string, additionalHeaders map[st
 }
 
 func (p *CustomProvider) GetName() string {
-	return "Custom Provider"
+	return ProviderNameCustom
 }
 
 func (p *CustomProvider) GetType() ProviderType {

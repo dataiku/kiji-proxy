@@ -7,6 +7,36 @@ import (
 	piiGenerators "github.com/hannes/kiji-private/src/backend/pii/generators"
 )
 
+// PII entity labels recognized by the generator service.
+const (
+	labelSurname          = "SURNAME"
+	labelFirstName        = "FIRSTNAME"
+	labelBuildingNum      = "BUILDINGNUM"
+	labelDateOfBirth      = "DATEOFBIRTH"
+	labelEmail            = "EMAIL"
+	labelPhoneNumber      = "PHONENUMBER"
+	labelCity             = "CITY"
+	labelURL              = "URL"
+	labelCompanyName      = "COMPANYNAME"
+	labelState            = "STATE"
+	labelZip              = "ZIP"
+	labelStreet           = "STREET"
+	labelCountry          = "COUNTRY"
+	labelSSN              = "SSN"
+	labelDriverLicenseNum = "DRIVERLICENSENUM"
+	labelPassportID       = "PASSPORTID"
+	labelNationalID       = "NATIONALID"
+	labelIDCardNum        = "IDCARDNUM"
+	labelTaxNum           = "TAXNUM"
+	labelLicensePlateNum  = "LICENSEPLATENUM"
+	labelPassword         = "PASSWORD"
+	labelIBAN             = "IBAN"
+	labelAge              = "AGE"
+	labelSecurityToken    = "SECURITYTOKEN"
+	labelCreditCardNumber = "CREDITCARDNUMBER"
+	labelUsername         = "USERNAME"
+)
+
 // GeneratorService handles PII replacement generation
 type GeneratorService struct {
 	rng *rand.Rand
@@ -29,32 +59,32 @@ func (s *GeneratorService) GenerateReplacement(label, originalText string) strin
 // getGeneratorForLabel returns the appropriate generator function for the given label
 func (s *GeneratorService) getGeneratorForLabel(label string) func(string) string {
 	generators := map[string]func(string) string{
-		"SURNAME":          func(original string) string { return piiGenerators.SurnameGenerator(s.rng, original) },
-		"FIRSTNAME":        func(original string) string { return piiGenerators.FirstNameGenerator(s.rng, original) },
-		"BUILDINGNUM":      func(original string) string { return piiGenerators.BuildingNumGenerator(s.rng, original) },
-		"DATEOFBIRTH":      func(original string) string { return piiGenerators.DateOfBirthGenerator(s.rng, original) },
-		"EMAIL":            func(original string) string { return piiGenerators.EmailGenerator(s.rng, original) },
-		"PHONENUMBER":      func(original string) string { return piiGenerators.PhoneGenerator(s.rng, original) },
-		"CITY":             func(original string) string { return piiGenerators.CityGenerator(s.rng, original) },
-		"URL":              func(original string) string { return piiGenerators.UrlGenerator(s.rng, original) },
-		"COMPANYNAME":      func(original string) string { return piiGenerators.CompanyNameGenerator(s.rng, original) },
-		"STATE":            func(original string) string { return piiGenerators.StateGenerator(s.rng, original) },
-		"ZIP":              func(original string) string { return piiGenerators.ZipCodeGenerator(s.rng, original) },
-		"STREET":           func(original string) string { return piiGenerators.StreetGenerator(s.rng, original) },
-		"COUNTRY":          func(original string) string { return piiGenerators.CountryGenerator(s.rng, original) },
-		"SSN":              func(original string) string { return piiGenerators.SSNGenerator(s.rng, original) },
-		"DRIVERLICENSENUM": func(original string) string { return piiGenerators.DriverLicenseNumGenerator(s.rng, original) },
-		"PASSPORTID":       func(original string) string { return piiGenerators.PassportIdGenerator(s.rng, original) },
-		"NATIONALID":       func(original string) string { return piiGenerators.NationalIdGenerator(s.rng, original) },
-		"IDCARDNUM":        func(original string) string { return piiGenerators.IDCardNumGenerator(s.rng, original) },
-		"TAXNUM":           func(original string) string { return piiGenerators.TaxNumGenerator(s.rng, original) },
-		"LICENSEPLATENUM":  func(original string) string { return piiGenerators.LicensePlateNumGenerator(s.rng, original) },
-		"PASSWORD":         func(original string) string { return piiGenerators.PasswordGenerator(s.rng, original) },
-		"IBAN":             func(original string) string { return piiGenerators.IbanGenerator(s.rng, original) },
-		"AGE":              func(original string) string { return piiGenerators.AgeGenerator(s.rng, original) },
-		"SECURITYTOKEN":    func(original string) string { return piiGenerators.SecurityTokenGenerator(s.rng, original) },
-		"CREDITCARDNUMBER": func(original string) string { return piiGenerators.CreditCardGenerator(s.rng, original) },
-		"USERNAME":         func(original string) string { return piiGenerators.UsernameGenerator(s.rng, original) },
+		labelSurname:          func(original string) string { return piiGenerators.SurnameGenerator(s.rng, original) },
+		labelFirstName:        func(original string) string { return piiGenerators.FirstNameGenerator(s.rng, original) },
+		labelBuildingNum:      func(original string) string { return piiGenerators.BuildingNumGenerator(s.rng, original) },
+		labelDateOfBirth:      func(original string) string { return piiGenerators.DateOfBirthGenerator(s.rng, original) },
+		labelEmail:            func(original string) string { return piiGenerators.EmailGenerator(s.rng, original) },
+		labelPhoneNumber:      func(original string) string { return piiGenerators.PhoneGenerator(s.rng, original) },
+		labelCity:             func(original string) string { return piiGenerators.CityGenerator(s.rng, original) },
+		labelURL:              func(original string) string { return piiGenerators.UrlGenerator(s.rng, original) },
+		labelCompanyName:      func(original string) string { return piiGenerators.CompanyNameGenerator(s.rng, original) },
+		labelState:            func(original string) string { return piiGenerators.StateGenerator(s.rng, original) },
+		labelZip:              func(original string) string { return piiGenerators.ZipCodeGenerator(s.rng, original) },
+		labelStreet:           func(original string) string { return piiGenerators.StreetGenerator(s.rng, original) },
+		labelCountry:          func(original string) string { return piiGenerators.CountryGenerator(s.rng, original) },
+		labelSSN:              func(original string) string { return piiGenerators.SSNGenerator(s.rng, original) },
+		labelDriverLicenseNum: func(original string) string { return piiGenerators.DriverLicenseNumGenerator(s.rng, original) },
+		labelPassportID:       func(original string) string { return piiGenerators.PassportIdGenerator(s.rng, original) },
+		labelNationalID:       func(original string) string { return piiGenerators.NationalIdGenerator(s.rng, original) },
+		labelIDCardNum:        func(original string) string { return piiGenerators.IDCardNumGenerator(s.rng, original) },
+		labelTaxNum:           func(original string) string { return piiGenerators.TaxNumGenerator(s.rng, original) },
+		labelLicensePlateNum:  func(original string) string { return piiGenerators.LicensePlateNumGenerator(s.rng, original) },
+		labelPassword:         func(original string) string { return piiGenerators.PasswordGenerator(s.rng, original) },
+		labelIBAN:             func(original string) string { return piiGenerators.IbanGenerator(s.rng, original) },
+		labelAge:              func(original string) string { return piiGenerators.AgeGenerator(s.rng, original) },
+		labelSecurityToken:    func(original string) string { return piiGenerators.SecurityTokenGenerator(s.rng, original) },
+		labelCreditCardNumber: func(original string) string { return piiGenerators.CreditCardGenerator(s.rng, original) },
+		labelUsername:         func(original string) string { return piiGenerators.UsernameGenerator(s.rng, original) },
 	}
 
 	if generator, exists := generators[label]; exists {
