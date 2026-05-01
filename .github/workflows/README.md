@@ -7,8 +7,7 @@ This directory contains all CI/CD workflows for the Kiji Privacy Proxy project.
 | Workflow | Trigger | Purpose | Artifacts |
 |----------|---------|---------|-----------|
 | **changesets.yml** | Push to `main` | Creates Version PRs | None |
-| **auto-tag.yml** | Release PR merged to `main` | Creates git tags automatically | None |
-| **release.yml** | Tag `v*`, Manual | Builds all platforms, creates single release | DMG, tar.gz, zip + checksums (90 days) |
+| **release.yml** | Release PR merged, Tag `v*`, Manual | Tags, builds all platforms, creates single release | DMG, tar.gz, zip + checksums (90 days) |
 | **lint-and-test.yml** | Push/PR to `main`/`develop` | Linting and tests | None |
 | **semantic-pr.yml** | PR opened/edited | Enforces Conventional Commits in PR titles | None |
 | **cleanup-artifacts.yml** | Daily (2 AM UTC), Manual | Cleans old artifacts | None |
@@ -30,36 +29,29 @@ This directory contains all CI/CD workflows for the Kiji Privacy Proxy project.
 4. Updates `CHANGELOG.md`
 5. Creates/updates a "Version PR" (branch: `changeset-release/main`, label: `release`)
 
----
+**Requires:** **Settings → Actions → General → Workflow permissions → "Allow
+GitHub Actions to create and approve pull requests"** must be enabled. The
+workflow uses the auto-generated `GITHUB_TOKEN` (no PAT or GitHub App needed).
 
-### 2. Auto-Tag Workflow (`auto-tag.yml`)
-
-**Purpose:** Automatically creates a git tag when a release PR is merged.
-
-**Triggers:**
-- Pull request merged to `main` with the `release` label
-
-**What it does:**
-1. Extracts version from `src/frontend/package.json`
-2. Checks if the tag already exists
-3. Creates and pushes tag `v{version}` (e.g., `v0.3.5`)
-
-This tag push then triggers the release workflow (`release.yml`).
-
-**Requires:** a GitHub App installed on this repository with `Contents: Read and write`
-and `Pull requests: Read and write`, plus the `GITHUB_APP_CLIENT_ID` repository
-variable and `GITHUB_APP_PRIVATE_KEY` repository secret. The app token allows the
-tag push to trigger the release workflow.
+CI does **not** run on the Version PR itself — `pull_request` workflows opened
+by `GITHUB_TOKEN` don't trigger downstream workflow runs. This is acceptable
+for this PR because its diff is purely mechanical (`package.json` bumps and
+`.changeset/*.md` deletions).
 
 ---
 
-### 3. Release Workflow (`release.yml`)
+### 2. Release Workflow (`release.yml`)
 
-**Purpose:** Builds all platforms in parallel and creates a single GitHub release with all assets.
+**Purpose:** Tags the release, builds all platforms in parallel, and creates a single GitHub release with all assets.
 
 **Triggers:**
-- Tag starting with `v*` pushed
-- Manual via Actions UI
+- Release PR (label: `release`) merged to `main` — automatic end-to-end path
+- Tag starting with `v*` pushed manually
+- Manual via Actions UI (`workflow_dispatch`)
+
+**On the PR-merge path**, the `create-release` job creates and pushes the
+`v{version}` tag itself (using `GITHUB_TOKEN`) right before publishing the
+GitHub release. There is no separate auto-tag workflow.
 
 **Jobs:**
 
@@ -87,7 +79,7 @@ The three build jobs run in parallel. The `create-release` job waits for all bui
 
 ---
 
-### 4. Lint and Test Workflow (`lint-and-test.yml`)
+### 3. Lint and Test Workflow (`lint-and-test.yml`)
 
 **Purpose:** Code quality checks and tests.
 
@@ -106,7 +98,7 @@ The three build jobs run in parallel. The `create-release` job waits for all bui
 
 ---
 
-### 5. Cleanup Artifacts Workflow (`cleanup-artifacts.yml`)
+### 4. Cleanup Artifacts Workflow (`cleanup-artifacts.yml`)
 
 **Purpose:** Manages storage by cleaning old artifacts.
 
@@ -123,7 +115,7 @@ The three build jobs run in parallel. The `create-release` job waits for all bui
 
 ---
 
-### 6. Sign Model Workflow (`sign-model.yml`)
+### 5. Sign Model Workflow (`sign-model.yml`)
 
 **Purpose:** Cryptographically signs ML models.
 
@@ -141,7 +133,7 @@ The three build jobs run in parallel. The `create-release` job waits for all bui
 
 ---
 
-### 7. Semantic PR Title Workflow (`semantic-pr.yml`)
+### 6. Semantic PR Title Workflow (`semantic-pr.yml`)
 
 **Purpose:** Enforces Conventional Commits format in PR titles.
 
@@ -181,16 +173,11 @@ Human Review (manual)
   - Merge Version PR to main
               |
               v
-auto-tag.yml (automatic on PR merge with release label)
-  - Reads version from package.json
-  - Creates and pushes tag v0.3.5
-              |
-              v
-release.yml (automatic on tag push)
+release.yml (automatic on PR merge with release label)
   - build-dmg       -> macOS DMG        (parallel)
   - build-linux     -> Linux tar.gz     (parallel)
   - build-chrome    -> Chrome ext zip   (parallel)
-  - create-release  -> Single GitHub Release with all assets
+  - create-release  -> Pushes tag v0.3.5, then creates Single GitHub Release with all assets
               |
               v
 Release Published!
@@ -249,4 +236,4 @@ Notarization is currently **disabled**. The DMG is code-signed but not notarized
 
 ---
 
-**Last Updated:** February 24, 2026
+**Last Updated:** April 30, 2026
