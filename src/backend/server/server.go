@@ -18,6 +18,8 @@ import (
 	"golang.org/x/time/rate"
 )
 
+const responseFieldSuccess = "success"
+
 // RateLimiter manages rate limiting for API endpoints
 type RateLimiter struct {
 	visitors map[string]*rate.Limiter
@@ -686,8 +688,8 @@ func (s *Server) handlePIIConfidence(w http.ResponseWriter, r *http.Request) {
 
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(map[string]interface{}{
-			"success":    true,
-			"confidence": req.Confidence,
+			responseFieldSuccess: true,
+			"confidence":         req.Confidence,
 		}); err != nil {
 			log.Printf("Failed to encode PII confidence response: %v", err)
 		}
@@ -728,8 +730,8 @@ func (s *Server) handleTransparentProxyToggle(w http.ResponseWriter, r *http.Req
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	response := map[string]interface{}{
-		"success": true,
-		"enabled": req.Enabled,
+		responseFieldSuccess: true,
+		"enabled":            req.Enabled,
 	}
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		log.Printf("Failed to encode response: %v", err)
@@ -799,8 +801,8 @@ func (s *Server) handleModelReload(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
 		response := map[string]interface{}{
-			"success": false,
-			"error":   err.Error(),
+			responseFieldSuccess: false,
+			"error":              err.Error(),
 		}
 		if err := json.NewEncoder(w).Encode(response); err != nil {
 			log.Printf("Failed to encode error response: %v", err)
@@ -811,9 +813,9 @@ func (s *Server) handleModelReload(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	response := map[string]interface{}{
-		"success":   true,
-		"message":   "Model reloaded successfully",
-		"directory": req.Directory,
+		responseFieldSuccess: true,
+		"message":            "Model reloaded successfully",
+		"directory":          req.Directory,
 	}
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		log.Printf("Failed to encode success response: %v", err)

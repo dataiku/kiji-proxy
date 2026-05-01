@@ -13,6 +13,7 @@ const (
 	ProviderTypeOpenAI      ProviderType = "openai"
 	ProviderSubpathOpenAI   string       = "/v1/chat/completions"
 	ProviderAPIDomainOpenAI string       = "api.openai.com"
+	ProviderNameOpenAI      string       = "OpenAI"
 )
 
 type OpenAIProvider struct {
@@ -26,7 +27,7 @@ func NewOpenAIProvider(apiDomain string, apiKey string, additionalHeaders map[st
 }
 
 func (p *OpenAIProvider) GetName() string {
-	return "OpenAI"
+	return ProviderNameOpenAI
 }
 
 func (p *OpenAIProvider) GetType() ProviderType {

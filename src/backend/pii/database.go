@@ -16,6 +16,14 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+// Direction values used when storing request/response logs.
+const (
+	DirectionRequestOriginal = "request_original"
+	DirectionRequestMasked   = "request_masked"
+
+	detectedPIINone = "None"
+)
+
 // DatabaseConfig holds database configuration
 type DatabaseConfig struct {
 	Path string // Path to SQLite database file
@@ -433,7 +441,7 @@ func (s *SQLitePIIMappingDB) GetLogs(ctx context.Context, limit int, offset int)
 // formatDetectedPII formats the detected PII array as a readable string
 func formatDetectedPII(entries []LogEntry) string {
 	if len(entries) == 0 {
-		return "None"
+		return detectedPIINone
 	}
 
 	parts := make([]string, 0, len(entries))
@@ -656,7 +664,7 @@ func parseMessagesFromLogMessage(message string, direction string) ([]OpenAIMess
 	messages := []OpenAIMessage{}
 
 	isRequest := direction == "request" || direction == "In" ||
-		direction == "request_original" || direction == "request_masked"
+		direction == DirectionRequestOriginal || direction == DirectionRequestMasked
 
 	isResponse := direction == "response" || direction == "Out" ||
 		direction == "response_original" || direction == "response_masked"
