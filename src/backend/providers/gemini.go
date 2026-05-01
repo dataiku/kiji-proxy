@@ -13,6 +13,7 @@ const (
 	ProviderTypeGemini      ProviderType = "gemini"
 	ProviderSubpathGemini   string       = "/v1beta/models"
 	ProviderAPIDomainGemini string       = "generativelanguage.googleapis.com"
+	ProviderNameGemini      string       = "Gemini"
 )
 
 type GeminiProvider struct {
@@ -26,7 +27,7 @@ func NewGeminiProvider(apiDomain string, apiKey string, additionalHeaders map[st
 }
 
 func (p *GeminiProvider) GetName() string {
-	return "Gemini"
+	return ProviderNameGemini
 }
 
 func (p *GeminiProvider) GetType() ProviderType {
