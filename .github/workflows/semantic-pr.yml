@@ -28,7 +28,9 @@ jobs:
             test
             ci
             perf
+            deps
           requireScope: false
+          # Scope (sub-type) is optional and may be any value, e.g. `feat(linux):`, `fix(verify-linux):`
           subjectPattern: ^(?![A-Z]).+$
           subjectPatternError: "Subject must not start with an uppercase letter"
         env:
