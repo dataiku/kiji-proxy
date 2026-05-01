@@ -7,6 +7,8 @@ import (
 	piiGenerators "github.com/hannes/kiji-private/src/backend/pii/generators"
 )
 
+const labelEmail = "EMAIL"
+
 // GeneratorService handles PII replacement generation
 type GeneratorService struct {
 	rng *rand.Rand
@@ -33,7 +35,7 @@ func (s *GeneratorService) getGeneratorForLabel(label string) func(string) strin
 		"FIRSTNAME":        func(original string) string { return piiGenerators.FirstNameGenerator(s.rng, original) },
 		"BUILDINGNUM":      func(original string) string { return piiGenerators.BuildingNumGenerator(s.rng, original) },
 		"DATEOFBIRTH":      func(original string) string { return piiGenerators.DateOfBirthGenerator(s.rng, original) },
-		"EMAIL":            func(original string) string { return piiGenerators.EmailGenerator(s.rng, original) },
+		labelEmail:         func(original string) string { return piiGenerators.EmailGenerator(s.rng, original) },
 		"PHONENUMBER":      func(original string) string { return piiGenerators.PhoneGenerator(s.rng, original) },
 		"CITY":             func(original string) string { return piiGenerators.CityGenerator(s.rng, original) },
 		"URL":              func(original string) string { return piiGenerators.UrlGenerator(s.rng, original) },
