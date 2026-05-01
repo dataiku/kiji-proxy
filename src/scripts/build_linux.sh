@@ -344,10 +344,10 @@ After=network.target
 
 [Service]
 Type=simple
-User=kiji
-Group=kiji
-WorkingDirectory=/opt/kiji-privacy-proxy
+DynamicUser=yes
+StateDirectory=kiji-proxy
 Environment="LD_LIBRARY_PATH=/opt/kiji-privacy-proxy/lib"
+Environment="KIJI_DATA_PATH=/var/lib/kiji-proxy"
 ExecStart=/opt/kiji-privacy-proxy/bin/kiji-proxy
 Restart=on-failure
 RestartSec=5s

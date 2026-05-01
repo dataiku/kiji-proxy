@@ -94,18 +94,22 @@ func TestValidateDomain(t *testing.T) {
 			errString: "OpenAI.APIDomain: domain cannot be empty",
 		},
 		{
-			name:      "with http",
+			name:      "valid full URL with http",
 			domain:    "http://api.openai.com",
 			fieldName: "OpenAI.APIDomain",
-			expectErr: true,
-			errString: "OpenAI.APIDomain: domain must not include protocol 'http://' or 'https://' (current value: http://api.openai.com)",
+			expectErr: false,
 		},
 		{
-			name:      "with https",
-			domain:    "https://api.openai.com",
+			name:      "valid full URL with path",
+			domain:    "https://api.openai.com/v1",
 			fieldName: "OpenAI.APIDomain",
-			expectErr: true,
-			errString: "OpenAI.APIDomain: domain must not include protocol 'http://' or 'https://' (current value: https://api.openai.com)",
+			expectErr: false,
+		},
+		{
+			name:      "valid localhost with port",
+			domain:    "localhost:11434",
+			fieldName: "OpenAI.APIDomain",
+			expectErr: false,
 		},
 		{
 			name:      "invalid format",
@@ -205,11 +209,11 @@ func TestValidateProviderConfig(t *testing.T) {
 		{
 			name: "invalid domain",
 			providerCfg: ProviderConfig{
-				APIDomain: "http://api.openai.com",
+				APIDomain: "invalid_domain",
 			},
 			providerName: "OpenAI",
 			expectErr:    true,
-			errString:    "OpenAI.APIDomain: domain must not include protocol 'http://' or 'https://' (current value: http://api.openai.com)",
+			errString:    "OpenAI.APIDomain: domain format is invalid (current value: invalid_domain)",
 		},
 		{
 			name: "invalid headers",

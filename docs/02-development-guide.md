@@ -18,7 +18,7 @@ This guide covers setting up your development environment, debugging workflows, 
 ### Prerequisites
 
 **Required:**
-- **Go 1.21+** with CGO enabled
+- **Go 1.25+** with CGO enabled
 - **Node.js 20+** and npm
 - **Rust toolchain** (latest stable)
 - **Git LFS** for model files
@@ -28,7 +28,7 @@ This guide covers setting up your development environment, debugging workflows, 
 
 **macOS:**
 - Xcode Command Line Tools: `xcode-select --install`
-- Python 3.11+ (for ONNX Runtime)
+- Python 3.13+ (for ONNX Runtime)
 
 **Linux:**
 - Build essentials: `sudo apt-get install build-essential gcc g++`
@@ -44,10 +44,8 @@ cd kiji-proxy
 # 2. Pull model files
 git lfs pull
 
-# 3. Build tokenizers library
-cd build/tokenizers
-make build
-cd ../..
+# 3. Download tokenizers library
+make setup-tokenizers
 
 # 4. Install ONNX Runtime
 # See "Installing ONNX Runtime" section below
@@ -74,7 +72,7 @@ sudo apt-get install golang-go
 # Or download from https://go.dev/dl/
 
 # Verify
-go version  # Should show go1.21+
+go version  # Should show go1.25+
 ```
 
 **Delve Debugger:**
@@ -102,11 +100,15 @@ python3 -m venv .venv
 source .venv/bin/activate
 
 # Install ONNX Runtime
-pip install onnxruntime
+uv pip install "onnxruntime==1.25.0"
 
-# Find and copy library
+# Find and copy library (macOS)
 LIB_PATH=$(find .venv -name "libonnxruntime*.dylib" | head -1)
-cp "$LIB_PATH" ./build/libonnxruntime.1.24.2.dylib
+cp "$LIB_PATH" ./build/libonnxruntime.1.25.0.dylib
+
+# Find and copy library (Linux)
+LIB_PATH=$(find .venv -name "libonnxruntime.so.*" | head -1)
+cp "$LIB_PATH" ./build/libonnxruntime.so
 ```
 
 **Option 2: Via UV (Faster):**
@@ -118,46 +120,49 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 # Create venv and install
 uv venv --python 3.13
 source .venv/bin/activate
-uv pip install onnxruntime
+uv pip install "onnxruntime==1.25.0"
 
-# Copy library
+# Copy library (macOS)
 LIB_PATH=$(find .venv -name "libonnxruntime*.dylib" | head -1)
-cp "$LIB_PATH" ./build/libonnxruntime.1.24.2.dylib
+cp "$LIB_PATH" ./build/libonnxruntime.1.25.0.dylib
+
+# Copy library (Linux)
+LIB_PATH=$(find .venv -name "libonnxruntime.so.*" | head -1)
+cp "$LIB_PATH" ./build/libonnxruntime.so
 ```
 
 **Option 3: Manual Download:**
 
 ```bash
 # macOS ARM64 (Apple Silicon)
-wget https://github.com/microsoft/onnxruntime/releases/download/v1.24.2/onnxruntime-osx-arm64-1.24.2.tgz
-tar -xzf onnxruntime-osx-arm64-1.24.2.tgz
-cp onnxruntime-osx-arm64-1.24.2/lib/libonnxruntime.1.24.2.dylib build/
+wget https://github.com/microsoft/onnxruntime/releases/download/v1.25.0/onnxruntime-osx-arm64-1.25.0.tgz
+tar -xzf onnxruntime-osx-arm64-1.25.0.tgz
+cp onnxruntime-osx-arm64-1.25.0/lib/libonnxruntime.1.25.0.dylib build/
 
 # Linux
-wget https://github.com/microsoft/onnxruntime/releases/download/v1.24.2/onnxruntime-linux-x64-1.24.2.tgz
-tar -xzf onnxruntime-linux-x64-1.24.2.tgz
-cp onnxruntime-linux-x64-1.24.2/lib/libonnxruntime.so.1.24.2 build/libonnxruntime.so
+wget https://github.com/microsoft/onnxruntime/releases/download/v1.25.0/onnxruntime-linux-x64-1.25.0.tgz
+tar -xzf onnxruntime-linux-x64-1.25.0.tgz
+cp onnxruntime-linux-x64-1.25.0/lib/libonnxruntime.so.1.25.0 build/libonnxruntime.so
 ```
 
 **Verify:**
 ```bash
 ls -lh build/libonnxruntime.*
-# macOS: Should show libonnxruntime.1.24.2.dylib (~26MB)
+# macOS: Should show libonnxruntime.1.25.0.dylib (~26MB)
 # Linux: Should show libonnxruntime.so (~24MB)
 ```
+
+> **About ONNX Runtime:** the library uses a specific version for C API headers (right now it's 1.25.0). So we updated to 1.25.0 in the instructions, but it might evolve later when you read this. Please check the [ONNX Runtime pkg go](https://pkg.go.dev/github.com/yalue/onnxruntime_go#section-readme:~:text=At%20the%20time,be%20fairly%20easy%3A) and for context the [PR discussion about updating ONNX Runtime](https://github.com/dataiku/kiji-proxy/pull/364/changes/BASE..e21c6701583a5f6eb617d852441f7ca5add7e381#r3163645922)
 
 ### Compiling Tokenizers
 
 The Rust tokenizers library must be built before running the Go backend.
 
 ```bash
-cd build/tokenizers
-make build
-cd ../..
+make setup-tokenizers
 
 # Verify
 ls -lh build/tokenizers/libtokenizers.a
-# Should show ~15MB static library
 ```
 
 **Cross-Platform Builds:**
@@ -525,10 +530,10 @@ go test -v -run TestDetectPII ./src/backend/detector
 // src/backend/detector/detector_test.go
 func TestDetectPII(t *testing.T) {
     detector := NewONNXDetector()
-    
+
     input := "Email: john@example.com"
     result := detector.Detect(input)
-    
+
     if len(result.Entities) == 0 {
         t.Error("Expected to detect email")
     }
@@ -693,23 +698,35 @@ ls -lh model/quantized/model_quantized.onnx
 ### "Tokenizers library not found"
 
 ```bash
-# Build tokenizers
-cd build/tokenizers
-make build
+make setup-tokenizers
 
 # Verify
-ls -lh libtokenizers.a
-# Should be ~15MB
+ls -lh build/tokenizers/libtokenizers.a
 ```
 
 ### "ONNX Runtime not found"
 
 ```bash
 # macOS
-export ONNXRUNTIME_SHARED_LIBRARY_PATH="./build/libonnxruntime.1.24.2.dylib"
+export ONNXRUNTIME_SHARED_LIBRARY_PATH="./build/libonnxruntime.1.25.0.dylib"
 
 # Linux
 export LD_LIBRARY_PATH="./build:$LD_LIBRARY_PATH"
+```
+
+### "`ruff` command not found"
+
+```bash
+# Install Python dev dependencies
+make install-dev
+```
+
+### "golangci-lint: configuration file for v2 used with v1"
+
+The project requires golangci-lint v2. Reinstall with the v2 module path:
+
+```bash
+go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
 ```
 
 ### "CGO errors"

@@ -172,6 +172,46 @@ const getResourcesPath = () => {
 };
 
 // Launch the Go binary backend
+// Map of provider type → env var names understood by the Go backend.
+// Keep in sync with src/backend/main.go loadApplicationConfig().
+const PROVIDER_ENV_NAMES = {
+  openai: { apiKey: "OPENAI_API_KEY" },
+  anthropic: { apiKey: "ANTHROPIC_API_KEY", baseUrl: "ANTHROPIC_BASE_URL" },
+  gemini: { apiKey: "GEMINI_API_KEY", baseUrl: "GEMINI_BASE_URL" },
+  mistral: { apiKey: "MISTRAL_API_KEY", baseUrl: "MISTRAL_BASE_URL" },
+  custom: { apiKey: "CUSTOM_API_KEY", baseUrl: "CUSTOM_BASE_URL" },
+};
+
+// Build env var pairs from the persisted Electron config so the Go backend
+// picks up the user's saved API keys and custom endpoint URLs at spawn time.
+// Values from the saved config take precedence over inherited process.env
+// because they were explicitly set by the user via Settings.
+const buildProviderEnvFromConfig = () => {
+  const env = {};
+  try {
+    const cfg = readConfig();
+    const providers = cfg.providers || {};
+
+    for (const [provider, names] of Object.entries(PROVIDER_ENV_NAMES)) {
+      const providerCfg = providers[provider];
+      if (!providerCfg) continue;
+
+      const decryptedKey = decryptApiKey(providerCfg);
+      if (decryptedKey) {
+        env[names.apiKey] = decryptedKey;
+      }
+
+      const baseUrl = (providerCfg.baseUrl || "").trim();
+      if (baseUrl && names.baseUrl) {
+        env[names.baseUrl] = baseUrl;
+      }
+    }
+  } catch (error) {
+    console.error("Error building provider env from saved config:", error);
+  }
+  return env;
+};
+
 const launchGoBinary = () => {
   // Skip launching backend if EXTERNAL_BACKEND is set (e.g., running in debugger)
   if (
@@ -199,8 +239,10 @@ const launchGoBinary = () => {
   const projectRoot = getResourcesPath();
   console.log("[DEBUG] Project root / resources path:", projectRoot);
 
-  // Set up environment variables
-  const env = { ...process.env };
+  // Set up environment variables.
+  // Order matters: the saved provider config wins over inherited process.env
+  // because the user explicitly set those values via the Settings UI.
+  const env = { ...process.env, ...buildProviderEnvFromConfig() };
 
   // In development mode, set ONNX Runtime library path
   // Try multiple locations relative to project root
@@ -354,6 +396,47 @@ const stopGoBinary = () => {
       goProcess = null;
     }, 3000);
   }
+};
+
+// Stop the Go binary and wait for it to actually exit.
+// Returns once the process has terminated (or after a hard timeout).
+const stopGoBinaryAsync = () => {
+  return new Promise((resolve) => {
+    if (!goProcess) {
+      resolve();
+      return;
+    }
+
+    const proc = goProcess;
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      goProcess = null;
+      resolve();
+    };
+
+    proc.once("exit", finish);
+    console.log("Stopping Go binary (async)...");
+    proc.kill("SIGTERM");
+
+    setTimeout(() => {
+      if (!settled) {
+        if (!proc.killed) {
+          console.log("Force killing Go binary (async)...");
+          proc.kill("SIGKILL");
+        }
+        // Give SIGKILL a brief moment, then resolve regardless.
+        setTimeout(finish, 500);
+      }
+    }, 3000);
+  });
+};
+
+// Restart the Go binary so it picks up updated env vars from the saved config.
+const restartGoBinary = async () => {
+  await stopGoBinaryAsync();
+  launchGoBinary();
 };
 
 // Wait for the Go backend to be ready by polling the health endpoint
@@ -1028,7 +1111,7 @@ app.on("will-quit", () => {
 });
 
 // Valid provider types
-const VALID_PROVIDERS = ["openai", "anthropic", "gemini", "mistral"];
+const VALID_PROVIDERS = ["openai", "anthropic", "gemini", "mistral", "custom"];
 
 // Migrate old single-key config format to new multi-provider format
 const migrateConfig = (config) => {
@@ -1045,6 +1128,7 @@ const migrateConfig = (config) => {
     anthropic: { apiKey: "", encrypted: false, model: "" },
     gemini: { apiKey: "", encrypted: false, model: "" },
     mistral: { apiKey: "", encrypted: false, model: "" },
+    custom: { apiKey: "", encrypted: false, model: "", baseUrl: "" },
   };
 
   // Migrate old apiKey to openai provider
@@ -1285,13 +1369,92 @@ ipcMain.handle("set-provider-model", async (event, provider, model) => {
   }
 });
 
+// Get custom base URL for specific provider
+ipcMain.handle("get-provider-base-url", async (event, provider) => {
+  try {
+    if (!VALID_PROVIDERS.includes(provider)) {
+      console.error(`Invalid provider: ${provider}`);
+      return "";
+    }
+
+    const config = readConfig();
+    return config.providers?.[provider]?.baseUrl || "";
+  } catch (error) {
+    console.error(`Error reading base URL for ${provider}:`, error);
+    return "";
+  }
+});
+
+// Set custom base URL for specific provider
+ipcMain.handle("set-provider-base-url", async (event, provider, baseUrl) => {
+  try {
+    if (!VALID_PROVIDERS.includes(provider)) {
+      return { success: false, error: `Invalid provider: ${provider}` };
+    }
+
+    const trimmed = (baseUrl || "").trim();
+    if (trimmed && !/^https?:\/\//i.test(trimmed)) {
+      return {
+        success: false,
+        error: "Base URL must start with http:// or https://",
+      };
+    }
+
+    const config = readConfig();
+    if (!config.providers) {
+      config.providers = {};
+    }
+    if (!config.providers[provider]) {
+      config.providers[provider] = { apiKey: "", encrypted: false };
+    }
+
+    config.providers[provider].baseUrl = trimmed;
+
+    saveConfig(config);
+    return { success: true };
+  } catch (error) {
+    console.error(`Error saving base URL for ${provider}:`, error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Restart the Go backend so updated provider config (API keys, base URLs)
+// takes effect. Settings are injected as env vars at spawn time.
+ipcMain.handle("restart-backend", async () => {
+  try {
+    if (
+      process.env.EXTERNAL_BACKEND === "true" ||
+      process.env.SKIP_BACKEND_LAUNCH === "true"
+    ) {
+      return {
+        success: false,
+        error:
+          "Backend is externally managed (EXTERNAL_BACKEND); restart it manually.",
+      };
+    }
+
+    await restartGoBinary();
+    const ready = await waitForBackend(30, 500);
+    if (!ready) {
+      return {
+        success: false,
+        error: "Backend failed to become ready after restart",
+      };
+    }
+    return { success: true };
+  } catch (error) {
+    console.error("Error restarting backend:", error);
+    return { success: false, error: error.message };
+  }
+});
+
 // Get full providers config
 ipcMain.handle("get-providers-config", async () => {
   try {
     const config = readConfig();
     const activeProvider = config.activeProvider || "openai";
 
-    // Build response with hasApiKey (boolean) and model for each provider
+    // Build response with hasApiKey (boolean), model, and baseUrl for each provider
     const providers = {};
     for (const provider of VALID_PROVIDERS) {
       const providerConfig = config.providers?.[provider] || {};
@@ -1300,6 +1463,7 @@ ipcMain.handle("get-providers-config", async () => {
           providerConfig.apiKey && providerConfig.apiKey.length > 0
         ),
         model: providerConfig.model || "",
+        baseUrl: providerConfig.baseUrl || "",
       };
     }
 
@@ -1312,10 +1476,11 @@ ipcMain.handle("get-providers-config", async () => {
     return {
       activeProvider: "openai",
       providers: {
-        openai: { hasApiKey: false, model: "" },
-        anthropic: { hasApiKey: false, model: "" },
-        gemini: { hasApiKey: false, model: "" },
-        mistral: { hasApiKey: false, model: "" },
+        openai: { hasApiKey: false, model: "", baseUrl: "" },
+        anthropic: { hasApiKey: false, model: "", baseUrl: "" },
+        gemini: { hasApiKey: false, model: "", baseUrl: "" },
+        mistral: { hasApiKey: false, model: "", baseUrl: "" },
+        custom: { hasApiKey: false, model: "", baseUrl: "" },
       },
     };
   }

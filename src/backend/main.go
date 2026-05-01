@@ -254,6 +254,17 @@ func loadApplicationConfig(cfg *config.Config) {
 		log.Printf("Warning: MISTRAL_API_KEY is empty or not set")
 	}
 
+	// Override Custom provider config with environment variables
+	if customURL := os.Getenv("CUSTOM_BASE_URL"); customURL != "" {
+		cfg.Providers.CustomProviderConfig.APIDomain = customURL
+	}
+	if customApiKey := os.Getenv("CUSTOM_API_KEY"); customApiKey != "" {
+		cfg.Providers.CustomProviderConfig.APIKey = customApiKey
+		log.Printf("Loaded CUSTOM_API_KEY from environment (length: %d)", len(customApiKey))
+	} else {
+		log.Printf("Warning: CUSTOM_API_KEY is empty or not set")
+	}
+
 	if modelDir := os.Getenv("ONNX_MODEL_DIRECTORY"); modelDir != "" {
 		cfg.ONNXModelDirectory = modelDir
 		log.Printf("Loaded ONNX_MODEL_DIRECTORY from environment: %s", modelDir)

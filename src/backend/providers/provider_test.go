@@ -31,16 +31,16 @@ func TestNormalizeBaseURL(t *testing.T) {
 			want:      "https://api.openai.com/v1",
 		},
 		{
-			name:      "full http URL upgraded to https",
+			name:      "full http URL keeps explicit scheme",
 			apiDomain: "http://api.openai.com/v1",
 			useHttps:  true,
-			want:      "https://api.openai.com/v1",
+			want:      "http://api.openai.com/v1",
 		},
 		{
-			name:      "full https URL downgraded to http",
+			name:      "full https URL keeps explicit scheme",
 			apiDomain: "https://api.openai.com/v1",
 			useHttps:  false,
-			want:      "http://api.openai.com/v1",
+			want:      "https://api.openai.com/v1",
 		},
 
 		// Trailing slash stripped

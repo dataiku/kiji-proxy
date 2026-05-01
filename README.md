@@ -12,7 +12,7 @@
   </p>
 
   <p>
-    <img src="https://img.shields.io/badge/go-%3E%3D1.21-00ADD8?logo=go" alt="Go Version">
+    <img src="https://img.shields.io/badge/go-%3E%3D1.25-00ADD8?logo=go" alt="Go Version">
     <img src="https://img.shields.io/badge/node-%3E%3D20-339933?logo=node.js&logoColor=white" alt="Node Version">
     <img src="https://img.shields.io/badge/python-%3E%3D3.13-3776AB?logo=python&logoColor=white" alt="Python Version">
     <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey" alt="Platform">
@@ -30,7 +30,7 @@
 Built by [575 Lab](https://www.dataiku.com/company/dataiku-for-the-future/open-source/) - Dataiku's Open Source Office.
 
 <div align="center">
-  <img src="src/frontend/assets/ui_screenshot.png" alt="Kiji Privacy Proxy UI" height="600">
+  <img src="src/frontend/assets/ui_screencast.gif" alt="Kiji Privacy Proxy UI" height="600">
 </div>
 
 ---
@@ -39,13 +39,18 @@ Built by [575 Lab](https://www.dataiku.com/company/dataiku-for-the-future/open-s
 
 When using AI services like OpenAI or Anthropic, sensitive data in your prompts gets sent to external servers. Kiji solves this by:
 
-- **🔒 Automatic PII Protection** - ML-powered detection of 16+ PII types (emails, SSNs, credit cards, etc.)
+- **🔒 Automatic PII Protection** - ML-powered detection of 26 PII types (emails, SSNs, credit cards, etc.)
 - **🎭 Seamless Masking** - Replaces sensitive data with realistic dummy values before API calls
 - **🔄 Transparent Restoration** - Restores original data in responses so your app works normally
 - **🚀 Zero Code Changes** - Works as a transparent proxy with automatic configuration (PAC) on macOS
 - **🌐 Browser-Ready** - Automatic proxy setup for Safari, Chrome - no environment variables needed
+- **🧩 Chrome Extension** - Inline PII detection for ChatGPT, Claude, Gemini, and other AI chat sites ([details](docs/06-chrome-extension.md))
 - **🏃 Fast Local Inference** - ONNX-optimized model runs locally, no external API calls
 - **💻 Easy to Use** - Desktop app for macOS, standalone server for Linux
+
+<div align="center">
+  <img src="src/frontend/assets/chrome_extension_screencast.gif" alt="Kiji PII Guard Chrome extension intercepting input on ChatGPT" width="700">
+</div>
 
 **Use Cases:**
 - Protect customer data when using ChatGPT for customer support
@@ -150,7 +155,7 @@ make electron
 
 ## ✨ Key Features
 
-- **16+ PII Types Detected** - Email, phone, SSN, credit cards, IP addresses, URLs, and more
+- **26 PII Types Detected** - Email, phone, SSN, credit cards, addresses, URLs, and more
 - **ML-Powered** - DistilBERT transformer model with ONNX Runtime ([model](https://huggingface.co/DataikuNLP/kiji-pii-model-onnx), [dataset](https://huggingface.co/datasets/DataikuNLP/kiji-pii-training-data))
 - **Automatic Configuration** - PAC (Proxy Auto-Config) for zero-setup browser integration on macOS
 - **Real-Time Processing** - Sub-100ms latency for most requests
@@ -173,7 +178,7 @@ Complete documentation is available in [docs/README.md](docs/README.md):
 
 **Quick Links:**
 - [Installation Guide](docs/01-getting-started.md#quick-installation)
-- [Automatic Proxy Setup (PAC)](docs/transparent-proxy-setup.md)
+- [Automatic Proxy Setup (PAC)](docs/05-advanced-topics.md#transparent-proxy--mitm)
 - [VSCode Debugging](docs/02-development-guide.md#vscode-debugging)
 - [Build for macOS](docs/03-building-deployment.md#building-for-macos)
 - [Build for Linux](docs/03-building-deployment.md#building-for-linux)
@@ -198,10 +203,11 @@ You can train your own model or fine-tune the existing one. See [Customizing the
 
 ```
 ┌─────────────────┐    ┌──────────────---───┐        ┌─────────────────┐
-│  Your App/CLI   │───►│ Kiji Privacy Proxy │───────►│   OpenAI API    │
-│                 │    │     (Port 8080)    │        │  (Masked Data)  │
-│                 │◄───┤    - Detect PII    │◄───────┤                 │
-│  Original Data  │    │    - Mask/Restore  │        │                 │
+│  Your App/CLI   │───►│ Kiji Privacy Proxy │───────►│  Provider API   │
+│                 │    │  Forward     :8080 │        │  (Masked Data)  │
+│                 │◄───┤  Transparent :8081 │◄───────┤                 │
+│  Original Data  │    │  Detect / Mask /   │        │  OpenAI,        │
+│                 │    │  Restore           │        │  Anthropic, ... │
 └─────────────────┘    └────────────────────┘        └─────────────────┘
 ```
 
@@ -209,7 +215,7 @@ You can train your own model or fine-tune the existing one. See [Customizing the
 1. Your app sends request to Kiji Privacy Proxy
 2. Kiji detects PII using ML model
 3. PII is replaced with dummy data
-4. Request forwarded to OpenAI (with masked data)
+4. Request forwarded to the provider (OpenAI, Anthropic, Gemini, Mistral) with masked data
 5. Response received and PII restored
 6. Original-looking response returned to your app
 
@@ -284,9 +290,9 @@ Pull requests are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines
 
 ### Prerequisites
 
-- **Go 1.21+** with CGO enabled
+- **Go 1.25+** with CGO enabled
 - **Node.js 20+**
-- **Python 3.13**
+- **Python 3.13+**
 - **Rust toolchain**
 
 ### Quick Setup

@@ -22,6 +22,8 @@ import (
 	"github.com/hannes/kiji-private/src/backend/providers"
 )
 
+const paramLimit = "limit"
+
 // Handler handles HTTP requests and proxies them to LLM provider
 type Handler struct {
 	client            *http.Client
@@ -557,6 +559,11 @@ func NewHandler(cfg *config.Config) (*Handler, error) {
 		cfg.Providers.MistralProviderConfig.APIKey,
 		cfg.Providers.MistralProviderConfig.AdditionalHeaders,
 	)
+	customProvider := providers.NewCustomProvider(
+		cfg.Providers.CustomProviderConfig.APIDomain,
+		cfg.Providers.CustomProviderConfig.APIKey,
+		cfg.Providers.CustomProviderConfig.AdditionalHeaders,
+	)
 
 	defaultProviders, err := providers.NewDefaultProviders(
 		cfg.Providers.DefaultProvidersConfig.OpenAISubpath,
@@ -571,6 +578,7 @@ func NewHandler(cfg *config.Config) (*Handler, error) {
 		AnthropicProvider: anthropicProvider,
 		GeminiProvider:    geminiProvider,
 		MistralProvider:   mistralProvider,
+		CustomProvider:    customProvider,
 	}
 
 	// Create services
@@ -661,7 +669,7 @@ func (h *Handler) HandleLogs(w http.ResponseWriter, r *http.Request) {
 	maxLimit := 500 // Maximum allowed limit to prevent memory issues
 	offset := 0     // Default offset
 
-	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
+	if limitStr := r.URL.Query().Get(paramLimit); limitStr != "" {
 		if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 {
 			limit = parsedLimit
 			// Enforce maximum limit
@@ -698,10 +706,10 @@ func (h *Handler) HandleLogs(w http.ResponseWriter, r *http.Request) {
 
 	// Create response
 	response := map[string]interface{}{
-		"logs":   logs,
-		"total":  totalCount,
-		"limit":  limit,
-		"offset": offset,
+		"logs":     logs,
+		"total":    totalCount,
+		paramLimit: limit,
+		"offset":   offset,
 	}
 
 	// Set response headers
@@ -790,12 +798,12 @@ func (h *Handler) HandleStats(w http.ResponseWriter, r *http.Request) {
 	// Create response
 	response := map[string]interface{}{
 		"logs": map[string]interface{}{
-			"count": logCount,
-			"limit": piiServices.DefaultMaxLogEntries,
+			"count":    logCount,
+			paramLimit: piiServices.DefaultMaxLogEntries,
 		},
 		"mappings": map[string]interface{}{
-			"count": mappingCount,
-			"limit": piiServices.DefaultMaxMappingEntries,
+			"count":    mappingCount,
+			paramLimit: piiServices.DefaultMaxMappingEntries,
 		},
 	}
 

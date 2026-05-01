@@ -49,9 +49,24 @@ contextBridge.exposeInMainWorld("electronAPI", {
     return await ipcRenderer.invoke("set-provider-model", provider, model);
   },
 
-  // Get full providers config (hasApiKey and model for each provider)
+  // Get custom base URL for a specific provider (e.g. for OpenAI-compatible custom endpoints)
+  getProviderBaseUrl: async (provider) => {
+    return await ipcRenderer.invoke("get-provider-base-url", provider);
+  },
+
+  // Set custom base URL for a specific provider
+  setProviderBaseUrl: async (provider, baseUrl) => {
+    return await ipcRenderer.invoke("set-provider-base-url", provider, baseUrl);
+  },
+
+  // Get full providers config (hasApiKey, model, baseUrl for each provider)
   getProvidersConfig: async () => {
     return await ipcRenderer.invoke("get-providers-config");
+  },
+
+  // Restart the Go backend so updated provider config takes effect
+  restartBackend: async () => {
+    return await ipcRenderer.invoke("restart-backend");
   },
 
   // Platform information

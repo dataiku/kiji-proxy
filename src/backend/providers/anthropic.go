@@ -13,6 +13,9 @@ const (
 	ProviderTypeAnthropic      ProviderType = "anthropic"
 	ProviderSubpathAnthropic   string       = "/v1/messages"
 	ProviderAPIDomainAnthropic string       = "api.anthropic.com"
+	ProviderNameAnthropic      string       = "Anthropic"
+
+	contentTypeText = "text"
 )
 
 type AnthropicProvider struct {
@@ -26,7 +29,7 @@ func NewAnthropicProvider(apiDomain string, apiKey string, additionalHeaders map
 }
 
 func (p *AnthropicProvider) GetName() string {
-	return "Anthropic"
+	return ProviderNameAnthropic
 }
 
 func (p *AnthropicProvider) GetType() ProviderType {
@@ -68,8 +71,8 @@ func (p *AnthropicProvider) ExtractResponseText(data map[string]interface{}) (st
 	for i := range content {
 		item := content[i].(map[string]interface{})
 
-		if itemType, ok := item["type"].(string); ok && itemType == "text" {
-			if content, ok := item["text"].(string); ok {
+		if itemType, ok := item["type"].(string); ok && itemType == contentTypeText {
+			if content, ok := item[contentTypeText].(string); ok {
 				result.WriteString(content + "\n")
 			}
 		}
@@ -129,8 +132,8 @@ func (p *AnthropicProvider) RestoreMaskedResponse(maskedResponse map[string]inte
 			continue
 		}
 
-		if itemType == "text" {
-			content, ok := item["text"].(string)
+		if itemType == contentTypeText {
+			content, ok := item[contentTypeText].(string)
 			if !ok {
 				log.Printf("No 'text' field in 'content' item, continuing to next item.")
 				continue
@@ -152,7 +155,7 @@ func (p *AnthropicProvider) RestoreMaskedResponse(maskedResponse map[string]inte
 			}
 
 			// Replace masked content by reversedContent in 'maskedResponse'
-			item["text"] = restoredContent
+			item[contentTypeText] = restoredContent
 			err = nil
 		}
 	}

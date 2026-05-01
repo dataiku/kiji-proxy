@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { isElectron } from "../../utils/providerHelpers";
+import type { ProvidersConfig, ProviderType } from "../../types/provider";
 import {
   X,
   Save,
@@ -12,35 +13,38 @@ import {
   Settings2,
   Lock,
   Unlock,
+  Globe,
 } from "lucide-react";
 
-type ProviderType = "openai" | "anthropic" | "gemini" | "mistral";
-
-interface ProviderSettings {
-  hasApiKey: boolean;
-  model: string;
-}
-
-interface ProvidersConfig {
-  activeProvider: ProviderType;
-  providers: Record<ProviderType, ProviderSettings>;
-}
+// Providers that support a user-configurable custom endpoint URL.
+const PROVIDERS_WITH_CUSTOM_ENDPOINT: ReadonlySet<ProviderType> = new Set([
+  "custom",
+]);
 
 // Provider display information
 const PROVIDER_INFO: Record<
   ProviderType,
-  { name: string; defaultModel: string; placeholder: string; helpLink: string }
+  {
+    name: string;
+    defaultModel: string;
+    placeholder: string;
+    helpLink?: string;
+    baseUrlPlaceholder?: string;
+    modelHelpText?: string;
+    endpointHelpText?: string;
+    apiKeyOptional?: boolean;
+  }
 > = {
   openai: {
     name: "OpenAI",
-    defaultModel: "gpt-3.5-turbo",
+    defaultModel: "gpt-4o-mini",
     placeholder: "sk-...",
     helpLink:
       "https://help.openai.com/en/articles/4936850-where-do-i-find-my-openai-api-key",
   },
   anthropic: {
     name: "Anthropic",
-    defaultModel: "claude-3-haiku-20240307",
+    defaultModel: "claude-haiku-4-5",
     placeholder: "sk-ant-...",
     helpLink: "https://platform.claude.com/docs/en/get-started",
   },
@@ -56,6 +60,16 @@ const PROVIDER_INFO: Record<
     placeholder: "...",
     helpLink: "https://console.mistral.ai/api-keys",
   },
+  custom: {
+    name: "Custom Provider",
+    defaultModel: "your-model-id",
+    placeholder: "...",
+    baseUrlPlaceholder: "https://api.example.com/v1",
+    apiKeyOptional: true,
+    modelHelpText: "Use the exact model ID expected by your provider.",
+    endpointHelpText:
+      "Your custom provider must support an OpenAI-compliant chat completions API.",
+  },
 };
 
 const PROVIDER_ORDER: ProviderType[] = [
@@ -63,6 +77,7 @@ const PROVIDER_ORDER: ProviderType[] = [
   "anthropic",
   "gemini",
   "mistral",
+  "custom",
 ];
 
 interface SettingsModalProps {
@@ -91,6 +106,7 @@ export default function SettingsModal({
       anthropic: { hasApiKey: false, model: "" },
       gemini: { hasApiKey: false, model: "" },
       mistral: { hasApiKey: false, model: "" },
+      custom: { hasApiKey: false, model: "", baseUrl: "" },
     },
   });
 
@@ -107,6 +123,7 @@ export default function SettingsModal({
     anthropic: false,
     gemini: false,
     mistral: false,
+    custom: false,
   });
 
   // Form state for each provider (API key inputs and model overrides)
@@ -117,6 +134,7 @@ export default function SettingsModal({
     anthropic: "",
     gemini: "",
     mistral: "",
+    custom: "",
   });
 
   const [providerModels, setProviderModels] = useState<
@@ -126,6 +144,17 @@ export default function SettingsModal({
     anthropic: "",
     gemini: "",
     mistral: "",
+    custom: "",
+  });
+
+  const [providerBaseUrls, setProviderBaseUrls] = useState<
+    Record<ProviderType, string>
+  >({
+    openai: "",
+    anthropic: "",
+    gemini: "",
+    mistral: "",
+    custom: "",
   });
 
   const loadSettings = async () => {
@@ -136,17 +165,27 @@ export default function SettingsModal({
       const config = await window.electronAPI.getProvidersConfig();
       setProvidersConfig(config);
 
-      // Load models from config
+      // Load models and base URLs from config
       const models: Record<ProviderType, string> = {
         openai: "",
         anthropic: "",
         gemini: "",
         mistral: "",
+        custom: "",
+      };
+      const baseUrls: Record<ProviderType, string> = {
+        openai: "",
+        anthropic: "",
+        gemini: "",
+        mistral: "",
+        custom: "",
       };
       for (const provider of PROVIDER_ORDER) {
         models[provider] = config.providers[provider]?.model || "";
+        baseUrls[provider] = config.providers[provider]?.baseUrl || "";
       }
       setProviderModels(models);
+      setProviderBaseUrls(baseUrls);
 
       // Clear API key inputs
       setProviderApiKeys({
@@ -154,6 +193,7 @@ export default function SettingsModal({
         anthropic: "",
         gemini: "",
         mistral: "",
+        custom: "",
       });
     } catch (error) {
       console.error("Error loading settings:", error);
@@ -212,9 +252,26 @@ export default function SettingsModal({
           setIsSaving(false);
           return;
         }
-      }
 
-      setMessage({ type: "success", text: "Settings saved successfully!" });
+        // Save custom base URL (only meaningful for providers that expose it,
+        // but the backend stores it generically per provider)
+        if (PROVIDERS_WITH_CUSTOM_ENDPOINT.has(provider)) {
+          const baseUrlResult = await window.electronAPI.setProviderBaseUrl(
+            provider,
+            providerBaseUrls[provider].trim()
+          );
+          if (!baseUrlResult.success) {
+            setMessage({
+              type: "error",
+              text:
+                baseUrlResult.error ||
+                `Failed to save ${PROVIDER_INFO[provider].name} endpoint URL`,
+            });
+            setIsSaving(false);
+            return;
+          }
+        }
+      }
 
       // Reload config to update hasApiKey status
       const updatedConfig = await window.electronAPI.getProvidersConfig();
@@ -226,7 +283,25 @@ export default function SettingsModal({
         anthropic: "",
         gemini: "",
         mistral: "",
+        custom: "",
       });
+
+      // Restart the backend so the new API keys / endpoint URLs take effect.
+      // Without this, the Go process keeps using whatever env vars it spawned with.
+      setMessage({ type: "success", text: "Saved. Restarting backend..." });
+      const restartResult = await window.electronAPI.restartBackend();
+      if (!restartResult.success) {
+        setMessage({
+          type: "error",
+          text:
+            restartResult.error ||
+            "Settings saved, but backend restart failed. Restart the app to apply.",
+        });
+        setIsSaving(false);
+        return;
+      }
+
+      setMessage({ type: "success", text: "Settings saved and applied!" });
 
       setTimeout(() => {
         onClose();
@@ -339,6 +414,7 @@ export default function SettingsModal({
                   const info = PROVIDER_INFO[provider];
                   const config = providersConfig.providers[provider];
                   const isExpanded = expandedProvider === provider;
+                  const isApiKeyOptional = info.apiKeyOptional === true;
 
                   return (
                     <div
@@ -364,10 +440,16 @@ export default function SettingsModal({
                           className={`text-xs px-2 py-1 rounded ${
                             config?.hasApiKey
                               ? "bg-green-100 text-green-700"
+                              : isApiKeyOptional
+                              ? "bg-blue-100 text-blue-700"
                               : "bg-slate-100 text-slate-500"
                           }`}
                         >
-                          {config?.hasApiKey ? "Configured" : "Not Set"}
+                          {config?.hasApiKey
+                            ? "Configured"
+                            : isApiKeyOptional
+                            ? "Key Optional"
+                            : "Not Set"}
                         </span>
                       </button>
 
@@ -382,6 +464,7 @@ export default function SettingsModal({
                                 <label className="text-sm font-medium text-slate-600 flex items-center gap-2">
                                   <Key className="w-4 h-4" />
                                   {info.name} API Key
+                                  {isApiKeyOptional ? " (optional)" : ""}
                                 </label>
                                 {config?.hasApiKey && (
                                   <button
@@ -435,6 +518,8 @@ export default function SettingsModal({
                                     ? unlockedProviders[provider]
                                       ? "Enter new API key to update"
                                       : "API key is configured (unlock to edit)"
+                                    : isApiKeyOptional
+                                    ? `Optional ${info.name} API key (${info.placeholder})`
                                     : `Enter your ${info.name} API key (${info.placeholder})`
                                 }
                                 className={`w-full px-3 py-2 border rounded-lg focus:border-blue-500 focus:outline-none font-mono text-sm placeholder:text-gray-400 ${
@@ -451,14 +536,16 @@ export default function SettingsModal({
                             </div>
 
                             {/* Help link */}
-                            <a
-                              href={info.helpLink}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 hover:underline transition-colors mt-1"
-                            >
-                              How to get your {info.name} API key?
-                            </a>
+                            {info.helpLink && (
+                              <a
+                                href={info.helpLink}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 hover:underline transition-colors mt-1"
+                              >
+                                How to get your {info.name} API key?
+                              </a>
+                            )}
                           </div>
 
                           {/* Model Override */}
@@ -480,9 +567,44 @@ export default function SettingsModal({
                               className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:border-blue-500 focus:outline-none font-mono text-sm placeholder:text-gray-400"
                             />
                             <p className="text-xs text-slate-500 mt-1">
-                              Default: {info.defaultModel}
+                              {info.modelHelpText || `Default: ${info.defaultModel}`}
                             </p>
                           </div>
+
+                          {/* Custom Endpoint URL */}
+                          {PROVIDERS_WITH_CUSTOM_ENDPOINT.has(provider) && (
+                            <div>
+                              <label className="block text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
+                                <Globe className="w-4 h-4" />
+                                Custom Endpoint URL
+                              </label>
+                              <input
+                                type="url"
+                                value={providerBaseUrls[provider]}
+                                onChange={(e) =>
+                                  setProviderBaseUrls((prev) => ({
+                                    ...prev,
+                                    [provider]: e.target.value,
+                                  }))
+                                }
+                                placeholder={
+                                  info.baseUrlPlaceholder ||
+                                  "https://api.example.com/v1"
+                                }
+                                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:border-blue-500 focus:outline-none font-mono text-sm placeholder:text-gray-400"
+                              />
+                              {info.endpointHelpText ? (
+                                <p className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 mt-2">
+                                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                                  <span>{info.endpointHelpText}</span>
+                                </p>
+                              ) : (
+                                <p className="text-xs text-slate-500 mt-1">
+                                  Override to use a custom endpoint.
+                                </p>
+                              )}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

@@ -3,6 +3,8 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net"
+	"net/url"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -45,6 +47,7 @@ type ProvidersConfig struct {
 	AnthropicProviderConfig ProviderConfig         `json:"anthropic_provider_config"`
 	GeminiProviderConfig    ProviderConfig         `json:"gemini_provider_config"`
 	MistralProviderConfig   ProviderConfig         `json:"mistral_provider_config"`
+	CustomProviderConfig    ProviderConfig         `json:"custom_provider_config"`
 }
 
 // ProxyConfig holds transparent proxy configuration
@@ -95,6 +98,9 @@ func (c *Config) ValidateConfig() error {
 	if err := validateProviderConfig(c.Providers.MistralProviderConfig, "Mistral"); err != nil {
 		errs = append(errs, err.Error())
 	}
+	if err := validateProviderConfig(c.Providers.CustomProviderConfig, "Custom"); err != nil {
+		errs = append(errs, err.Error())
+	}
 
 	if len(errs) > 0 {
 		return errors.New(strings.Join(errs, "; "))
@@ -138,11 +144,23 @@ func validateDomain(domain string, fieldName string) error {
 	if domain == "" {
 		return fmt.Errorf("%s: domain cannot be empty", fieldName)
 	}
-	if strings.HasPrefix(domain, "http://") || strings.HasPrefix(domain, "https://") {
-		return fmt.Errorf("%s: domain must not include protocol 'http://' or 'https://' (current value: %s)", fieldName, domain)
+
+	value := strings.TrimSpace(domain)
+	if !strings.HasPrefix(value, "http://") && !strings.HasPrefix(value, "https://") {
+		value = "//" + value
 	}
+
+	parsed, err := url.Parse(value)
+	if err != nil || parsed.Host == "" {
+		return fmt.Errorf("%s: domain format is invalid (current value: %s)", fieldName, domain)
+	}
+	if parsed.Scheme != "" && parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return fmt.Errorf("%s: domain format is invalid (current value: %s)", fieldName, domain)
+	}
+
+	host := parsed.Hostname()
 	domainRegex := regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$`)
-	if !domainRegex.MatchString(domain) {
+	if net.ParseIP(host) == nil && !domainRegex.MatchString(host) {
 		return fmt.Errorf("%s: domain format is invalid (current value: %s)", fieldName, domain)
 	}
 	return nil
@@ -183,6 +201,10 @@ func DefaultConfig() *Config {
 		APIDomain:         providers.ProviderAPIDomainMistral,
 		AdditionalHeaders: map[string]string{},
 	}
+	defaultCustomProviderConfig := ProviderConfig{
+		APIDomain:         providers.ProviderAPIDomainCustom,
+		AdditionalHeaders: map[string]string{},
+	}
 
 	// Application data directory
 	appDataDir := paths.AppDataDir()
@@ -197,6 +219,7 @@ func DefaultConfig() *Config {
 			AnthropicProviderConfig: defaultAnthropicProviderConfig,
 			GeminiProviderConfig:    defaultGeminiProviderConfig,
 			MistralProviderConfig:   defaultMistralProviderConfig,
+			CustomProviderConfig:    defaultCustomProviderConfig,
 		},
 		ProxyPort:          ":8080",
 		ONNXModelPath:      "model/quantized/model.onnx",
@@ -227,11 +250,28 @@ func DefaultConfig() *Config {
 // GetInterceptDomains returns the list of intercept domains (as a union of all provider domains)
 func (pc ProvidersConfig) GetInterceptDomains() []string {
 	return []string{
-		pc.AnthropicProviderConfig.APIDomain,
-		pc.OpenAIProviderConfig.APIDomain,
-		pc.GeminiProviderConfig.APIDomain,
-		pc.MistralProviderConfig.APIDomain,
+		interceptDomain(pc.AnthropicProviderConfig.APIDomain),
+		interceptDomain(pc.OpenAIProviderConfig.APIDomain),
+		interceptDomain(pc.GeminiProviderConfig.APIDomain),
+		interceptDomain(pc.MistralProviderConfig.APIDomain),
+		interceptDomain(pc.CustomProviderConfig.APIDomain),
 	}
+}
+
+func interceptDomain(apiDomain string) string {
+	if apiDomain == "" {
+		return ""
+	}
+
+	value := apiDomain
+	if !strings.HasPrefix(value, "http://") && !strings.HasPrefix(value, "https://") {
+		value = "//" + value
+	}
+
+	if parsed, err := url.Parse(value); err == nil && parsed.Host != "" {
+		return parsed.Hostname()
+	}
+	return apiDomain
 }
 
 // GetLogPIIChanges returns whether to log PII changes

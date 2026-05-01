@@ -13,6 +13,7 @@ const (
 	ProviderTypeMistral      ProviderType = "mistral"
 	ProviderSubpathMistral   string       = "/v1/chat/completions"
 	ProviderAPIDomainMistral string       = "api.mistral.ai"
+	ProviderNameMistral      string       = "Mistral"
 )
 
 type MistralProvider struct {
@@ -26,7 +27,7 @@ func NewMistralProvider(apiDomain string, apiKey string, additionalHeaders map[s
 }
 
 func (p *MistralProvider) GetName() string {
-	return "Mistral"
+	return ProviderNameMistral
 }
 
 func (p *MistralProvider) GetType() ProviderType {
