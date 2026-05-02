@@ -1,0 +1,6 @@
+kiji-privacy-proxy (0.0.0) unstable; urgency=medium
+
+  * Placeholder. src/scripts/build_deb.sh regenerates this file from the
+    project version before invoking dpkg-buildpackage; do not hand-edit.
+
+ -- Dataiku Open Source Lab <opensource@dataiku.com>  Thu, 01 Jan 1970 00:00:00 +0000

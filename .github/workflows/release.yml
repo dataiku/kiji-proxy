@@ -316,11 +316,26 @@ jobs:
           chmod +x src/scripts/build_linux.sh
           ./src/scripts/build_linux.sh
 
+      - name: Install deb packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            debhelper devscripts fakeroot dpkg-dev
+
+      - name: Build .deb package
+        run: |
+          chmod +x src/scripts/build_deb.sh
+          ./src/scripts/build_deb.sh
+
       - name: Upload Linux Archive as Artifact
         uses: actions/upload-artifact@v7
         with:
           name: linux-assets
-          path: release/linux/*.tar.gz*
+          path: |
+            release/linux/*.tar.gz
+            release/linux/*.tar.gz.sha256
+            release/linux/*.deb
+            release/linux/*.deb.sha256
           retention-days: 90
 
       - name: Build Summary
@@ -332,6 +347,10 @@ jobs:
           echo "**Archive Files:**" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           ls -lh release/linux/*.tar.gz 2>/dev/null | awk '{print "- " $9 " (" $5 ")"}' >> $GITHUB_STEP_SUMMARY || echo "No archive files found" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Deb Packages:**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          ls -lh release/linux/*.deb 2>/dev/null | awk '{print "- " $9 " (" $5 ")"}' >> $GITHUB_STEP_SUMMARY || echo "No deb packages found" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**SHA256 Checksums:**" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -463,6 +482,7 @@ jobs:
           ### Downloads
           - **macOS**: DMG installer (Apple Silicon and Intel) - Desktop app with UI
           - **Linux**: Standalone binary archive (amd64) - API server only (no UI)
+          - **Linux (.deb)**: Debian/Ubuntu package (amd64) with systemd unit
           - **Chrome Extension**: Browser extension for PII detection in web forms
 
           ### macOS Installation
@@ -530,6 +550,18 @@ jobs:
 
           See included `README.txt` for systemd service setup and advanced configuration.
 
+          ### Debian / Ubuntu (.deb)
+
+          ```bash
+          sudo dpkg -i kiji-privacy-proxy_${{ steps.version.outputs.version }}_amd64.deb
+          # The systemd unit is installed but not enabled by default.
+          # Configure /etc/default or env vars first, then:
+          sudo systemctl enable --now kiji-privacy-proxy
+          ```
+
+          Files land under `/opt/kiji-privacy-proxy/` and a `kiji-proxy`
+          wrapper is placed on `PATH` at `/usr/bin/kiji-proxy`.
+
           ### Chrome Extension
 
           **Install from zip:**
@@ -585,6 +617,8 @@ jobs:
           cp release-assets/dmg-assets/latest-mac.yml assets/ 2>/dev/null || true
           cp release-assets/linux-assets/*.tar.gz assets/ 2>/dev/null || true
           cp release-assets/linux-assets/*.tar.gz.sha256 assets/ 2>/dev/null || true
+          cp release-assets/linux-assets/*.deb assets/ 2>/dev/null || true
+          cp release-assets/linux-assets/*.deb.sha256 assets/ 2>/dev/null || true
           cp release-assets/chrome-assets/*.zip assets/ 2>/dev/null || true
           cp release-assets/chrome-assets/*.zip.sha256 assets/ 2>/dev/null || true
 

@@ -1,0 +1,6 @@
+#!/bin/sh
+# Wrapper installed at /usr/bin/kiji-proxy so users can launch the binary
+# from PATH without manually setting LD_LIBRARY_PATH for the bundled
+# libonnxruntime.so.
+exec env LD_LIBRARY_PATH="/opt/kiji-privacy-proxy/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+    /opt/kiji-privacy-proxy/bin/kiji-proxy "$@"

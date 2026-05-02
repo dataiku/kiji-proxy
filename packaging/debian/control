@@ -1,0 +1,23 @@
+Source: kiji-privacy-proxy
+Section: net
+Priority: optional
+Maintainer: Dataiku Open Source Lab <opensource@dataiku.com>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.6.0
+Homepage: https://github.com/dataiku/kiji-proxy
+Vcs-Browser: https://github.com/dataiku/kiji-proxy
+Vcs-Git: https://github.com/dataiku/kiji-proxy.git
+Rules-Requires-Root: no
+
+Package: kiji-privacy-proxy
+Architecture: amd64
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Privacy-preserving proxy for LLM API calls
+ Kiji Privacy Proxy detects and redacts personally identifiable
+ information in requests and responses to LLM APIs such as OpenAI.
+ The package ships the Go API server with an embedded ML entity
+ detection model and the bundled ONNX Runtime shared library.
+ .
+ This is the standalone server build (no desktop UI). Configuration
+ is via environment variables or a config.json file; see the README
+ for details.
