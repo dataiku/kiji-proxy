@@ -263,7 +263,7 @@ The entire release process runs in a single GitHub Actions workflow:
 | Job | Runner | Output |
 |-----|--------|--------|
 | `build-dmg` | `macos-latest` | `Kiji-Privacy-Proxy-{version}.dmg`, `*-mac.zip`, `latest-mac.yml` |
-| `build-linux` | `ubuntu-latest` | `kiji-privacy-proxy-{version}-linux-amd64.tar.gz` (+ `.sha256`) |
+| `build-linux` | `ubuntu-latest` | `kiji-privacy-proxy-{version}-linux-amd64.tar.gz` (+ `.sha256`), `kiji-privacy-proxy_{version}_amd64.deb` (+ `.sha256`) |
 | `build-chrome` | `ubuntu-latest` | `kiji-privacy-proxy-extension-{version}.zip` (+ `.sha256`) |
 | `create-release` | `ubuntu-latest` | Tags `v{version}` (PR-merge path only), publishes GitHub Release |
 
@@ -307,8 +307,12 @@ then atomically creates the release with every asset attached
 1. Setup Go, Rust
 2. Cache LFS, Go modules, tokenizers library, ONNX Runtime
 3. Verify Git LFS model files
-4. Build via `src/scripts/build_linux.sh`
-5. Upload `linux-assets` artifact
+4. Build via `src/scripts/build_linux.sh` (tarball + staging tree)
+5. Install `debhelper devscripts fakeroot dpkg-dev`
+6. Build the `.deb` via `src/scripts/build_deb.sh`, which consumes the
+   staging tree from step 4 and runs `dpkg-buildpackage -b -us -uc`
+   against `packaging/debian/`
+7. Upload `linux-assets` artifact (tarball, `.deb`, and both `.sha256`s)
 
 **Build Time:** 4–6 minutes (cached), 12–15 minutes (cold)
 

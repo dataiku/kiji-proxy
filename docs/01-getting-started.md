@@ -157,7 +157,34 @@ See [transparent-proxy-setup.md](transparent-proxy-setup.md) for complete detail
 - x86_64 architecture
 - GCC runtime libraries (usually pre-installed)
 
-**Installation Steps:**
+**Quick Install (Debian / Ubuntu):**
+
+```bash
+wget https://github.com/dataiku/kiji-proxy/releases/download/v{version}/kiji-privacy-proxy_{version}_amd64.deb
+
+# Verify checksum (optional)
+wget https://github.com/dataiku/kiji-proxy/releases/download/v{version}/kiji-privacy-proxy_{version}_amd64.deb.sha256
+sha256sum -c kiji-privacy-proxy_{version}_amd64.deb.sha256
+
+sudo dpkg -i kiji-privacy-proxy_{version}_amd64.deb
+```
+
+The package installs the binary under `/opt/kiji-privacy-proxy/`, places a
+`kiji-proxy` wrapper on `PATH` at `/usr/bin/kiji-proxy`, and ships the
+systemd unit `kiji-privacy-proxy.service` (installed but **not** enabled).
+
+```bash
+# Configure (env vars are picked up by the unit via DynamicUser/StateDirectory)
+sudo systemctl edit kiji-privacy-proxy
+# Add an [Service] override with Environment="OPENAI_API_KEY=..." etc.
+
+sudo systemctl enable --now kiji-privacy-proxy
+sudo systemctl status kiji-privacy-proxy
+```
+
+To uninstall: `sudo dpkg -r kiji-privacy-proxy`.
+
+**Manual Install (other distros — tarball):**
 
 1. **Download and Extract:**
    ```bash
@@ -511,6 +538,8 @@ You don't need to run `git tag` or `git push` — the workflow does it for you.
    - `Kiji-Privacy-Proxy-1.0.1.dmg`
    - `kiji-privacy-proxy-1.0.1-linux-amd64.tar.gz`
    - `kiji-privacy-proxy-1.0.1-linux-amd64.tar.gz.sha256`
+   - `kiji-privacy-proxy_1.0.1_amd64.deb`
+   - `kiji-privacy-proxy_1.0.1_amd64.deb.sha256`
 
 **9. Test the Release:**
 
