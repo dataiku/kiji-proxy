@@ -192,12 +192,29 @@ jobs:
             fi
           done
 
+      - name: Generate DMG SHA256 Checksums
+        working-directory: src/frontend/release
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          dmgs=(*.dmg)
+          if [ ${#dmgs[@]} -eq 0 ]; then
+            echo "::error::No DMG files found in src/frontend/release"
+            exit 1
+          fi
+          for dmg in "${dmgs[@]}"; do
+            shasum -a 256 "$dmg" > "${dmg}.sha256"
+            echo "Generated checksum:"
+            cat "${dmg}.sha256"
+          done
+
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v7
         with:
           name: dmg-assets
           path: |
             src/frontend/release/*.dmg
+            src/frontend/release/*.dmg.sha256
             src/frontend/release/*.zip
             src/frontend/release/latest-mac.yml
           retention-days: 90
@@ -211,6 +228,10 @@ jobs:
           echo "**DMG Files:**" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           ls -lh src/frontend/release/*.dmg 2>/dev/null | awk '{print "- " $9 " (" $5 ")"}' >> $GITHUB_STEP_SUMMARY || echo "No DMG files found" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**SHA256 Checksums:**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          cat src/frontend/release/*.dmg.sha256 2>/dev/null | awk '{print "- `" $1 "`  " $2}' >> $GITHUB_STEP_SUMMARY || echo "No checksums found" >> $GITHUB_STEP_SUMMARY
 
   # ──────────────────────────────────────────────────────────────────────
   # Linux binary build (amd64)
@@ -581,6 +602,7 @@ jobs:
           # Collect all release assets into a flat directory
           mkdir -p assets
           cp release-assets/dmg-assets/*.dmg assets/ 2>/dev/null || true
+          cp release-assets/dmg-assets/*.dmg.sha256 assets/ 2>/dev/null || true
           cp release-assets/dmg-assets/*.zip assets/ 2>/dev/null || true
           cp release-assets/dmg-assets/latest-mac.yml assets/ 2>/dev/null || true
           cp release-assets/linux-assets/*.tar.gz assets/ 2>/dev/null || true
