@@ -54,6 +54,12 @@ jobs:
           lfs: true
           fetch-depth: 0
 
+      - name: Mark Repository as Safe for Git
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config --global --get-all safe.directory
+
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
