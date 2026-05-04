@@ -32,7 +32,6 @@ jobs:
           dnf -y install \
             bash \
             binutils \
-            curl \
             file \
             findutils \
             gcc \
