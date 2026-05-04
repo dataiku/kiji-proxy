@@ -20,7 +20,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PERSONAL_ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          path-to-document: "https://github.com/dataiku/kiji-proxy/blob/1f172d2a29fc570e5bf326e7915eb28dc0cc9809/.github/cla/contributor_license_agreement.md"
+          path-to-document: "https://github.com/dataiku/kiji-proxy/blob/1f172d2a29fc570e5bf326e7915eb28dc0cc9809/.github/cla/CLA.md"
           path-to-signatures: "signatures/v1/cla.json"
           branch: "cla-signatures"
           allowlist: "*[bot]"
