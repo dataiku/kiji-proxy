@@ -127,8 +127,13 @@ jobs:
           ldd --version | head -n 1
 
       - name: Verify Git LFS Files
+        working-directory: ${{ github.workspace }}
         run: |
-          git lfs pull
+          set -euo pipefail
+          echo "PWD: $PWD"
+          echo "GITHUB_WORKSPACE: $GITHUB_WORKSPACE"
+          git -C "$GITHUB_WORKSPACE" rev-parse --show-toplevel
+          git -C "$GITHUB_WORKSPACE" lfs pull
           # Verify model file is not an LFS pointer
           MODEL_SIZE=$(stat -c%s "model/quantized/model.onnx" 2>/dev/null || echo "0")
           echo "Model file size: ${MODEL_SIZE} bytes"
