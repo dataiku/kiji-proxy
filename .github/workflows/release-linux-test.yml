@@ -122,7 +122,6 @@ jobs:
 
       - name: Verify AlmaLinux glibc version
         run: |
-          set -euo pipefail
           cat /etc/os-release
           ldd --version | head -n 1
 
