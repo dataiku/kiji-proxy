@@ -1,15 +1,15 @@
 name: Linux Release Build Test
 
 on:
-  pull_request:
-    branches: [main]
+  push:
+    branches:
+      - "ci/build-linux-on-almalinux9"
     paths:
       - ".github/workflows/release-linux-test.yml"
       - ".github/workflows/release.yml"
       - "src/scripts/build_linux.sh"
       - "go.mod"
       - "go.sum"
-  workflow_dispatch:
 
 jobs:
   build-linux-almalinux:
@@ -187,10 +187,3 @@ jobs:
 
           check_glibc_requirement build/kiji-proxy
           check_glibc_requirement build/libonnxruntime.so.1.24.2
-
-      - name: Upload Linux Archive as Artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: linux-almalinux9-assets
-          path: release/linux/*.tar.gz*
-          retention-days: 14
