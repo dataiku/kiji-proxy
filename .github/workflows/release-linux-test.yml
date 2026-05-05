@@ -1,15 +1,7 @@
 name: Linux Release Build Test
 
 on:
-  push:
-    branches:
-      - "ci/build-linux-on-almalinux9"
-    paths:
-      - ".github/workflows/release-linux-test.yml"
-      - ".github/workflows/release.yml"
-      - "src/scripts/build_linux.sh"
-      - "go.mod"
-      - "go.sum"
+  workflow_dispatch:
 
 jobs:
   build-linux-almalinux:

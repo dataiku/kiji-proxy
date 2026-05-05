@@ -223,16 +223,47 @@ jobs:
       (github.event_name == 'pull_request' && github.event.pull_request.merged == true && contains(github.event.pull_request.labels.*.name, 'release'))
 
     runs-on: ubuntu-latest
+    container:
+      image: almalinux:9
 
     permissions:
       contents: read
 
     steps:
+      - name: Install system packages
+        run: |
+          set -euo pipefail
+          dnf -y install \
+            bash \
+            binutils \
+            file \
+            findutils \
+            gcc \
+            gcc-c++ \
+            git \
+            git-lfs \
+            gzip \
+            jq \
+            make \
+            nodejs \
+            npm \
+            tar \
+            unzip \
+            wget \
+            which \
+            zip
+
       - name: Checkout Repository
         uses: actions/checkout@v6
         with:
           lfs: true
           fetch-depth: 0
+
+      - name: Mark Repository as Safe for Git
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config --global --get-all safe.directory
 
       - name: Setup Go
         uses: actions/setup-go@v6
@@ -248,9 +279,9 @@ jobs:
         uses: actions/cache@v5
         with:
           path: .git/lfs
-          key: lfs-${{ runner.os }}-${{ hashFiles('.gitattributes') }}
+          key: lfs-${{ runner.os }}-almalinux9-${{ hashFiles('.gitattributes') }}
           restore-keys: |
-            lfs-${{ runner.os }}-
+            lfs-${{ runner.os }}-almalinux9-
 
       - name: Extract dependency versions
         id: deps
@@ -269,15 +300,15 @@ jobs:
           path: |
             ~/go/pkg/mod
             ~/.cache/go-build
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          key: ${{ runner.os }}-almalinux9-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
-            ${{ runner.os }}-go-
+            ${{ runner.os }}-almalinux9-go-
 
       - name: Cache tokenizers library
         uses: actions/cache@v5
         with:
           path: build/tokenizers/libtokenizers.a
-          key: ${{ runner.os }}-tokenizers-v${{ steps.deps.outputs.tokenizers }}-prebuilt-v1
+          key: ${{ runner.os }}-almalinux9-tokenizers-v${{ steps.deps.outputs.tokenizers }}-prebuilt-v1
 
       - name: Cache ONNX Runtime library
         uses: actions/cache@v5
@@ -285,7 +316,7 @@ jobs:
           path: |
             build/libonnxruntime.so.1.24.2
             build/libonnxruntime.so
-          key: ${{ runner.os }}-onnx-1.24.2
+          key: ${{ runner.os }}-almalinux9-onnx-1.24.2
 
       - name: Extract Version
         id: version
@@ -302,6 +333,7 @@ jobs:
 
       - name: Verify Git LFS Files
         run: |
+          set -euo pipefail
           git lfs pull
           # Verify model file is not an LFS pointer
           MODEL_SIZE=$(stat -c%s "model/quantized/model.onnx" 2>/dev/null || echo "0")
@@ -316,12 +348,13 @@ jobs:
           chmod +x src/scripts/build_linux.sh
           ./src/scripts/build_linux.sh
 
-      - name: Upload Linux Archive as Artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: linux-assets
-          path: release/linux/*.tar.gz*
-          retention-days: 90
+      # Temporary comment during PR review process
+      #      - name: Upload Linux Archive as Artifact
+      #        uses: actions/upload-artifact@v7
+      #        with:
+      #          name: linux-assets
+      #          path: release/linux/*.tar.gz*
+      #          retention-days: 90
 
       - name: Build Summary
         if: always()
@@ -336,6 +369,31 @@ jobs:
           echo "**SHA256 Checksums:**" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           cat release/linux/*.sha256 2>/dev/null | awk '{print "- `" $1 "`"}' >> $GITHUB_STEP_SUMMARY || echo "No checksums found" >> $GITHUB_STEP_SUMMARY
+
+      - name: TEMPORARY Install Plik CLI
+        run: |
+          set -euo pipefail
+          wget https://github.com/root-gg/plik/releases/download/1.4.2/plik-1.4.2-linux-amd64
+          chmod +x plik-1.4.2-linux-amd64
+          mv plik-1.4.2-linux-amd64 /usr/local/bin/plik
+          plik --version
+
+      - name: TEMPORARY Upload Linux Binary to Plik
+        env:
+          PLIK_SERVER_URL: https://dl.dataiku.com
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          ARCHIVE="release/linux/kiji-privacy-proxy-${VERSION}-linux-amd64.tar.gz"
+          if [ ! -f "$ARCHIVE" ]; then
+            echo "::error::Missing release archive: $ARCHIVE"
+            exit 1
+          fi
+
+          echo "Uploading $ARCHIVE to $PLIK_SERVER_URL"
+          response="$(plik -j --server "$PLIK_SERVER_URL" "$ARCHIVE")"
+          echo "$response"
 
   # ──────────────────────────────────────────────────────────────────────
   # Chrome Extension package
