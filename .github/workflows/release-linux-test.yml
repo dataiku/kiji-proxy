@@ -1,0 +1,211 @@
+name: Linux Release Build Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-linux-almalinux:
+    name: Build Linux Binary on AlmaLinux 9
+    runs-on: ubuntu-latest
+    container:
+      image: almalinux:9
+
+    defaults:
+      run:
+        shell: bash
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Install system packages
+        run: |
+          set -euo pipefail
+          dnf -y install \
+            bash \
+            binutils \
+            file \
+            findutils \
+            gcc \
+            gcc-c++ \
+            git \
+            git-lfs \
+            gzip \
+            jq \
+            make \
+            nodejs \
+            npm \
+            tar \
+            unzip \
+            wget \
+            which \
+            zip
+
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+        with:
+          lfs: true
+          fetch-depth: 0
+
+      - name: Mark Repository as Safe for Git
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config --global --get-all safe.directory
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
+        with:
+          toolchain: stable
+
+      - name: Cache LFS objects
+        uses: actions/cache@v5
+        with:
+          path: .git/lfs
+          key: lfs-${{ runner.os }}-almalinux9-${{ hashFiles('.gitattributes') }}
+          restore-keys: |
+            lfs-${{ runner.os }}-almalinux9-
+
+      - name: Extract dependency versions
+        id: deps
+        run: |
+          set -euo pipefail
+          tokenizers="$(awk '/github.com\/daulet\/tokenizers/ { sub(/^v/, "", $2); print $2; exit }' go.mod)"
+          if [ -z "$tokenizers" ]; then
+            echo "Failed to determine tokenizers version from go.mod" >&2
+            exit 1
+          fi
+          echo "tokenizers=$tokenizers" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Go modules
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: ${{ runner.os }}-almalinux9-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-almalinux9-go-
+
+      - name: Cache tokenizers library
+        uses: actions/cache@v5
+        with:
+          path: build/tokenizers/libtokenizers.a
+          key: ${{ runner.os }}-almalinux9-tokenizers-v${{ steps.deps.outputs.tokenizers }}-prebuilt-v1
+
+      - name: Cache ONNX Runtime library
+        uses: actions/cache@v5
+        with:
+          path: |
+            build/libonnxruntime.so.1.24.2
+            build/libonnxruntime.so
+          key: ${{ runner.os }}-almalinux9-onnx-1.24.2
+
+      - name: Extract Version
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            # Extract version from tag (v1.2.3 -> 1.2.3)
+            VERSION=${GITHUB_REF#refs/tags/v}
+          else
+            # For non-tag builds, extract version from package.json
+            VERSION=$(cat src/frontend/package.json | grep '"version"' | head -1 | awk -F '"' '{print $4}')
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Building version: $VERSION"
+
+      - name: Verify AlmaLinux glibc version
+        run: |
+          set -euo pipefail
+          cat /etc/os-release
+          ldd --version
+
+      - name: Verify Git LFS Files
+        run: |
+          set -euo pipefail
+          # Verify model file is not an LFS pointer
+          MODEL_SIZE=$(stat -c%s "model/quantized/model.onnx" 2>/dev/null || echo "0")
+          echo "Model file size: ${MODEL_SIZE} bytes"
+          if [ "$MODEL_SIZE" -lt 1000 ]; then
+            echo "❌ Model file appears to be an LFS pointer (too small)"
+            exit 1
+          fi
+
+      - name: Build Linux Binary
+        run: |
+          chmod +x src/scripts/build_linux.sh
+          ./src/scripts/build_linux.sh
+
+      - name: Verify GLIBC requirements
+        env:
+          MAX_GLIBC_VERSION: "2.34"
+        run: |
+          set -euo pipefail
+
+          check_glibc_requirement() {
+            local path="$1"
+
+            if [ ! -e "$path" ]; then
+              echo "::error::Missing file for GLIBC inspection: $path"
+              exit 1
+            fi
+
+            echo "Inspecting $path"
+            file "$path"
+
+            versions="$(
+              {
+                readelf --version-info "$path" 2>/dev/null || true
+                objdump -T "$path" 2>/dev/null || true
+              } | grep -oE 'GLIBC_[0-9]+(\.[0-9]+)+' | sed 's/^GLIBC_//' | sort -Vu || true
+            )"
+
+            if [ -z "$versions" ]; then
+              echo "No GLIBC symbol versions found in $path"
+              return
+            fi
+
+            echo "$versions" | sed 's/^/  GLIBC_/'
+            highest="$(printf '%s\n' "$versions" | tail -n 1)"
+            allowed_or_required="$(printf '%s\n%s\n' "$MAX_GLIBC_VERSION" "$highest" | sort -V | tail -n 1)"
+
+            if [ "$allowed_or_required" != "$MAX_GLIBC_VERSION" ]; then
+              echo "::error::$path requires GLIBC_$highest, above allowed GLIBC_$MAX_GLIBC_VERSION"
+              exit 1
+            fi
+
+            echo "$path is compatible with GLIBC_$MAX_GLIBC_VERSION"
+          }
+
+          check_glibc_requirement build/kiji-proxy
+          check_glibc_requirement build/libonnxruntime.so.1.24.2
+
+      - name: Install Plik CLI
+        run: |
+          set -euo pipefail
+          wget https://github.com/root-gg/plik/releases/download/1.4.2/plik-1.4.2-linux-amd64
+          chmod +x plik-1.4.2-linux-amd64
+          mv plik-1.4.2-linux-amd64 /usr/local/bin/plik
+          plik --version
+
+      - name: Upload Linux Binary to Plik
+        env:
+          PLIK_SERVER_URL: https://dl.dataiku.com
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          ARCHIVE="release/linux/kiji-privacy-proxy-${VERSION}-linux-amd64.tar.gz"
+          if [ ! -f "$ARCHIVE" ]; then
+            echo "::error::Missing release archive: $ARCHIVE"
+            exit 1
+          fi
+
+          echo "Uploading $ARCHIVE to $PLIK_SERVER_URL"
+          response="$(plik -j --server "$PLIK_SERVER_URL" "$ARCHIVE")"
+          echo "$response"

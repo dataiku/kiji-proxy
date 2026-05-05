@@ -224,6 +224,7 @@ chmod +x "$PACKAGE_DIR/bin/${BINARY_NAME}"
 # Copy ONNX Runtime library
 cp "${BUILD_DIR}/libonnxruntime.so.${ONNX_VERSION}" "$PACKAGE_DIR/lib/"
 cd "$PACKAGE_DIR/lib"
+ln -sf "libonnxruntime.so.${ONNX_VERSION}" libonnxruntime.so.1
 ln -sf "libonnxruntime.so.${ONNX_VERSION}" libonnxruntime.so
 cd "$PROJECT_ROOT"
 
