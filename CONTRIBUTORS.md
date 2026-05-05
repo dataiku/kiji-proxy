@@ -13,6 +13,7 @@ Thank you to everyone who has contributed to Kiji Privacy Proxy!
 - **Micaela Kaplan** ([@micaelakaplan](https://github.com/micaelakaplan))
 - **Eddie Mattia** ([@emattia](https://github.com/emattia))
 - **Sebastien G. Claro** ([@s3bc40](https://github.com/s3bc40))
+- **GodHad** ([@GodHad](https://github.com/GodHad))
 
 ---
 

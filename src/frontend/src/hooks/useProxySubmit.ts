@@ -57,6 +57,9 @@ export function useProxySubmit({
   const [maskedOutput, setMaskedOutput] = useState("");
   const [finalOutput, setFinalOutput] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [resultProvider, setResultProvider] = useState<ProviderType | null>(
+    null
+  );
   const [detectedEntities, setDetectedEntities] = useState<DetectedEntity[]>(
     []
   );
@@ -141,6 +144,7 @@ export function useProxySubmit({
     setIsProcessing(true);
 
     try {
+      setResultProvider(activeProvider);
       const customModel =
         providersConfig.providers[activeProvider]?.model || "";
       const model = getModel(activeProvider, customModel);
@@ -255,6 +259,7 @@ export function useProxySubmit({
     setMaskedInput("");
     setMaskedOutput("");
     setFinalOutput("");
+    setResultProvider(null);
     setDetectedEntities([]);
   }, []);
 
@@ -265,6 +270,7 @@ export function useProxySubmit({
     maskedOutput,
     finalOutput,
     isProcessing,
+    resultProvider,
     detectedEntities,
     responseDetectedEntities,
     averageConfidence,
