@@ -45,6 +45,7 @@ jobs:
             npm \
             tar \
             unzip \
+            wget \
             which \
             zip
 
@@ -215,3 +216,28 @@ jobs:
 
           check_glibc_requirement build/kiji-proxy
           check_glibc_requirement build/libonnxruntime.so.1.24.2
+
+      - name: Install Plik CLI
+        run: |
+          set -euo pipefail
+          wget https://github.com/root-gg/plik/releases/download/1.4.2/plik-1.4.2-linux-amd64
+          chmod +x plik-1.4.2-linux-amd64
+          mv plik-1.4.2-linux-amd64 /usr/local/bin/plik
+          plik --version
+
+      - name: Upload Linux Binary to Plik
+        env:
+          PLIK_SERVER_URL: https://dl.dataiku.com
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          ARCHIVE="release/linux/kiji-privacy-proxy-${VERSION}-linux-amd64.tar.gz"
+          if [ ! -f "$ARCHIVE" ]; then
+            echo "::error::Missing release archive: $ARCHIVE"
+            exit 1
+          fi
+
+          echo "Uploading $ARCHIVE to $PLIK_SERVER_URL"
+          response="$(plik -j --server "$PLIK_SERVER_URL" "$ARCHIVE")"
+          echo "$response"
