@@ -75,13 +75,24 @@ open Kiji-Privacy-Proxy-*.dmg
 ```
 
 **Linux (Standalone Server):**
+
+Debian / Ubuntu (.deb):
 ```bash
-# Download and extract
+wget https://github.com/dataiku/kiji-proxy/releases/download/vX.Y.Z/kiji-privacy-proxy_X.Y.Z_amd64.deb
+sudo dpkg -i kiji-privacy-proxy_X.Y.Z_amd64.deb
+
+# The systemd unit is installed but not enabled by default.
+sudo systemctl enable --now kiji-privacy-proxy
+# Or run in the foreground:
+kiji-proxy
+```
+
+Other distros (tarball):
+```bash
 wget https://github.com/dataiku/kiji-proxy/releases/download/vX.Y.Z/kiji-privacy-proxy-X.Y.Z-linux-amd64.tar.gz
 tar -xzf kiji-privacy-proxy-X.Y.Z-linux-amd64.tar.gz
 cd kiji-privacy-proxy-X.Y.Z-linux-amd64
 
-# Run
 ./run.sh
 ```
 
@@ -326,7 +337,8 @@ See [docs/02-development-guide.md](docs/02-development-guide.md) for detailed de
 Download the latest release from [GitHub Releases](https://github.com/dataiku/kiji-proxy/releases):
 
 - **macOS:** `Kiji-Privacy-Proxy-{version}.dmg` (~400MB)
-- **Linux:** `kiji-privacy-proxy-{version}-linux-amd64.tar.gz` (~150MB)
+- **Linux (tarball):** `kiji-privacy-proxy-{version}-linux-amd64.tar.gz` (~150MB)
+- **Linux (Debian/Ubuntu):** `kiji-privacy-proxy_{version}_amd64.deb`
 
 **Automated Builds:** CI/CD builds both platforms in parallel on every release tag.
 

@@ -1,0 +1,35 @@
+#!/usr/bin/make -f
+# Build the kiji-privacy-proxy .deb from the staging tree produced by
+# src/scripts/build_linux.sh — no Go/Rust toolchains are run here.
+
+export DH_VERBOSE = 1
+
+PKG     := kiji-privacy-proxy
+DESTDIR := debian/$(PKG)
+PREFIX  := opt/kiji-privacy-proxy
+
+STAGED := $(firstword $(wildcard release/linux/$(PKG)-*-linux-amd64))
+
+%:
+	dh $@
+
+override_dh_auto_configure:
+override_dh_auto_build:
+override_dh_auto_test:
+
+override_dh_auto_install:
+	@if [ -z "$(STAGED)" ]; then \
+		echo "ERROR: no staging tree under release/linux/." >&2; \
+		echo "Run src/scripts/build_linux.sh before building the deb." >&2; \
+		exit 1; \
+	fi
+	install -d $(DESTDIR)/$(PREFIX)/bin $(DESTDIR)/$(PREFIX)/lib $(DESTDIR)/usr/bin
+	install -m 0755 $(STAGED)/bin/kiji-proxy $(DESTDIR)/$(PREFIX)/bin/kiji-proxy
+	cp -a $(STAGED)/lib/. $(DESTDIR)/$(PREFIX)/lib/
+	install -m 0755 debian/kiji-proxy.wrapper $(DESTDIR)/usr/bin/kiji-proxy
+
+override_dh_shlibdeps:
+	dh_shlibdeps -l$(CURDIR)/$(DESTDIR)/$(PREFIX)/lib -- --ignore-missing-info
+
+override_dh_installsystemd:
+	dh_installsystemd --no-enable --no-start

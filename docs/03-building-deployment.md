@@ -25,7 +25,8 @@ Kiji Privacy Proxy can be built for two platforms with different deployment mode
 
 ### Linux (Standalone Binary)
 - **Format:** API server binary (no UI)
-- **Package:** Tarball with binary and libraries (~150-200MB)
+- **Package:** Tarball (`*.tar.gz`, ~150-200MB) and Debian package
+  (`*.deb`, Debian/Ubuntu) with binary and libraries
 - **Components:** Go backend + ML model + libraries
 - **User Interface:** HTTP API only (no web UI)
 
@@ -393,6 +394,45 @@ cd ../..
 ```
 
 **Build Time:** 8-12 minutes (first run), 3-5 minutes (cached)
+
+### Building the Debian / Ubuntu Package (`.deb`)
+
+The `.deb` is built by `src/scripts/build_deb.sh` using `debhelper` /
+`dpkg-buildpackage`. It consumes the staging tree produced by
+`build_linux.sh` (no Go/Rust toolchain runs in this step), so the Linux
+tarball build must run first.
+
+**Prerequisites (Debian/Ubuntu host):**
+
+```bash
+sudo apt-get install -y debhelper devscripts fakeroot dpkg-dev
+```
+
+**Build:**
+
+```bash
+./src/scripts/build_linux.sh   # produces release/linux/<pkg>-<ver>-linux-amd64/ + tarball
+./src/scripts/build_deb.sh     # produces release/linux/kiji-privacy-proxy_<ver>_amd64.deb
+```
+
+`build_deb.sh` copies `packaging/debian/` to `./debian` at the project root,
+regenerates `debian/changelog` from the project version, runs
+`dpkg-buildpackage -b -us -uc` (binary-only, unsigned), moves the resulting
+`.deb` + `.buildinfo` + `.changes` into `release/linux/`, generates a
+`.sha256`, and removes the staged `debian/` on exit.
+
+**Layout when installed (`dpkg -i`):**
+
+| Path | Source |
+|------|--------|
+| `/opt/kiji-privacy-proxy/bin/kiji-proxy` | Go binary |
+| `/opt/kiji-privacy-proxy/lib/libonnxruntime.so*` | Bundled ONNX Runtime |
+| `/usr/bin/kiji-proxy` | Wrapper that sets `LD_LIBRARY_PATH` |
+| `/lib/systemd/system/kiji-privacy-proxy.service` | systemd unit (not enabled by default) |
+
+The canonical packaging files live under `packaging/debian/`. Edit them
+there; `build_deb.sh` stages a working copy at the project root and cleans
+it up on exit.
 
 ### Verification
 

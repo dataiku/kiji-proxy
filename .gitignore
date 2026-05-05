@@ -61,6 +61,10 @@ kiji-proxy
 release/
 build/
 
+# Transient debian/ tree staged at the project root by build_deb.sh
+# (canonical packaging files live under packaging/debian/).
+/debian/
+
 # Logs
 *.log
 
