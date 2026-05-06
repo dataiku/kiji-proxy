@@ -409,6 +409,22 @@ class PIITrainingPipeline(FlowSpec):
             print(format_parity_report(export_parity))
             assert_parity(export_parity)
 
+            # Stage the runtime artifacts inside the trained model directory
+            # so the trained HF repo is self-sufficient for inference (the Go
+            # backend loads model.onnx + crf_transitions.json alongside the
+            # safetensors). Equivalent to running:
+            #   uv run python model/src/quantitize.py \
+            #       --model_path=./model/trained \
+            #       --output_path=./model/trained \
+            #       --skip_quantization
+            trained_dir = Path(self.config.output_dir)
+            if trained_dir.exists():
+                for artifact_name in ("model.onnx", "crf_transitions.json"):
+                    src = output_path / artifact_name
+                    if src.exists():
+                        shutil.copy2(src, trained_dir / artifact_name)
+                        print(f"Staged {artifact_name} into {trained_dir}")
+
             quantized_parity = None
             self.quantized_model_path = None
             if self.skip_quantization:
