@@ -34,7 +34,15 @@ _TRAINED_REQUIRED_FILES = [
     "tokenizer.json",
     "special_tokens_map.json",
 ]
-_TRAINED_OPTIONAL_FILES = _OPTIONAL_TOKENIZER_FILES
+# `model.onnx` and `crf_transitions.json` are the runtime artifacts the Go
+# backend loads. They're produced by `model/src/quantitize.py` (or the
+# training pipeline's quantize step) and shipped alongside the safetensors so
+# the trained HF repo is a drop-in for inference.
+_TRAINED_OPTIONAL_FILES = [
+    *_OPTIONAL_TOKENIZER_FILES,
+    "model.onnx",
+    "crf_transitions.json",
+]
 
 # The quantized ONNX file is named `model_quantized.onnx` by Optimum's dynamic
 # quantization, but custom export pipelines may produce `model.onnx`. Either
