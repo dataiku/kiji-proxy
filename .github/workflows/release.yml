@@ -348,13 +348,12 @@ jobs:
           chmod +x src/scripts/build_linux.sh
           ./src/scripts/build_linux.sh
 
-      # Temporary comment during PR review process
-      #      - name: Upload Linux Archive as Artifact
-      #        uses: actions/upload-artifact@v7
-      #        with:
-      #          name: linux-assets
-      #          path: release/linux/*.tar.gz*
-      #          retention-days: 90
+      - name: Upload Linux Archive as Artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux-assets
+          path: release/linux/*.tar.gz*
+          retention-days: 90
 
       - name: Build Summary
         if: always()
@@ -369,31 +368,6 @@ jobs:
           echo "**SHA256 Checksums:**" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           cat release/linux/*.sha256 2>/dev/null | awk '{print "- `" $1 "`"}' >> $GITHUB_STEP_SUMMARY || echo "No checksums found" >> $GITHUB_STEP_SUMMARY
-
-      - name: TEMPORARY Install Plik CLI
-        run: |
-          set -euo pipefail
-          wget https://github.com/root-gg/plik/releases/download/1.4.2/plik-1.4.2-linux-amd64
-          chmod +x plik-1.4.2-linux-amd64
-          mv plik-1.4.2-linux-amd64 /usr/local/bin/plik
-          plik --version
-
-      - name: TEMPORARY Upload Linux Binary to Plik
-        env:
-          PLIK_SERVER_URL: https://dl.dataiku.com
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          set -euo pipefail
-
-          ARCHIVE="release/linux/kiji-privacy-proxy-${VERSION}-linux-amd64.tar.gz"
-          if [ ! -f "$ARCHIVE" ]; then
-            echo "::error::Missing release archive: $ARCHIVE"
-            exit 1
-          fi
-
-          echo "Uploading $ARCHIVE to $PLIK_SERVER_URL"
-          response="$(plik -j --server "$PLIK_SERVER_URL" "$ARCHIVE")"
-          echo "$response"
 
   # ──────────────────────────────────────────────────────────────────────
   # Chrome Extension package
