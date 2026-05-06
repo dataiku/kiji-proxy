@@ -348,6 +348,21 @@ jobs:
           chmod +x src/scripts/build_linux.sh
           ./src/scripts/build_linux.sh
 
+      - name: Report GLIBC requirements
+        run: |
+          chmod +x src/scripts/report_glibc_requirements.sh
+          GLIBC_REPORT="$(
+            ./src/scripts/report_glibc_requirements.sh \
+              build/kiji-proxy \
+              build/libonnxruntime.so.1.24.2
+          )"
+          echo "$GLIBC_REPORT"
+
+          GLIBC_REQUIREMENT="$(printf '%s\n' "$GLIBC_REPORT" | awk -F': ' '/^Release minimum required GLIBC:/ {print $2}' | tail -n 1)"
+          if [ -n "$GLIBC_REQUIREMENT" ]; then
+            echo "**Minimum required GLIBC:** $GLIBC_REQUIREMENT" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Upload Linux Archive as Artifact
         uses: actions/upload-artifact@v7
         with:
