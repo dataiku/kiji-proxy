@@ -105,25 +105,13 @@ func run(configPath *string) error {
 	}
 	log.Printf("ONNXRUNTIME_SHARED_LIBRARY_PATH: %s", os.Getenv("ONNXRUNTIME_SHARED_LIBRARY_PATH"))
 
-	// Debug: Check for model files in various locations
-	modelPaths := []string{
-		"model/quantized/model.onnx",
-		"quantized/model.onnx",
-		"./model.onnx",
-		"resources/model/quantized/model.onnx",
-		"resources/quantized/model.onnx",
-		"model/quantized/model_quantized.onnx",
-		"quantized/model_quantized.onnx",
-		"./model_quantized.onnx",
-		"resources/model/quantized/model_quantized.onnx",
-		"resources/quantized/model_quantized.onnx",
-	}
-	for _, path := range modelPaths {
-		if _, err := os.Stat(path); err == nil {
-			log.Printf("Found model file at: %s", path)
-		} else {
-			log.Printf("Model file NOT found at: %s", path)
-		}
+	// Debug: Check whether the resolved model directory contains the expected ONNX file
+	resolvedModelDir := cfg.ResolveModelDirectory()
+	resolvedModelPath := filepath.Join(resolvedModelDir, "model.onnx")
+	if _, err := os.Stat(resolvedModelPath); err == nil {
+		log.Printf("Found model file at resolved path: %s", resolvedModelPath)
+	} else {
+		log.Printf("Model file NOT found at resolved path: %s (error: %v)", resolvedModelPath, err)
 	}
 
 	if *configPath != "" {
@@ -136,19 +124,23 @@ func run(configPath *string) error {
 	} else {
 		// Production mode - use embedded files
 		// Extract model files to temporary directory for ONNX runtime
-		log.Println("Extracting embedded model files...")
-		err := extractEmbeddedModelFiles(modelFiles)
+		log.Printf("Extracting embedded model files into %s ...", embeddedModelDir)
+		err := extractEmbeddedModelFiles(modelFiles, embeddedModelDir)
 		if err != nil {
 			log.Printf("Warning: Failed to extract model files: %v", err)
 			log.Println("Falling back to file system model files")
 		} else {
 			log.Println("Model files extracted successfully")
-			// Debug: Verify extracted files
-			if _, err := os.Stat("model/quantized/model.onnx"); err == nil {
-				log.Println("✅ Extracted model file verified at: model/quantized/model.onnx")
+			extractedModelPath := filepath.Join(embeddedModelDir, "model.onnx")
+			if _, err := os.Stat(extractedModelPath); err == nil {
+				log.Printf("✅ Extracted model file verified at: %s", extractedModelPath)
 			} else {
-				log.Printf("❌ Extracted model file NOT found at: model/quantized/model.onnx (error: %v)", err)
+				log.Printf("❌ Extracted model file NOT found at: %s (error: %v)", extractedModelPath, err)
 			}
+			// Pin runtime config to the directory we just extracted into so the
+			// ModelManager loads the embedded variant rather than whatever the
+			// (possibly empty) ONNXModelDirectory defaults to.
+			cfg.ONNXModelDirectory = embeddedModelDir
 		}
 
 		srv, err = server.NewServerWithEmbedded(cfg, uiFiles, modelFiles, version)
@@ -265,9 +257,14 @@ func loadApplicationConfig(cfg *config.Config) {
 		log.Printf("Warning: CUSTOM_API_KEY is empty or not set")
 	}
 
+	if variant := os.Getenv("MODEL_VARIANT"); variant != "" {
+		cfg.ModelVariant = variant
+		log.Printf("Loaded MODEL_VARIANT from environment: %s", variant)
+	}
+
 	if modelDir := os.Getenv("ONNX_MODEL_DIRECTORY"); modelDir != "" {
 		cfg.ONNXModelDirectory = modelDir
-		log.Printf("Loaded ONNX_MODEL_DIRECTORY from environment: %s", modelDir)
+		log.Printf("Loaded ONNX_MODEL_DIRECTORY from environment: %s (overrides MODEL_VARIANT)", modelDir)
 	}
 }
 
@@ -343,10 +340,12 @@ func expandPath(path string) string {
 	return path
 }
 
-// extractEmbeddedModelFiles extracts embedded model files to the current directory
-func extractEmbeddedModelFiles(modelFS embed.FS) error {
-	// Create model/quantized directory if it doesn't exist
-	if err := os.MkdirAll("model/quantized", 0750); err != nil {
+// extractEmbeddedModelFiles extracts embedded model files into targetDir.
+func extractEmbeddedModelFiles(modelFS embed.FS, targetDir string) error {
+	if targetDir == "" {
+		return fmt.Errorf("extractEmbeddedModelFiles: targetDir is empty (was the binary built with the embed tag?)")
+	}
+	if err := os.MkdirAll(targetDir, 0750); err != nil {
 		return err
 	}
 
@@ -368,7 +367,7 @@ func extractEmbeddedModelFiles(modelFS embed.FS) error {
 		}
 
 		// Create target file path
-		targetPath := filepath.Join("model/quantized", filepath.Base(path))
+		targetPath := filepath.Join(targetDir, filepath.Base(path))
 
 		// Write file to disk
 		if err := os.WriteFile(targetPath, content, 0600); err != nil {
