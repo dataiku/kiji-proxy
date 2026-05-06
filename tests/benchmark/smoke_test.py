@@ -46,6 +46,18 @@ TESTS = [
             "BUILDINGNUM": ["123"],
         },
     ),
+    (
+        "John Smith\nSpringfield, IL,\nEmail: john@openai.com,\nLinkedIn: linkedin.com/in/samaltman,\nCompany: OpenAI",
+        {
+            "FIRSTNAME": ["John"],
+            "SURNAME": ["Smith"],
+            "CITY": ["Springfield"],
+            "STATE": ["IL"],
+            "EMAIL": ["john@openai.com"],
+            "URL": ["linkedin.com/in/samaltman"],
+            "COMPANYNAME": ["OpenAI"],
+        },
+    ),
 ]
 
 
