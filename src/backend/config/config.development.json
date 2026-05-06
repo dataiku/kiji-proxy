@@ -26,8 +26,7 @@
     "LogPIIChanges": true,
     "LogVerbose": true
   },
-  "ONNXModelPath": "model/trained/model.onnx",
-  "TokenizerPath": "model/trained/tokenizer.json",
+  "ModelVariant": "trained",
   "UIPath": "src/frontend/dist",
   "Proxy": {
     "transparent_enabled": true,

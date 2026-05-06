@@ -123,9 +123,9 @@ func NewONNXModelDetectorSimple(modelPath string, tokenizerPath string) (*ONNXMo
 	configPaths := []string{
 		filepath.Join(modelDir, "label_mappings.json"),
 		filepath.Join(tokenizerDir, "label_mappings.json"),
-		"model/trained/label_mappings.json", // Default location
-		"trained/label_mappings.json",       // Alternative: in resources/trained
-		"./label_mappings.json",             // Alternative: current directory
+		"model/trained/label_mappings.json",   // Fallback: trained variant
+		"model/quantized/label_mappings.json", // Fallback: quantized variant
+		"./label_mappings.json",               // Fallback: current directory
 	}
 
 	var configData []byte
@@ -191,7 +191,7 @@ func NewONNXModelDetectorSimple(modelPath string, tokenizerPath string) (*ONNXMo
 		filepath.Join(modelDir, "crf_transitions.json"),
 		filepath.Join(tokenizerDir, "crf_transitions.json"),
 		"model/trained/crf_transitions.json",
-		"trained/crf_transitions.json",
+		"model/quantized/crf_transitions.json",
 		"./crf_transitions.json",
 	}
 	for _, path := range crfPaths {
@@ -209,7 +209,7 @@ func NewONNXModelDetectorSimple(modelPath string, tokenizerPath string) (*ONNXMo
 		break
 	}
 	if crf == nil {
-		fmt.Println("Warning: CRF transitions not found, falling back to argmax decoding")
+		fmt.Printf("Warning: CRF transitions not found in any of %v — falling back to argmax decoding (label-sequence quality will degrade)\n", crfPaths)
 	}
 
 	detector := &ONNXModelDetectorSimple{

@@ -532,9 +532,10 @@ func (s *Server) statsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleModelSecurity(w http.ResponseWriter, r *http.Request) {
-	// Read model manifest
-	manifestPath := "model/trained/model_manifest.json"
-	data, err := os.ReadFile(manifestPath)
+	// Read model manifest from whichever variant is currently active.
+	manifestPath := filepath.Join(s.config.ResolveModelDirectory(), "model_manifest.json")
+	data, err := os.ReadFile(manifestPath) // #nosec G304 — path derived from validated config
+
 	if err != nil {
 		http.Error(w, "Model manifest not found", http.StatusNotFound)
 		return

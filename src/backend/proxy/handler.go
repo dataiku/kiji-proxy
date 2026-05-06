@@ -531,12 +531,9 @@ func NewHandler(cfg *config.Config) (*Handler, error) {
 	var err error
 
 	// Initialize model manager for ONNX detector
-	modelDir := cfg.ONNXModelDirectory
-	if modelDir == "" {
-		modelDir = "model/trained" // Default directory
-	}
+	modelDir := cfg.ResolveModelDirectory()
 
-	log.Printf("[Handler] Initializing ModelManager with directory: %s", modelDir)
+	log.Printf("[Handler] Initializing ModelManager with directory: %s (variant=%q)", modelDir, cfg.ModelVariant)
 	modelManager, err = piiServices.NewModelManager(modelDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize model manager: %w", err)

@@ -67,9 +67,30 @@ type Config struct {
 	Logging            LoggingConfig
 	ONNXModelPath      string
 	TokenizerPath      string
-	ONNXModelDirectory string
+	ModelVariant       string // "trained" (full precision) or "quantized" (INT8). Used to derive ONNXModelDirectory when it isn't set.
+	ONNXModelDirectory string // Explicit override; takes precedence over ModelVariant.
 	UIPath             string
 	Proxy              ProxyConfig `json:"Proxy"`
+}
+
+// ModelVariantTrained is the full-precision model variant.
+const ModelVariantTrained = "trained"
+
+// ModelVariantQuantized is the INT8-quantized model variant.
+const ModelVariantQuantized = "quantized"
+
+// ResolveModelDirectory returns the directory the ONNX model files should be loaded from.
+// ONNXModelDirectory wins if set; otherwise the directory is derived from ModelVariant
+// (defaulting to the trained variant).
+func (c *Config) ResolveModelDirectory() string {
+	if c.ONNXModelDirectory != "" {
+		return c.ONNXModelDirectory
+	}
+	variant := c.ModelVariant
+	if variant == "" {
+		variant = ModelVariantTrained
+	}
+	return filepath.Join("model", variant)
 }
 
 func (c *Config) ValidateConfig() error {
@@ -222,9 +243,10 @@ func DefaultConfig() *Config {
 			CustomProviderConfig:    defaultCustomProviderConfig,
 		},
 		ProxyPort:          ":8080",
-		ONNXModelPath:      "model/trained/model.onnx",
-		TokenizerPath:      "model/trained/tokenizer.json",
-		ONNXModelDirectory: "model/trained",
+		ONNXModelPath:      "",
+		TokenizerPath:      "",
+		ModelVariant:       ModelVariantTrained,
+		ONNXModelDirectory: "",
 		UIPath:             "./src/frontend/dist",
 		Database: DatabaseConfig{
 			Path:         dbPath,
