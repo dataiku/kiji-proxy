@@ -12,8 +12,8 @@ import (
 
 // Test paths - adjust based on your local setup or use environment variables
 var (
-	testModelPath     = getEnvOrDefault("ONNX_MODEL_PATH", "../../../../model/quantized/model.onnx")
-	testTokenizerPath = getEnvOrDefault("ONNX_TOKENIZER_PATH", "../../../../model/quantized/tokenizer.json")
+	testModelPath     = getEnvOrDefault("ONNX_MODEL_PATH", "../../../../model/trained/model.onnx")
+	testTokenizerPath = getEnvOrDefault("ONNX_TOKENIZER_PATH", "../../../../model/trained/tokenizer.json")
 )
 
 func getEnvOrDefault(key, defaultValue string) string {

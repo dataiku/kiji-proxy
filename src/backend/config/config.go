@@ -222,9 +222,9 @@ func DefaultConfig() *Config {
 			CustomProviderConfig:    defaultCustomProviderConfig,
 		},
 		ProxyPort:          ":8080",
-		ONNXModelPath:      "model/quantized/model.onnx",
-		TokenizerPath:      "model/quantized/tokenizer.json",
-		ONNXModelDirectory: "model/quantized",
+		ONNXModelPath:      "model/trained/model.onnx",
+		TokenizerPath:      "model/trained/tokenizer.json",
+		ONNXModelDirectory: "model/trained",
 		UIPath:             "./src/frontend/dist",
 		Database: DatabaseConfig{
 			Path:         dbPath,

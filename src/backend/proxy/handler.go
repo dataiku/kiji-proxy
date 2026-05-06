@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/hannes/kiji-private/src/backend/config"
+	"github.com/hannes/kiji-private/src/backend/pdf"
 	piiServices "github.com/hannes/kiji-private/src/backend/pii"
 	pii "github.com/hannes/kiji-private/src/backend/pii/detectors"
 	"github.com/hannes/kiji-private/src/backend/processor"
@@ -306,6 +307,17 @@ func (h *Handler) MaskPIIInText(text string) (string, map[string]string, []pii.E
 	return h.maskPIIInText(text, "[PIICheck]")
 }
 
+// MaskPDF redacts PII inside a PDF by rewriting each page's content stream.
+// Reads from in, writes the masked PDF to out, using the handler's existing
+// masking service. Set UNIDOC_LICENSE_API_KEY in the environment to avoid
+// unipdf watermarking.
+func (h *Handler) MaskPDF(in io.ReadSeeker, out io.Writer) error {
+	if h.maskingService == nil {
+		return fmt.Errorf("masking service not initialized")
+	}
+	return pdf.MaskPDF(in, out, h.maskingService)
+}
+
 // ProcessedRequest contains the result of processing a request through the PII pipeline
 type ProcessedRequest struct {
 	RedactedBody     []byte
@@ -521,7 +533,7 @@ func NewHandler(cfg *config.Config) (*Handler, error) {
 	// Initialize model manager for ONNX detector
 	modelDir := cfg.ONNXModelDirectory
 	if modelDir == "" {
-		modelDir = "model/quantized" // Default directory
+		modelDir = "model/trained" // Default directory
 	}
 
 	log.Printf("[Handler] Initializing ModelManager with directory: %s", modelDir)

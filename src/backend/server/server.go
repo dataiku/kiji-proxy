@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io/fs"
@@ -8,6 +9,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -236,6 +239,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/proxy/transparent/toggle", s.handleTransparentProxyToggle)
 	mux.HandleFunc("/api/pii/check", s.handlePIICheck)
 	mux.HandleFunc("/api/pii/confidence", s.handlePIIConfidence)
+	mux.HandleFunc("/api/pdf/mask", s.handlePDFMask)
 
 	// Add provider endpoints
 	mux.Handle(providers.ProviderSubpathOpenAI, s.handler) // same as Mistral
@@ -342,6 +346,8 @@ func (s *Server) startTransparentProxy() {
 			s.handlePIICheck(w, r)
 		case "/api/pii/confidence":
 			s.handlePIIConfidence(w, r)
+		case "/api/pdf/mask":
+			s.handlePDFMask(w, r)
 		default:
 			// All other HTTP/HTTPS requests go to transparent proxy
 			s.transparentProxy.ServeHTTP(w, r)
@@ -527,7 +533,7 @@ func (s *Server) statsHandler(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleModelSecurity(w http.ResponseWriter, r *http.Request) {
 	// Read model manifest
-	manifestPath := "model/quantized/model_manifest.json"
+	manifestPath := "model/trained/model_manifest.json"
 	data, err := os.ReadFile(manifestPath)
 	if err != nil {
 		http.Error(w, "Model manifest not found", http.StatusNotFound)
@@ -649,6 +655,75 @@ func (s *Server) handlePIICheck(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Failed to encode PII check response: %v", err)
 		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 	}
+}
+
+// maxPDFUploadBytes caps the size of PDFs accepted by /api/pdf/mask.
+const maxPDFUploadBytes = 50 << 20 // 50 MB
+
+// handlePDFMask accepts a multipart upload (form field "file"), runs it
+// through the PDF redaction pipeline, and streams the masked PDF back.
+func (s *Server) handlePDFMask(w http.ResponseWriter, r *http.Request) {
+	ip := r.RemoteAddr
+	limiter := s.rateLimiter.GetLimiter(ip)
+	if !limiter.Allow() {
+		http.Error(w, "Rate limit exceeded. Please try again later.", http.StatusTooManyRequests)
+		return
+	}
+
+	if r.Method == http.MethodOptions {
+		s.corsHandler(w, r)
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	s.corsHandler(w, r)
+
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, maxPDFUploadBytes)
+	if err := r.ParseMultipartForm(maxPDFUploadBytes); err != nil {
+		http.Error(w, fmt.Sprintf("Failed to parse upload: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		http.Error(w, "Missing 'file' form field", http.StatusBadRequest)
+		return
+	}
+	defer func() { _ = file.Close() }()
+
+	log.Printf("[PDF] Mask request: filename=%q size=%d", header.Filename, header.Size)
+
+	// multipart.File satisfies io.ReadSeeker, which unipdf's reader requires.
+	var buf bytes.Buffer
+	if err := s.handler.MaskPDF(file, &buf); err != nil {
+		log.Printf("[PDF] Mask failed: %v", err)
+		http.Error(w, fmt.Sprintf("Failed to mask PDF: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename=%q`, maskedFilename(header.Filename)))
+	w.Header().Set("Content-Length", strconv.Itoa(buf.Len()))
+	w.WriteHeader(http.StatusOK)
+	if _, err := w.Write(buf.Bytes()); err != nil {
+		log.Printf("[PDF] Failed to write masked PDF: %v", err)
+	}
+}
+
+func maskedFilename(orig string) string {
+	if orig == "" {
+		return "masked.pdf"
+	}
+	ext := filepath.Ext(orig)
+	if ext == "" {
+		return orig + ".masked.pdf"
+	}
+	base := strings.TrimSuffix(orig, ext)
+	return base + ".masked" + ext
 }
 
 // handlePIIConfidence handles GET/POST /api/pii/confidence requests

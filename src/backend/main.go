@@ -107,16 +107,11 @@ func run(configPath *string) error {
 
 	// Debug: Check for model files in various locations
 	modelPaths := []string{
-		"model/quantized/model.onnx",
-		"quantized/model.onnx",
+		"model/trained/model.onnx",
+		"trained/model.onnx",
 		"./model.onnx",
-		"resources/model/quantized/model.onnx",
-		"resources/quantized/model.onnx",
-		"model/quantized/model_quantized.onnx",
-		"quantized/model_quantized.onnx",
-		"./model_quantized.onnx",
-		"resources/model/quantized/model_quantized.onnx",
-		"resources/quantized/model_quantized.onnx",
+		"resources/model/trained/model.onnx",
+		"resources/trained/model.onnx",
 	}
 	for _, path := range modelPaths {
 		if _, err := os.Stat(path); err == nil {
@@ -144,10 +139,10 @@ func run(configPath *string) error {
 		} else {
 			log.Println("Model files extracted successfully")
 			// Debug: Verify extracted files
-			if _, err := os.Stat("model/quantized/model.onnx"); err == nil {
-				log.Println("✅ Extracted model file verified at: model/quantized/model.onnx")
+			if _, err := os.Stat("model/trained/model.onnx"); err == nil {
+				log.Println("✅ Extracted model file verified at: model/trained/model.onnx")
 			} else {
-				log.Printf("❌ Extracted model file NOT found at: model/quantized/model.onnx (error: %v)", err)
+				log.Printf("❌ Extracted model file NOT found at: model/trained/model.onnx (error: %v)", err)
 			}
 		}
 
@@ -345,8 +340,8 @@ func expandPath(path string) string {
 
 // extractEmbeddedModelFiles extracts embedded model files to the current directory
 func extractEmbeddedModelFiles(modelFS embed.FS) error {
-	// Create model/quantized directory if it doesn't exist
-	if err := os.MkdirAll("model/quantized", 0750); err != nil {
+	// Create model/trained directory if it doesn't exist
+	if err := os.MkdirAll("model/trained", 0750); err != nil {
 		return err
 	}
 
@@ -368,7 +363,7 @@ func extractEmbeddedModelFiles(modelFS embed.FS) error {
 		}
 
 		// Create target file path
-		targetPath := filepath.Join("model/quantized", filepath.Base(path))
+		targetPath := filepath.Join("model/trained", filepath.Base(path))
 
 		// Write file to disk
 		if err := os.WriteFile(targetPath, content, 0600); err != nil {

@@ -13,6 +13,12 @@ type MaskedResult struct {
 	MaskedText       string
 	MaskedToOriginal map[string]string
 	Entities         []detectors.Entity
+	// EntityReplacements is parallel to Entities: EntityReplacements[i] is the
+	// masked surrogate that replaced Entities[i]. Generators are random, so two
+	// entities sharing the same original text may receive different surrogates;
+	// MaskedToOriginal only retains one of them. Callers that need the
+	// per-occurrence replacement (e.g. PDF redaction) should use this slice.
+	EntityReplacements []string
 }
 
 // DetectorProvider is an interface for getting the current detector
@@ -83,15 +89,18 @@ func (s *MaskingService) MaskText(text string, logPrefix string) MaskedResult {
 		}
 	}
 
+	replacements := make([]string, len(entities))
+
 	// Replace PII with masked text and create mapping
 	// Entities are sorted by StartPos descending, so replacing from end to start
 	// preserves earlier byte offsets.
-	for _, entity := range entities {
+	for i, entity := range entities {
 		originalText := entity.Text
 		if originalText == "" {
 			continue
 		}
 		maskedEntityText := s.generator.GenerateReplacement(entity.Label, originalText)
+		replacements[i] = maskedEntityText
 
 		// Store mapping for restoration
 		maskedToOriginal[maskedEntityText] = originalText
@@ -109,9 +118,10 @@ func (s *MaskingService) MaskText(text string, logPrefix string) MaskedResult {
 	}
 
 	return MaskedResult{
-		MaskedText:       maskedText,
-		MaskedToOriginal: maskedToOriginal,
-		Entities:         entities,
+		MaskedText:         maskedText,
+		MaskedToOriginal:   maskedToOriginal,
+		Entities:           entities,
+		EntityReplacements: replacements,
 	}
 }
 

@@ -10,5 +10,5 @@ var uiFiles embed.FS
 
 // Embed model files
 //
-//go:embed model/quantized/*
+//go:embed model/trained/*
 var modelFiles embed.FS

@@ -123,9 +123,9 @@ func NewONNXModelDetectorSimple(modelPath string, tokenizerPath string) (*ONNXMo
 	configPaths := []string{
 		filepath.Join(modelDir, "label_mappings.json"),
 		filepath.Join(tokenizerDir, "label_mappings.json"),
-		"model/quantized/label_mappings.json", // Default location
-		"quantized/label_mappings.json",       // Alternative: in resources/quantized
-		"./label_mappings.json",               // Alternative: current directory
+		"model/trained/label_mappings.json", // Default location
+		"trained/label_mappings.json",       // Alternative: in resources/trained
+		"./label_mappings.json",             // Alternative: current directory
 	}
 
 	var configData []byte
@@ -190,8 +190,8 @@ func NewONNXModelDetectorSimple(modelPath string, tokenizerPath string) (*ONNXMo
 	crfPaths := []string{
 		filepath.Join(modelDir, "crf_transitions.json"),
 		filepath.Join(tokenizerDir, "crf_transitions.json"),
-		"model/quantized/crf_transitions.json",
-		"quantized/crf_transitions.json",
+		"model/trained/crf_transitions.json",
+		"trained/crf_transitions.json",
 		"./crf_transitions.json",
 	}
 	for _, path := range crfPaths {
