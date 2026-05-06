@@ -82,9 +82,7 @@ def download_model_from_huggingface(
         output_dir = "model/trained" if variant == "trained" else "model/quantized"
 
     allow_patterns = (
-        _TRAINED_ALLOW_PATTERNS
-        if variant == "trained"
-        else _QUANTIZED_ALLOW_PATTERNS
+        _TRAINED_ALLOW_PATTERNS if variant == "trained" else _QUANTIZED_ALLOW_PATTERNS
     )
 
     output_path = Path(output_dir)

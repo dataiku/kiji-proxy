@@ -440,7 +440,9 @@ class PIITrainingPipeline(FlowSpec):
                     )
                     print(format_parity_report(quantized_parity))
                     assert_parity(quantized_parity)
-                    self.quantized_model_path = str(output_path / "model_quantized.onnx")
+                    self.quantized_model_path = str(
+                        output_path / "model_quantized.onnx"
+                    )
                     print("Quantized side artifact passed parity")
                 except Exception as quantization_error:
                     failed_quantized = output_path / "model_quantized.onnx"
