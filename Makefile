@@ -296,14 +296,36 @@ electron-run: setup-onnx build-go electron-build ## Run Electron app (builds Go 
 
 electron: electron-run ## Alias for electron-run
 
-electron-dev: ## Run Electron app in development mode (assumes backend is running in debugger)
-	@echo "$(BLUE)Building frontend for Electron...$(NC)"
-	@cd src/frontend && npm run build:electron
-	@echo "$(GREEN)✅ Frontend built$(NC)"
-	@echo "$(BLUE)Starting Electron in development mode...$(NC)"
-	@echo "$(YELLOW)Note: Assumes Go backend is running separately (e.g., in VSCode debugger)$(NC)"
-	@echo "$(YELLOW)Note: Run 'npm run dev' in another terminal for hot reload$(NC)"
-	@cd src/frontend && EXTERNAL_BACKEND=true npm run electron:dev
+electron-dev: ## Run Electron app in development mode (starts webpack dev server + Electron; assumes Go backend running separately)
+	@echo "$(BLUE)Starting Electron development environment...$(NC)"
+	@echo "$(YELLOW)Note: Assumes Go backend is running separately (e.g., 'make go-backend-dev' or VSCode debugger)$(NC)"
+	@DEV_PID=""; \
+	trap 'if [ -n "$$DEV_PID" ]; then kill $$DEV_PID 2>/dev/null || true; fi' EXIT INT TERM; \
+	if curl -sf http://localhost:3000 >/dev/null 2>&1; then \
+		echo "$(GREEN)✅ Frontend dev server already running on http://localhost:3000$(NC)"; \
+	else \
+		echo "$(BLUE)Starting webpack dev server (logs: /tmp/kiji-dev-server.log)...$(NC)"; \
+		( cd src/frontend && npm run dev ) > /tmp/kiji-dev-server.log 2>&1 & \
+		DEV_PID=$$!; \
+		echo "$(YELLOW)Waiting for dev server on http://localhost:3000...$(NC)"; \
+		for i in $$(seq 1 60); do \
+			if curl -sf http://localhost:3000 >/dev/null 2>&1; then \
+				echo "$(GREEN)✅ Dev server ready (pid $$DEV_PID)$(NC)"; \
+				break; \
+			fi; \
+			if ! kill -0 $$DEV_PID 2>/dev/null; then \
+				echo "$(YELLOW)⚠️  Dev server exited unexpectedly — see /tmp/kiji-dev-server.log$(NC)"; \
+				exit 1; \
+			fi; \
+			if [ $$i -eq 60 ]; then \
+				echo "$(YELLOW)⚠️  Dev server didn't respond after 60s — see /tmp/kiji-dev-server.log$(NC)"; \
+				exit 1; \
+			fi; \
+			sleep 1; \
+		done; \
+	fi; \
+	echo "$(BLUE)Starting Electron in development mode...$(NC)"; \
+	cd src/frontend && EXTERNAL_BACKEND=true npm run electron:dev
 
 electron-dev-external: electron-dev ## Alias for electron-dev (for backwards compatibility)
 
