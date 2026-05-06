@@ -368,7 +368,7 @@ jobs:
         with:
           name: linux-assets
           path: release/linux/*.tar.gz*
-          retention-days: 1 # TODO: remove prior to merging!
+          retention-days: 90
 
       - name: Build Summary
         if: always()
