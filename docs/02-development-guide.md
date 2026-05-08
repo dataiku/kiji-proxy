@@ -100,11 +100,11 @@ python3 -m venv .venv
 source .venv/bin/activate
 
 # Install ONNX Runtime
-uv pip install "onnxruntime==1.25.0"
+uv pip install "onnxruntime==1.24.2"
 
 # Find and copy library (macOS)
 LIB_PATH=$(find .venv -name "libonnxruntime*.dylib" | head -1)
-cp "$LIB_PATH" ./build/libonnxruntime.1.25.0.dylib
+cp "$LIB_PATH" ./build/libonnxruntime.1.24.2.dylib
 
 # Find and copy library (Linux)
 LIB_PATH=$(find .venv -name "libonnxruntime.so.*" | head -1)
@@ -120,11 +120,11 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 # Create venv and install
 uv venv --python 3.13
 source .venv/bin/activate
-uv pip install "onnxruntime==1.25.0"
+uv pip install "onnxruntime==1.24.2"
 
 # Copy library (macOS)
 LIB_PATH=$(find .venv -name "libonnxruntime*.dylib" | head -1)
-cp "$LIB_PATH" ./build/libonnxruntime.1.25.0.dylib
+cp "$LIB_PATH" ./build/libonnxruntime.1.24.2.dylib
 
 # Copy library (Linux)
 LIB_PATH=$(find .venv -name "libonnxruntime.so.*" | head -1)
@@ -135,24 +135,24 @@ cp "$LIB_PATH" ./build/libonnxruntime.so
 
 ```bash
 # macOS ARM64 (Apple Silicon)
-wget https://github.com/microsoft/onnxruntime/releases/download/v1.25.0/onnxruntime-osx-arm64-1.25.0.tgz
-tar -xzf onnxruntime-osx-arm64-1.25.0.tgz
-cp onnxruntime-osx-arm64-1.25.0/lib/libonnxruntime.1.25.0.dylib build/
+wget https://github.com/microsoft/onnxruntime/releases/download/v1.24.2/onnxruntime-osx-arm64-1.24.2.tgz
+tar -xzf onnxruntime-osx-arm64-1.24.2.tgz
+cp onnxruntime-osx-arm64-1.24.2/lib/libonnxruntime.1.24.2.dylib build/
 
 # Linux
-wget https://github.com/microsoft/onnxruntime/releases/download/v1.25.0/onnxruntime-linux-x64-1.25.0.tgz
-tar -xzf onnxruntime-linux-x64-1.25.0.tgz
-cp onnxruntime-linux-x64-1.25.0/lib/libonnxruntime.so.1.25.0 build/libonnxruntime.so
+wget https://github.com/microsoft/onnxruntime/releases/download/v1.24.2/onnxruntime-linux-x64-1.24.2.tgz
+tar -xzf onnxruntime-linux-x64-1.24.2.tgz
+cp onnxruntime-linux-x64-1.24.2/lib/libonnxruntime.so.1.24.2 build/libonnxruntime.so
 ```
 
 **Verify:**
 ```bash
 ls -lh build/libonnxruntime.*
-# macOS: Should show libonnxruntime.1.25.0.dylib (~26MB)
+# macOS: Should show libonnxruntime.1.24.2.dylib (~26MB)
 # Linux: Should show libonnxruntime.so (~24MB)
 ```
 
-> **About ONNX Runtime:** the library uses a specific version for C API headers (right now it's 1.25.0). So we updated to 1.25.0 in the instructions, but it might evolve later when you read this. Please check the [ONNX Runtime pkg go](https://pkg.go.dev/github.com/yalue/onnxruntime_go#section-readme:~:text=At%20the%20time,be%20fairly%20easy%3A) and for context the [PR discussion about updating ONNX Runtime](https://github.com/dataiku/kiji-proxy/pull/364/changes/BASE..e21c6701583a5f6eb617d852441f7ca5add7e381#r3163645922)
+> **About ONNX Runtime:** the library uses a specific version for C API headers (right now it's 1.24.2). So we updated to 1.24.2 in the instructions, but it might evolve later when you read this. Please check the [ONNX Runtime pkg go](https://pkg.go.dev/github.com/yalue/onnxruntime_go#section-readme:~:text=At%20the%20time,be%20fairly%20easy%3A) and for context the [PR discussion about updating ONNX Runtime](https://github.com/dataiku/kiji-proxy/pull/364/changes/BASE..e21c6701583a5f6eb617d852441f7ca5add7e381#r3163645922)
 
 ### Compiling Tokenizers
 
@@ -708,7 +708,7 @@ ls -lh build/tokenizers/libtokenizers.a
 
 ```bash
 # macOS
-export ONNXRUNTIME_SHARED_LIBRARY_PATH="./build/libonnxruntime.1.25.0.dylib"
+export ONNXRUNTIME_SHARED_LIBRARY_PATH="./build/libonnxruntime.1.24.2.dylib"
 
 # Linux
 export LD_LIBRARY_PATH="./build:$LD_LIBRARY_PATH"
