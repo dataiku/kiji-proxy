@@ -1,5 +1,11 @@
 # kiji-privacy-proxy
 
+## 1.0.1
+
+### Patch Changes
+
+- 54bfaf2: Bump Go, electron-updater, dompurify, and dev dependencies; pin onnxruntime to 1.24.2
+
 ## 1.0.0
 
 ### Major Changes
