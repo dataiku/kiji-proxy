@@ -343,7 +343,7 @@ build-dmg: ## Build DMG package with Go binary and Electron app
 		exit 1; \
 	fi
 	@chmod +x src/scripts/build_dmg.sh
-	@./src/scripts/build_dmg.sh
+	@./src/scripts/build_dmg.sh skip-sign
 	@echo "$(GREEN)✅ DMG build complete$(NC)"
 
 build-linux: ## Build Linux standalone binary (without Electron)

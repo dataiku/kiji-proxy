@@ -167,7 +167,11 @@ jobs:
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
 
       - name: Build DMG
-        run: make build-dmg
+        # Invoke the script directly (no skip-sign arg) so signing + notarization run.
+        # `make build-dmg` passes `skip-sign` for local dev builds.
+        run: |
+          chmod +x src/scripts/build_dmg.sh
+          ./src/scripts/build_dmg.sh
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
