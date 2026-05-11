@@ -24,7 +24,7 @@
     "@sentry/electron": "^7.11.0",
     "@types/dompurify": "^3.2.0",
     "dompurify": "^3.3.1",
-    "electron-updater": "^6.7.3",
+    "electron-updater": "^6.8.3",
     "express": "^5.2.1",
     "http-proxy-middleware": "^3.0.5",
     "lucide-react": "^1.7.0",
