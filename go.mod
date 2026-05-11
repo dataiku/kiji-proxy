@@ -5,7 +5,7 @@ go 1.25.0
 require (
 	github.com/daulet/tokenizers v1.27.0
 	github.com/yalue/onnxruntime_go v1.27.0
-	modernc.org/sqlite v1.50.0
+	modernc.org/sqlite v1.50.1
 )
 
 require (
@@ -14,7 +14,7 @@ require (
 )
 
 require (
-	github.com/getsentry/sentry-go v0.46.0
+	github.com/getsentry/sentry-go v0.46.2
 	github.com/google/uuid v1.6.0
 )
 
@@ -26,7 +26,7 @@ require (
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	golang.org/x/sys v0.42.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
-	modernc.org/libc v1.72.0 // indirect
+	modernc.org/libc v1.72.3 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 )
