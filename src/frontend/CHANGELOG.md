@@ -1,5 +1,11 @@
 # kiji-privacy-proxy
 
+## 1.0.2
+
+### Patch Changes
+
+- 282ab97: Fix macOS quarantine issue so the app launches without being blocked by Gatekeeper after install.
+
 ## 1.0.1
 
 ### Patch Changes
