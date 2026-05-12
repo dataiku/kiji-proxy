@@ -1,5 +1,11 @@
 # kiji-privacy-proxy
 
+## 1.0.3
+
+### Patch Changes
+
+- bdbf8c5: fix signing builds
+
 ## 1.0.2
 
 ### Patch Changes
