@@ -526,11 +526,34 @@ else
         exit 1
     fi
 
-    npx electron-builder --publish never
-    if [ $? -ne 0 ]; then
+    # Tee output so we can grep for the silent-skip-signing message below.
+    # electron-builder prints this when it detects a PR context (GITHUB_BASE_REF
+    # set) and CSC_FOR_PULL_REQUEST is not "true". The build keeps going but
+    # produces a half-signed bundle that fails `codesign --verify` later with
+    # "code has no resources but signature indicates they must be present".
+    EB_LOG="$(mktemp -t electron-builder.XXXXXX)"
+    trap 'rm -f "$EB_LOG"' RETURN EXIT
+    set +e
+    npx electron-builder --publish never 2>&1 | tee "$EB_LOG"
+    EB_STATUS=${PIPESTATUS[0]}
+    set -e
+    if [ "$EB_STATUS" -ne 0 ]; then
         echo "❌ electron-builder packaging failed!"
         exit 1
     fi
+
+    # Fail-fast: detect the exact decision line that means signing was skipped.
+    # Match must be exact — electron-builder also prints a general "security
+    # concerns" warning even when CSC_FOR_PULL_REQUEST=true, so a broad grep
+    # would false-positive. See app-builder-lib/out/codeSign/macCodeSign.js.
+    if grep -qF "Current build is a part of pull request, code signing will be skipped." "$EB_LOG"; then
+        echo "❌ electron-builder silently skipped code signing (PR context detected)."
+        echo "   Set CSC_FOR_PULL_REQUEST=true on the Build DMG step, or dispatch"
+        echo "   the workflow from a non-PR branch. Aborting before verify to"
+        echo "   avoid producing a half-signed artifact."
+        exit 1
+    fi
+    # Cleanup handled by trap above.
 
     # electron-builder notarizes + staples the .app. Verify that actually
     # happened — silent-skip is the failure mode we're guarding against.

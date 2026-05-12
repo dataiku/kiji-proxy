@@ -178,6 +178,16 @@ jobs:
           APPLE_API_KEY: ${{ runner.temp }}/apple/AuthKey.p8
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          # Force signing on `pull_request` event runs (notably the merged
+          # release-PR path: this workflow's trigger includes merged PRs with
+          # the `release` label, and on those runs GITHUB_BASE_REF is set so
+          # electron-builder treats it as a PR build and silently skips
+          # signing — producing a half-signed bundle that fails
+          # `codesign --verify` with "code has no resources but signature
+          # indicates they must be present". Safe here: the job uses the
+          # protected "DMG Build Environment", gated on maintainer approval
+          # before secrets are exposed.
+          CSC_FOR_PULL_REQUEST: "true"
 
       - name: Normalize macOS Artifact Names
         run: |
