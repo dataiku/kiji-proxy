@@ -543,9 +543,46 @@ else
         exit 1
     fi
     echo "Verifying: $APP_BUNDLE"
+
+    # ─── DEBUG: codesign-verify failure diagnostics ──────────────────────
+    # Temporary, remove once root cause is found. See branch debug/codesign-verify-failure.
+    echo ""
+    echo "═══ DEBUG: codesign diagnostics ═══"
+    echo "--- All .app bundles under release/ (looking for stale duplicates) ---"
+    find release -maxdepth 4 -name "*.app" -print
+    echo ""
+    echo "--- Top-level Contents/ of selected bundle ---"
+    ls -la "$APP_BUNDLE/Contents" || true
+    echo ""
+    echo "--- Contents/Resources/ listing (empty ⇒ afterPack stripped too much) ---"
+    ls -la "$APP_BUNDLE/Contents/Resources" 2>&1 | head -50 || true
+    echo ""
+    echo "--- Contents/Resources/*.lproj inventory ---"
+    find "$APP_BUNDLE/Contents/Resources" -maxdepth 1 -name "*.lproj" -print 2>/dev/null || true
+    echo ""
+    echo "--- codesign -dvvv on outer .app ---"
+    codesign -dvvv "$APP_BUNDLE" 2>&1 || true
+    echo ""
+    echo "--- Outer verify, NON-deep (isolates outer seal from nested issues) ---"
+    codesign --verify --verbose=4 "$APP_BUNDLE" 2>&1 || true
+    echo ""
+    echo "--- Electron Framework standalone verify ---"
+    FRAMEWORK="$APP_BUNDLE/Contents/Frameworks/Electron Framework.framework"
+    if [ -d "$FRAMEWORK" ]; then
+        codesign --verify --verbose=4 "$FRAMEWORK" 2>&1 || true
+    else
+        echo "(framework not found at expected path)"
+    fi
+    echo ""
+    echo "--- Deep verify with --verbose=4 (names the offending nested path) ---"
+    codesign --verify --deep --strict --verbose=4 "$APP_BUNDLE" 2>&1 || true
+    echo "═══ END DEBUG ═══"
+    echo ""
+
+    # NOTE (debug branch): `|| true` lets diagnostics above print without
+    # aborting the job. Restore hard-fail before merging back to main.
     codesign --verify --deep --strict --verbose=2 "$APP_BUNDLE" || {
-        echo "❌ codesign verification failed on .app"
-        exit 1
+        echo "❌ codesign verification failed on .app (continuing for debug)"
     }
     if ! xcrun stapler validate "$APP_BUNDLE"; then
         echo "❌ .app is not stapled — notarization did not complete."
