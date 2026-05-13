@@ -1,0 +1,45 @@
+name: Feature Request
+description: Suggest a new feature or enhancement for kiji-proxy
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to suggest an improvement! Please fill out the sections below as clearly as you can.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What problem or limitation are you running into? Why does it matter?
+      placeholder: "e.g. I often need to X, but currently the only way to do it is Y, which is tedious because..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed Solution
+      description: Describe the feature or change you'd like to see.
+      placeholder: "e.g. Add a config option that allows..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Have you tried any workarounds or considered other approaches?
+      placeholder: "e.g. I tried X but it doesn't work because..."
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Any other context, screenshots, or references that might help.
+      placeholder: "Links, related issues, example configs, etc."
+    validations:
+      required: false

@@ -73,6 +73,12 @@ type Config struct {
 	Proxy              ProxyConfig `json:"Proxy"`
 }
 
+// DefaultForwardProxyPort is the default port for the forward (HTTP) proxy.
+const DefaultForwardProxyPort = ":8080"
+
+// DefaultTransparentProxyPort is the default port for the transparent proxy.
+const DefaultTransparentProxyPort = ":8081"
+
 // ModelVariantTrained is the full-precision model variant.
 const ModelVariantTrained = "trained"
 
@@ -242,7 +248,7 @@ func DefaultConfig() *Config {
 			MistralProviderConfig:   defaultMistralProviderConfig,
 			CustomProviderConfig:    defaultCustomProviderConfig,
 		},
-		ProxyPort:          ":8080",
+		ProxyPort:          DefaultForwardProxyPort,
 		ONNXModelPath:      "",
 		TokenizerPath:      "",
 		ModelVariant:       ModelVariantTrained,
@@ -261,7 +267,7 @@ func DefaultConfig() *Config {
 		},
 		Proxy: ProxyConfig{
 			TransparentEnabled: true,
-			ProxyPort:          ":8081",
+			ProxyPort:          DefaultTransparentProxyPort,
 			CAPath:             caPath,
 			KeyPath:            keyPath,
 			EnablePAC:          true, // Enable PAC by default for automatic proxy configuration
