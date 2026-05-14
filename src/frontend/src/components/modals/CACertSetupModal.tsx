@@ -1,5 +1,12 @@
 import { useState } from "react";
-import { X, ShieldCheck, Terminal, Globe, ExternalLink } from "lucide-react";
+import {
+  X,
+  ShieldCheck,
+  Terminal,
+  Globe,
+  ExternalLink,
+  FolderOpen,
+} from "lucide-react";
 import { isElectron } from "../../utils/providerHelpers";
 
 interface CACertSetupModalProps {
@@ -13,6 +20,7 @@ export default function CACertSetupModal({
 }: CACertSetupModalProps) {
   const [dontShowAgain, setDontShowAgain] = useState(false);
   const [currentTab, setCurrentTab] = useState<"system" | "browsers">("system");
+  const [revealError, setRevealError] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -26,6 +34,18 @@ export default function CACertSetupModal({
       }
     }
     onClose();
+  };
+
+  const handleRevealCert = async () => {
+    setRevealError(null);
+    if (!isElectron || !window.electronAPI) {
+      setRevealError("Reveal in Finder is only available in the desktop app.");
+      return;
+    }
+    const result = await window.electronAPI.revealCACert();
+    if (!result.success) {
+      setRevealError(result.error || "Failed to open the certificate folder.");
+    }
   };
 
   return (
@@ -58,6 +78,22 @@ export default function CACertSetupModal({
               certificate on your system and/or browsers.
             </p>
           </div>
+
+          {/* Reveal in Finder shortcut */}
+          {isElectron && (
+            <div>
+              <button
+                onClick={handleRevealCert}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-sm font-medium transition-colors border border-slate-300"
+              >
+                <FolderOpen className="w-4 h-4" />
+                Reveal CA cert in Finder
+              </button>
+              {revealError && (
+                <p className="text-xs text-red-600 mt-2">{revealError}</p>
+              )}
+            </div>
+          )}
 
           {/* Tabs */}
           <div className="flex gap-2 border-b border-slate-200">

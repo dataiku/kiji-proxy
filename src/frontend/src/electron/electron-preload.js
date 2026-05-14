@@ -69,6 +69,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
     return await ipcRenderer.invoke("restart-backend");
   },
 
+  // Open the CA cert location in the OS file manager (Finder on macOS)
+  revealCACert: async () => {
+    return await ipcRenderer.invoke("reveal-ca-cert");
+  },
+
   // Platform information
   platform: process.platform,
 

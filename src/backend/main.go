@@ -88,6 +88,7 @@ func run(configPath *string) error {
 		loadConfigFromFile(*configPath, cfg)
 	}
 	loadConfigFromEnv(cfg)
+	expandConfigPaths(cfg)
 
 	if err := cfg.ValidateConfig(); err != nil {
 		return err
@@ -173,6 +174,20 @@ func loadConfigFromFile(path string, cfg *config.Config) {
 	if err := decoder.Decode(cfg); err != nil {
 		log.Printf("Failed to decode config file: %v", err)
 	}
+}
+
+// expandConfigPaths normalizes all path-bearing fields on the config in place,
+// expanding a leading ~ to the user's home directory. Go's os.MkdirAll /
+// os.WriteFile do not expand ~ themselves, so without this any "~/..." value
+// loaded from JSON or env would be created as a literal "~/" folder in CWD.
+func expandConfigPaths(cfg *config.Config) {
+	cfg.ONNXModelPath = expandPath(cfg.ONNXModelPath)
+	cfg.TokenizerPath = expandPath(cfg.TokenizerPath)
+	cfg.ONNXModelDirectory = expandPath(cfg.ONNXModelDirectory)
+	cfg.UIPath = expandPath(cfg.UIPath)
+	cfg.Database.Path = expandPath(cfg.Database.Path)
+	cfg.Proxy.CAPath = expandPath(cfg.Proxy.CAPath)
+	cfg.Proxy.KeyPath = expandPath(cfg.Proxy.KeyPath)
 }
 
 // loadConfigFromEnv loads configuration from environment variables
@@ -304,10 +319,6 @@ func loadProxyConfig(cfg *config.Config) {
 	if keyPath := os.Getenv("TRANSPARENT_PROXY_KEY_PATH"); keyPath != "" {
 		cfg.Proxy.KeyPath = expandPath(keyPath)
 	}
-
-	// Also expand paths if they weren't set from environment
-	cfg.Proxy.CAPath = expandPath(cfg.Proxy.CAPath)
-	cfg.Proxy.KeyPath = expandPath(cfg.Proxy.KeyPath)
 }
 
 // expandPath expands ~ to the user's home directory

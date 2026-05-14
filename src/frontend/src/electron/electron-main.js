@@ -6,6 +6,7 @@ const {
   nativeImage,
   ipcMain,
   safeStorage,
+  shell,
 } = require("electron");
 const path = require("path");
 const fs = require("fs");
@@ -1444,6 +1445,32 @@ ipcMain.handle("restart-backend", async () => {
     return { success: true };
   } catch (error) {
     console.error("Error restarting backend:", error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Open the CA cert location in the OS file manager. The Go backend writes the
+// CA to <userData>/certs/ca.crt — same path Electron knows via app.getPath().
+// If the file exists, highlight it; otherwise open the parent directory so the
+// user isn't left staring at an error dialog when the proxy hasn't generated
+// the cert yet.
+ipcMain.handle("reveal-ca-cert", async () => {
+  try {
+    const certPath = path.join(app.getPath("userData"), "certs", "ca.crt");
+    if (fs.existsSync(certPath)) {
+      shell.showItemInFolder(certPath);
+      return { success: true, path: certPath, exists: true };
+    }
+
+    const certDir = path.dirname(certPath);
+    fs.mkdirSync(certDir, { recursive: true });
+    const errMsg = await shell.openPath(certDir);
+    if (errMsg) {
+      return { success: false, error: errMsg };
+    }
+    return { success: true, path: certDir, exists: false };
+  } catch (error) {
+    console.error("Error revealing CA cert:", error);
     return { success: false, error: error.message };
   }
 });

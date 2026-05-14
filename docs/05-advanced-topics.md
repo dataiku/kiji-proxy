@@ -49,7 +49,9 @@ Client ──[TLS]──> Kiji Privacy Proxy ──[TLS]──> api.openai.com
 **1. Root CA Certificate**
 - **Purpose:** Signs all leaf certificates
 - **Validity:** 10 years
-- **Location:** `~/.kiji-proxy/certs/ca.crt`
+- **Location:**
+  - macOS: `~/Library/Application Support/Kiji Privacy Proxy/certs/ca.crt`
+  - Linux: `~/.kiji-proxy/certs/ca.crt` (or `$KIJI_DATA_PATH` / `$XDG_DATA_HOME/kiji-proxy/certs/ca.crt`)
 - **Common Name:** "Kiji Privacy Proxy CA"
 - **Key Type:** RSA 2048-bit
 
@@ -70,7 +72,7 @@ sudo security add-trusted-cert \
   -d \
   -r trustRoot \
   -k /Library/Keychains/System.keychain \
-  ~/.kiji-proxy/certs/ca.crt
+  "$HOME/Library/Application Support/Kiji Privacy Proxy/certs/ca.crt"
 ```
 
 **macOS - User Keychain:**
@@ -80,14 +82,14 @@ sudo security add-trusted-cert \
 security add-trusted-cert \
   -r trustRoot \
   -k ~/Library/Keychains/login.keychain \
-  ~/.kiji-proxy/certs/ca.crt
+  "$HOME/Library/Application Support/Kiji Privacy Proxy/certs/ca.crt"
 ```
 
 **macOS - Keychain Access GUI:**
 
 1. Open **Keychain Access**
 2. File → Import Items
-3. Select `~/.kiji-proxy/certs/ca.crt`
+3. Select `~/Library/Application Support/Kiji Privacy Proxy/certs/ca.crt` (the desktop app's **Settings → Reveal CA cert in Finder** opens this folder for you)
 4. Double-click "Kiji Privacy Proxy CA"
 5. Trust → **Always Trust**
 6. Close (enter password)
@@ -141,6 +143,10 @@ export REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
 
 **Node.js:**
 ```bash
+# macOS
+export NODE_EXTRA_CA_CERTS="$HOME/Library/Application Support/Kiji Privacy Proxy/certs/ca.crt"
+
+# Linux
 export NODE_EXTRA_CA_CERTS=~/.kiji-proxy/certs/ca.crt
 ```
 
