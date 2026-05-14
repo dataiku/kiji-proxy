@@ -6,6 +6,8 @@ import {
   Globe,
   ExternalLink,
   FolderOpen,
+  Copy,
+  Check,
 } from "lucide-react";
 import { isElectron } from "../../utils/providerHelpers";
 
@@ -21,6 +23,23 @@ export default function CACertSetupModal({
   const [dontShowAgain, setDontShowAgain] = useState(false);
   const [currentTab, setCurrentTab] = useState<"system" | "browsers">("system");
   const [revealError, setRevealError] = useState<string | null>(null);
+  const [commandCopied, setCommandCopied] = useState(false);
+
+  const certInstallCommand = `sudo security add-trusted-cert \\
+  -d \\
+  -r trustRoot \\
+  -k /Library/Keychains/System.keychain \\
+  ~/"Library/Application Support/Kiji Privacy Proxy/certs/ca.crt"`;
+
+  const handleCopyCommand = async () => {
+    try {
+      await navigator.clipboard.writeText(certInstallCommand);
+      setCommandCopied(true);
+      setTimeout(() => setCommandCopied(false), 2000);
+    } catch (error) {
+      console.error("Failed to copy cert install command:", error);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -132,16 +151,32 @@ export default function CACertSetupModal({
                 <h3 className="text-sm font-semibold text-slate-700 mb-2">
                   Option 1: Command Line (Recommended)
                 </h3>
-                <div className="bg-slate-900 rounded-lg p-4 text-sm font-mono text-slate-100 overflow-x-auto">
-                  <code>
-                    sudo security add-trusted-cert \
-                    <br />
-                    {"  "}-d \<br />
-                    {"  "}-r trustRoot \<br />
-                    {"  "}-k /Library/Keychains/System.keychain \<br />
-                    {"  "}~/Library/Application Support/Kiji Privacy
-                    Proxy/certs/ca.crt
-                  </code>
+                <div className="relative bg-slate-900 rounded-lg p-4 text-sm font-mono text-slate-100 overflow-x-auto">
+                  <button
+                    onClick={handleCopyCommand}
+                    className="absolute top-2 right-2 inline-flex items-center gap-1 px-2 py-1 text-xs text-slate-300 hover:text-white hover:bg-slate-700 rounded transition-colors"
+                    aria-label={
+                      commandCopied
+                        ? "Command copied to clipboard"
+                        : "Copy command to clipboard"
+                    }
+                    title={commandCopied ? "Copied!" : "Copy to clipboard"}
+                  >
+                    {commandCopied ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-green-400" />
+                        <span>Copied</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Copy</span>
+                      </>
+                    )}
+                  </button>
+                  <pre className="whitespace-pre pr-20">
+                    <code>{certInstallCommand}</code>
+                  </pre>
                 </div>
                 <p className="text-xs text-slate-600 mt-2">
                   This command requires administrator privileges and will
