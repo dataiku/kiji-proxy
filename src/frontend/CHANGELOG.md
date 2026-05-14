@@ -1,5 +1,11 @@
 # kiji-privacy-proxy
 
+## 1.0.5
+
+### Patch Changes
+
+- 4181b20: Update CORS handling in the proxy path
+
 ## 1.0.4
 
 ### Patch Changes
