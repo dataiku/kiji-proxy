@@ -14,6 +14,12 @@ import (
 	"github.com/hannes/kiji-private/src/backend/providers"
 )
 
+// DefaultForwardProxyPort is the default port for the forward proxy.
+const DefaultForwardProxyPort = ":8080"
+
+// DefaultTransparentProxyPort is the default port for the transparent proxy.
+const DefaultTransparentProxyPort = ":8081"
+
 // LoggingConfig holds logging configuration options
 type LoggingConfig struct {
 	LogRequests    bool // Log request content
@@ -242,7 +248,7 @@ func DefaultConfig() *Config {
 			MistralProviderConfig:   defaultMistralProviderConfig,
 			CustomProviderConfig:    defaultCustomProviderConfig,
 		},
-		ProxyPort:          ":8080",
+		ProxyPort:          DefaultForwardProxyPort,
 		ONNXModelPath:      "",
 		TokenizerPath:      "",
 		ModelVariant:       ModelVariantTrained,
@@ -261,7 +267,7 @@ func DefaultConfig() *Config {
 		},
 		Proxy: ProxyConfig{
 			TransparentEnabled: true,
-			ProxyPort:          ":8081",
+			ProxyPort:          DefaultTransparentProxyPort,
 			CAPath:             caPath,
 			KeyPath:            keyPath,
 			EnablePAC:          true, // Enable PAC by default for automatic proxy configuration

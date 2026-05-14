@@ -307,7 +307,7 @@ func (s *Server) Start() error {
 func (s *Server) startTransparentProxy() {
 	proxyPort := s.config.Proxy.ProxyPort
 	if proxyPort == "" {
-		proxyPort = ":8080"
+		proxyPort = config.DefaultForwardProxyPort
 	}
 
 	log.Printf("Starting transparent proxy on port %s", proxyPort)
