@@ -85,6 +85,7 @@
       "assets/icon.png",
       "assets/icon-16.png",
       "assets/arrow.png",
+      "assets/kiji_proxy.svg",
       "!**/pii_onnx_model/**/*",
       "!**/*.map",
       "!**/.DS_Store"
