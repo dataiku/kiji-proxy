@@ -1,5 +1,11 @@
 # kiji-privacy-proxy
 
+## 1.0.4
+
+### Patch Changes
+
+- 2cb4e06: Config file path fix, add logo
+
 ## 1.0.3
 
 ### Patch Changes
