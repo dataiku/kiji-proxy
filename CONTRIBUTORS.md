@@ -14,7 +14,7 @@ Thank you to everyone who has contributed to Kiji Privacy Proxy!
 - **Eddie Mattia** ([@emattia](https://github.com/emattia))
 - **Sebastien G. Claro** ([@s3bc40](https://github.com/s3bc40))
 - **GodHad** ([@GodHad](https://github.com/GodHad))
-
+- **Youssef Jouini** ([@yjouini](https://github.com/yjouini))
 ---
 
 Want to contribute? See [Contributing](README.md#-contributing) for guidelines.
