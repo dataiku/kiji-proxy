@@ -435,6 +435,17 @@ func (h *Handler) checkRequestPII(body string, provider *providers.Provider) (st
 
 // createAndSendProxyRequest creates and sends the proxy request to provider
 func (h *Handler) createAndSendProxyRequest(r *http.Request, body []byte, provider *providers.Provider) (*http.Response, error) {
+	// For OpenAI, translate between Chat Completions and Responses API schemas
+	// when the inbound path doesn't match the target model's expected endpoint.
+	if (*provider).GetType() == providers.ProviderTypeOpenAI {
+		originalPath := r.URL.Path
+		if newBody, newPath, converted := providers.MaybeConvertOpenAIRequest(body, originalPath); converted {
+			log.Printf("[Proxy] OpenAI schema converted: %s → %s", originalPath, newPath)
+			body = newBody
+			r.URL.Path = newPath
+		}
+	}
+
 	targetURL, err := h.buildTargetURL(r, provider)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build target URL: %w", err)
