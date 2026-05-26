@@ -26,7 +26,7 @@
     "LogPIIChanges": true,
     "LogVerbose": true
   },
-  "ModelVariant": "trained",
+  "ModelVariant": "quantized",
   "UIPath": "src/frontend/dist",
   "Proxy": {
     "transparent_enabled": true,

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/fs"
@@ -8,11 +9,14 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"sync"
 	"time"
 
 	"github.com/hannes/kiji-private/src/backend/config"
 	"github.com/hannes/kiji-private/src/backend/paths"
+	pii "github.com/hannes/kiji-private/src/backend/pii"
 	"github.com/hannes/kiji-private/src/backend/providers"
 	"github.com/hannes/kiji-private/src/backend/proxy"
 	"golang.org/x/time/rate"
@@ -236,6 +240,9 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/proxy/transparent/toggle", s.handleTransparentProxyToggle)
 	mux.HandleFunc("/api/pii/check", s.handlePIICheck)
 	mux.HandleFunc("/api/pii/confidence", s.handlePIIConfidence)
+	mux.HandleFunc("/api/pii/labels", s.handlePIILabels)
+	mux.HandleFunc("/api/pii/patterns", s.handlePIIPatterns)
+	mux.HandleFunc("/api/pii/patterns/{id}", s.handlePIIPattern)
 
 	// Add provider endpoints
 	mux.Handle(providers.ProviderSubpathOpenAI, s.handler) // same as Mistral
@@ -342,6 +349,8 @@ func (s *Server) startTransparentProxy() {
 			s.handlePIICheck(w, r)
 		case "/api/pii/confidence":
 			s.handlePIIConfidence(w, r)
+		case "/api/pii/labels":
+			s.handlePIILabels(w, r)
 		default:
 			// All other HTTP/HTTPS requests go to transparent proxy
 			s.transparentProxy.ServeHTTP(w, r)
@@ -555,7 +564,8 @@ func (s *Server) handleModelSecurity(w http.ResponseWriter, r *http.Request) {
 
 // PIICheckRequest represents the request body for PII checking
 type PIICheckRequest struct {
-	Message string `json:"message"`
+	Message       string   `json:"message"`
+	EnabledLabels []string `json:"enabled_labels,omitempty"`
 }
 
 // DetectedEntity represents a single detected PII entity with its label and
@@ -616,7 +626,7 @@ func (s *Server) handlePIICheck(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Use the handler's masking service to check for PII
-	maskedText, maskedToOriginal, entities := s.handler.MaskPIIInText(req.Message)
+	maskedText, maskedToOriginal, entities := s.handler.MaskPIIInTextFiltered(req.Message, req.EnabledLabels)
 
 	// masked -> original map (consumed by UI)
 	entityDetails := make(map[string]string)
@@ -900,4 +910,231 @@ func (s *Server) Close() error {
 		return s.handler.Close()
 	}
 	return nil
+}
+
+// handlePIILabels handles GET /api/pii/labels.
+// It reads label_mappings.json from the model directory to build the list dynamically,
+// then appends any user-defined custom pattern labels so they appear in the entity-type UI.
+func (s *Server) handlePIILabels(w http.ResponseWriter, r *http.Request) {
+	s.corsHandler(w, r)
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	labels := s.modelLabels()
+
+	// Append custom pattern labels that aren't already in the model set.
+	db := s.handler.PatternDB()
+	if db != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		defer cancel()
+		if patterns, err := db.ListPatterns(ctx); err == nil {
+			seen := make(map[string]bool, len(labels))
+			for _, l := range labels {
+				seen[l] = true
+			}
+			for _, p := range patterns {
+				if !seen[p.Label] {
+					labels = append(labels, p.Label)
+					seen[p.Label] = true
+				}
+			}
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{"labels": labels}); err != nil {
+		log.Printf("Failed to encode labels response: %v", err)
+	}
+}
+
+// modelLabels reads entity type labels from label_mappings.json in the model directory,
+// stripping BIO prefixes and deduplicating. Falls back to AllLabels if the file can't be read.
+func (s *Server) modelLabels() []string {
+	mappingPath := filepath.Join(s.config.ResolveModelDirectory(), "label_mappings.json")
+	data, err := os.ReadFile(mappingPath) // #nosec G304 — path derived from validated config
+	if err != nil {
+		return pii.AllLabels
+	}
+
+	var mapping struct {
+		PII struct {
+			Label2ID map[string]int `json:"label2id"`
+		} `json:"pii"`
+	}
+	if err := json.Unmarshal(data, &mapping); err != nil {
+		return pii.AllLabels
+	}
+
+	seen := make(map[string]bool)
+	var labels []string
+	for raw := range mapping.PII.Label2ID {
+		name := raw
+		if len(raw) > 2 && (raw[:2] == "B-" || raw[:2] == "I-") {
+			name = raw[2:]
+		}
+		if name == "O" || name == "IGNORE" || seen[name] {
+			continue
+		}
+		seen[name] = true
+		labels = append(labels, name)
+	}
+	return labels
+}
+
+const maxPatternLength = 500
+
+func regexpCompile(pattern string) (*regexp.Regexp, error) {
+	return regexp.Compile(pattern)
+}
+
+// handlePIIPatterns handles GET and POST /api/pii/patterns.
+func (s *Server) handlePIIPatterns(w http.ResponseWriter, r *http.Request) {
+	s.corsHandler(w, r)
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	db := s.handler.PatternDB()
+	if db == nil {
+		http.Error(w, "Pattern store unavailable", http.StatusServiceUnavailable)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	switch r.Method {
+	case http.MethodGet:
+		patterns, err := db.ListPatterns(ctx)
+		if err != nil {
+			http.Error(w, "Failed to list patterns", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(map[string]interface{}{"patterns": patterns}); err != nil {
+			log.Printf("Failed to encode patterns response: %v", err)
+		}
+
+	case http.MethodPost:
+		var req struct {
+			Label       string `json:"label"`
+			Regex       string `json:"regex"`
+			Description string `json:"description"`
+			Replacement string `json:"replacement"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+		if req.Label == "" || req.Regex == "" {
+			http.Error(w, "label and regex are required", http.StatusBadRequest)
+			return
+		}
+		if len(req.Regex) > maxPatternLength {
+			http.Error(w, fmt.Sprintf("regex exceeds maximum length of %d characters", maxPatternLength), http.StatusBadRequest)
+			return
+		}
+		if _, err := regexpCompile(req.Regex); err != nil {
+			http.Error(w, "invalid regex: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		pattern, err := db.CreatePattern(ctx, req.Label, req.Regex, req.Description, req.Replacement)
+		if err != nil {
+			http.Error(w, "Failed to create pattern: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		if err := json.NewEncoder(w).Encode(pattern); err != nil {
+			log.Printf("Failed to encode create pattern response: %v", err)
+		}
+
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// handlePIIPattern handles PUT and DELETE /api/pii/patterns/{id}.
+func (s *Server) handlePIIPattern(w http.ResponseWriter, r *http.Request) {
+	s.corsHandler(w, r)
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	idStr := r.PathValue("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid pattern id", http.StatusBadRequest)
+		return
+	}
+
+	db := s.handler.PatternDB()
+	if db == nil {
+		http.Error(w, "Pattern store unavailable", http.StatusServiceUnavailable)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	switch r.Method {
+	case http.MethodPut:
+		var req struct {
+			Label       string `json:"label"`
+			Regex       string `json:"regex"`
+			Description string `json:"description"`
+			Replacement string `json:"replacement"`
+			Enabled     *bool  `json:"enabled"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+		if req.Label == "" || req.Regex == "" {
+			http.Error(w, "label and regex are required", http.StatusBadRequest)
+			return
+		}
+		if len(req.Regex) > maxPatternLength {
+			http.Error(w, fmt.Sprintf("regex exceeds maximum length of %d characters", maxPatternLength), http.StatusBadRequest)
+			return
+		}
+		if _, err := regexpCompile(req.Regex); err != nil {
+			http.Error(w, "invalid regex: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		enabled := true
+		if req.Enabled != nil {
+			enabled = *req.Enabled
+		}
+		pattern, err := db.UpdatePattern(ctx, id, req.Label, req.Regex, req.Description, req.Replacement, enabled)
+		if err != nil {
+			http.Error(w, "Failed to update pattern: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(pattern); err != nil {
+			log.Printf("Failed to encode update pattern response: %v", err)
+		}
+
+	case http.MethodDelete:
+		if err := db.DeletePattern(ctx, id); err != nil {
+			http.Error(w, "Failed to delete pattern: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(map[string]interface{}{responseFieldSuccess: true}); err != nil {
+			log.Printf("Failed to encode delete pattern response: %v", err)
+		}
+
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
 }

@@ -69,6 +69,25 @@ const (
 	roleUser      = "user"
 )
 
+// CustomPattern holds a user-defined regex-based PII detection rule.
+type CustomPattern struct {
+	ID          int64  `json:"id"`
+	Label       string `json:"label"`
+	Regex       string `json:"regex"`
+	Description string `json:"description"`
+	Replacement string `json:"replacement"`
+	Enabled     bool   `json:"enabled"`
+	CreatedAt   string `json:"created_at"`
+}
+
+// CustomPatternDB is the interface for managing user-defined regex patterns.
+type CustomPatternDB interface {
+	ListPatterns(ctx context.Context) ([]CustomPattern, error)
+	CreatePattern(ctx context.Context, label, regex, description, replacement string) (CustomPattern, error)
+	UpdatePattern(ctx context.Context, id int64, label, regex, description, replacement string, enabled bool) (CustomPattern, error)
+	DeletePattern(ctx context.Context, id int64) error
+}
+
 // LoggingDB defines the interface for logging operations
 type LoggingDB interface {
 	// InsertLog inserts a log entry (automatically parses OpenAI messages if applicable)
@@ -170,6 +189,16 @@ func createSQLiteTables(ctx context.Context, db *sql.DB) error {
 		`CREATE INDEX IF NOT EXISTS idx_logs_blocked ON logs(blocked)`,
 		`CREATE INDEX IF NOT EXISTS idx_logs_direction ON logs(direction)`,
 		`CREATE INDEX IF NOT EXISTS idx_logs_model ON logs(model)`,
+
+		`CREATE TABLE IF NOT EXISTS custom_patterns (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			label TEXT NOT NULL,
+			regex TEXT NOT NULL,
+			description TEXT DEFAULT '',
+			replacement TEXT DEFAULT '',
+			enabled INTEGER NOT NULL DEFAULT 1,
+			created_at TEXT DEFAULT (datetime('now'))
+		)`,
 	}
 
 	for _, query := range queries {
@@ -177,6 +206,10 @@ func createSQLiteTables(ctx context.Context, db *sql.DB) error {
 			return fmt.Errorf("failed to execute: %s: %w", query, err)
 		}
 	}
+
+	// Migrate existing DBs: add columns if not present (errors mean column already exists).
+	_, _ = db.ExecContext(ctx, `ALTER TABLE custom_patterns ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1`)
+	_, _ = db.ExecContext(ctx, `ALTER TABLE custom_patterns ADD COLUMN replacement TEXT DEFAULT ''`)
 
 	return nil
 }
@@ -717,5 +750,92 @@ func (s *SQLitePIIMappingDB) ClearLogs(ctx context.Context) error {
 		return fmt.Errorf("failed to clear logs: %w", err)
 	}
 	log.Println("[SQLiteDB] All logs cleared")
+	return nil
+}
+
+// ListPatterns returns all custom regex patterns.
+func (s *SQLitePIIMappingDB) ListPatterns(ctx context.Context) ([]CustomPattern, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT id, label, regex, description, replacement, enabled, created_at FROM custom_patterns ORDER BY id`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query custom patterns: %w", err)
+	}
+	defer rows.Close()
+
+	var patterns []CustomPattern
+	for rows.Next() {
+		var p CustomPattern
+		var enabledInt int
+		if err := rows.Scan(&p.ID, &p.Label, &p.Regex, &p.Description, &p.Replacement, &enabledInt, &p.CreatedAt); err != nil {
+			return nil, fmt.Errorf("failed to scan custom pattern: %w", err)
+		}
+		p.Enabled = enabledInt != 0
+		patterns = append(patterns, p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating custom patterns: %w", err)
+	}
+	if patterns == nil {
+		patterns = []CustomPattern{}
+	}
+	return patterns, nil
+}
+
+// CreatePattern inserts a new custom regex pattern (enabled by default).
+func (s *SQLitePIIMappingDB) CreatePattern(ctx context.Context, label, regex, description, replacement string) (CustomPattern, error) {
+	result, err := s.db.ExecContext(ctx,
+		`INSERT INTO custom_patterns (label, regex, description, replacement, enabled) VALUES (?, ?, ?, ?, 1)`,
+		label, regex, description, replacement,
+	)
+	if err != nil {
+		return CustomPattern{}, fmt.Errorf("failed to create custom pattern: %w", err)
+	}
+	id, err := result.LastInsertId()
+	if err != nil {
+		return CustomPattern{}, fmt.Errorf("failed to get inserted id: %w", err)
+	}
+	var p CustomPattern
+	var enabledInt int
+	err = s.db.QueryRowContext(ctx,
+		`SELECT id, label, regex, description, replacement, enabled, created_at FROM custom_patterns WHERE id = ?`, id,
+	).Scan(&p.ID, &p.Label, &p.Regex, &p.Description, &p.Replacement, &enabledInt, &p.CreatedAt)
+	p.Enabled = enabledInt != 0
+	return p, err
+}
+
+// UpdatePattern updates label, regex, description, replacement, and enabled state of a pattern.
+func (s *SQLitePIIMappingDB) UpdatePattern(ctx context.Context, id int64, label, regex, description, replacement string, enabled bool) (CustomPattern, error) {
+	enabledInt := 0
+	if enabled {
+		enabledInt = 1
+	}
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE custom_patterns SET label = ?, regex = ?, description = ?, replacement = ?, enabled = ? WHERE id = ?`,
+		label, regex, description, replacement, enabledInt, id,
+	)
+	if err != nil {
+		return CustomPattern{}, fmt.Errorf("failed to update custom pattern: %w", err)
+	}
+	var p CustomPattern
+	var enabledResult int
+	err = s.db.QueryRowContext(ctx,
+		`SELECT id, label, regex, description, replacement, enabled, created_at FROM custom_patterns WHERE id = ?`, id,
+	).Scan(&p.ID, &p.Label, &p.Regex, &p.Description, &p.Replacement, &enabledResult, &p.CreatedAt)
+	if err == sql.ErrNoRows {
+		return CustomPattern{}, fmt.Errorf("pattern %d not found", id)
+	}
+	p.Enabled = enabledResult != 0
+	return p, err
+}
+
+// DeletePattern removes a custom regex pattern.
+func (s *SQLitePIIMappingDB) DeletePattern(ctx context.Context, id int64) error {
+	result, err := s.db.ExecContext(ctx, `DELETE FROM custom_patterns WHERE id = ?`, id)
+	if err != nil {
+		return fmt.Errorf("failed to delete custom pattern: %w", err)
+	}
+	n, _ := result.RowsAffected()
+	if n == 0 {
+		return fmt.Errorf("pattern %d not found", id)
+	}
 	return nil
 }

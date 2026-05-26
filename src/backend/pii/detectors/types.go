@@ -13,9 +13,10 @@ type DetectorOutput struct {
 
 // Entity represents a detected PII entity
 type Entity struct {
-	Text       string  `json:"text"`
-	Label      string  `json:"label"`
-	StartPos   int     `json:"start_pos"`
-	EndPos     int     `json:"end_pos"`
-	Confidence float64 `json:"confidence"`
+	Text        string  `json:"text"`
+	Label       string  `json:"label"`
+	StartPos    int     `json:"start_pos"`
+	EndPos      int     `json:"end_pos"`
+	Confidence  float64 `json:"confidence"`
+	Replacement string  `json:"replacement,omitempty"` // custom override; empty means use generator
 }

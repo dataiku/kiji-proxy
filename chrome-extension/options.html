@@ -73,6 +73,83 @@
           </div>
         </div>
       </div>
+
+      <div class="card" id="pii-types-card">
+        <header class="card-header">
+          <div class="card-title">
+            <span class="card-name">PII entity types</span>
+            <span class="card-sub">Uncheck types you want to leave unmasked</span>
+          </div>
+          <a href="#" id="toggle-all" class="link">Disable all</a>
+        </header>
+        <div class="card-body">
+          <div id="label-grid" class="label-grid">
+            <span class="label-loading">Loading labels…</span>
+          </div>
+          <div class="form-actions">
+            <button id="save-labels-btn" type="button" class="btn-primary">
+              Save
+            </button>
+            <span id="labels-status" class="save-status" role="status"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" id="patterns-card">
+        <header class="card-header">
+          <div class="card-title">
+            <span class="card-name">Custom patterns</span>
+            <span class="card-sub">Domain-specific regex rules applied on top of the model</span>
+          </div>
+        </header>
+        <div class="card-body">
+          <form id="pattern-form" class="pattern-form" autocomplete="off">
+            <div class="pattern-form-row">
+              <input
+                type="text"
+                id="pattern-label"
+                class="input-mono"
+                placeholder="LABEL (e.g. EMPLOYEE_ID)"
+                required
+              />
+              <input
+                type="text"
+                id="pattern-regex"
+                class="input-mono"
+                placeholder="Regex (e.g. EMP-\d{6})"
+                required
+              />
+              <input
+                type="text"
+                id="pattern-desc"
+                class="input-mono pattern-desc"
+                placeholder="Description (optional)"
+              />
+              <input
+                type="text"
+                id="pattern-replacement"
+                class="input-mono pattern-replacement"
+                placeholder="Replacement (e.g. [EMPLOYEE_ID])"
+              />
+              <button type="submit" class="btn-primary">Add</button>
+            </div>
+            <div class="pattern-preview-row">
+              <input
+                type="text"
+                id="pattern-sample"
+                class="input-mono"
+                placeholder="Sample text to test against"
+              />
+              <span id="pattern-preview-result" class="pattern-preview-result"></span>
+            </div>
+            <p id="pattern-regex-error" class="form-help pattern-error"></p>
+          </form>
+
+          <div id="pattern-list" class="pattern-list">
+            <span class="label-loading">Loading patterns…</span>
+          </div>
+        </div>
+      </div>
     </div>
     <script src="config.js"></script>
     <script src="options.js"></script>

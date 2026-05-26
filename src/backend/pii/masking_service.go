@@ -25,6 +25,7 @@ type DetectorProvider interface {
 type MaskingService struct {
 	detectorProvider DetectorProvider
 	generator        *GeneratorService
+	patternDB        CustomPatternDB
 }
 
 // NewMaskingService creates a new masking service
@@ -36,8 +37,15 @@ func NewMaskingService(detectorProvider DetectorProvider, generator *GeneratorSe
 	}
 }
 
-// MaskText detects PII in text and returns masked text with mappings
-func (s *MaskingService) MaskText(text string, logPrefix string) MaskedResult {
+// SetPatternDB wires in the custom-regex pattern store used during masking.
+func (s *MaskingService) SetPatternDB(db CustomPatternDB) {
+	s.patternDB = db
+}
+
+// MaskText detects PII in text and returns masked text with mappings.
+// enabledLabels restricts which model-detected label types are masked; nil means all labels.
+// Custom regex patterns (if any) are always applied regardless of enabledLabels.
+func (s *MaskingService) MaskText(text string, logPrefix string, enabledLabels []string) MaskedResult {
 	detector, err := s.detectorProvider.GetDetector()
 	if err != nil {
 		log.Printf("%s ❌ Failed to get detector: %v", logPrefix, err)
@@ -58,7 +66,48 @@ func (s *MaskingService) MaskText(text string, logPrefix string) MaskedResult {
 		}
 	}
 
-	if len(piiFound.Entities) == 0 {
+	entities := piiFound.Entities
+
+	// Filter model entities to the caller-specified label set.
+	if len(enabledLabels) > 0 {
+		enabled := make(map[string]bool, len(enabledLabels))
+		for _, l := range enabledLabels {
+			enabled[l] = true
+		}
+		filtered := entities[:0]
+		for _, e := range entities {
+			if enabled[e.Label] {
+				filtered = append(filtered, e)
+			}
+		}
+		entities = filtered
+	}
+
+	// Append custom regex matches, respecting the same enabledLabels filter.
+	// When enabledLabels is empty (proxy pipeline), all enabled patterns run.
+	// When enabledLabels is non-empty (extension flow), only patterns whose label
+	// is in the enabled set are applied — so the PII types checkbox controls them too.
+	if s.patternDB != nil {
+		if patterns, err := s.patternDB.ListPatterns(context.Background()); err == nil && len(patterns) > 0 {
+			if len(enabledLabels) > 0 {
+				enabled := make(map[string]bool, len(enabledLabels))
+				for _, l := range enabledLabels {
+					enabled[l] = true
+				}
+				filtered := patterns[:0]
+				for _, p := range patterns {
+					if enabled[p.Label] {
+						filtered = append(filtered, p)
+					}
+				}
+				patterns = filtered
+			}
+			rd := newRegexDetector(patterns)
+			entities = append(entities, rd.detect(text)...)
+		}
+	}
+
+	if len(entities) == 0 {
 		log.Printf("%s No PII detected", logPrefix)
 		return MaskedResult{
 			MaskedText:       text,
@@ -67,14 +116,18 @@ func (s *MaskingService) MaskText(text string, logPrefix string) MaskedResult {
 		}
 	}
 
-	log.Printf("%s ⚠️  PII detected: %d entities", logPrefix, len(piiFound.Entities))
+	// Deduplicate: when entities overlap, keep the longer span; ties go to
+	// the later-appended entity (custom regex takes precedence over ML model
+	// because custom patterns are appended after ML entities).
+	entities = deduplicateEntities(entities)
+
+	log.Printf("%s ⚠️  PII detected: %d entities", logPrefix, len(entities))
 
 	// Create mapping of original text to masked text
 	maskedToOriginal := make(map[string]string)
 	maskedText := text
 
 	// Sort entities by start position in descending order to avoid position shifts
-	entities := piiFound.Entities
 	for i := 0; i < len(entities)-1; i++ {
 		for j := 0; j < len(entities)-i-1; j++ {
 			if entities[j].StartPos < entities[j+1].StartPos {
@@ -91,7 +144,12 @@ func (s *MaskingService) MaskText(text string, logPrefix string) MaskedResult {
 		if originalText == "" {
 			continue
 		}
-		maskedEntityText := s.generator.GenerateReplacement(entity.Label, originalText)
+		var maskedEntityText string
+		if entity.Replacement != "" {
+			maskedEntityText = entity.Replacement
+		} else {
+			maskedEntityText = s.generator.GenerateReplacement(entity.Label, originalText)
+		}
 
 		// Store mapping for restoration
 		maskedToOriginal[maskedEntityText] = originalText
@@ -113,6 +171,42 @@ func (s *MaskingService) MaskText(text string, logPrefix string) MaskedResult {
 		MaskedToOriginal: maskedToOriginal,
 		Entities:         entities,
 	}
+}
+
+// deduplicateEntities removes overlapping entities, keeping the longest span.
+// When two spans are identical, the last one in the slice wins (custom regex
+// entities are appended after ML model entities, so they take precedence).
+func deduplicateEntities(entities []detectors.Entity) []detectors.Entity {
+	// Sort ascending by start, then descending by length for stable processing.
+	n := len(entities)
+	for i := 0; i < n-1; i++ {
+		for j := 0; j < n-i-1; j++ {
+			a, b := entities[j], entities[j+1]
+			if a.StartPos > b.StartPos || (a.StartPos == b.StartPos && (a.EndPos-a.StartPos) < (b.EndPos-b.StartPos)) {
+				entities[j], entities[j+1] = b, a
+			}
+		}
+	}
+
+	result := entities[:0]
+	for _, e := range entities {
+		if len(result) == 0 {
+			result = append(result, e)
+			continue
+		}
+		prev := &result[len(result)-1]
+		if e.StartPos < prev.EndPos {
+			// Overlapping: keep the longer span; if equal length, keep e (later = custom regex).
+			eLen := e.EndPos - e.StartPos
+			prevLen := prev.EndPos - prev.StartPos
+			if eLen >= prevLen {
+				*prev = e
+			}
+			continue
+		}
+		result = append(result, e)
+	}
+	return result
 }
 
 // RestorePII restores masked PII text back to original text using the stored mapping

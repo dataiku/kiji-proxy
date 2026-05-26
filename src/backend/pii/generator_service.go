@@ -37,6 +37,16 @@ const (
 	labelUsername         = "USERNAME"
 )
 
+// AllLabels is the full set of PII entity type labels supported by the built-in model.
+var AllLabels = []string{
+	labelSurname, labelFirstName, labelBuildingNum, labelDateOfBirth,
+	labelEmail, labelPhoneNumber, labelCity, labelURL, labelCompanyName,
+	labelState, labelZip, labelStreet, labelCountry, labelSSN,
+	labelDriverLicenseNum, labelPassportID, labelNationalID, labelIDCardNum,
+	labelTaxNum, labelLicensePlateNum, labelPassword, labelIBAN, labelAge,
+	labelSecurityToken, labelCreditCardNumber, labelUsername,
+}
+
 // GeneratorService handles PII replacement generation
 type GeneratorService struct {
 	rng *rand.Rand
@@ -91,6 +101,7 @@ func (s *GeneratorService) getGeneratorForLabel(label string) func(string) strin
 		return generator
 	}
 
-	// Return generic generator for unknown labels
-	return func(original string) string { return piiGenerators.GenericGenerator(s.rng, original) }
+	// Unknown label (e.g. custom regex pattern) — use label name as placeholder
+	// so the AI retains semantic context about what was redacted.
+	return func(original string) string { return "[" + label + "]" }
 }

@@ -174,10 +174,21 @@ async function handlePIICheck(text) {
   // Pull the latest backendUrl every time — the service worker may have been
   // torn down since startup, which resets in-memory `backendUrl` to the
   // default even if the user configured a different one in options.
-  const { backendUrl: storedUrl } = await chrome.storage.sync.get({
+  const stored = await chrome.storage.sync.get({
     backendUrl: DEFAULT_API_BASE,
+    disabledLabels: [],
+    allLabels: [],
   });
-  backendUrl = storedUrl || DEFAULT_API_BASE;
+  backendUrl = stored.backendUrl || DEFAULT_API_BASE;
+
+  // Build enabled_labels: all known labels minus the ones the user disabled.
+  // An empty array is sent when all labels are enabled (backend treats it as "all").
+  const disabledSet = new Set(stored.disabledLabels || []);
+  const allLabels = stored.allLabels || [];
+  const enabledLabels =
+    allLabels.length > 0 && disabledSet.size > 0
+      ? allLabels.filter((l) => !disabledSet.has(l))
+      : [];
 
   const url = `${backendUrl}/api/pii/check`;
 
@@ -186,7 +197,7 @@ async function handlePIICheck(text) {
     response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: text }),
+      body: JSON.stringify({ message: text, enabled_labels: enabledLabels }),
       signal: AbortSignal.timeout(10000),
     });
   } catch (e) {

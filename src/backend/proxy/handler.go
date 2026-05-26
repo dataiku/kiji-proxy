@@ -33,8 +33,14 @@ type Handler struct {
 	detector          *pii.Detector
 	responseProcessor *processor.ResponseProcessor
 	maskingService    *piiServices.MaskingService
-	loggingDB         piiServices.LoggingDB    // Database or in-memory storage for logging
-	mappingDB         piiServices.PIIMappingDB // Same instance as loggingDB, for mapping operations
+	loggingDB         piiServices.LoggingDB       // Database or in-memory storage for logging
+	mappingDB         piiServices.PIIMappingDB    // Same instance as loggingDB, for mapping operations
+	patternDB         piiServices.CustomPatternDB // Same instance as loggingDB, for custom pattern CRUD
+}
+
+// PatternDB returns the custom regex pattern store, for use by API handlers.
+func (h *Handler) PatternDB() piiServices.CustomPatternDB {
+	return h.patternDB
 }
 
 // ReloadModel reloads the PII model from the specified directory
@@ -297,13 +303,23 @@ func (h *Handler) maskPIIInText(text string, logPrefix string) (string, map[stri
 		// Model is unhealthy - return text unchanged
 		return text, make(map[string]string), []pii.Entity{}
 	}
-	result := h.maskingService.MaskText(text, logPrefix)
+	result := h.maskingService.MaskText(text, logPrefix, nil)
 	return result.MaskedText, result.MaskedToOriginal, result.Entities
 }
 
 // MaskPIIInText is the public version of maskPIIInText for use by other packages
 func (h *Handler) MaskPIIInText(text string) (string, map[string]string, []pii.Entity) {
 	return h.maskPIIInText(text, "[PIICheck]")
+}
+
+// MaskPIIInTextFiltered masks PII in text, limiting model detection to the given label set.
+// If enabledLabels is nil or empty, all labels are active.
+func (h *Handler) MaskPIIInTextFiltered(text string, enabledLabels []string) (string, map[string]string, []pii.Entity) {
+	if h.maskingService == nil {
+		return text, make(map[string]string), []pii.Entity{}
+	}
+	result := h.maskingService.MaskText(text, "[PIICheck]", enabledLabels)
+	return result.MaskedText, result.MaskedToOriginal, result.Entities
 }
 
 // ProcessedRequest contains the result of processing a request through the PII pipeline
@@ -583,6 +599,7 @@ func NewHandler(cfg *config.Config) (*Handler, error) {
 	// the current detector after hot reloads
 	generatorService := piiServices.NewGeneratorService()
 	maskingService := piiServices.NewMaskingService(modelManager, generatorService)
+	// patternDB is wired in below, after the SQLite DB is initialised
 
 	var responseProcessor *processor.ResponseProcessor
 	if detector != nil {
@@ -607,6 +624,7 @@ func NewHandler(cfg *config.Config) (*Handler, error) {
 
 	// Set debug mode based on config
 	loggingDB.SetDebugMode(cfg.Logging.DebugMode)
+	maskingService.SetPatternDB(db)
 
 	// Create HTTP client that bypasses proxy to prevent infinite loop
 	// This is critical for transparent proxy mode where outbound requests
@@ -628,6 +646,7 @@ func NewHandler(cfg *config.Config) (*Handler, error) {
 		maskingService:    maskingService,
 		loggingDB:         loggingDB,
 		mappingDB:         loggingDB.(piiServices.PIIMappingDB), // Same instance, different interface
+		patternDB:         db,
 	}, nil
 }
 

@@ -880,3 +880,80 @@ func TestInsertLog_EntitiesRoundTrip(t *testing.T) {
 		t.Errorf("expected confidence 0.88, got %f", entries[0].Confidence)
 	}
 }
+
+// --- CustomPattern CRUD tests ---
+
+func TestCustomPattern_CreateAndList(t *testing.T) {
+	db := newTestDB(t)
+	ctx := context.Background()
+
+	p, err := db.CreatePattern(ctx, "EMPLOYEE_ID", `EMP-\d{4}`, "Employee identifier", "[EMPLOYEE_ID]")
+	if err != nil {
+		t.Fatalf("CreatePattern: %v", err)
+	}
+	if p.ID == 0 {
+		t.Fatal("expected non-zero ID")
+	}
+	if p.Label != "EMPLOYEE_ID" || p.Regex != `EMP-\d{4}` || p.Description != "Employee identifier" {
+		t.Errorf("unexpected pattern fields: %+v", p)
+	}
+	if p.Replacement != "[EMPLOYEE_ID]" {
+		t.Errorf("expected replacement [EMPLOYEE_ID], got %q", p.Replacement)
+	}
+	if !p.Enabled {
+		t.Error("new pattern should be enabled by default")
+	}
+
+	list, err := db.ListPatterns(ctx)
+	if err != nil {
+		t.Fatalf("ListPatterns: %v", err)
+	}
+	if len(list) != 1 || list[0].ID != p.ID {
+		t.Errorf("expected 1 pattern with id %d, got %v", p.ID, list)
+	}
+}
+
+func TestCustomPattern_Update(t *testing.T) {
+	db := newTestDB(t)
+	ctx := context.Background()
+
+	p, _ := db.CreatePattern(ctx, "OLD", `old`, "", "")
+	updated, err := db.UpdatePattern(ctx, p.ID, "NEW", `new`, "desc", "[NEW]", false)
+	if err != nil {
+		t.Fatalf("UpdatePattern: %v", err)
+	}
+	if updated.Label != "NEW" || updated.Regex != "new" || updated.Description != "desc" {
+		t.Errorf("unexpected updated fields: %+v", updated)
+	}
+	if updated.Replacement != "[NEW]" {
+		t.Errorf("expected replacement [NEW], got %q", updated.Replacement)
+	}
+	if updated.Enabled {
+		t.Error("expected enabled=false after update")
+	}
+}
+
+func TestCustomPattern_Delete(t *testing.T) {
+	db := newTestDB(t)
+	ctx := context.Background()
+
+	p, _ := db.CreatePattern(ctx, "X", `x`, "", "")
+	if err := db.DeletePattern(ctx, p.ID); err != nil {
+		t.Fatalf("DeletePattern: %v", err)
+	}
+	list, _ := db.ListPatterns(ctx)
+	if len(list) != 0 {
+		t.Errorf("expected 0 patterns after delete, got %d", len(list))
+	}
+}
+
+func TestCustomPattern_EmptyListIsNotNil(t *testing.T) {
+	db := newTestDB(t)
+	list, err := db.ListPatterns(context.Background())
+	if err != nil {
+		t.Fatalf("ListPatterns: %v", err)
+	}
+	if list == nil {
+		t.Error("ListPatterns should return empty slice, not nil")
+	}
+}
