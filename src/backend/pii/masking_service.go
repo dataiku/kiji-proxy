@@ -3,10 +3,16 @@ package pii
 import (
 	"context"
 	"log"
+	"sort"
 	"strings"
 
 	detectors "github.com/hannes/kiji-private/src/backend/pii/detectors"
 )
+
+// minSweepLen is the smallest original-PII length we will mass-replace.
+// Short strings (e.g., a possessive "s" tokenizer artifact) would cause
+// runaway false replacements.
+const minSweepLen = 3
 
 // MaskedResult represents the result of masking PII in text
 type MaskedResult struct {
@@ -106,6 +112,26 @@ func (s *MaskingService) MaskText(text string, logPrefix string) MaskedResult {
 			// Fallback to string replacement if positions are invalid
 			maskedText = strings.Replace(maskedText, originalText, maskedEntityText, 1)
 		}
+	}
+
+	// Sweep duplicate occurrences. The detector often emits one entity per
+	// unique PII string even when it appears multiple times in the input,
+	// so position-based replacement alone leaves the duplicates intact and
+	// they leak to the upstream provider. Replace longest-first so a short
+	// string (e.g. "Tim") cannot clobber a longer one it's a substring of
+	// (e.g. "Timothy").
+	type sweep struct{ original, masked string }
+	sweeps := make([]sweep, 0, len(maskedToOriginal))
+	for masked, original := range maskedToOriginal {
+		if len(original) >= minSweepLen {
+			sweeps = append(sweeps, sweep{original, masked})
+		}
+	}
+	sort.Slice(sweeps, func(i, j int) bool {
+		return len(sweeps[i].original) > len(sweeps[j].original)
+	})
+	for _, s := range sweeps {
+		maskedText = strings.ReplaceAll(maskedText, s.original, s.masked)
 	}
 
 	return MaskedResult{
