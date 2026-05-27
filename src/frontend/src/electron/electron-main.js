@@ -22,7 +22,7 @@ Sentry.init({
 });
 
 // Configure auto-updater. In dev, reads dev-app-update.yml from app.getAppPath().
-let autoUpdater = require("electron-updater").autoUpdater;
+const autoUpdater = require("electron-updater").autoUpdater;
 autoUpdater.autoDownload = true;
 autoUpdater.autoInstallOnAppQuit = true;
 if (isDev) {
