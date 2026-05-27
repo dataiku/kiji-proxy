@@ -3,10 +3,16 @@ package pii
 import (
 	"context"
 	"log"
+	"sort"
 	"strings"
 
 	detectors "github.com/hannes/kiji-private/src/backend/pii/detectors"
 )
+
+// minSweepLen is the smallest original-PII length we will mass-replace.
+// Short strings (e.g., a possessive "s" tokenizer artifact) would cause
+// runaway false replacements.
+const minSweepLen = 3
 
 // MaskedResult represents the result of masking PII in text
 type MaskedResult struct {
@@ -26,14 +32,17 @@ type MaskingService struct {
 	detectorProvider DetectorProvider
 	generator        *GeneratorService
 	patternDB        CustomPatternDB
+	mapping          *PIIMapping // optional persistent original<->dummy store; nil disables reuse
 }
 
-// NewMaskingService creates a new masking service
-// The detectorProvider should be a ModelManager that provides the current detector
-func NewMaskingService(detectorProvider DetectorProvider, generator *GeneratorService) *MaskingService {
+// NewMaskingService creates a new masking service.
+// The detectorProvider should be a ModelManager that provides the current detector.
+// mapping may be nil to disable cross-request dummy reuse.
+func NewMaskingService(detectorProvider DetectorProvider, generator *GeneratorService, mapping *PIIMapping) *MaskingService {
 	return &MaskingService{
 		detectorProvider: detectorProvider,
 		generator:        generator,
+		mapping:          mapping,
 	}
 }
 
@@ -144,9 +153,17 @@ func (s *MaskingService) MaskText(text string, logPrefix string, enabledLabels [
 		if originalText == "" {
 			continue
 		}
+
+		// Reuse a previously assigned dummy if we have one, so the same original
+		// PII maps to the same dummy across requests. Generate + persist on miss.
 		var maskedEntityText string
-		if entity.Replacement != "" {
-			maskedEntityText = entity.Replacement
+		if s.mapping != nil {
+			if dummy, ok := s.mapping.GetDummy(originalText); ok {
+				maskedEntityText = dummy
+			} else {
+				maskedEntityText = s.generator.GenerateReplacement(entity.Label, originalText)
+				s.mapping.AddMapping(originalText, maskedEntityText, entity.Label, entity.Confidence)
+			}
 		} else {
 			maskedEntityText = s.generator.GenerateReplacement(entity.Label, originalText)
 		}
@@ -164,6 +181,26 @@ func (s *MaskingService) MaskText(text string, logPrefix string, enabledLabels [
 			// Fallback to string replacement if positions are invalid
 			maskedText = strings.Replace(maskedText, originalText, maskedEntityText, 1)
 		}
+	}
+
+	// Sweep duplicate occurrences. The detector often emits one entity per
+	// unique PII string even when it appears multiple times in the input,
+	// so position-based replacement alone leaves the duplicates intact and
+	// they leak to the upstream provider. Replace longest-first so a short
+	// string (e.g. "Tim") cannot clobber a longer one it's a substring of
+	// (e.g. "Timothy").
+	type sweep struct{ original, masked string }
+	sweeps := make([]sweep, 0, len(maskedToOriginal))
+	for masked, original := range maskedToOriginal {
+		if len(original) >= minSweepLen {
+			sweeps = append(sweeps, sweep{original, masked})
+		}
+	}
+	sort.Slice(sweeps, func(i, j int) bool {
+		return len(sweeps[i].original) > len(sweeps[j].original)
+	})
+	for _, s := range sweeps {
+		maskedText = strings.ReplaceAll(maskedText, s.original, s.masked)
 	}
 
 	return MaskedResult{
