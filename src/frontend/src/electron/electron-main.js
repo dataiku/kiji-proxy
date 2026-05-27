@@ -21,51 +21,53 @@ Sentry.init({
   tracesSampleRate: 1.0,
 });
 
-// Configure auto-updater (only in production — requires app-update.yml from electron-builder)
-let autoUpdater = null;
-if (!isDev) {
-  autoUpdater = require("electron-updater").autoUpdater;
-  autoUpdater.autoDownload = true;
-  autoUpdater.autoInstallOnAppQuit = true;
-
-  autoUpdater.on("update-available", (info) => {
-    console.log(`[AutoUpdater] Update available: v${info.version}`);
-  });
-
-  autoUpdater.on("update-downloaded", (info) => {
-    console.log(`[AutoUpdater] Update downloaded: v${info.version}`);
-    updateDownloaded = true;
-    if (mainWindow) {
-      createMenu();
-    }
-    // Swap tray icon to show update badge
-    if (tray) {
-      const updateIconPath = path.join(
-        __dirname,
-        "..",
-        "..",
-        "assets",
-        "icon-16-update.png"
-      );
-      if (fs.existsSync(updateIconPath)) {
-        const updateIcon = nativeImage.createFromPath(updateIconPath);
-        if (process.platform === "darwin") {
-          const resized = updateIcon.resize({ width: 16, height: 16 });
-          resized.setTemplateImage(true);
-          tray.setImage(resized);
-        } else {
-          tray.setImage(updateIcon);
-        }
-        tray.setToolTip("Kiji Privacy Proxy — Update available");
-      }
-      updateTrayMenu();
-    }
-  });
-
-  autoUpdater.on("error", (err) => {
-    console.error("[AutoUpdater] Error:", err);
-  });
+// Configure auto-updater. In dev, reads dev-app-update.yml from app.getAppPath().
+let autoUpdater = require("electron-updater").autoUpdater;
+autoUpdater.autoDownload = true;
+autoUpdater.autoInstallOnAppQuit = true;
+if (isDev) {
+  autoUpdater.forceDevUpdateConfig = true;
+  autoUpdater.autoInstallOnAppQuit = false;
 }
+
+autoUpdater.on("update-available", (info) => {
+  console.log(`[AutoUpdater] Update available: v${info.version}`);
+});
+
+autoUpdater.on("update-downloaded", (info) => {
+  console.log(`[AutoUpdater] Update downloaded: v${info.version}`);
+  updateDownloaded = true;
+  if (mainWindow) {
+    createMenu();
+  }
+  // Swap tray icon to show update badge
+  if (tray) {
+    const updateIconPath = path.join(
+      __dirname,
+      "..",
+      "..",
+      "assets",
+      "icon-16-update.png"
+    );
+    if (fs.existsSync(updateIconPath)) {
+      const updateIcon = nativeImage.createFromPath(updateIconPath);
+      if (process.platform === "darwin") {
+        // Full-color icon — do NOT mark as template, or macOS strips colors
+        // and renders the alpha mask as a solid white square.
+        const resized = updateIcon.resize({ width: 16, height: 16 });
+        tray.setImage(resized);
+      } else {
+        tray.setImage(updateIcon);
+      }
+      tray.setToolTip("Kiji Privacy Proxy — Update available");
+    }
+    updateTrayMenu();
+  }
+});
+
+autoUpdater.on("error", (err) => {
+  console.error("[AutoUpdater] Error:", err);
+});
 
 let mainWindow;
 let splashWindow = null;
@@ -1061,13 +1063,11 @@ app.whenReady().then(async () => {
   await waitForBackend();
   createWindow();
 
-  // Check for updates after launch (production only)
-  if (!isDev) {
-    autoUpdater.checkForUpdatesAndNotify();
+  // Check for updates after launch
+  autoUpdater.checkForUpdatesAndNotify();
 
-    // Re-check for updates every hour for long-running sessions
-    setInterval(() => autoUpdater.checkForUpdates(), 60 * 60 * 1000);
-  }
+  // Re-check for updates every hour for long-running sessions
+  setInterval(() => autoUpdater.checkForUpdates(), 60 * 60 * 1000);
 
   app.on("activate", async () => {
     // On macOS, re-create a window when the dock icon is clicked
