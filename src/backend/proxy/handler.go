@@ -435,7 +435,21 @@ func (h *Handler) checkRequestPII(body string, provider *providers.Provider) (st
 
 // createAndSendProxyRequest creates and sends the proxy request to provider
 func (h *Handler) createAndSendProxyRequest(r *http.Request, body []byte, provider *providers.Provider) (*http.Response, error) {
-	targetURL, err := h.buildTargetURL(r, provider)
+	requestPath := r.URL.Path
+
+	// OpenAI reasoning models (gpt-5*, o-series) must use /v1/responses;
+	// non-reasoning models on /v1/responses must be rewritten to chat
+	// completions. Apply after PII masking so masked content carries over.
+	if _, ok := (*provider).(*providers.OpenAIProvider); ok {
+		convertedBody, convertedPath := providers.MaybeConvertOpenAIRequest(body, requestPath)
+		if convertedPath != requestPath {
+			log.Printf("[Proxy] OpenAI schema converted: %s -> %s", requestPath, convertedPath)
+		}
+		body = convertedBody
+		requestPath = convertedPath
+	}
+
+	targetURL, err := h.buildTargetURL(r, provider, requestPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build target URL: %w", err)
 	}
@@ -464,8 +478,10 @@ func (h *Handler) createAndSendProxyRequest(r *http.Request, body []byte, provid
 	return resp, nil
 }
 
-// buildTargetURL builds the target URL for the proxy request
-func (h *Handler) buildTargetURL(r *http.Request, provider *providers.Provider) (string, error) {
+// buildTargetURL builds the target URL for the proxy request. requestPath may
+// differ from r.URL.Path when a provider has rewritten it (e.g. OpenAI
+// reasoning-model routing from /v1/chat/completions to /v1/responses).
+func (h *Handler) buildTargetURL(r *http.Request, provider *providers.Provider, requestPath string) (string, error) {
 	useHttps := true
 	baseURL := strings.TrimSuffix((*provider).GetBaseURL(useHttps), "/")
 
@@ -477,7 +493,6 @@ func (h *Handler) buildTargetURL(r *http.Request, provider *providers.Provider) 
 
 	// If the base URL has a path prefix and the request path starts with it,
 	// strip the prefix to avoid duplication (e.g. /v1 + /v1/chat/completions → /v1/chat/completions)
-	requestPath := r.URL.Path
 	basePath := strings.TrimSuffix(parsed.Path, "/")
 	if basePath != "" && strings.HasPrefix(requestPath, basePath) {
 		requestPath = requestPath[len(basePath):]

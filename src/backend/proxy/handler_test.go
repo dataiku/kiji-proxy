@@ -395,7 +395,7 @@ func TestHandler_BuildTargetURL(t *testing.T) {
 			if tt.query != "" {
 				req.URL.RawQuery = tt.query
 			}
-			got, err := h.buildTargetURL(req, &tt.provider)
+			got, err := h.buildTargetURL(req, &tt.provider, req.URL.Path)
 			if err != nil {
 				t.Fatalf("buildTargetURL() error = %v", err)
 			}
@@ -409,7 +409,7 @@ func TestHandler_BuildTargetURL(t *testing.T) {
 		p := providers.NewOpenAIProvider("https://api.openai.com/v1", "sk-test", nil)
 		var prov providers.Provider = p
 		req := httptest.NewRequest("POST", "/v1/chat/completions", nil)
-		got, err := h.buildTargetURL(req, &prov)
+		got, err := h.buildTargetURL(req, &prov, req.URL.Path)
 		if err != nil {
 			t.Fatalf("buildTargetURL() error = %v", err)
 		}
