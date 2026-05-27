@@ -18,18 +18,31 @@ const (
 	ProviderNameOpenAI         string       = "OpenAI"
 )
 
+// reasoningModelFamilies lists OpenAI model family prefixes that require the
+// Responses API. A model matches if its name equals the prefix exactly or
+// starts with `<prefix>-` (e.g. "o1-mini", "gpt-5-2025-08-07"). Update this
+// list when OpenAI releases new reasoning families.
+var reasoningModelFamilies = []string{
+	"gpt-5",
+	"o1",
+	"o1-mini",
+	"o1-preview",
+	"o1-pro",
+	"o3",
+	"o3-mini",
+	"o3-pro",
+	"o4-mini",
+}
+
 // isReasoningModel reports whether an OpenAI model name belongs to a reasoning
-// family that requires the Responses API. Covers gpt-5* and the o-series
-// (o1, o3, o4, …). Detection is intentionally string-based — OpenAI doesn't
-// expose a capability flag, and the proxy needs to route before it ever
-// reaches the model.
+// family that requires the Responses API. Detection is string-based against
+// reasoningModelFamilies because OpenAI does not expose a capability flag and
+// the proxy needs to route before the request reaches the model.
 func isReasoningModel(model string) bool {
-	if strings.HasPrefix(model, "gpt-5") {
-		return true
-	}
-	// o1, o1-mini, o3, o3-mini, o4-mini, etc.
-	if len(model) >= 2 && model[0] == 'o' && model[1] >= '1' && model[1] <= '9' {
-		return true
+	for _, family := range reasoningModelFamilies {
+		if model == family || strings.HasPrefix(model, family+"-") {
+			return true
+		}
 	}
 	return false
 }

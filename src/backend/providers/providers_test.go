@@ -668,20 +668,32 @@ func TestIsReasoningModel(t *testing.T) {
 		model string
 		want  bool
 	}{
+		// gpt-5 family
 		{"gpt-5", true},
 		{"gpt-5-mini", true},
+		{"gpt-5-nano", true},
 		{"gpt-5-2025-08-07", true},
+		// o-series
 		{"o1", true},
 		{"o1-mini", true},
 		{"o1-preview", true},
+		{"o1-pro", true},
+		{"o1-2024-12-17", true},
 		{"o3", true},
 		{"o3-mini", true},
+		{"o3-pro", true},
 		{"o4-mini", true},
+		// non-reasoning chat models
 		{"gpt-4", false},
 		{"gpt-4o", false},
 		{"gpt-4-turbo", false},
 		{"gpt-3.5-turbo", false},
-		{"opus-4", false}, // starts with 'o' but not o[1-9]
+		// not in the allow-list (would have matched the old o[1-9] regex)
+		{"o2", false},
+		{"o5-mini", false},
+		// not OpenAI reasoning models at all
+		{"opus-4", false},
+		{"openai-something", false},
 		{"", false},
 	}
 	for _, tt := range tests {
