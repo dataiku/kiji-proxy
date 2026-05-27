@@ -42,19 +42,19 @@ autoUpdater.on("update-downloaded", (info) => {
   }
   // Swap tray icon to show update badge
   if (tray) {
-    const updateIconPath = path.join(
-      __dirname,
-      "..",
-      "..",
-      "assets",
-      "icon-16-update.png"
-    );
+    const assetsDir = path.join(__dirname, "..", "..", "assets");
+    const macTemplatePath = path.join(assetsDir, "icon-16-update-Template.png");
+    const colorPath = path.join(assetsDir, "icon-16-update.png");
+    const useTemplate =
+      process.platform === "darwin" && fs.existsSync(macTemplatePath);
+    const updateIconPath = useTemplate ? macTemplatePath : colorPath;
     if (fs.existsSync(updateIconPath)) {
       const updateIcon = nativeImage.createFromPath(updateIconPath);
       if (process.platform === "darwin") {
-        // Full-color icon — do NOT mark as template, or macOS strips colors
-        // and renders the alpha mask as a solid white square.
         const resized = updateIcon.resize({ width: 16, height: 16 });
+        if (useTemplate) {
+          resized.setTemplateImage(true);
+        }
         tray.setImage(resized);
       } else {
         tray.setImage(updateIcon);
@@ -613,8 +613,14 @@ function closeSplashWindow() {
 // Create system tray icon
 function createTray() {
   const assetsDir = path.join(__dirname, "..", "..", "assets");
-  const iconFile = updateDownloaded ? "icon-16-update.png" : "icon-16.png";
-  const iconPath = path.join(assetsDir, iconFile);
+  // On macOS, prefer the black-silhouette `-Template.png` variant so the icon
+  // adapts to dark/light menu bars. Other platforms use the full-color PNG.
+  const baseName = updateDownloaded ? "icon-16-update" : "icon-16";
+  const macTemplatePath = path.join(assetsDir, `${baseName}-Template.png`);
+  const colorPath = path.join(assetsDir, `${baseName}.png`);
+  const useTemplate =
+    process.platform === "darwin" && fs.existsSync(macTemplatePath);
+  const iconPath = useTemplate ? macTemplatePath : colorPath;
 
   if (!fs.existsSync(iconPath)) {
     console.warn("Tray icon not found at:", iconPath);
@@ -623,11 +629,11 @@ function createTray() {
 
   const icon = nativeImage.createFromPath(iconPath);
 
-  // For macOS, resize to 16x16 and mark as template image for dark mode support
   if (process.platform === "darwin") {
     const resizedIcon = icon.resize({ width: 16, height: 16 });
-    // Mark as template image for automatic dark mode adaptation
-    resizedIcon.setTemplateImage(true);
+    if (useTemplate) {
+      resizedIcon.setTemplateImage(true);
+    }
     tray = new Tray(resizedIcon);
     tray.setToolTip(
       updateDownloaded
