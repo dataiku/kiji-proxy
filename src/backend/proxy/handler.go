@@ -578,21 +578,6 @@ func NewHandler(cfg *config.Config) (*Handler, error) {
 		CustomProvider:    customProvider,
 	}
 
-	// Create services
-	// MaskingService now uses ModelManager as a DetectorProvider, so it always gets
-	// the current detector after hot reloads
-	generatorService := piiServices.NewGeneratorService()
-	maskingService := piiServices.NewMaskingService(modelManager, generatorService)
-
-	var responseProcessor *processor.ResponseProcessor
-	if detector != nil {
-		responseProcessor = processor.NewResponseProcessor(&detector, cfg.Logging)
-	} else {
-		// Model is unhealthy at startup - log warning but allow server to start
-		log.Printf("[Handler] Creating handler with unhealthy model - PII detection disabled until model is fixed")
-		responseProcessor = nil
-	}
-
 	// Initialize SQLite database
 	ctx := context.Background()
 	dbConfig := piiServices.DatabaseConfig{
@@ -607,6 +592,23 @@ func NewHandler(cfg *config.Config) (*Handler, error) {
 
 	// Set debug mode based on config
 	loggingDB.SetDebugMode(cfg.Logging.DebugMode)
+
+	// Create services
+	// MaskingService now uses ModelManager as a DetectorProvider, so it always gets
+	// the current detector after hot reloads. The PIIMapping wraps the SQLite store
+	// so a given original PII maps to the same dummy across requests.
+	generatorService := piiServices.NewGeneratorService()
+	piiMapping := piiServices.NewPIIMappingWithDB(db, true)
+	maskingService := piiServices.NewMaskingService(modelManager, generatorService, piiMapping)
+
+	var responseProcessor *processor.ResponseProcessor
+	if detector != nil {
+		responseProcessor = processor.NewResponseProcessor(&detector, cfg.Logging)
+	} else {
+		// Model is unhealthy at startup - log warning but allow server to start
+		log.Printf("[Handler] Creating handler with unhealthy model - PII detection disabled until model is fixed")
+		responseProcessor = nil
+	}
 
 	// Create HTTP client that bypasses proxy to prevent infinite loop
 	// This is critical for transparent proxy mode where outbound requests

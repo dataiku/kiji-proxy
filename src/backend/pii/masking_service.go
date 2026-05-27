@@ -25,14 +25,17 @@ type DetectorProvider interface {
 type MaskingService struct {
 	detectorProvider DetectorProvider
 	generator        *GeneratorService
+	mapping          *PIIMapping // optional persistent original<->dummy store; nil disables reuse
 }
 
-// NewMaskingService creates a new masking service
-// The detectorProvider should be a ModelManager that provides the current detector
-func NewMaskingService(detectorProvider DetectorProvider, generator *GeneratorService) *MaskingService {
+// NewMaskingService creates a new masking service.
+// The detectorProvider should be a ModelManager that provides the current detector.
+// mapping may be nil to disable cross-request dummy reuse.
+func NewMaskingService(detectorProvider DetectorProvider, generator *GeneratorService, mapping *PIIMapping) *MaskingService {
 	return &MaskingService{
 		detectorProvider: detectorProvider,
 		generator:        generator,
+		mapping:          mapping,
 	}
 }
 
@@ -91,7 +94,20 @@ func (s *MaskingService) MaskText(text string, logPrefix string) MaskedResult {
 		if originalText == "" {
 			continue
 		}
-		maskedEntityText := s.generator.GenerateReplacement(entity.Label, originalText)
+
+		// Reuse a previously assigned dummy if we have one, so the same original
+		// PII maps to the same dummy across requests. Generate + persist on miss.
+		var maskedEntityText string
+		if s.mapping != nil {
+			if dummy, ok := s.mapping.GetDummy(originalText); ok {
+				maskedEntityText = dummy
+			} else {
+				maskedEntityText = s.generator.GenerateReplacement(entity.Label, originalText)
+				s.mapping.AddMapping(originalText, maskedEntityText, entity.Label, entity.Confidence)
+			}
+		} else {
+			maskedEntityText = s.generator.GenerateReplacement(entity.Label, originalText)
+		}
 
 		// Store mapping for restoration
 		maskedToOriginal[maskedEntityText] = originalText
