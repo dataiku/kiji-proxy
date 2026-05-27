@@ -109,30 +109,29 @@
                 type="text"
                 id="pattern-label"
                 class="input-mono"
-                placeholder="LABEL (e.g. EMPLOYEE_ID)"
+                placeholder="LABEL"
+                title="Name for this entity type (e.g. EMPLOYEE_ID)"
                 required
               />
               <input
                 type="text"
                 id="pattern-regex"
                 class="input-mono"
-                placeholder="Regex (e.g. EMP-\d{6})"
+                placeholder="Regex"
+                title="Regular expression pattern (e.g. EMP-\d{6})"
                 required
-              />
-              <input
-                type="text"
-                id="pattern-desc"
-                class="input-mono pattern-desc"
-                placeholder="Description (optional)"
               />
               <input
                 type="text"
                 id="pattern-replacement"
                 class="input-mono pattern-replacement"
-                placeholder="Replacement (e.g. [EMPLOYEE_ID])"
+                placeholder="Replacement"
               />
               <button type="submit" class="btn-primary">Add</button>
             </div>
+            <p class="form-help" style="margin: -4px 0 8px 0;">
+              Replacement defaults to [LABEL] if left empty.
+            </p>
             <div class="pattern-preview-row">
               <input
                 type="text"

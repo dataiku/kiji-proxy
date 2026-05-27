@@ -74,7 +74,6 @@ type CustomPattern struct {
 	ID          int64  `json:"id"`
 	Label       string `json:"label"`
 	Regex       string `json:"regex"`
-	Description string `json:"description"`
 	Replacement string `json:"replacement"`
 	Enabled     bool   `json:"enabled"`
 	CreatedAt   string `json:"created_at"`
@@ -83,8 +82,8 @@ type CustomPattern struct {
 // CustomPatternDB is the interface for managing user-defined regex patterns.
 type CustomPatternDB interface {
 	ListPatterns(ctx context.Context) ([]CustomPattern, error)
-	CreatePattern(ctx context.Context, label, regex, description, replacement string) (CustomPattern, error)
-	UpdatePattern(ctx context.Context, id int64, label, regex, description, replacement string, enabled bool) (CustomPattern, error)
+	CreatePattern(ctx context.Context, label, regex, replacement string) (CustomPattern, error)
+	UpdatePattern(ctx context.Context, id int64, label, regex, replacement string, enabled bool) (CustomPattern, error)
 	DeletePattern(ctx context.Context, id int64) error
 }
 
@@ -194,7 +193,6 @@ func createSQLiteTables(ctx context.Context, db *sql.DB) error {
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			label TEXT NOT NULL,
 			regex TEXT NOT NULL,
-			description TEXT DEFAULT '',
 			replacement TEXT DEFAULT '',
 			enabled INTEGER NOT NULL DEFAULT 1,
 			created_at TEXT DEFAULT (datetime('now'))
@@ -755,7 +753,7 @@ func (s *SQLitePIIMappingDB) ClearLogs(ctx context.Context) error {
 
 // ListPatterns returns all custom regex patterns.
 func (s *SQLitePIIMappingDB) ListPatterns(ctx context.Context) ([]CustomPattern, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id, label, regex, description, replacement, enabled, created_at FROM custom_patterns ORDER BY id`)
+	rows, err := s.db.QueryContext(ctx, `SELECT id, label, regex, replacement, enabled, created_at FROM custom_patterns ORDER BY id`)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query custom patterns: %w", err)
 	}
@@ -765,7 +763,7 @@ func (s *SQLitePIIMappingDB) ListPatterns(ctx context.Context) ([]CustomPattern,
 	for rows.Next() {
 		var p CustomPattern
 		var enabledInt int
-		if err := rows.Scan(&p.ID, &p.Label, &p.Regex, &p.Description, &p.Replacement, &enabledInt, &p.CreatedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.Label, &p.Regex, &p.Replacement, &enabledInt, &p.CreatedAt); err != nil {
 			return nil, fmt.Errorf("failed to scan custom pattern: %w", err)
 		}
 		p.Enabled = enabledInt != 0
@@ -781,10 +779,10 @@ func (s *SQLitePIIMappingDB) ListPatterns(ctx context.Context) ([]CustomPattern,
 }
 
 // CreatePattern inserts a new custom regex pattern (enabled by default).
-func (s *SQLitePIIMappingDB) CreatePattern(ctx context.Context, label, regex, description, replacement string) (CustomPattern, error) {
+func (s *SQLitePIIMappingDB) CreatePattern(ctx context.Context, label, regex, replacement string) (CustomPattern, error) {
 	result, err := s.db.ExecContext(ctx,
-		`INSERT INTO custom_patterns (label, regex, description, replacement, enabled) VALUES (?, ?, ?, ?, 1)`,
-		label, regex, description, replacement,
+		`INSERT INTO custom_patterns (label, regex, replacement, enabled) VALUES (?, ?, ?, 1)`,
+		label, regex, replacement,
 	)
 	if err != nil {
 		return CustomPattern{}, fmt.Errorf("failed to create custom pattern: %w", err)
@@ -796,21 +794,21 @@ func (s *SQLitePIIMappingDB) CreatePattern(ctx context.Context, label, regex, de
 	var p CustomPattern
 	var enabledInt int
 	err = s.db.QueryRowContext(ctx,
-		`SELECT id, label, regex, description, replacement, enabled, created_at FROM custom_patterns WHERE id = ?`, id,
-	).Scan(&p.ID, &p.Label, &p.Regex, &p.Description, &p.Replacement, &enabledInt, &p.CreatedAt)
+		`SELECT id, label, regex, replacement, enabled, created_at FROM custom_patterns WHERE id = ?`, id,
+	).Scan(&p.ID, &p.Label, &p.Regex, &p.Replacement, &enabledInt, &p.CreatedAt)
 	p.Enabled = enabledInt != 0
 	return p, err
 }
 
-// UpdatePattern updates label, regex, description, replacement, and enabled state of a pattern.
-func (s *SQLitePIIMappingDB) UpdatePattern(ctx context.Context, id int64, label, regex, description, replacement string, enabled bool) (CustomPattern, error) {
+// UpdatePattern updates label, regex, replacement, and enabled state of a pattern.
+func (s *SQLitePIIMappingDB) UpdatePattern(ctx context.Context, id int64, label, regex, replacement string, enabled bool) (CustomPattern, error) {
 	enabledInt := 0
 	if enabled {
 		enabledInt = 1
 	}
 	_, err := s.db.ExecContext(ctx,
-		`UPDATE custom_patterns SET label = ?, regex = ?, description = ?, replacement = ?, enabled = ? WHERE id = ?`,
-		label, regex, description, replacement, enabledInt, id,
+		`UPDATE custom_patterns SET label = ?, regex = ?, replacement = ?, enabled = ? WHERE id = ?`,
+		label, regex, replacement, enabledInt, id,
 	)
 	if err != nil {
 		return CustomPattern{}, fmt.Errorf("failed to update custom pattern: %w", err)
@@ -818,8 +816,8 @@ func (s *SQLitePIIMappingDB) UpdatePattern(ctx context.Context, id int64, label,
 	var p CustomPattern
 	var enabledResult int
 	err = s.db.QueryRowContext(ctx,
-		`SELECT id, label, regex, description, replacement, enabled, created_at FROM custom_patterns WHERE id = ?`, id,
-	).Scan(&p.ID, &p.Label, &p.Regex, &p.Description, &p.Replacement, &enabledResult, &p.CreatedAt)
+		`SELECT id, label, regex, replacement, enabled, created_at FROM custom_patterns WHERE id = ?`, id,
+	).Scan(&p.ID, &p.Label, &p.Regex, &p.Replacement, &enabledResult, &p.CreatedAt)
 	if err == sql.ErrNoRows {
 		return CustomPattern{}, fmt.Errorf("pattern %d not found", id)
 	}

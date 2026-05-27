@@ -887,14 +887,14 @@ func TestCustomPattern_CreateAndList(t *testing.T) {
 	db := newTestDB(t)
 	ctx := context.Background()
 
-	p, err := db.CreatePattern(ctx, "EMPLOYEE_ID", `EMP-\d{4}`, "Employee identifier", "[EMPLOYEE_ID]")
+	p, err := db.CreatePattern(ctx, "EMPLOYEE_ID", `EMP-\d{4}`, "[EMPLOYEE_ID]")
 	if err != nil {
 		t.Fatalf("CreatePattern: %v", err)
 	}
 	if p.ID == 0 {
 		t.Fatal("expected non-zero ID")
 	}
-	if p.Label != "EMPLOYEE_ID" || p.Regex != `EMP-\d{4}` || p.Description != "Employee identifier" {
+	if p.Label != "EMPLOYEE_ID" || p.Regex != `EMP-\d{4}` {
 		t.Errorf("unexpected pattern fields: %+v", p)
 	}
 	if p.Replacement != "[EMPLOYEE_ID]" {
@@ -917,12 +917,12 @@ func TestCustomPattern_Update(t *testing.T) {
 	db := newTestDB(t)
 	ctx := context.Background()
 
-	p, _ := db.CreatePattern(ctx, "OLD", `old`, "", "")
-	updated, err := db.UpdatePattern(ctx, p.ID, "NEW", `new`, "desc", "[NEW]", false)
+	p, _ := db.CreatePattern(ctx, "OLD", `old`, "")
+	updated, err := db.UpdatePattern(ctx, p.ID, "NEW", `new`, "[NEW]", false)
 	if err != nil {
 		t.Fatalf("UpdatePattern: %v", err)
 	}
-	if updated.Label != "NEW" || updated.Regex != "new" || updated.Description != "desc" {
+	if updated.Label != "NEW" || updated.Regex != "new" {
 		t.Errorf("unexpected updated fields: %+v", updated)
 	}
 	if updated.Replacement != "[NEW]" {
@@ -937,7 +937,7 @@ func TestCustomPattern_Delete(t *testing.T) {
 	db := newTestDB(t)
 	ctx := context.Background()
 
-	p, _ := db.CreatePattern(ctx, "X", `x`, "", "")
+	p, _ := db.CreatePattern(ctx, "X", `x`, "")
 	if err := db.DeletePattern(ctx, p.ID); err != nil {
 		t.Fatalf("DeletePattern: %v", err)
 	}

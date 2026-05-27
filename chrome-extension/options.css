@@ -367,10 +367,6 @@ input[type="url"]:focus,
   min-width: 120px;
 }
 
-.pattern-form-row .pattern-desc {
-  flex: 1.5;
-}
-
 .pattern-form-row .pattern-replacement {
   flex: 1.2;
 }
@@ -427,17 +423,7 @@ input[type="url"]:focus,
   font-family: var(--mono);
   color: var(--code-text);
   flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.pattern-desc-val {
-  color: var(--text-muted);
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  word-break: break-all;
 }
 
 .pattern-replacement-val {

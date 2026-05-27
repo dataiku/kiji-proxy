@@ -1026,7 +1026,6 @@ func (s *Server) handlePIIPatterns(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			Label       string `json:"label"`
 			Regex       string `json:"regex"`
-			Description string `json:"description"`
 			Replacement string `json:"replacement"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -1045,7 +1044,7 @@ func (s *Server) handlePIIPatterns(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "invalid regex: "+err.Error(), http.StatusBadRequest)
 			return
 		}
-		pattern, err := db.CreatePattern(ctx, req.Label, req.Regex, req.Description, req.Replacement)
+		pattern, err := db.CreatePattern(ctx, req.Label, req.Regex, req.Replacement)
 		if err != nil {
 			http.Error(w, "Failed to create pattern: "+err.Error(), http.StatusInternalServerError)
 			return
@@ -1090,7 +1089,6 @@ func (s *Server) handlePIIPattern(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			Label       string `json:"label"`
 			Regex       string `json:"regex"`
-			Description string `json:"description"`
 			Replacement string `json:"replacement"`
 			Enabled     *bool  `json:"enabled"`
 		}
@@ -1114,7 +1112,7 @@ func (s *Server) handlePIIPattern(w http.ResponseWriter, r *http.Request) {
 		if req.Enabled != nil {
 			enabled = *req.Enabled
 		}
-		pattern, err := db.UpdatePattern(ctx, id, req.Label, req.Regex, req.Description, req.Replacement, enabled)
+		pattern, err := db.UpdatePattern(ctx, id, req.Label, req.Regex, req.Replacement, enabled)
 		if err != nil {
 			http.Error(w, "Failed to update pattern: "+err.Error(), http.StatusInternalServerError)
 			return

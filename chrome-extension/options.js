@@ -229,7 +229,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const patternForm = document.getElementById("pattern-form");
   const patternLabel = document.getElementById("pattern-label");
   const patternRegex = document.getElementById("pattern-regex");
-  const patternDesc = document.getElementById("pattern-desc");
   const patternReplacement = document.getElementById("pattern-replacement");
   const patternSample = document.getElementById("pattern-sample");
   const patternPreviewResult = document.getElementById(
@@ -308,7 +307,6 @@ document.addEventListener("DOMContentLoaded", () => {
       row.innerHTML = `
         <span class="pattern-label">${escHtml(p.label)}</span>
         <code class="pattern-regex-val">${escHtml(p.regex)}</code>
-        <span class="pattern-desc-val">${escHtml(p.description || "")}</span>
         <code class="pattern-replacement-val">${escHtml(p.replacement || "")}</code>
         <button class="btn-secondary" data-action="edit" data-id="${p.id}">Edit</button>
         <button class="btn-danger" data-action="delete" data-id="${p.id}">Remove</button>
@@ -337,11 +335,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const row = patternList.querySelector(`[data-id="${id}"]`);
     if (!row) return;
 
-    row.innerHTML = `
-      <input type="text" class="input-mono edit-label" value="${escHtml(p.label)}" placeholder="LABEL"/>
-      <input type="text" class="input-mono edit-regex" value="${escHtml(p.regex)}" placeholder="Regex"/>
-      <input type="text" class="input-mono edit-desc pattern-desc" value="${escHtml(p.description || "")}" placeholder="Description"/>
-      <input type="text" class="input-mono edit-replacement" value="${escHtml(p.replacement || "")}" placeholder="Replacement (e.g. [EMPLOYEE_ID])"/>
+      row.innerHTML = `
+        <input type="text" class="input-mono edit-label" value="${escHtml(p.label)}" placeholder="LABEL" title="Name for this entity type (e.g. EMPLOYEE_ID)"/>
+        <input type="text" class="input-mono edit-regex" value="${escHtml(p.regex)}" placeholder="Regex" title="Regular expression pattern (e.g. EMP-\d{6})"/>
+        <input type="text" class="input-mono edit-replacement" value="${escHtml(p.replacement || "")}" placeholder="Replacement" title="Optional custom placeholder. If left empty, the label name in brackets is used (e.g. [EMPLOYEE_ID])."/>
       <button class="btn-primary" data-action="save-edit" data-id="${id}">Save</button>
       <button class="btn-secondary" data-action="cancel-edit">Cancel</button>
       <p class="form-help pattern-error edit-error"></p>
@@ -354,7 +351,6 @@ document.addEventListener("DOMContentLoaded", () => {
     row.querySelector("[data-action=save-edit]").addEventListener("click", async () => {
       const label = row.querySelector(".edit-label").value.trim().toUpperCase();
       const regex = row.querySelector(".edit-regex").value.trim();
-      const desc = row.querySelector(".edit-desc").value.trim();
       const replacement = row.querySelector(".edit-replacement").value.trim();
       const errEl = row.querySelector(".edit-error");
       const regexErr = validateRegex(regex);
@@ -362,17 +358,17 @@ document.addEventListener("DOMContentLoaded", () => {
         errEl.textContent = regexErr;
         return;
       }
-      await updatePattern(id, label, regex, desc, replacement, p.enabled, errEl);
+      await updatePattern(id, label, regex, replacement, p.enabled, errEl);
     });
   }
 
-  async function updatePattern(id, label, regex, description, replacement, enabled, errEl) {
+  async function updatePattern(id, label, regex, replacement, enabled, errEl) {
     const base = await getBackendUrl();
     try {
       const resp = await fetch(`${base}/api/pii/patterns/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ label, regex, description, replacement, enabled }),
+        body: JSON.stringify({ label, regex, replacement, enabled }),
       });
       if (!resp.ok) throw new Error(await resp.text());
       const updated = await resp.json();
@@ -402,7 +398,6 @@ document.addEventListener("DOMContentLoaded", () => {
     e.preventDefault();
     const label = patternLabel.value.trim().toUpperCase();
     const regex = patternRegex.value.trim();
-    const desc = patternDesc.value.trim();
     const replacement = patternReplacement.value.trim();
 
     const error = validateRegex(regex);
@@ -417,7 +412,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const resp = await fetch(`${base}/api/pii/patterns`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ label, regex, description: desc, replacement }),
+        body: JSON.stringify({ label, regex, replacement }),
       });
       if (!resp.ok) throw new Error(await resp.text());
       const created = await resp.json();
