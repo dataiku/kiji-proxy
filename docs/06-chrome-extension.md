@@ -73,6 +73,8 @@ All settings are accessible via the extension's options page (right-click extens
 
 - **Backend URL** — The Kiji Privacy Proxy server address (default: `http://localhost:8081`)
 - **Intercept domains** — URL match patterns where the extension is active (one per line)
+- **PII entity types** — Check or uncheck PII labels from the model to control which entity types get masked per-request. A "Disable all / Enable all" toggle is provided. Changes are persisted to `chrome.storage.sync` and sent as `enabled_labels` with each PII check.
+- **Custom patterns** — Add user-defined regex rules on top of the ML model. Each pattern has a label, regex, description, and optional replacement string. Patterns are persisted server-side in SQLite. A live preview field lets you test a regex against sample text before saving. Patterns can be edited or removed inline.
 
 Default domains:
 ```
