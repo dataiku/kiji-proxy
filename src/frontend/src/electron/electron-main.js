@@ -4,13 +4,13 @@ const {
   Menu,
   Tray,
   nativeImage,
-  ipcMain,
   safeStorage,
   shell,
 } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const { spawn } = require("child_process");
+const { registerIpcHandlers } = require("./ipc-handlers");
 const isDev = process.env.NODE_ENV === "development";
 
 // Initialize Sentry for error tracking
@@ -40,29 +40,8 @@ autoUpdater.on("update-downloaded", (info) => {
   if (mainWindow) {
     createMenu();
   }
-  // Swap tray icon to show update badge
-  if (tray) {
-    const assetsDir = path.join(__dirname, "..", "..", "assets");
-    const macTemplatePath = path.join(assetsDir, "icon-16-update-Template.png");
-    const colorPath = path.join(assetsDir, "icon-16-update.png");
-    const useTemplate =
-      process.platform === "darwin" && fs.existsSync(macTemplatePath);
-    const updateIconPath = useTemplate ? macTemplatePath : colorPath;
-    if (fs.existsSync(updateIconPath)) {
-      const updateIcon = nativeImage.createFromPath(updateIconPath);
-      if (process.platform === "darwin") {
-        const resized = updateIcon.resize({ width: 16, height: 16 });
-        if (useTemplate) {
-          resized.setTemplateImage(true);
-        }
-        tray.setImage(resized);
-      } else {
-        tray.setImage(updateIcon);
-      }
-      tray.setToolTip("Kiji Privacy Proxy — Update available");
-    }
-    updateTrayMenu();
-  }
+  applyTrayIcon();
+  updateTrayMenu();
 });
 
 autoUpdater.on("error", (err) => {
@@ -163,14 +142,9 @@ const getGoBinaryPath = () => {
 // Get the path to resources directory
 const getResourcesPath = () => {
   if (isDev) {
-    // In development, __dirname is src/frontend/src/electron, so go up three levels to project root
+    // In dev, __dirname is src/frontend/src/electron — go up four levels to project root
     return path.join(__dirname, "..", "..", "..", "..");
   }
-
-  if (process.platform === "darwin") {
-    return process.resourcesPath || app.getAppPath();
-  }
-
   return process.resourcesPath || app.getAppPath();
 };
 
@@ -610,11 +584,11 @@ function closeSplashWindow() {
   }
 }
 
-// Create system tray icon
-function createTray() {
+// Resolve the current tray icon image + tooltip. Returns null if no icon file
+// exists. On macOS we prefer the `-Template.png` silhouette so the icon adapts
+// to dark/light menu bars; other platforms use the full-color PNG.
+const resolveTrayIconInfo = () => {
   const assetsDir = path.join(__dirname, "..", "..", "assets");
-  // On macOS, prefer the black-silhouette `-Template.png` variant so the icon
-  // adapts to dark/light menu bars. Other platforms use the full-color PNG.
   const baseName = updateDownloaded ? "icon-16-update" : "icon-16";
   const macTemplatePath = path.join(assetsDir, `${baseName}-Template.png`);
   const colorPath = path.join(assetsDir, `${baseName}.png`);
@@ -623,36 +597,48 @@ function createTray() {
   const iconPath = useTemplate ? macTemplatePath : colorPath;
 
   if (!fs.existsSync(iconPath)) {
-    console.warn("Tray icon not found at:", iconPath);
+    return null;
+  }
+
+  let image = nativeImage.createFromPath(iconPath);
+  if (process.platform === "darwin") {
+    image = image.resize({ width: 16, height: 16 });
+    if (useTemplate) {
+      image.setTemplateImage(true);
+    }
+  }
+  return {
+    image,
+    tooltip: updateDownloaded
+      ? "Kiji Privacy Proxy — Update available"
+      : "Kiji Privacy Proxy",
+  };
+};
+
+// Push the current icon + tooltip onto an existing tray (e.g. after an update
+// is downloaded and we want to show the update badge).
+const applyTrayIcon = () => {
+  if (!tray) return;
+  const info = resolveTrayIconInfo();
+  if (!info) return;
+  tray.setImage(info.image);
+  tray.setToolTip(info.tooltip);
+};
+
+// Create system tray icon
+function createTray() {
+  const info = resolveTrayIconInfo();
+  if (!info) {
+    console.warn("Tray icon not found");
     return;
   }
 
-  const icon = nativeImage.createFromPath(iconPath);
-
-  if (process.platform === "darwin") {
-    const resizedIcon = icon.resize({ width: 16, height: 16 });
-    if (useTemplate) {
-      resizedIcon.setTemplateImage(true);
-    }
-    tray = new Tray(resizedIcon);
-    tray.setToolTip(
-      updateDownloaded
-        ? "Kiji Privacy Proxy — Update available"
-        : "Kiji Privacy Proxy"
-    );
-  } else {
-    tray = new Tray(icon);
-    tray.setToolTip(
-      updateDownloaded
-        ? "Kiji Privacy Proxy — Update available"
-        : "Kiji Privacy Proxy"
-    );
-  }
-
+  tray = new Tray(info.image);
+  tray.setToolTip(info.tooltip);
   updateTrayMenu();
 
-  // On macOS, left-click shows the context menu (default behavior)
-  // On Windows/Linux, we can add a click handler if needed
+  // On macOS, left-click shows the context menu (default behavior).
+  // On Windows/Linux, clicking the tray icon should open the main window.
   if (process.platform !== "darwin") {
     tray.on("click", () => {
       showMainWindow();
@@ -706,35 +692,31 @@ function updateTrayMenu() {
     },
     {
       label: "Documentation",
-      click: () => {
-        require("electron").shell.openExternal(
+      click: () =>
+        shell.openExternal(
           "https://github.com/dataiku/kiji-proxy/blob/main/docs/README.md"
-        );
-      },
+        ),
     },
     {
       label: "File a Bug Report",
-      click: () => {
-        require("electron").shell.openExternal(
+      click: () =>
+        shell.openExternal(
           "https://github.com/dataiku/kiji-proxy/issues/new?template=10_bug_report.yml"
-        );
-      },
+        ),
     },
     {
       label: "Request a Feature",
-      click: () => {
-        require("electron").shell.openExternal(
+      click: () =>
+        shell.openExternal(
           "https://github.com/dataiku/kiji-proxy/discussions/new/choose"
-        );
-      },
+        ),
     },
     {
       label: "Email us",
-      click: () => {
-        require("electron").shell.openExternal(
+      click: () =>
+        shell.openExternal(
           "mailto:opensource@dataiku.com?subject=[Yaak Proxy User]"
-        );
-      },
+        ),
     },
     { type: "separator" },
     ...(updateDownloaded
@@ -909,7 +891,7 @@ function createWindow() {
 
   // Handle external links
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    require("electron").shell.openExternal(url);
+    shell.openExternal(url);
     return { action: "deny" };
   });
 }
@@ -1117,9 +1099,6 @@ app.on("will-quit", () => {
   stopGoBinary();
 });
 
-// Valid provider types
-const VALID_PROVIDERS = ["openai", "anthropic", "gemini", "mistral", "custom"];
-
 // Migrate old single-key config format to new multi-provider format
 const migrateConfig = (config) => {
   // If already migrated (has providers object), return as-is
@@ -1216,743 +1195,22 @@ const encryptApiKey = (apiKey) => {
   }
 };
 
-// IPC handlers for secure storage
-
-// Legacy handler - delegates to active provider
-ipcMain.handle("get-api-key", async () => {
-  try {
-    const config = readConfig();
-    const activeProvider = config.activeProvider || "openai";
-    const providerConfig = config.providers?.[activeProvider];
-
-    const decrypted = decryptApiKey(providerConfig);
-    if (decrypted) {
-      console.log(
-        `[DEBUG] API key decrypted for ${activeProvider} (length: ${decrypted.length})`
-      );
-    }
-    return decrypted;
-  } catch (error) {
-    console.error("[ERROR] Error reading API key:", error);
-    return null;
-  }
-});
-
-// Legacy handler - delegates to active provider
-ipcMain.handle("set-api-key", async (event, apiKey) => {
-  try {
-    const config = readConfig();
-    const activeProvider = config.activeProvider || "openai";
-
-    if (!config.providers) {
-      config.providers = {};
-    }
-    if (!config.providers[activeProvider]) {
-      config.providers[activeProvider] = { model: "" };
-    }
-
-    const { apiKey: encryptedKey, encrypted } = encryptApiKey(apiKey);
-    config.providers[activeProvider].apiKey = encryptedKey;
-    config.providers[activeProvider].encrypted = encrypted;
-
-    saveConfig(config);
-    return { success: true };
-  } catch (error) {
-    console.error("Error saving API key:", error);
-    return { success: false, error: error.message };
-  }
-});
-
-// Get active provider
-ipcMain.handle("get-active-provider", async () => {
-  try {
-    const config = readConfig();
-    return config.activeProvider || "openai";
-  } catch (error) {
-    console.error("Error reading active provider:", error);
-    return "openai";
-  }
-});
-
-// Set active provider
-ipcMain.handle("set-active-provider", async (event, provider) => {
-  try {
-    if (!VALID_PROVIDERS.includes(provider)) {
-      return { success: false, error: `Invalid provider: ${provider}` };
-    }
-
-    const config = readConfig();
-    config.activeProvider = provider;
-    saveConfig(config);
-    return { success: true };
-  } catch (error) {
-    console.error("Error setting active provider:", error);
-    return { success: false, error: error.message };
-  }
-});
-
-// Get API key for specific provider
-ipcMain.handle("get-provider-api-key", async (event, provider) => {
-  try {
-    if (!VALID_PROVIDERS.includes(provider)) {
-      console.error(`Invalid provider: ${provider}`);
-      return null;
-    }
-
-    const config = readConfig();
-    const providerConfig = config.providers?.[provider];
-    return decryptApiKey(providerConfig);
-  } catch (error) {
-    console.error(`Error reading API key for ${provider}:`, error);
-    return null;
-  }
-});
-
-// Set API key for specific provider
-ipcMain.handle("set-provider-api-key", async (event, provider, apiKey) => {
-  try {
-    if (!VALID_PROVIDERS.includes(provider)) {
-      return { success: false, error: `Invalid provider: ${provider}` };
-    }
-
-    const config = readConfig();
-    if (!config.providers) {
-      config.providers = {};
-    }
-    if (!config.providers[provider]) {
-      config.providers[provider] = { model: "" };
-    }
-
-    const { apiKey: encryptedKey, encrypted } = encryptApiKey(apiKey);
-    config.providers[provider].apiKey = encryptedKey;
-    config.providers[provider].encrypted = encrypted;
-
-    saveConfig(config);
-    return { success: true };
-  } catch (error) {
-    console.error(`Error saving API key for ${provider}:`, error);
-    return { success: false, error: error.message };
-  }
-});
-
-// Get custom model for specific provider
-ipcMain.handle("get-provider-model", async (event, provider) => {
-  try {
-    if (!VALID_PROVIDERS.includes(provider)) {
-      console.error(`Invalid provider: ${provider}`);
-      return "";
-    }
-
-    const config = readConfig();
-    return config.providers?.[provider]?.model || "";
-  } catch (error) {
-    console.error(`Error reading model for ${provider}:`, error);
-    return "";
-  }
-});
-
-// Set custom model for specific provider
-ipcMain.handle("set-provider-model", async (event, provider, model) => {
-  try {
-    if (!VALID_PROVIDERS.includes(provider)) {
-      return { success: false, error: `Invalid provider: ${provider}` };
-    }
-
-    const config = readConfig();
-    if (!config.providers) {
-      config.providers = {};
-    }
-    if (!config.providers[provider]) {
-      config.providers[provider] = { apiKey: "", encrypted: false };
-    }
-
-    config.providers[provider].model = model || "";
-
-    saveConfig(config);
-    return { success: true };
-  } catch (error) {
-    console.error(`Error saving model for ${provider}:`, error);
-    return { success: false, error: error.message };
-  }
-});
-
-// Get custom base URL for specific provider
-ipcMain.handle("get-provider-base-url", async (event, provider) => {
-  try {
-    if (!VALID_PROVIDERS.includes(provider)) {
-      console.error(`Invalid provider: ${provider}`);
-      return "";
-    }
-
-    const config = readConfig();
-    return config.providers?.[provider]?.baseUrl || "";
-  } catch (error) {
-    console.error(`Error reading base URL for ${provider}:`, error);
-    return "";
-  }
-});
-
-// Set custom base URL for specific provider
-ipcMain.handle("set-provider-base-url", async (event, provider, baseUrl) => {
-  try {
-    if (!VALID_PROVIDERS.includes(provider)) {
-      return { success: false, error: `Invalid provider: ${provider}` };
-    }
-
-    const trimmed = (baseUrl || "").trim();
-    if (trimmed && !/^https?:\/\//i.test(trimmed)) {
-      return {
-        success: false,
-        error: "Base URL must start with http:// or https://",
-      };
-    }
-
-    const config = readConfig();
-    if (!config.providers) {
-      config.providers = {};
-    }
-    if (!config.providers[provider]) {
-      config.providers[provider] = { apiKey: "", encrypted: false };
-    }
-
-    config.providers[provider].baseUrl = trimmed;
-
-    saveConfig(config);
-    return { success: true };
-  } catch (error) {
-    console.error(`Error saving base URL for ${provider}:`, error);
-    return { success: false, error: error.message };
-  }
-});
-
-// Restart the Go backend so updated provider config (API keys, base URLs)
-// takes effect. Settings are injected as env vars at spawn time.
-ipcMain.handle("restart-backend", async () => {
-  try {
-    if (
-      process.env.EXTERNAL_BACKEND === "true" ||
-      process.env.SKIP_BACKEND_LAUNCH === "true"
-    ) {
-      return {
-        success: false,
-        error:
-          "Backend is externally managed (EXTERNAL_BACKEND); restart it manually.",
-      };
-    }
-
-    await restartGoBinary();
-    const ready = await waitForBackend(30, 500);
-    if (!ready) {
-      return {
-        success: false,
-        error: "Backend failed to become ready after restart",
-      };
-    }
-    return { success: true };
-  } catch (error) {
-    console.error("Error restarting backend:", error);
-    return { success: false, error: error.message };
-  }
-});
-
-// Open the CA cert location in the OS file manager. The Go backend writes the
-// CA to <userData>/certs/ca.crt — same path Electron knows via app.getPath().
-// If the file exists, highlight it; otherwise open the parent directory so the
-// user isn't left staring at an error dialog when the proxy hasn't generated
-// the cert yet.
-ipcMain.handle("reveal-ca-cert", async () => {
-  try {
-    const certPath = path.join(app.getPath("userData"), "certs", "ca.crt");
-    if (fs.existsSync(certPath)) {
-      shell.showItemInFolder(certPath);
-      return { success: true, path: certPath, exists: true };
-    }
-
-    const certDir = path.dirname(certPath);
-    fs.mkdirSync(certDir, { recursive: true });
-    const errMsg = await shell.openPath(certDir);
-    if (errMsg) {
-      return { success: false, error: errMsg };
-    }
-    return { success: true, path: certDir, exists: false };
-  } catch (error) {
-    console.error("Error revealing CA cert:", error);
-    return { success: false, error: error.message };
-  }
-});
-
-// Get full providers config
-ipcMain.handle("get-providers-config", async () => {
-  try {
-    const config = readConfig();
-    const activeProvider = config.activeProvider || "openai";
-
-    // Build response with hasApiKey (boolean), model, and baseUrl for each provider
-    const providers = {};
-    for (const provider of VALID_PROVIDERS) {
-      const providerConfig = config.providers?.[provider] || {};
-      providers[provider] = {
-        hasApiKey: !!(
-          providerConfig.apiKey && providerConfig.apiKey.length > 0
-        ),
-        model: providerConfig.model || "",
-        baseUrl: providerConfig.baseUrl || "",
-      };
-    }
-
-    return {
-      activeProvider,
-      providers,
-    };
-  } catch (error) {
-    console.error("Error reading providers config:", error);
-    return {
-      activeProvider: "openai",
-      providers: {
-        openai: { hasApiKey: false, model: "", baseUrl: "" },
-        anthropic: { hasApiKey: false, model: "", baseUrl: "" },
-        gemini: { hasApiKey: false, model: "", baseUrl: "" },
-        mistral: { hasApiKey: false, model: "", baseUrl: "" },
-        custom: { hasApiKey: false, model: "", baseUrl: "" },
-      },
-    };
-  }
-});
-
-ipcMain.handle("get-ca-cert-setup-dismissed", async () => {
-  try {
-    const storagePath = getStoragePath();
-    if (!fs.existsSync(storagePath)) {
-      return false;
-    }
-
-    const data = fs.readFileSync(storagePath, "utf8");
-    const config = JSON.parse(data);
-    return config.caCertSetupDismissed || false;
-  } catch (error) {
-    console.error("Error reading CA cert setup dismissed flag:", error);
-    return false;
-  }
-});
-
-ipcMain.handle("set-ca-cert-setup-dismissed", async (event, dismissed) => {
-  try {
-    const storagePath = getStoragePath();
-    let config = {};
-
-    // Read existing config if it exists
-    if (fs.existsSync(storagePath)) {
-      const data = fs.readFileSync(storagePath, "utf8");
-      config = JSON.parse(data);
-    }
-
-    config.caCertSetupDismissed = !!dismissed;
-
-    // Save config
-    fs.writeFileSync(storagePath, JSON.stringify(config, null, 2), "utf8");
-    return { success: true };
-  } catch (error) {
-    console.error("Error saving CA cert setup dismissed flag:", error);
-    return { success: false, error: error.message };
-  }
-});
-
-ipcMain.handle("get-terms-accepted", async () => {
-  try {
-    const storagePath = getStoragePath();
-    if (!fs.existsSync(storagePath)) {
-      return false;
-    }
-
-    const data = fs.readFileSync(storagePath, "utf8");
-    const config = JSON.parse(data);
-    return config.termsAccepted || false;
-  } catch (error) {
-    console.error("Error reading terms accepted flag:", error);
-    return false;
-  }
-});
-
-ipcMain.handle("set-terms-accepted", async (event, accepted) => {
-  try {
-    const storagePath = getStoragePath();
-    let config = {};
-
-    // Read existing config if it exists
-    if (fs.existsSync(storagePath)) {
-      const data = fs.readFileSync(storagePath, "utf8");
-      config = JSON.parse(data);
-    }
-
-    config.termsAccepted = !!accepted;
-
-    // Save config
-    fs.writeFileSync(storagePath, JSON.stringify(config, null, 2), "utf8");
-    return { success: true };
-  } catch (error) {
-    console.error("Error saving terms accepted flag:", error);
-    return { success: false, error: error.message };
-  }
-});
-
-ipcMain.handle("get-welcome-dismissed", async () => {
-  try {
-    const storagePath = getStoragePath();
-    if (!fs.existsSync(storagePath)) {
-      return false;
-    }
-
-    const data = fs.readFileSync(storagePath, "utf8");
-    const config = JSON.parse(data);
-    return config.welcomeDismissed || false;
-  } catch (error) {
-    console.error("Error reading welcome dismissed flag:", error);
-    return false;
-  }
-});
-
-ipcMain.handle("set-welcome-dismissed", async (event, dismissed) => {
-  try {
-    const storagePath = getStoragePath();
-    let config = {};
-
-    if (fs.existsSync(storagePath)) {
-      const data = fs.readFileSync(storagePath, "utf8");
-      config = JSON.parse(data);
-    }
-
-    config.welcomeDismissed = !!dismissed;
-
-    fs.writeFileSync(storagePath, JSON.stringify(config, null, 2), "utf8");
-    return { success: true };
-  } catch (error) {
-    console.error("Error saving welcome dismissed flag:", error);
-    return { success: false, error: error.message };
-  }
-});
-
-ipcMain.handle("get-tour-completed", async () => {
-  try {
-    const storagePath = getStoragePath();
-    if (!fs.existsSync(storagePath)) {
-      return false;
-    }
-
-    const data = fs.readFileSync(storagePath, "utf8");
-    const config = JSON.parse(data);
-    return config.tourCompleted || false;
-  } catch (error) {
-    console.error("Error reading tour completed flag:", error);
-    return false;
-  }
-});
-
-ipcMain.handle("set-tour-completed", async (event, completed) => {
-  try {
-    const storagePath = getStoragePath();
-    let config = {};
-
-    if (fs.existsSync(storagePath)) {
-      const data = fs.readFileSync(storagePath, "utf8");
-      config = JSON.parse(data);
-    }
-
-    config.tourCompleted = !!completed;
-
-    fs.writeFileSync(storagePath, JSON.stringify(config, null, 2), "utf8");
-    return { success: true };
-  } catch (error) {
-    console.error("Error saving tour completed flag:", error);
-    return { success: false, error: error.message };
-  }
-});
-
-// Model directory management
-ipcMain.handle("select-model-directory", async () => {
-  const { dialog } = require("electron");
-  const result = await dialog.showOpenDialog(mainWindow, {
-    properties: ["openDirectory"],
-    title: "Select Model Directory",
-    message: "Choose the directory containing your PII model files",
-  });
-
-  if (result.canceled || result.filePaths.length === 0) {
-    return null;
-  }
-
-  return result.filePaths[0];
-});
-
-ipcMain.handle("get-model-directory", async () => {
-  try {
-    const storagePath = getStoragePath();
-    if (!fs.existsSync(storagePath)) {
-      return null;
-    }
-    const data = fs.readFileSync(storagePath, "utf8");
-    const config = JSON.parse(data);
-    return config.modelDirectory || null;
-  } catch (error) {
-    console.error("Error reading model directory:", error);
-    return null;
-  }
-});
-
-ipcMain.handle("set-model-directory", async (event, directory) => {
-  try {
-    const storagePath = getStoragePath();
-    let config = {};
-
-    if (fs.existsSync(storagePath)) {
-      const data = fs.readFileSync(storagePath, "utf8");
-      config = JSON.parse(data);
-    }
-
-    if (directory && directory.trim()) {
-      config.modelDirectory = directory.trim();
-    } else {
-      delete config.modelDirectory;
-    }
-
-    fs.writeFileSync(storagePath, JSON.stringify(config, null, 2), "utf8");
-    return { success: true };
-  } catch (error) {
-    console.error("Error saving model directory:", error);
-    return { success: false, error: error.message };
-  }
-});
-
-ipcMain.handle("reload-model", async (event, directory) => {
-  try {
-    const { net } = require("electron");
-    const request = net.request({
-      method: "POST",
-      url: "http://localhost:8080/api/model/reload",
-    });
-
-    request.setHeader("Content-Type", "application/json");
-
-    return new Promise((resolve, reject) => {
-      let responseData = "";
-
-      request.on("response", (response) => {
-        response.on("data", (chunk) => {
-          responseData += chunk.toString();
-        });
-
-        response.on("end", () => {
-          try {
-            const data = JSON.parse(responseData);
-            resolve(data);
-          } catch (error) {
-            reject(error);
-          }
-        });
-      });
-
-      request.on("error", (error) => {
-        console.error("Error reloading model:", error);
-        resolve({ success: false, error: error.message });
-      });
-
-      request.write(JSON.stringify({ directory }));
-      request.end();
-    });
-  } catch (error) {
-    console.error("Error reloading model:", error);
-    return { success: false, error: error.message };
-  }
-});
-
-ipcMain.handle("get-model-info", async () => {
-  try {
-    const { net } = require("electron");
-    const request = net.request({
-      method: "GET",
-      url: "http://localhost:8080/api/model/info",
-    });
-
-    return new Promise((resolve, reject) => {
-      let responseData = "";
-
-      request.on("response", (response) => {
-        response.on("data", (chunk) => {
-          responseData += chunk.toString();
-        });
-
-        response.on("end", () => {
-          try {
-            const data = JSON.parse(responseData);
-            resolve(data);
-          } catch (error) {
-            reject(error);
-          }
-        });
-      });
-
-      request.on("error", (error) => {
-        console.error("Error getting model info:", error);
-        resolve({ error: error.message });
-      });
-
-      request.end();
-    });
-  } catch (error) {
-    console.error("Error getting model info:", error);
-    return { error: error.message };
-  }
-});
-
-// Transparent Proxy Settings
-ipcMain.handle("get-transparent-proxy-enabled", async () => {
-  try {
-    const storagePath = getStoragePath();
-    if (!fs.existsSync(storagePath)) {
-      return false;
-    }
-    const data = fs.readFileSync(storagePath, "utf8");
-    const config = JSON.parse(data);
-    return config.transparentProxyEnabled || false;
-  } catch (error) {
-    console.error("Error reading transparent proxy setting:", error);
-    return false;
-  }
-});
-
-ipcMain.handle("set-transparent-proxy-enabled", async (event, enabled) => {
-  try {
-    const storagePath = getStoragePath();
-    let config = {};
-
-    if (fs.existsSync(storagePath)) {
-      const data = fs.readFileSync(storagePath, "utf8");
-      config = JSON.parse(data);
-    }
-
-    config.transparentProxyEnabled = !!enabled;
-
-    fs.writeFileSync(storagePath, JSON.stringify(config, null, 2), "utf8");
-
-    // Notify the backend about the change
-    const { net } = require("electron");
-    const request = net.request({
-      method: "POST",
-      url: "http://localhost:8080/api/proxy/transparent/toggle",
-    });
-
-    request.setHeader("Content-Type", "application/json");
-
-    return new Promise((resolve) => {
-      let responseData = "";
-
-      request.on("response", (response) => {
-        response.on("data", (chunk) => {
-          responseData += chunk.toString();
-        });
-
-        response.on("end", () => {
-          try {
-            const data = JSON.parse(responseData);
-            resolve(data);
-          } catch (error) {
-            // Config was saved, but backend notification failed - still success
-            console.warn("Error parsing backend response:", error);
-            resolve({ success: true });
-          }
-        });
-      });
-
-      request.on("error", (error) => {
-        console.error("Error notifying backend:", error);
-        // Config was saved, but backend notification failed - still success
-        resolve({ success: true });
-      });
-
-      request.write(JSON.stringify({ enabled: !!enabled }));
-      request.end();
-    });
-  } catch (error) {
-    console.error("Error saving transparent proxy setting:", error);
-    return { success: false, error: error.message };
-  }
-});
-
-// PII Detection Confidence Threshold
-ipcMain.handle("get-entity-confidence", async () => {
-  try {
-    const storagePath = getStoragePath();
-    if (!fs.existsSync(storagePath)) {
-      return 0.25;
-    }
-    const data = fs.readFileSync(storagePath, "utf8");
-    const config = JSON.parse(data);
-    return config.entityConfidence ?? 0.25;
-  } catch (error) {
-    console.error("Error reading entity confidence:", error);
-    return 0.25;
-  }
-});
-
-ipcMain.handle("set-entity-confidence", async (event, confidence) => {
-  try {
-    const storagePath = getStoragePath();
-    let config = {};
-
-    if (fs.existsSync(storagePath)) {
-      const data = fs.readFileSync(storagePath, "utf8");
-      config = JSON.parse(data);
-    }
-
-    config.entityConfidence = confidence;
-
-    fs.writeFileSync(storagePath, JSON.stringify(config, null, 2), "utf8");
-
-    // Notify the backend about the change
-    const { net } = require("electron");
-    const request = net.request({
-      method: "POST",
-      url: "http://localhost:8080/api/pii/confidence",
-    });
-
-    request.setHeader("Content-Type", "application/json");
-
-    return new Promise((resolve) => {
-      let responseData = "";
-
-      request.on("response", (response) => {
-        response.on("data", (chunk) => {
-          responseData += chunk.toString();
-        });
-
-        response.on("end", () => {
-          try {
-            const data = JSON.parse(responseData);
-            resolve(data);
-          } catch (error) {
-            console.warn("Error parsing backend response:", error);
-            resolve({ success: true });
-          }
-        });
-      });
-
-      request.on("error", (error) => {
-        console.error("Error notifying backend:", error);
-        resolve({ success: true });
-      });
-
-      request.write(JSON.stringify({ confidence }));
-      request.end();
-    });
-  } catch (error) {
-    console.error("Error saving entity confidence:", error);
-    return { success: false, error: error.message };
-  }
+// Register every ipcMain.handle channel. Definitions live in ipc-handlers.js;
+// we inject the deps so that module stays decoupled from app/window lifecycle.
+registerIpcHandlers({
+  readConfig,
+  saveConfig,
+  encryptApiKey,
+  decryptApiKey,
+  restartGoBinary,
+  waitForBackend,
+  getMainWindow: () => mainWindow,
 });
 
 // Security: Prevent new window creation
 app.on("web-contents-created", (event, contents) => {
   contents.on("new-window", (event, navigationUrl) => {
     event.preventDefault();
-    require("electron").shell.openExternal(navigationUrl);
+    shell.openExternal(navigationUrl);
   });
 });
