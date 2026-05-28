@@ -23,6 +23,13 @@ jobs:
       contents: read
 
     steps:
+      - name: Debug vars resolution
+        env:
+          CLIENT_ID: ${{ vars.HOMEBREW_TAP_APP_CLIENT_ID }}
+          APP_ID: ${{ vars.HOMEBREW_TAP_APP_ID }}
+        run: |
+          echo "CLIENT_ID length: ${#CLIENT_ID}"
+          echo "APP_ID value:     ${APP_ID}"
       - name: Mint App installation token
         id: app-token
         uses: actions/create-github-app-token@v2
