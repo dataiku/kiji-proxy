@@ -1,26 +1,62 @@
 name: Feature Request
-description: Suggest a new feature or improvement
+description: Suggest a new feature or improvement for Kiji Privacy Proxy
 labels: [enhancement]
 body:
-  - type: textarea
-    id: problem
+  - type: input
+    id: title
     attributes:
-      label: Problem
-      description: What problem does this feature solve?
+      label: Feature Title
+      description: A short, descriptive name for the requested feature.
+      placeholder: e.g. "Support masking UK National Insurance numbers"
     validations:
       required: true
+
   - type: textarea
-    id: solution
+    id: description
     attributes:
-      label: Proposed Solution
-      description: Describe the solution you'd like.
+      label: Description
+      description: Describe the feature you'd like in detail. What should it do?
     validations:
       required: true
+
+  - type: checkboxes
+    id: os_support
+    attributes:
+      label: OS Support
+      description: Which operating system(s) should support this feature?
+      options:
+        - label: macOS
+        - label: Linux
+        - label: Chrome Extension
+
+  - type: dropdown
+    id: user_type
+    attributes:
+      label: Potential User
+      description: Who would primarily benefit from this feature?
+      options:
+        - Individual / personal use
+        - Enterprise user
+        - Both
+    validations:
+      required: true
+
+  - type: textarea
+    id: business_case
+    attributes:
+      label: Business Case
+      description: |
+        Describe the real-world use case driving this request.
+        e.g. "We need a tool to mask Chinese social security numbers before sending data to an LLM API."
+    validations:
+      required: true
+
   - type: textarea
     id: alternatives
     attributes:
       label: Alternatives Considered
-      description: Any alternative solutions or features you've considered?
+      description: Any alternative solutions or features you've explored?
+
   - type: textarea
     id: context
     attributes:
