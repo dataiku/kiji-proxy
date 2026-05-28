@@ -15,9 +15,11 @@ import (
 )
 
 // DefaultForwardProxyPort is the default port for the forward proxy.
+// The leading colon is intentional — this is a net.Listen-style address (e.g. ":8080").
 const DefaultForwardProxyPort = ":8080"
 
 // DefaultTransparentProxyPort is the default port for the transparent proxy.
+// The leading colon is intentional — this is a net.Listen-style address (e.g. ":8081").
 const DefaultTransparentProxyPort = ":8081"
 
 // LoggingConfig holds logging configuration options
