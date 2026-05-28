@@ -678,6 +678,10 @@ function updateTrayMenu() {
         }, 100);
       },
     },
+
+    // TODO: Add link to https://chromewebstore.google.com/detail/kiji-privacy-proxy-extens/knnjemahdeioghdgcpeikepmlajfihin?hl=en-US&utm_source=ext_sidebar&pli=1
+    //
+
     { type: "separator" },
     {
       label: "Terms && Conditions",
@@ -695,6 +699,13 @@ function updateTrayMenu() {
       click: () =>
         shell.openExternal(
           "https://github.com/dataiku/kiji-proxy/blob/main/docs/README.md"
+        ),
+    },
+    {
+      label: "Kiji Chrome Extension",
+      click: () =>
+        shell.openExternal(
+          "https://chromewebstore.google.com/detail/kiji-privacy-proxy-extens/knnjemahdeioghdgcpeikepmlajfihin"
         ),
     },
     {

@@ -108,6 +108,14 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
               Documentation →
             </a>
             <a
+              href="https://chromewebstore.google.com/detail/kiji-privacy-proxy-extens/knnjemahdeioghdgcpeikepmlajfihin"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block text-sm text-blue-600 hover:text-blue-700 hover:underline"
+            >
+              Kiji Chrome Extension →
+            </a>
+            <a
               href="https://github.com/dataiku/kiji-proxy/issues/new?template=10_bug_report.yml"
               target="_blank"
               rel="noopener noreferrer"
