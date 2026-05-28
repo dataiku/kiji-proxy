@@ -615,8 +615,8 @@ func (s *Server) handlePIICheck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Use the handler's masking service to check for PII
-	maskedText, maskedToOriginal, entities := s.handler.MaskPIIInText(req.Message)
+	// Mask + persist request_original / request_masked so the call appears in /logs.
+	maskedText, maskedToOriginal, entities := s.handler.MaskPIIInTextWithLogging(r.Context(), req.Message)
 
 	// masked -> original map (consumed by UI)
 	entityDetails := make(map[string]string)

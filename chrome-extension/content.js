@@ -2,7 +2,7 @@
 (function () {
   "use strict";
 
-  const DEFAULT_API_BASE = "http://localhost:8081";
+  const DEFAULT_API_BASE = "http://localhost:8080";
   let apiBase = DEFAULT_API_BASE;
   let isChecking = false;
   let maskedTextPending = null;
