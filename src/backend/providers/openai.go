@@ -25,12 +25,7 @@ const (
 var reasoningModelFamilies = []string{
 	"gpt-5",
 	"o1",
-	"o1-mini",
-	"o1-preview",
-	"o1-pro",
 	"o3",
-	"o3-mini",
-	"o3-pro",
 	"o4-mini",
 }
 
@@ -425,25 +420,24 @@ func createMaskedResponsesRequest(maskedRequest map[string]interface{}, maskPIII
 	maskedToOriginal := make(map[string]string)
 	var entities []pii.Entity
 
-	mergeMask := func(masked string, m map[string]string, ents []pii.Entity) {
+	mergeMask := func(m map[string]string, ents []pii.Entity) {
 		entities = append(entities, ents...)
 		for k, v := range m {
 			maskedToOriginal[k] = v
 		}
-		_ = masked
 	}
 
 	if instructions, ok := maskedRequest["instructions"].(string); ok {
 		masked, m, ents := maskPIIInText(instructions, "[MaskedRequest]")
 		maskedRequest["instructions"] = masked
-		mergeMask(masked, m, ents)
+		mergeMask(m, ents)
 	}
 
 	switch input := maskedRequest["input"].(type) {
 	case string:
 		masked, m, ents := maskPIIInText(input, "[MaskedRequest]")
 		maskedRequest["input"] = masked
-		mergeMask(masked, m, ents)
+		mergeMask(m, ents)
 	case []interface{}:
 		for _, item := range input {
 			itemMap, ok := item.(map[string]interface{})
@@ -454,7 +448,7 @@ func createMaskedResponsesRequest(maskedRequest map[string]interface{}, maskPIII
 			case string:
 				masked, m, ents := maskPIIInText(content, "[MaskedRequest]")
 				itemMap["content"] = masked
-				mergeMask(masked, m, ents)
+				mergeMask(m, ents)
 			case []interface{}:
 				for _, part := range content {
 					partMap, ok := part.(map[string]interface{})
@@ -467,7 +461,7 @@ func createMaskedResponsesRequest(maskedRequest map[string]interface{}, maskPIII
 					}
 					masked, m, ents := maskPIIInText(text, "[MaskedRequest]")
 					partMap["text"] = masked
-					mergeMask(masked, m, ents)
+					mergeMask(m, ents)
 				}
 			}
 		}

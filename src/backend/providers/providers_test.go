@@ -798,6 +798,38 @@ func TestMaybeConvertOpenAIRequest_ChatToResponses(t *testing.T) {
 			}
 		}
 	})
+
+	// A well-formed request carries either `messages` or `input`, not both. If a
+	// malformed request carries both, presence of `messages` wins and the
+	// converted messages overwrite any pre-existing `input`. This is by design:
+	// PII masking ran against `messages`, so the unmasked `input` must not
+	// survive into the upstream request.
+	t.Run("malformed request with both messages and input: input is overwritten", func(t *testing.T) {
+		body := []byte(`{
+			"model": "gpt-5",
+			"messages": [{"role":"user","content":"from messages"}],
+			"input": "from input (unmasked)"
+		}`)
+		out, path := MaybeConvertOpenAIRequest(body, ProviderSubpathOpenAI)
+		if path != ProviderSubpathOpenAIResp {
+			t.Fatalf("path = %q, want %q", path, ProviderSubpathOpenAIResp)
+		}
+		var data map[string]interface{}
+		if err := json.Unmarshal(out, &data); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		input, ok := data["input"].([]interface{})
+		if !ok {
+			t.Fatalf("input not an array, got %T (%v)", data["input"], data["input"])
+		}
+		if len(input) != 1 {
+			t.Fatalf("len(input) = %d, want 1", len(input))
+		}
+		item := input[0].(map[string]interface{})
+		if item["content"] != "from messages" {
+			t.Errorf("input[0].content = %q, want %q (pre-existing input must not survive)", item["content"], "from messages")
+		}
+	})
 }
 
 func TestMaybeConvertOpenAIRequest_ResponsesToChat(t *testing.T) {
