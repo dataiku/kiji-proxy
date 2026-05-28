@@ -1,0 +1,87 @@
+name: Test Homebrew Tap Auth
+
+# One-off smoke test. Verifies that the GitHub App referenced by
+# vars.HOMEBREW_TAP_APP_CLIENT_ID + secrets.HOMEBREW_TAP_APP_PRIVATE_KEY can
+# mint a token scoped to dataiku/homebrew-tap and both push to and delete
+# from it. Safe to delete this workflow file once the publish-homebrew-tap
+# job in release.yml is proven end-to-end.
+
+on:
+  workflow_dispatch:
+    inputs:
+      cleanup:
+        description: "Delete the test branch from the tap after pushing"
+        required: false
+        default: true
+        type: boolean
+
+jobs:
+  smoke-test:
+    name: Verify App can push to dataiku/homebrew-tap
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Mint App installation token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.HOMEBREW_TAP_APP_CLIENT_ID }}
+          private-key: ${{ secrets.HOMEBREW_TAP_APP_PRIVATE_KEY }}
+          owner: dataiku
+          repositories: homebrew-tap
+
+      - name: Read tap metadata via App token
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          set -euo pipefail
+          echo "App slug:        ${{ steps.app-token.outputs.app-slug }}"
+          echo "Installation id: ${{ steps.app-token.outputs.installation-id }}"
+          echo
+          gh api repos/dataiku/homebrew-tap \
+            --jq '{full_name, default_branch, visibility, permissions}'
+
+      - name: Checkout tap
+        uses: actions/checkout@v6
+        with:
+          repository: dataiku/homebrew-tap
+          token: ${{ steps.app-token.outputs.token }}
+          path: homebrew-tap
+
+      - name: Push marker commit to throwaway branch
+        env:
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+          BRANCH: test-auth-${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          cd homebrew-tap
+          git config user.name  "${APP_SLUG}[bot]"
+          git config user.email "${APP_SLUG}[bot]@users.noreply.github.com"
+
+          git checkout -b "${BRANCH}"
+          mkdir -p .smoke-tests
+          cat > ".smoke-tests/${{ github.run_id }}.txt" <<EOF
+          Auth smoke test from kiji-proxy run ${{ github.run_id }}
+          Actor:     ${{ github.actor }}
+          Timestamp: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          App slug:  ${APP_SLUG}
+          EOF
+
+          git add ".smoke-tests/${{ github.run_id }}.txt"
+          git commit -m "smoke: auth test from kiji-proxy run ${{ github.run_id }}"
+          git push origin "${BRANCH}"
+
+          echo "::notice::Pushed ${BRANCH} to dataiku/homebrew-tap"
+          echo "URL: https://github.com/dataiku/homebrew-tap/tree/${BRANCH}"
+
+      - name: Delete test branch
+        if: ${{ inputs.cleanup }}
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          BRANCH: test-auth-${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          gh api -X DELETE "repos/dataiku/homebrew-tap/git/refs/heads/${BRANCH}"
+          echo "::notice::Deleted ${BRANCH} (also proves the App has write access to refs)"
