@@ -310,8 +310,10 @@ func (h *Handler) MaskPIIInText(text string) (string, map[string]string, []pii.E
 // request_original + request_masked entries to the logging DB so the call
 // surfaces in the /logs UI. The two entries share a transaction ID embedded as
 // _transaction_id in a JSON envelope around the text — the same convention the
-// proxy flow uses, which lets the frontend pair them.
-func (h *Handler) MaskPIIInTextWithLogging(ctx context.Context, text string) (string, map[string]string, []pii.Entity) {
+// proxy flow uses, which lets the frontend pair them. site (hostname of the
+// page that triggered the check) is recorded as the "model" column so calls
+// from different AI providers are distinguishable in the UI.
+func (h *Handler) MaskPIIInTextWithLogging(ctx context.Context, text, site string) (string, map[string]string, []pii.Entity) {
 	maskedText, maskedToOriginal, entities := h.maskPIIInText(text, "[PIICheck]")
 
 	if h.loggingDB == nil {
@@ -322,12 +324,12 @@ func (h *Handler) MaskPIIInTextWithLogging(ctx context.Context, text string) (st
 	logCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	original := wrapPIICheckMessage(text, transactionID)
+	original := wrapPIICheckMessage(text, site, transactionID)
 	if err := h.loggingDB.InsertLog(logCtx, original, "request_original", entities, false); err != nil {
 		log.Printf("[PIICheck] ⚠️  Failed to log original request: %v", err)
 	}
 
-	masked := wrapPIICheckMessage(maskedText, transactionID)
+	masked := wrapPIICheckMessage(maskedText, site, transactionID)
 	if err := h.loggingDB.InsertLog(logCtx, masked, "request_masked", entities, false); err != nil {
 		log.Printf("[PIICheck] ⚠️  Failed to log masked request: %v", err)
 	}
@@ -338,13 +340,17 @@ func (h *Handler) MaskPIIInTextWithLogging(ctx context.Context, text string) (st
 // wrapPIICheckMessage wraps a plain-text PII check input in an OpenAI-style
 // messages envelope so parseMessagesFromLogMessage populates the `messages` /
 // `formatted_messages` columns and the entry renders in the /logs UI the same
-// way as proxied requests. _transaction_id pairs the original/masked rows.
-func wrapPIICheckMessage(text, transactionID string) string {
+// way as proxied requests. _transaction_id pairs the original/masked rows;
+// site (when provided) is surfaced as the "model" column.
+func wrapPIICheckMessage(text, site, transactionID string) string {
 	envelope := map[string]any{
 		"messages": []map[string]string{
 			{"role": "user", "content": text},
 		},
 		"_transaction_id": transactionID,
+	}
+	if site != "" {
+		envelope["model"] = site
 	}
 	data, err := json.Marshal(envelope)
 	if err != nil {

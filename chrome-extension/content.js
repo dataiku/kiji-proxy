@@ -331,6 +331,7 @@
       const response = await chrome.runtime.sendMessage({
         type: "check-pii-text",
         text: text,
+        site: window.location.hostname,
       });
 
       if (!response) {

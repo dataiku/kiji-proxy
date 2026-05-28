@@ -556,6 +556,10 @@ func (s *Server) handleModelSecurity(w http.ResponseWriter, r *http.Request) {
 // PIICheckRequest represents the request body for PII checking
 type PIICheckRequest struct {
 	Message string `json:"message"`
+	// Site is the hostname of the page that triggered the check (e.g.
+	// "chatgpt.com"). Recorded as the "model" column in /logs so calls from
+	// different AI providers are distinguishable in the UI.
+	Site string `json:"site,omitempty"`
 }
 
 // DetectedEntity represents a single detected PII entity with its label and
@@ -616,7 +620,7 @@ func (s *Server) handlePIICheck(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Mask + persist request_original / request_masked so the call appears in /logs.
-	maskedText, maskedToOriginal, entities := s.handler.MaskPIIInTextWithLogging(r.Context(), req.Message)
+	maskedText, maskedToOriginal, entities := s.handler.MaskPIIInTextWithLogging(r.Context(), req.Message, req.Site)
 
 	// masked -> original map (consumed by UI)
 	entityDetails := make(map[string]string)
