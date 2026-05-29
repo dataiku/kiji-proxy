@@ -17,6 +17,14 @@ override_dh_auto_configure:
 override_dh_auto_build:
 override_dh_auto_test:
 
+# The Go binary and prebuilt ONNX Runtime .so are shipped as-is. Go emits
+# compressed/non-standard DWARF that dwz cannot process (it exits non-zero) and
+# the .so carries no .debug_info, so dh_dwz aborts the build. dh_strip is also
+# skipped so the packaged binary stays byte-identical to the tarball build and
+# no stray -dbgsym .deb is produced.
+override_dh_dwz:
+override_dh_strip:
+
 override_dh_auto_install:
 	@if [ -z "$(STAGED)" ]; then \
 		echo "ERROR: no staging tree under release/linux/." >&2; \
