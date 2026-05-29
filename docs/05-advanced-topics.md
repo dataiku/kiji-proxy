@@ -49,7 +49,9 @@ Client ──[TLS]──> Kiji Privacy Proxy ──[TLS]──> api.openai.com
 **1. Root CA Certificate**
 - **Purpose:** Signs all leaf certificates
 - **Validity:** 10 years
-- **Location:** `~/.kiji-proxy/certs/ca.crt`
+- **Location:**
+  - macOS: `~/Library/Application Support/Kiji Privacy Proxy/certs/ca.crt`
+  - Linux: `~/.kiji-proxy/certs/ca.crt` (or `$KIJI_DATA_PATH` / `$XDG_DATA_HOME/kiji-proxy/certs/ca.crt`)
 - **Common Name:** "Kiji Privacy Proxy CA"
 - **Key Type:** RSA 2048-bit
 
@@ -70,7 +72,7 @@ sudo security add-trusted-cert \
   -d \
   -r trustRoot \
   -k /Library/Keychains/System.keychain \
-  ~/.kiji-proxy/certs/ca.crt
+  "$HOME/Library/Application Support/Kiji Privacy Proxy/certs/ca.crt"
 ```
 
 **macOS - User Keychain:**
@@ -80,14 +82,14 @@ sudo security add-trusted-cert \
 security add-trusted-cert \
   -r trustRoot \
   -k ~/Library/Keychains/login.keychain \
-  ~/.kiji-proxy/certs/ca.crt
+  "$HOME/Library/Application Support/Kiji Privacy Proxy/certs/ca.crt"
 ```
 
 **macOS - Keychain Access GUI:**
 
 1. Open **Keychain Access**
 2. File → Import Items
-3. Select `~/.kiji-proxy/certs/ca.crt`
+3. Select `~/Library/Application Support/Kiji Privacy Proxy/certs/ca.crt` (the desktop app's **Settings → Reveal CA cert in Finder** opens this folder for you)
 4. Double-click "Kiji Privacy Proxy CA"
 5. Trust → **Always Trust**
 6. Close (enter password)
@@ -141,6 +143,10 @@ export REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
 
 **Node.js:**
 ```bash
+# macOS
+export NODE_EXTRA_CA_CERTS="$HOME/Library/Application Support/Kiji Privacy Proxy/certs/ca.crt"
+
+# Linux
 export NODE_EXTRA_CA_CERTS=~/.kiji-proxy/certs/ca.crt
 ```
 
@@ -181,6 +187,35 @@ proxy:
     - api.anthropic.com
   # Other domains pass through
 ```
+
+### Browser-Based Clients (CORS)
+
+Upstream LLM APIs (`api.openai.com`, `api.anthropic.com`, …) do not return browser-friendly CORS headers — they are designed to be called from server code, not from a page running in a browser. When a web page issues `fetch("https://api.openai.com/v1/chat/completions", …)`, the browser sends a preflight `OPTIONS` request first, gets no `Access-Control-Allow-Origin` in the response, and aborts with `Failed to fetch`.
+
+When the proxy intercepts these requests (transparent proxy mode + PAC routing), it transparently fixes this:
+
+- **Preflight short-circuit.** `OPTIONS` requests to intercepted hosts are answered directly by the proxy with `204 No Content` plus CORS headers — they are not forwarded upstream. This means provider APIs don't see preflight traffic, and the browser gets the headers it needs.
+- **Response header injection.** On normal (non-OPTIONS) intercepted responses, the proxy adds CORS headers after copying the upstream response headers, overriding any incompatible CORS values the upstream may have set.
+
+**Headers added:**
+
+| Header | Value |
+| --- | --- |
+| `Access-Control-Allow-Origin` | Echoes the request's `Origin` header (or `*` if absent) |
+| `Access-Control-Allow-Credentials` | `true` (only when `Origin` is present) |
+| `Access-Control-Allow-Headers` | Echoes `Access-Control-Request-Headers` from the preflight, or a default set covering `Authorization`, `Content-Type`, `OpenAI-Beta`, `anthropic-version`, etc. |
+| `Access-Control-Allow-Methods` | `GET, POST, PUT, DELETE, OPTIONS, PATCH` |
+| `Access-Control-Expose-Headers` | `*` |
+| `Access-Control-Max-Age` | `3600` |
+
+The header policy lives in `src/backend/proxy/cors.go` and is applied from both intercept paths in `src/backend/proxy/transparent.go` (plain HTTP and MITM-decrypted TLS).
+
+**Prerequisites for browser callers:**
+
+1. The browser must use the proxy — either via the PAC at `http://localhost:9090/proxy.pac` set as Automatic Proxy Configuration, or via explicit proxy settings pointing to `127.0.0.1:8081`.
+2. The browser must trust the Kiji CA. Chrome/Safari use the system keychain (see [Installing CA Certificate](#installing-ca-certificate)); Firefox keeps its own trust store.
+
+**Verifying it works:** the bundled demo at `src/scripts/app_demo/` exercises this path end-to-end — an `nginx`-served page at `http://localhost:8888` issues a `fetch` to `https://api.openai.com/v1/chat/completions`, the proxy intercepts, masks PII, forwards to OpenAI, restores PII, and the browser gets a usable response.
 
 ### Security Considerations
 
@@ -236,6 +271,27 @@ sudo update-ca-certificates --fresh
 sudo rm /etc/pki/ca-trust/source/anchors/kiji-proxy-ca.crt
 sudo update-ca-trust
 ```
+
+#### Migrating from "Yaak Proxy CA"
+
+Earlier builds of this project shipped the CA with the Common Name `Yaak Proxy CA` (a leftover from before the Kiji rebrand). If you installed a CA from one of those builds, the rename does **not** delete the old entry from your trust store — you'll have a stale `Yaak Proxy CA` cert alongside the new `Kiji Privacy Proxy CA`. The stale entry is harmless but clutters your keychain and may produce confusing "Number of trust settings" mismatches.
+
+To clean up after upgrading:
+
+```bash
+# macOS — remove legacy "Yaak Proxy CA" from System keychain
+sudo security delete-certificate -c "Yaak Proxy CA" /Library/Keychains/System.keychain
+
+# macOS — also check the user keychain
+security delete-certificate -c "Yaak Proxy CA" ~/Library/Keychains/login.keychain 2>/dev/null || true
+
+# macOS — also delete the on-disk CA + key so the backend regenerates them
+#         under the new name on next startup
+rm -f ~/"Library/Application Support/Kiji Privacy Proxy/certs/ca.crt" \
+      ~/"Library/Application Support/Kiji Privacy Proxy/certs/ca.key"
+```
+
+After regeneration, install the new CA following [Installing CA Certificate](#installing-ca-certificate) and restart your browser.
 
 ## Model Signing
 

@@ -9,8 +9,3 @@ import "embed"
 //
 //go:embed frontend/dist/*
 var uiFiles embed.FS
-
-// Embed model files
-//
-//go:embed model/quantized/*
-var modelFiles embed.FS

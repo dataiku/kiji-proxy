@@ -242,10 +242,11 @@ func newTestHandler(t *testing.T, detector *mockDetector, upstreamServer *httpte
 	var det pii.Detector = detector
 	detectorProvider := &mockDetectorProvider{detector: det}
 	generatorService := piiServices.NewGeneratorService()
-	maskingService := piiServices.NewMaskingService(detectorProvider, generatorService)
-	responseProcessor := processor.NewResponseProcessor(&det, cfg.Logging)
 	loggingDB := &mockLoggingDB{}
 	mappingDB := newMockMappingDB()
+	piiMapping := piiServices.NewPIIMappingWithDB(mappingDB, true)
+	maskingService := piiServices.NewMaskingService(detectorProvider, generatorService, piiMapping)
+	responseProcessor := processor.NewResponseProcessor(&det, cfg.Logging)
 
 	// If upstream server provided, use its URL as base; otherwise use a default client
 	client := http.DefaultClient

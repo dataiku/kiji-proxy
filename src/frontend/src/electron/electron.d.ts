@@ -46,6 +46,12 @@ interface ElectronAPI {
   ) => Promise<{ success: boolean; error?: string }>;
   getProvidersConfig: () => Promise<ProvidersConfig>;
   restartBackend: () => Promise<{ success: boolean; error?: string }>;
+  revealCACert: () => Promise<{
+    success: boolean;
+    path?: string;
+    exists?: boolean;
+    error?: string;
+  }>;
 
   // Other settings
   getCACertSetupDismissed: () => Promise<boolean>;

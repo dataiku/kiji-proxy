@@ -457,12 +457,17 @@ def main(argv):
             json.dump(label_mappings, f, indent=2)
         logging.info(f"✅ Label mappings saved to: {mappings_path}")
 
-        # Copy config.json if it exists
+        # Copy config.json if it exists. When model_path == output_path
+        # (e.g. exporting in place into ./model/trained), src and dst resolve
+        # to the same file — skip the copy in that case.
         config_path = Path(FLAGS.model_path) / "config.json"
-        if config_path.exists():
+        config_dst = output_path / "config.json"
+        if config_path.exists() and not (
+            config_dst.exists() and config_path.resolve() == config_dst.resolve()
+        ):
             import shutil
 
-            shutil.copy(config_path, output_path / "config.json")
+            shutil.copy(config_path, config_dst)
             logging.info("✅ Config file copied")
 
         # Quantize if requested

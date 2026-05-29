@@ -98,8 +98,9 @@ class DatasetProcessor:
             self.tokenizer, self.label2id, self.id2label
         )
 
+    @classmethod
     def convert_labelstudio_to_training_format(
-        self, ls_sample: dict, file_name: str
+        cls, ls_sample: dict, file_name: str
     ) -> dict | None:
         """
         Convert Label Studio format to training format.
@@ -153,7 +154,7 @@ class DatasetProcessor:
 
             def is_pii_entity(entity: dict) -> bool:
                 label = entity.get("label")
-                return bool(label) and label not in self._NON_PII_LABELS
+                return bool(label) and label not in cls._NON_PII_LABELS
 
             # Build privacy_mask from entities
             privacy_mask = []

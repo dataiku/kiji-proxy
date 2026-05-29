@@ -96,13 +96,13 @@ func (cm *CertManager) generateCA() error {
 	template := x509.Certificate{
 		SerialNumber: big.NewInt(1),
 		Subject: pkix.Name{
-			Organization:  []string{"Yaak Proxy CA"},
+			Organization:  []string{"Kiji Privacy Proxy CA"},
 			Country:       []string{"US"},
 			Province:      []string{""},
 			Locality:      []string{""},
 			StreetAddress: []string{""},
 			PostalCode:    []string{""},
-			CommonName:    "Yaak Proxy CA",
+			CommonName:    "Kiji Privacy Proxy CA",
 		},
 		NotBefore:             time.Now(),
 		NotAfter:              time.Now().AddDate(10, 0, 0), // 10 years
@@ -221,7 +221,7 @@ func (cm *CertManager) generateCert(hostname string) (*tls.Certificate, error) {
 	template := x509.Certificate{
 		SerialNumber: serialNumber,
 		Subject: pkix.Name{
-			Organization: []string{"Yaak Proxy"},
+			Organization: []string{"Kiji Privacy Proxy"},
 			Country:      []string{"US"},
 			CommonName:   host,
 			SerialNumber: serialNumber.String(),

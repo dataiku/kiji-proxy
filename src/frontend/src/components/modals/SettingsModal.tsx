@@ -14,6 +14,7 @@ import {
   Lock,
   Unlock,
   Globe,
+  FolderOpen,
 } from "lucide-react";
 
 // Providers that support a user-configurable custom endpoint URL.
@@ -640,6 +641,39 @@ export default function SettingsModal({
                 <ChevronRight className="w-5 h-5 text-slate-400" />
               </div>
             </div>
+
+            {/* Reveal CA cert in Finder */}
+            {isElectron && window.electronAPI && (
+              <div
+                onClick={async () => {
+                  const result = await window.electronAPI!.revealCACert();
+                  if (!result.success) {
+                    setMessage({
+                      type: "error",
+                      text:
+                        result.error ||
+                        "Failed to open the certificate folder.",
+                    });
+                  }
+                }}
+                className="border-2 border-slate-200 rounded-lg p-4 hover:border-slate-300 hover:bg-slate-50 transition-colors cursor-pointer"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <FolderOpen className="w-5 h-5 text-slate-600" />
+                    <div>
+                      <p className="font-medium text-slate-700">
+                        Reveal CA cert in Finder
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        Open the folder containing the proxy's root certificate
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-slate-400" />
+                </div>
+              </div>
+            )}
 
             {/* Message */}
             {message && (

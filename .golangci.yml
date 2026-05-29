@@ -24,6 +24,10 @@ linters:
     - whitespace
 
   settings:
+    goconst:
+      ignore-tests: true
+      ignore-string-values:
+        - '^(limit|success)$'
     gosec:
       excludes:
         - G101 # False positive on config field names matching "secret" patterns

@@ -112,7 +112,9 @@ The standalone backend runs as a headless server. Configure via environment vari
 
 **Installing CA Certificate (Required for HTTPS):**
 
-The proxy uses a self-signed certificate for MITM interception. You must trust it:
+The proxy uses a self-signed certificate for MITM interception. You must trust it.
+
+The CA cert lives in the app data directory: `~/Library/Application Support/Kiji Privacy Proxy/certs/ca.crt`. The desktop app also exposes a "Reveal CA cert in Finder" button in **Settings** if you'd rather not type the path.
 
 ```bash
 # System-wide trust (recommended)
@@ -120,12 +122,12 @@ sudo security add-trusted-cert \
   -d \
   -r trustRoot \
   -k /Library/Keychains/System.keychain \
-  ~/.kiji-proxy/certs/ca.crt
+  "$HOME/Library/Application Support/Kiji Privacy Proxy/certs/ca.crt"
 ```
 
 Or use Keychain Access GUI:
 1. Open **Keychain Access**
-2. File → Import Items → Select `~/.kiji-proxy/certs/ca.crt`
+2. File → Import Items → Select `~/Library/Application Support/Kiji Privacy Proxy/certs/ca.crt`
 3. Double-click "Kiji Privacy Proxy CA" certificate
 4. Expand **Trust** → Set to **Always Trust**
 
@@ -319,6 +321,9 @@ export DB_ENABLED="false"
 # Transparent proxy settings
 export TRANSPARENT_PROXY_ENABLED="true"
 export TRANSPARENT_PROXY_PORT=":8081"
+# CA paths default to the app data dir for your OS:
+#   macOS: ~/Library/Application Support/Kiji Privacy Proxy/certs/
+#   Linux: ~/.kiji-proxy/certs/  (or $KIJI_DATA_PATH / $XDG_DATA_HOME/kiji-proxy)
 export TRANSPARENT_PROXY_CA_PATH="~/.kiji-proxy/certs/ca.crt"
 export TRANSPARENT_PROXY_KEY_PATH="~/.kiji-proxy/certs/ca.key"
 ```
@@ -369,6 +374,8 @@ export TRANSPARENT_PROXY_KEY_PATH="~/.kiji-proxy/certs/ca.key"
   }
 }
 ```
+
+> **Path note:** Leading `~` is expanded to the user's home directory. On macOS the app's default CA paths are under `~/Library/Application Support/Kiji Privacy Proxy/certs/`; on Linux they default to `~/.kiji-proxy/certs/` (or `$KIJI_DATA_PATH` / `$XDG_DATA_HOME/kiji-proxy/certs/`). Override with absolute paths if you want them somewhere else.
 
 **Provider Configuration Notes:**
 

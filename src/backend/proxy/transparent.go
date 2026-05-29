@@ -135,6 +135,15 @@ func (tp *TransparentProxy) handleHTTPRequest(w http.ResponseWriter, r *http.Req
 func (tp *TransparentProxy) interceptHTTP(w http.ResponseWriter, r *http.Request, targetHost string, provider *providers.Provider) {
 	log.Printf("[TransparentProxy] Intercepting HTTP request to %s", targetHost)
 
+	// Short-circuit CORS preflight: browsers fire OPTIONS before cross-origin
+	// POSTs with Authorization/JSON headers. Upstream LLM APIs don't return
+	// browser-friendly CORS, so the proxy answers preflights itself.
+	if r.Method == http.MethodOptions {
+		drainAndClose(r.Body)
+		writeCORSPreflight(w, r)
+		return
+	}
+
 	// Read request body
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -205,6 +214,10 @@ func (tp *TransparentProxy) interceptHTTP(w http.ResponseWriter, r *http.Request
 			w.Header().Add(key, value)
 		}
 	}
+
+	// Inject CORS headers so browsers can read the response. Set after copying
+	// to override any (incompatible) CORS headers the upstream may have sent.
+	setCORSHeaders(w.Header(), r)
 
 	// Update Content-Length
 	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(modifiedBody)))
@@ -384,6 +397,15 @@ func (tp *TransparentProxy) interceptCONNECT(w http.ResponseWriter, _ *http.Requ
 // interceptHTTPOverTLS handles HTTP requests over a TLS connection
 // This method delegates to the shared Handler for PII processing to ensure consistency
 func (tp *TransparentProxy) interceptHTTPOverTLS(conn net.Conn, r *http.Request, targetHost string, provider *providers.Provider) {
+	// Short-circuit CORS preflight before any PII processing or forwarding —
+	// upstream providers don't return browser-friendly CORS.
+	if r.Method == http.MethodOptions {
+		log.Printf("[TransparentProxy] Responding to OPTIONS preflight for %s%s", targetHost, r.URL.Path)
+		drainAndClose(r.Body)
+		writeCORSPreflightOverTLS(conn, r)
+		return
+	}
+
 	// Read request body
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -455,6 +477,11 @@ func (tp *TransparentProxy) interceptHTTPOverTLS(conn net.Conn, r *http.Request,
 		Body:          io.NopCloser(bytes.NewReader(modifiedBody)),
 		ContentLength: int64(len(modifiedBody)),
 	}
+
+	// Inject CORS headers so browsers can read the response. Set after the
+	// upstream header copy to override any incompatible CORS values upstream
+	// may have sent.
+	setCORSHeaders(newResp.Header, r)
 
 	// Update Content-Length header
 	newResp.Header.Set("Content-Length", fmt.Sprintf("%d", len(modifiedBody)))
