@@ -383,17 +383,6 @@ jobs:
           chmod +x src/scripts/build_linux.sh
           ./src/scripts/build_linux.sh
 
-      - name: Install deb packaging tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            debhelper devscripts fakeroot dpkg-dev
-
-      - name: Build .deb package
-        run: |
-          chmod +x src/scripts/build_deb.sh
-          ./src/scripts/build_deb.sh
-          
       - name: Report GLIBC requirements
         run: |
           chmod +x src/scripts/report_glibc_requirements.sh
@@ -416,8 +405,6 @@ jobs:
           path: |
             release/linux/*.tar.gz
             release/linux/*.tar.gz.sha256
-            release/linux/*.deb
-            release/linux/*.deb.sha256
           retention-days: 90
 
       - name: Build Summary
@@ -430,13 +417,69 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           ls -lh release/linux/*.tar.gz 2>/dev/null | awk '{print "- " $9 " (" $5 ")"}' >> $GITHUB_STEP_SUMMARY || echo "No archive files found" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**SHA256 Checksums:**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          cat release/linux/*.sha256 2>/dev/null | awk '{print "- `" $1 "`"}' >> $GITHUB_STEP_SUMMARY || echo "No checksums found" >> $GITHUB_STEP_SUMMARY
+
+  # ──────────────────────────────────────────────────────────────────────
+  # Package the Linux binary as a .deb (Debian-native tooling, so this
+  # runs on ubuntu-latest rather than the almalinux build container).
+  # ──────────────────────────────────────────────────────────────────────
+  package-linux-deb:
+    name: Package Linux .deb
+    needs: build-linux
+    if: |
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' && github.event.pull_request.merged == true && contains(github.event.pull_request.labels.*.name, 'release'))
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      - name: Download Linux binary artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: linux-assets
+          path: release/linux
+
+      - name: Install deb packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            debhelper devscripts fakeroot dpkg-dev
+
+      - name: Build .deb package
+        run: |
+          chmod +x src/scripts/build_deb.sh
+          ./src/scripts/build_deb.sh
+
+      - name: Upload .deb as Artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux-deb
+          path: |
+            release/linux/*.deb
+            release/linux/*.deb.sha256
+          retention-days: 90
+
+      - name: Build Summary
+        if: always()
+        run: |
+          echo "## 📦 Linux .deb Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Deb Packages:**" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           ls -lh release/linux/*.deb 2>/dev/null | awk '{print "- " $9 " (" $5 ")"}' >> $GITHUB_STEP_SUMMARY || echo "No deb packages found" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**SHA256 Checksums:**" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          cat release/linux/*.sha256 2>/dev/null | awk '{print "- `" $1 "`"}' >> $GITHUB_STEP_SUMMARY || echo "No checksums found" >> $GITHUB_STEP_SUMMARY
+          cat release/linux/*.deb.sha256 2>/dev/null | awk '{print "- `" $1 "`"}' >> $GITHUB_STEP_SUMMARY || echo "No checksums found" >> $GITHUB_STEP_SUMMARY
 
   # ──────────────────────────────────────────────────────────────────────
   # Chrome Extension package
@@ -520,7 +563,7 @@ jobs:
   # ──────────────────────────────────────────────────────────────────────
   create-release:
     name: Create GitHub Release
-    needs: [build-dmg, build-linux, build-chrome]
+    needs: [build-dmg, build-linux, package-linux-deb, build-chrome]
     if: |
       startsWith(github.ref, 'refs/tags/v') ||
       github.event.inputs.create_release == 'true' ||
@@ -700,8 +743,8 @@ jobs:
           cp release-assets/dmg-assets/latest-mac.yml assets/ 2>/dev/null || true
           cp release-assets/linux-assets/*.tar.gz assets/ 2>/dev/null || true
           cp release-assets/linux-assets/*.tar.gz.sha256 assets/ 2>/dev/null || true
-          cp release-assets/linux-assets/*.deb assets/ 2>/dev/null || true
-          cp release-assets/linux-assets/*.deb.sha256 assets/ 2>/dev/null || true
+          cp release-assets/linux-deb/*.deb assets/ 2>/dev/null || true
+          cp release-assets/linux-deb/*.deb.sha256 assets/ 2>/dev/null || true
           cp release-assets/chrome-assets/*.zip assets/ 2>/dev/null || true
           cp release-assets/chrome-assets/*.zip.sha256 assets/ 2>/dev/null || true
 
