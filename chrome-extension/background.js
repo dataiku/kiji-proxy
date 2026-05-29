@@ -170,7 +170,7 @@ chrome.runtime.onStartup.addListener(() => {
 
 // --- Message handling ---
 
-async function handlePIICheck(text) {
+async function handlePIICheck(text, site) {
   // Pull the latest backendUrl every time — the service worker may have been
   // torn down since startup, which resets in-memory `backendUrl` to the
   // default even if the user configured a different one in options.
@@ -186,7 +186,7 @@ async function handlePIICheck(text) {
     response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: text }),
+      body: JSON.stringify({ message: text, site: site || "" }),
       signal: AbortSignal.timeout(10000),
     });
   } catch (e) {
@@ -227,7 +227,7 @@ async function handlePIICheck(text) {
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "check-pii-text") {
-    handlePIICheck(message.text).then(sendResponse);
+    handlePIICheck(message.text, message.site).then(sendResponse);
     return true; // keep channel open for async sendResponse
   }
 

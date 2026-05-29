@@ -206,12 +206,29 @@ jobs:
             fi
           done
 
+      - name: Generate DMG SHA256 Checksums
+        working-directory: src/frontend/release
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          dmgs=(*.dmg)
+          if [ ${#dmgs[@]} -eq 0 ]; then
+            echo "::error::No DMG files found in src/frontend/release"
+            exit 1
+          fi
+          for dmg in "${dmgs[@]}"; do
+            shasum -a 256 "$dmg" > "${dmg}.sha256"
+            echo "Generated checksum:"
+            cat "${dmg}.sha256"
+          done
+
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v7
         with:
           name: dmg-assets
           path: |
             src/frontend/release/*.dmg
+            src/frontend/release/*.dmg.sha256
             src/frontend/release/*.zip
             src/frontend/release/latest-mac.yml
           retention-days: 90
@@ -225,6 +242,10 @@ jobs:
           echo "**DMG Files:**" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           ls -lh src/frontend/release/*.dmg 2>/dev/null | awk '{print "- " $9 " (" $5 ")"}' >> $GITHUB_STEP_SUMMARY || echo "No DMG files found" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**SHA256 Checksums:**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          cat src/frontend/release/*.dmg.sha256 2>/dev/null | awk '{print "- `" $1 "`  " $2}' >> $GITHUB_STEP_SUMMARY || echo "No checksums found" >> $GITHUB_STEP_SUMMARY
 
   # ──────────────────────────────────────────────────────────────────────
   # Linux binary build (amd64)
@@ -642,6 +663,7 @@ jobs:
           # Collect all release assets into a flat directory
           mkdir -p assets
           cp release-assets/dmg-assets/*.dmg assets/ 2>/dev/null || true
+          cp release-assets/dmg-assets/*.dmg.sha256 assets/ 2>/dev/null || true
           cp release-assets/dmg-assets/*.zip assets/ 2>/dev/null || true
           cp release-assets/dmg-assets/latest-mac.yml assets/ 2>/dev/null || true
           cp release-assets/linux-assets/*.tar.gz assets/ 2>/dev/null || true
@@ -660,3 +682,138 @@ jobs:
             --generate-notes \
             --latest \
             $IS_PRERELEASE
+
+  # ──────────────────────────────────────────────────────────────────────
+  # Publish Homebrew Cask to dataiku/homebrew-tap
+  # ──────────────────────────────────────────────────────────────────────
+  publish-homebrew-tap:
+    name: Publish Homebrew Tap
+    needs: [create-release]
+    if: |
+      startsWith(github.ref, 'refs/tags/v') ||
+      github.event.inputs.create_release == 'true' ||
+      (github.event_name == 'pull_request' && github.event.pull_request.merged == true && contains(github.event.pull_request.labels.*.name, 'release'))
+
+    runs-on: ubuntu-latest
+
+    environment: "Homebrew Release"
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha || github.ref }}
+
+      - name: Extract Version
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+          else
+            VERSION=$(cat src/frontend/package.json | grep '"version"' | head -1 | awk -F '"' '{print $4}')
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+          # Tap only ships stable releases; skip alpha/beta/rc.
+          if [[ "$VERSION" == *"-alpha"* ]] || [[ "$VERSION" == *"-beta"* ]] || [[ "$VERSION" == *"-rc"* ]]; then
+            echo "is_prerelease=true" >> $GITHUB_OUTPUT
+            echo "::notice::Skipping Homebrew tap publish for prerelease $VERSION"
+          else
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download DMG artifacts
+        if: steps.version.outputs.is_prerelease == 'false'
+        uses: actions/download-artifact@v8
+        with:
+          name: dmg-assets
+          path: dmg-assets
+
+      - name: Compute DMG SHA256
+        id: cask
+        if: steps.version.outputs.is_prerelease == 'false'
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.version.outputs.version }}"
+          DMG="dmg-assets/Kiji-Privacy-Proxy-${VERSION}.dmg"
+          if [ ! -f "$DMG" ]; then
+            echo "::error::Expected DMG not found at $DMG"
+            ls -la dmg-assets/
+            exit 1
+          fi
+          if [ ! -f "${DMG}.sha256" ]; then
+            echo "::error::Checksum file not found at ${DMG}.sha256"
+            exit 1
+          fi
+          SHA=$(awk '{print $1}' "${DMG}.sha256")
+          if [ -z "$SHA" ]; then
+            echo "::error::Empty SHA256 parsed from ${DMG}.sha256"
+            exit 1
+          fi
+          echo "sha256=$SHA" >> $GITHUB_OUTPUT
+          echo "DMG SHA256: $SHA"
+
+      - name: Generate GitHub App token for homebrew-tap
+        if: steps.version.outputs.is_prerelease == 'false'
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.HOMEBREW_TAP_APP_CLIENT_ID }}
+          private-key: ${{ secrets.HOMEBREW_TAP_APP_PRIVATE_KEY }}
+          owner: dataiku
+          repositories: homebrew-tap
+
+      - name: Checkout homebrew-tap
+        if: steps.version.outputs.is_prerelease == 'false'
+        uses: actions/checkout@v6
+        with:
+          repository: dataiku/homebrew-tap
+          token: ${{ steps.app-token.outputs.token }}
+          path: homebrew-tap
+
+      - name: Render cask and push
+        if: steps.version.outputs.is_prerelease == 'false'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          SHA256: ${{ steps.cask.outputs.sha256 }}
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+        run: |
+          set -euo pipefail
+          SRC=packaging/homebrew/Casks/kiji-privacy-proxy.rb
+          DST=homebrew-tap/Casks/kiji-privacy-proxy.rb
+          mkdir -p homebrew-tap/Casks
+
+          # Guard against template drift: refuse to render if the placeholders
+          # we depend on are no longer present.
+          if ! grep -q '^  version "0\.0\.0"$' "$SRC"; then
+            echo "::error::Template $SRC no longer contains placeholder: version \"0.0.0\""
+            exit 1
+          fi
+          if ! grep -qE '^  sha256 "0{64}"$' "$SRC"; then
+            echo "::error::Template $SRC no longer contains placeholder sha256"
+            exit 1
+          fi
+
+          sed \
+            -e "s|^  version \"0\\.0\\.0\"$|  version \"${VERSION}\"|" \
+            -e "s|^  sha256 \"0\\{64\\}\"$|  sha256 \"${SHA256}\"|" \
+            "$SRC" > "$DST"
+
+          echo "Rendered cask:"
+          cat "$DST"
+
+          cd homebrew-tap
+          git config user.name  "${APP_SLUG}[bot]"
+          git config user.email "${APP_SLUG}[bot]@users.noreply.github.com"
+
+          if git diff --quiet -- Casks/kiji-privacy-proxy.rb; then
+            echo "::notice::Cask already at ${VERSION}, nothing to commit."
+            exit 0
+          fi
+
+          git add Casks/kiji-privacy-proxy.rb
+          git commit -m "kiji-privacy-proxy ${VERSION}"
+          git push origin HEAD:main

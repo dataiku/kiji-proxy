@@ -106,7 +106,9 @@ export default function CACertSetupModal({
                 className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-sm font-medium transition-colors border border-slate-300"
               >
                 <FolderOpen className="w-4 h-4" />
-                Reveal CA cert in Finder
+                {window.electronAPI?.platform === "darwin"
+                  ? "Reveal CA cert in Finder"
+                  : "Show CA cert in Explorer"}
               </button>
               {revealError && (
                 <p className="text-xs text-red-600 mt-2">{revealError}</p>

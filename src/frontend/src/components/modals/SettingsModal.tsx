@@ -642,9 +642,11 @@ export default function SettingsModal({
               </div>
             </div>
 
-            {/* Reveal CA cert in Finder */}
+            {/* Reveal CA cert in Finder / Explorer */}
             {isElectron && window.electronAPI && (
               <div
+                role="button"
+                tabIndex={0}
                 onClick={async () => {
                   const result = await window.electronAPI!.revealCACert();
                   if (!result.success) {
@@ -656,6 +658,20 @@ export default function SettingsModal({
                     });
                   }
                 }}
+                onKeyDown={async (e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    const result = await window.electronAPI!.revealCACert();
+                    if (!result.success) {
+                      setMessage({
+                        type: "error",
+                        text:
+                          result.error ||
+                          "Failed to open the certificate folder.",
+                      });
+                    }
+                  }
+                }}
                 className="border-2 border-slate-200 rounded-lg p-4 hover:border-slate-300 hover:bg-slate-50 transition-colors cursor-pointer"
               >
                 <div className="flex items-center justify-between">
@@ -663,7 +679,9 @@ export default function SettingsModal({
                     <FolderOpen className="w-5 h-5 text-slate-600" />
                     <div>
                       <p className="font-medium text-slate-700">
-                        Reveal CA cert in Finder
+                        {window.electronAPI.platform === "darwin"
+                          ? "Reveal CA cert in Finder"
+                          : "Show CA cert in Explorer"}
                       </p>
                       <p className="text-xs text-slate-500">
                         Open the folder containing the proxy's root certificate

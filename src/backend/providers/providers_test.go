@@ -344,6 +344,571 @@ func TestOpenAIProvider_RestoreMaskedResponse(t *testing.T) {
 	})
 }
 
+// --- OpenAI Responses-API (reasoning-model endpoint) tests ---
+
+func TestOpenAIProvider_CreateMaskedRequest_ResponsesAPI(t *testing.T) {
+	p := NewOpenAIProvider("api.openai.com", "sk-test", nil)
+
+	t.Run("masks string input", func(t *testing.T) {
+		data := map[string]interface{}{
+			"model": "gpt-5",
+			"input": "Hello John Doe",
+		}
+
+		mapping, entities, err := p.CreateMaskedRequest(data, replaceMaskPII)
+		if err != nil {
+			t.Fatalf("CreateMaskedRequest() error = %v", err)
+		}
+		if len(mapping) == 0 {
+			t.Error("expected non-empty mapping")
+		}
+		if entities == nil || len(*entities) == 0 {
+			t.Error("expected non-empty entities")
+		}
+		if data["input"] != "Hello Jane Smith" {
+			t.Errorf("input = %q, want %q", data["input"], "Hello Jane Smith")
+		}
+	})
+
+	t.Run("masks string instructions", func(t *testing.T) {
+		data := map[string]interface{}{
+			"model":        "gpt-5",
+			"instructions": "Hello John Doe",
+			"input":        "noop",
+		}
+
+		_, _, err := p.CreateMaskedRequest(data, replaceMaskPII)
+		if err != nil {
+			t.Fatalf("CreateMaskedRequest() error = %v", err)
+		}
+		if data["instructions"] != "Hello Jane Smith" {
+			t.Errorf("instructions = %q, want %q", data["instructions"], "Hello Jane Smith")
+		}
+	})
+
+	t.Run("masks array input with string content", func(t *testing.T) {
+		data := map[string]interface{}{
+			"model": "gpt-5",
+			"input": []interface{}{
+				map[string]interface{}{"role": "user", "content": "Hello John Doe"},
+			},
+		}
+
+		_, _, err := p.CreateMaskedRequest(data, replaceMaskPII)
+		if err != nil {
+			t.Fatalf("CreateMaskedRequest() error = %v", err)
+		}
+		items := data["input"].([]interface{})
+		item := items[0].(map[string]interface{})
+		if item["content"] != "Hello Jane Smith" {
+			t.Errorf("content = %q, want %q", item["content"], "Hello Jane Smith")
+		}
+	})
+
+	t.Run("masks array input with content parts", func(t *testing.T) {
+		data := map[string]interface{}{
+			"model": "gpt-5",
+			"input": []interface{}{
+				map[string]interface{}{
+					"role": "user",
+					"content": []interface{}{
+						map[string]interface{}{"type": "input_text", "text": "Hello John Doe"},
+					},
+				},
+			},
+		}
+
+		_, _, err := p.CreateMaskedRequest(data, replaceMaskPII)
+		if err != nil {
+			t.Fatalf("CreateMaskedRequest() error = %v", err)
+		}
+		items := data["input"].([]interface{})
+		item := items[0].(map[string]interface{})
+		parts := item["content"].([]interface{})
+		part := parts[0].(map[string]interface{})
+		if part["text"] != "Hello Jane Smith" {
+			t.Errorf("text = %q, want %q", part["text"], "Hello Jane Smith")
+		}
+	})
+
+	t.Run("instructions-only request is valid", func(t *testing.T) {
+		data := map[string]interface{}{
+			"model":        "gpt-5",
+			"instructions": "Hello John Doe",
+		}
+		_, _, err := p.CreateMaskedRequest(data, replaceMaskPII)
+		if err != nil {
+			t.Fatalf("CreateMaskedRequest() error = %v", err)
+		}
+		if data["instructions"] != "Hello Jane Smith" {
+			t.Errorf("instructions = %q, want %q", data["instructions"], "Hello Jane Smith")
+		}
+	})
+}
+
+func TestOpenAIProvider_RestoreMaskedResponse_ResponsesAPI(t *testing.T) {
+	p := NewOpenAIProvider("api.openai.com", "sk-test", nil)
+
+	restoreJaneToJohn := func(text string, m map[string]string) string {
+		if text == "Hello Jane Smith" {
+			return "Hello John Doe"
+		}
+		return text
+	}
+
+	t.Run("restores PII in output content and output_text", func(t *testing.T) {
+		data := map[string]interface{}{
+			"output": []interface{}{
+				map[string]interface{}{
+					"type": "message",
+					"role": "assistant",
+					"content": []interface{}{
+						map[string]interface{}{"type": "output_text", "text": "Hello Jane Smith"},
+					},
+				},
+			},
+			"output_text": "Hello Jane Smith",
+		}
+
+		err := p.RestoreMaskedResponse(data, map[string]string{"Jane Smith": "John Doe"}, "", restoreJaneToJohn, falseFunc, falseFunc, falseFunc)
+		if err != nil {
+			t.Fatalf("RestoreMaskedResponse() error = %v", err)
+		}
+
+		output := data["output"].([]interface{})
+		item := output[0].(map[string]interface{})
+		contents := item["content"].([]interface{})
+		part := contents[0].(map[string]interface{})
+		if part["text"] != "Hello John Doe" {
+			t.Errorf("output text = %q, want %q", part["text"], "Hello John Doe")
+		}
+		if data["output_text"] != "Hello John Doe" {
+			t.Errorf("output_text = %q, want %q", data["output_text"], "Hello John Doe")
+		}
+	})
+
+	t.Run("ignores non-message output items (e.g. reasoning)", func(t *testing.T) {
+		data := map[string]interface{}{
+			"output": []interface{}{
+				map[string]interface{}{
+					"type":    "reasoning",
+					"summary": []interface{}{},
+				},
+				map[string]interface{}{
+					"type": "message",
+					"content": []interface{}{
+						map[string]interface{}{"type": "output_text", "text": "Hello Jane Smith"},
+					},
+				},
+			},
+		}
+
+		err := p.RestoreMaskedResponse(data, map[string]string{"Jane Smith": "John Doe"}, "", restoreJaneToJohn, falseFunc, falseFunc, falseFunc)
+		if err != nil {
+			t.Fatalf("RestoreMaskedResponse() error = %v", err)
+		}
+
+		output := data["output"].([]interface{})
+		msg := output[1].(map[string]interface{})
+		contents := msg["content"].([]interface{})
+		part := contents[0].(map[string]interface{})
+		if part["text"] != "Hello John Doe" {
+			t.Errorf("text = %q, want %q", part["text"], "Hello John Doe")
+		}
+	})
+
+	t.Run("adds proxy notice on message items and output_text", func(t *testing.T) {
+		data := map[string]interface{}{
+			"output": []interface{}{
+				map[string]interface{}{
+					"type": "message",
+					"content": []interface{}{
+						map[string]interface{}{"type": "output_text", "text": "Hello"},
+					},
+				},
+			},
+			"output_text": "Hello",
+		}
+		notice := "\n[proxy notice]"
+
+		err := p.RestoreMaskedResponse(data, map[string]string{}, notice, noopRestorePII, falseFunc, falseFunc, trueFunc)
+		if err != nil {
+			t.Fatalf("RestoreMaskedResponse() error = %v", err)
+		}
+
+		output := data["output"].([]interface{})
+		item := output[0].(map[string]interface{})
+		contents := item["content"].([]interface{})
+		part := contents[0].(map[string]interface{})
+		expected := "Hello" + notice
+		if part["text"] != expected {
+			t.Errorf("output text = %q, want %q", part["text"], expected)
+		}
+		if data["output_text"] != expected {
+			t.Errorf("output_text = %q, want %q", data["output_text"], expected)
+		}
+	})
+
+	t.Run("output_text only (no output array)", func(t *testing.T) {
+		data := map[string]interface{}{
+			"output_text": "Hello Jane Smith",
+		}
+
+		err := p.RestoreMaskedResponse(data, map[string]string{"Jane Smith": "John Doe"}, "", restoreJaneToJohn, falseFunc, falseFunc, falseFunc)
+		if err != nil {
+			t.Fatalf("RestoreMaskedResponse() error = %v", err)
+		}
+		if data["output_text"] != "Hello John Doe" {
+			t.Errorf("output_text = %q, want %q", data["output_text"], "Hello John Doe")
+		}
+	})
+}
+
+func TestOpenAIProvider_ExtractRequestText_ResponsesAPI(t *testing.T) {
+	p := NewOpenAIProvider("api.openai.com", "sk-test", nil)
+
+	t.Run("string input", func(t *testing.T) {
+		data := map[string]interface{}{
+			"model": "gpt-5",
+			"input": "Hello world",
+		}
+		got, err := p.ExtractRequestText(data)
+		if err != nil {
+			t.Fatalf("ExtractRequestText() error = %v", err)
+		}
+		if got != "Hello world\n" {
+			t.Errorf("ExtractRequestText() = %q, want %q", got, "Hello world\n")
+		}
+	})
+
+	t.Run("instructions + array input with text parts", func(t *testing.T) {
+		data := map[string]interface{}{
+			"model":        "gpt-5",
+			"instructions": "Be brief",
+			"input": []interface{}{
+				map[string]interface{}{
+					"role": "user",
+					"content": []interface{}{
+						map[string]interface{}{"type": "input_text", "text": "Hello"},
+					},
+				},
+			},
+		}
+		got, err := p.ExtractRequestText(data)
+		if err != nil {
+			t.Fatalf("ExtractRequestText() error = %v", err)
+		}
+		if got != "Be brief\nHello\n" {
+			t.Errorf("ExtractRequestText() = %q, want %q", got, "Be brief\nHello\n")
+		}
+	})
+}
+
+func TestOpenAIProvider_ExtractResponseText_ResponsesAPI(t *testing.T) {
+	p := NewOpenAIProvider("api.openai.com", "sk-test", nil)
+
+	t.Run("output array with text", func(t *testing.T) {
+		data := map[string]interface{}{
+			"output": []interface{}{
+				map[string]interface{}{
+					"type": "message",
+					"content": []interface{}{
+						map[string]interface{}{"type": "output_text", "text": "Hi there"},
+					},
+				},
+			},
+		}
+		got, err := p.ExtractResponseText(data)
+		if err != nil {
+			t.Fatalf("ExtractResponseText() error = %v", err)
+		}
+		if got != "Hi there\n" {
+			t.Errorf("ExtractResponseText() = %q, want %q", got, "Hi there\n")
+		}
+	})
+
+	t.Run("output_text only", func(t *testing.T) {
+		data := map[string]interface{}{
+			"output_text": "Hi there",
+		}
+		got, err := p.ExtractResponseText(data)
+		if err != nil {
+			t.Fatalf("ExtractResponseText() error = %v", err)
+		}
+		if got != "Hi there\n" {
+			t.Errorf("ExtractResponseText() = %q, want %q", got, "Hi there\n")
+		}
+	})
+}
+
+func TestOpenAIProvider_ShapeDetection(t *testing.T) {
+	tests := []struct {
+		name     string
+		data     map[string]interface{}
+		isResp   bool
+	}{
+		{"chat completions with messages", map[string]interface{}{"messages": []interface{}{}}, false},
+		{"responses with input string", map[string]interface{}{"input": "hi"}, true},
+		{"responses with input array", map[string]interface{}{"input": []interface{}{}}, true},
+		{"responses with instructions only", map[string]interface{}{"instructions": "be brief"}, true},
+		{"neither (no schema fields)", map[string]interface{}{"model": "gpt-4"}, false},
+		{"both messages and input prefers chat", map[string]interface{}{"messages": []interface{}{}, "input": "hi"}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isResponsesAPIRequest(tt.data); got != tt.isResp {
+				t.Errorf("isResponsesAPIRequest() = %v, want %v", got, tt.isResp)
+			}
+		})
+	}
+}
+
+func TestIsReasoningModel(t *testing.T) {
+	tests := []struct {
+		model string
+		want  bool
+	}{
+		// gpt-5 family
+		{"gpt-5", true},
+		{"gpt-5-mini", true},
+		{"gpt-5-nano", true},
+		{"gpt-5-2025-08-07", true},
+		// o-series
+		{"o1", true},
+		{"o1-mini", true},
+		{"o1-preview", true},
+		{"o1-pro", true},
+		{"o1-2024-12-17", true},
+		{"o3", true},
+		{"o3-mini", true},
+		{"o3-pro", true},
+		{"o4-mini", true},
+		// non-reasoning chat models
+		{"gpt-4", false},
+		{"gpt-4o", false},
+		{"gpt-4-turbo", false},
+		{"gpt-3.5-turbo", false},
+		// not in the allow-list (would have matched the old o[1-9] regex)
+		{"o2", false},
+		{"o5-mini", false},
+		// not OpenAI reasoning models at all
+		{"opus-4", false},
+		{"openai-something", false},
+		{"", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.model, func(t *testing.T) {
+			if got := isReasoningModel(tt.model); got != tt.want {
+				t.Errorf("isReasoningModel(%q) = %v, want %v", tt.model, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestMaybeConvertOpenAIRequest_ChatToResponses(t *testing.T) {
+	t.Run("reasoning model on chat path is converted", func(t *testing.T) {
+		body := []byte(`{
+			"model": "gpt-5-2025-08-07",
+			"max_tokens": 1000,
+			"messages": [
+				{"role": "system", "content": "Be concise"},
+				{"role": "user", "content": "Hi"}
+			]
+		}`)
+
+		out, path := MaybeConvertOpenAIRequest(body, ProviderSubpathOpenAI)
+		if path != ProviderSubpathOpenAIResp {
+			t.Fatalf("path = %q, want %q", path, ProviderSubpathOpenAIResp)
+		}
+
+		var data map[string]interface{}
+		if err := json.Unmarshal(out, &data); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+
+		if _, ok := data["messages"]; ok {
+			t.Error("messages field should be removed")
+		}
+		if _, ok := data["max_tokens"]; ok {
+			t.Error("max_tokens should be renamed")
+		}
+		if mt, ok := data["max_output_tokens"].(float64); !ok || mt != 1000 {
+			t.Errorf("max_output_tokens = %v, want 1000", data["max_output_tokens"])
+		}
+		if data["instructions"] != "Be concise" {
+			t.Errorf("instructions = %q, want %q", data["instructions"], "Be concise")
+		}
+		input, ok := data["input"].([]interface{})
+		if !ok {
+			t.Fatalf("input not an array, got %T", data["input"])
+		}
+		if len(input) != 1 {
+			t.Fatalf("len(input) = %d, want 1 (system message moved to instructions)", len(input))
+		}
+		item := input[0].(map[string]interface{})
+		if item["role"] != "user" || item["content"] != "Hi" {
+			t.Errorf("input[0] = %v, want {role:user, content:Hi}", item)
+		}
+	})
+
+	t.Run("non-reasoning model on chat path is not converted", func(t *testing.T) {
+		body := []byte(`{"model":"gpt-4","messages":[{"role":"user","content":"Hi"}]}`)
+		out, path := MaybeConvertOpenAIRequest(body, ProviderSubpathOpenAI)
+		if path != ProviderSubpathOpenAI {
+			t.Errorf("path = %q, want unchanged %q", path, ProviderSubpathOpenAI)
+		}
+		if string(out) != string(body) {
+			t.Errorf("body should be unchanged")
+		}
+	})
+
+	t.Run("multiple system messages are joined into instructions", func(t *testing.T) {
+		body := []byte(`{
+			"model": "gpt-5",
+			"messages": [
+				{"role": "system", "content": "Be polite"},
+				{"role": "developer", "content": "Use markdown"},
+				{"role": "user", "content": "Hello"}
+			]
+		}`)
+		out, _ := MaybeConvertOpenAIRequest(body, ProviderSubpathOpenAI)
+		var data map[string]interface{}
+		_ = json.Unmarshal(out, &data)
+		want := "Be polite\n\nUse markdown"
+		if data["instructions"] != want {
+			t.Errorf("instructions = %q, want %q", data["instructions"], want)
+		}
+	})
+
+	t.Run("strips chat-completions-only fields", func(t *testing.T) {
+		body := []byte(`{
+			"model": "gpt-5",
+			"messages": [{"role":"user","content":"hi"}],
+			"frequency_penalty": 0.5,
+			"presence_penalty": 0.3,
+			"n": 2,
+			"logprobs": true
+		}`)
+		out, _ := MaybeConvertOpenAIRequest(body, ProviderSubpathOpenAI)
+		var data map[string]interface{}
+		_ = json.Unmarshal(out, &data)
+		for _, k := range []string{"frequency_penalty", "presence_penalty", "n", "logprobs"} {
+			if _, ok := data[k]; ok {
+				t.Errorf("field %q should be stripped", k)
+			}
+		}
+	})
+
+	// A well-formed request carries either `messages` or `input`, not both. If a
+	// malformed request carries both, presence of `messages` wins and the
+	// converted messages overwrite any pre-existing `input`. This is by design:
+	// PII masking ran against `messages`, so the unmasked `input` must not
+	// survive into the upstream request.
+	t.Run("malformed request with both messages and input: input is overwritten", func(t *testing.T) {
+		body := []byte(`{
+			"model": "gpt-5",
+			"messages": [{"role":"user","content":"from messages"}],
+			"input": "from input (unmasked)"
+		}`)
+		out, path := MaybeConvertOpenAIRequest(body, ProviderSubpathOpenAI)
+		if path != ProviderSubpathOpenAIResp {
+			t.Fatalf("path = %q, want %q", path, ProviderSubpathOpenAIResp)
+		}
+		var data map[string]interface{}
+		if err := json.Unmarshal(out, &data); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		input, ok := data["input"].([]interface{})
+		if !ok {
+			t.Fatalf("input not an array, got %T (%v)", data["input"], data["input"])
+		}
+		if len(input) != 1 {
+			t.Fatalf("len(input) = %d, want 1", len(input))
+		}
+		item := input[0].(map[string]interface{})
+		if item["content"] != "from messages" {
+			t.Errorf("input[0].content = %q, want %q (pre-existing input must not survive)", item["content"], "from messages")
+		}
+	})
+}
+
+func TestMaybeConvertOpenAIRequest_ResponsesToChat(t *testing.T) {
+	t.Run("non-reasoning model on responses path is converted", func(t *testing.T) {
+		body := []byte(`{
+			"model": "gpt-4",
+			"max_output_tokens": 500,
+			"instructions": "Be brief",
+			"input": "Tell me a joke"
+		}`)
+
+		out, path := MaybeConvertOpenAIRequest(body, ProviderSubpathOpenAIResp)
+		if path != ProviderSubpathOpenAI {
+			t.Fatalf("path = %q, want %q", path, ProviderSubpathOpenAI)
+		}
+
+		var data map[string]interface{}
+		_ = json.Unmarshal(out, &data)
+		if _, ok := data["input"]; ok {
+			t.Error("input should be removed")
+		}
+		if _, ok := data["instructions"]; ok {
+			t.Error("instructions should be folded into messages")
+		}
+		if mt, ok := data["max_tokens"].(float64); !ok || mt != 500 {
+			t.Errorf("max_tokens = %v, want 500", data["max_tokens"])
+		}
+		messages, ok := data["messages"].([]interface{})
+		if !ok || len(messages) != 2 {
+			t.Fatalf("messages = %v, want 2 messages", data["messages"])
+		}
+		sys := messages[0].(map[string]interface{})
+		if sys["role"] != "system" || sys["content"] != "Be brief" {
+			t.Errorf("system message = %v", sys)
+		}
+		user := messages[1].(map[string]interface{})
+		if user["role"] != "user" || user["content"] != "Tell me a joke" {
+			t.Errorf("user message = %v", user)
+		}
+	})
+
+	t.Run("reasoning model on responses path is not converted", func(t *testing.T) {
+		body := []byte(`{"model":"gpt-5","input":"hi"}`)
+		out, path := MaybeConvertOpenAIRequest(body, ProviderSubpathOpenAIResp)
+		if path != ProviderSubpathOpenAIResp {
+			t.Errorf("path should be unchanged: got %q", path)
+		}
+		if string(out) != string(body) {
+			t.Errorf("body should be unchanged")
+		}
+	})
+}
+
+func TestMaybeConvertOpenAIRequest_NoOps(t *testing.T) {
+	t.Run("invalid JSON passes through", func(t *testing.T) {
+		body := []byte(`not json`)
+		out, path := MaybeConvertOpenAIRequest(body, ProviderSubpathOpenAI)
+		if path != ProviderSubpathOpenAI || string(out) != string(body) {
+			t.Error("invalid JSON should pass through unchanged")
+		}
+	})
+
+	t.Run("missing model passes through", func(t *testing.T) {
+		body := []byte(`{"messages":[]}`)
+		out, path := MaybeConvertOpenAIRequest(body, ProviderSubpathOpenAI)
+		if path != ProviderSubpathOpenAI || string(out) != string(body) {
+			t.Error("missing model should pass through unchanged")
+		}
+	})
+
+	t.Run("unrelated path passes through", func(t *testing.T) {
+		body := []byte(`{"model":"gpt-5","messages":[]}`)
+		out, path := MaybeConvertOpenAIRequest(body, "/v1/embeddings")
+		if path != "/v1/embeddings" || string(out) != string(body) {
+			t.Error("unrelated path should pass through unchanged")
+		}
+	})
+}
+
 func TestOpenAIProvider_SetAuthHeaders(t *testing.T) {
 	t.Run("sets Authorization header", func(t *testing.T) {
 		p := NewOpenAIProvider("api.openai.com", "sk-test-key", nil)
