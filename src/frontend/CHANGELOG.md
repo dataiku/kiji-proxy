@@ -1,5 +1,11 @@
 # kiji-privacy-proxy
 
+## 1.1.0
+
+### Minor Changes
+
+- c1b92c7: Rewrote the OpenAI provider to properly handle structured-output **schema** and response parsing, Persistent PII entity mapping across requests, Log Chrome-extension PII checks to `/logs`, Updated the app downloader
+
 ## 1.0.5
 
 ### Patch Changes
