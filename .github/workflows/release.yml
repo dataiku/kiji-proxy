@@ -793,7 +793,7 @@ jobs:
       - name: Generate GitHub App token for homebrew-tap
         if: steps.version.outputs.is_prerelease == 'false'
         id: app-token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ vars.HOMEBREW_TAP_APP_CLIENT_ID }}
           private-key: ${{ secrets.HOMEBREW_TAP_APP_PRIVATE_KEY }}
