@@ -696,6 +696,8 @@ jobs:
 
     runs-on: ubuntu-latest
 
+    environment: "Homebrew Release"
+
     permissions:
       contents: read
 
