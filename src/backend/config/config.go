@@ -14,6 +14,14 @@ import (
 	"github.com/hannes/kiji-private/src/backend/providers"
 )
 
+// DefaultForwardProxyPort is the default port for the forward proxy.
+// The leading colon is intentional — this is a net.Listen-style address (e.g. ":8080").
+const DefaultForwardProxyPort = ":8080"
+
+// DefaultTransparentProxyPort is the default port for the transparent proxy.
+// The leading colon is intentional — this is a net.Listen-style address (e.g. ":8081").
+const DefaultTransparentProxyPort = ":8081"
+
 // LoggingConfig holds logging configuration options
 type LoggingConfig struct {
 	LogRequests    bool // Log request content
@@ -67,9 +75,30 @@ type Config struct {
 	Logging            LoggingConfig
 	ONNXModelPath      string
 	TokenizerPath      string
-	ONNXModelDirectory string
+	ModelVariant       string // "trained" (full precision) or "quantized" (INT8). Used to derive ONNXModelDirectory when it isn't set.
+	ONNXModelDirectory string // Explicit override; takes precedence over ModelVariant.
 	UIPath             string
 	Proxy              ProxyConfig `json:"Proxy"`
+}
+
+// ModelVariantTrained is the full-precision model variant.
+const ModelVariantTrained = "trained"
+
+// ModelVariantQuantized is the INT8-quantized model variant.
+const ModelVariantQuantized = "quantized"
+
+// ResolveModelDirectory returns the directory the ONNX model files should be loaded from.
+// ONNXModelDirectory wins if set; otherwise the directory is derived from ModelVariant
+// (defaulting to the trained variant).
+func (c *Config) ResolveModelDirectory() string {
+	if c.ONNXModelDirectory != "" {
+		return c.ONNXModelDirectory
+	}
+	variant := c.ModelVariant
+	if variant == "" {
+		variant = ModelVariantTrained
+	}
+	return filepath.Join("model", variant)
 }
 
 func (c *Config) ValidateConfig() error {
@@ -221,10 +250,11 @@ func DefaultConfig() *Config {
 			MistralProviderConfig:   defaultMistralProviderConfig,
 			CustomProviderConfig:    defaultCustomProviderConfig,
 		},
-		ProxyPort:          ":8080",
-		ONNXModelPath:      "model/quantized/model.onnx",
-		TokenizerPath:      "model/quantized/tokenizer.json",
-		ONNXModelDirectory: "model/quantized",
+		ProxyPort:          DefaultForwardProxyPort,
+		ONNXModelPath:      "",
+		TokenizerPath:      "",
+		ModelVariant:       ModelVariantTrained,
+		ONNXModelDirectory: "",
 		UIPath:             "./src/frontend/dist",
 		Database: DatabaseConfig{
 			Path:         dbPath,
@@ -239,7 +269,7 @@ func DefaultConfig() *Config {
 		},
 		Proxy: ProxyConfig{
 			TransparentEnabled: true,
-			ProxyPort:          ":8081",
+			ProxyPort:          DefaultTransparentProxyPort,
 			CAPath:             caPath,
 			KeyPath:            keyPath,
 			EnablePAC:          true, // Enable PAC by default for automatic proxy configuration

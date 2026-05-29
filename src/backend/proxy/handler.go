@@ -306,6 +306,59 @@ func (h *Handler) MaskPIIInText(text string) (string, map[string]string, []pii.E
 	return h.maskPIIInText(text, "[PIICheck]")
 }
 
+// MaskPIIInTextWithLogging masks PII in a plain text input and records
+// request_original + request_masked entries to the logging DB so the call
+// surfaces in the /logs UI. The two entries share a transaction ID embedded as
+// _transaction_id in a JSON envelope around the text — the same convention the
+// proxy flow uses, which lets the frontend pair them. site (hostname of the
+// page that triggered the check) is recorded as the "model" column so calls
+// from different AI providers are distinguishable in the UI.
+func (h *Handler) MaskPIIInTextWithLogging(ctx context.Context, text, site string) (string, map[string]string, []pii.Entity) {
+	maskedText, maskedToOriginal, entities := h.maskPIIInText(text, "[PIICheck]")
+
+	if h.loggingDB == nil {
+		return maskedText, maskedToOriginal, entities
+	}
+
+	transactionID := uuid.New().String()
+	logCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	original := wrapPIICheckMessage(text, site, transactionID)
+	if err := h.loggingDB.InsertLog(logCtx, original, "request_original", entities, false); err != nil {
+		log.Printf("[PIICheck] ⚠️  Failed to log original request: %v", err)
+	}
+
+	masked := wrapPIICheckMessage(maskedText, site, transactionID)
+	if err := h.loggingDB.InsertLog(logCtx, masked, "request_masked", entities, false); err != nil {
+		log.Printf("[PIICheck] ⚠️  Failed to log masked request: %v", err)
+	}
+
+	return maskedText, maskedToOriginal, entities
+}
+
+// wrapPIICheckMessage wraps a plain-text PII check input in an OpenAI-style
+// messages envelope so parseMessagesFromLogMessage populates the `messages` /
+// `formatted_messages` columns and the entry renders in the /logs UI the same
+// way as proxied requests. _transaction_id pairs the original/masked rows;
+// site (when provided) is surfaced as the "model" column.
+func wrapPIICheckMessage(text, site, transactionID string) string {
+	envelope := map[string]any{
+		"messages": []map[string]string{
+			{"role": "user", "content": text},
+		},
+		"_transaction_id": transactionID,
+	}
+	if site != "" {
+		envelope["model"] = site
+	}
+	data, err := json.Marshal(envelope)
+	if err != nil {
+		return text
+	}
+	return string(data)
+}
+
 // ProcessedRequest contains the result of processing a request through the PII pipeline
 type ProcessedRequest struct {
 	RedactedBody     []byte
@@ -435,7 +488,21 @@ func (h *Handler) checkRequestPII(body string, provider *providers.Provider) (st
 
 // createAndSendProxyRequest creates and sends the proxy request to provider
 func (h *Handler) createAndSendProxyRequest(r *http.Request, body []byte, provider *providers.Provider) (*http.Response, error) {
-	targetURL, err := h.buildTargetURL(r, provider)
+	requestPath := r.URL.Path
+
+	// OpenAI reasoning models (gpt-5*, o-series) must use /v1/responses;
+	// non-reasoning models on /v1/responses must be rewritten to chat
+	// completions. Apply after PII masking so masked content carries over.
+	if _, ok := (*provider).(*providers.OpenAIProvider); ok {
+		convertedBody, convertedPath := providers.MaybeConvertOpenAIRequest(body, requestPath)
+		if convertedPath != requestPath {
+			log.Printf("[Proxy] OpenAI schema converted: %s -> %s", requestPath, convertedPath)
+		}
+		body = convertedBody
+		requestPath = convertedPath
+	}
+
+	targetURL, err := h.buildTargetURL(r, provider, requestPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build target URL: %w", err)
 	}
@@ -464,8 +531,10 @@ func (h *Handler) createAndSendProxyRequest(r *http.Request, body []byte, provid
 	return resp, nil
 }
 
-// buildTargetURL builds the target URL for the proxy request
-func (h *Handler) buildTargetURL(r *http.Request, provider *providers.Provider) (string, error) {
+// buildTargetURL builds the target URL for the proxy request. requestPath may
+// differ from r.URL.Path when a provider has rewritten it (e.g. OpenAI
+// reasoning-model routing from /v1/chat/completions to /v1/responses).
+func (h *Handler) buildTargetURL(r *http.Request, provider *providers.Provider, requestPath string) (string, error) {
 	useHttps := true
 	baseURL := strings.TrimSuffix((*provider).GetBaseURL(useHttps), "/")
 
@@ -477,7 +546,6 @@ func (h *Handler) buildTargetURL(r *http.Request, provider *providers.Provider) 
 
 	// If the base URL has a path prefix and the request path starts with it,
 	// strip the prefix to avoid duplication (e.g. /v1 + /v1/chat/completions → /v1/chat/completions)
-	requestPath := r.URL.Path
 	basePath := strings.TrimSuffix(parsed.Path, "/")
 	if basePath != "" && strings.HasPrefix(requestPath, basePath) {
 		requestPath = requestPath[len(basePath):]
@@ -519,12 +587,9 @@ func NewHandler(cfg *config.Config) (*Handler, error) {
 	var err error
 
 	// Initialize model manager for ONNX detector
-	modelDir := cfg.ONNXModelDirectory
-	if modelDir == "" {
-		modelDir = "model/quantized" // Default directory
-	}
+	modelDir := cfg.ResolveModelDirectory()
 
-	log.Printf("[Handler] Initializing ModelManager with directory: %s", modelDir)
+	log.Printf("[Handler] Initializing ModelManager with directory: %s (variant=%q)", modelDir, cfg.ModelVariant)
 	modelManager, err = piiServices.NewModelManager(modelDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize model manager: %w", err)
@@ -581,21 +646,6 @@ func NewHandler(cfg *config.Config) (*Handler, error) {
 		CustomProvider:    customProvider,
 	}
 
-	// Create services
-	// MaskingService now uses ModelManager as a DetectorProvider, so it always gets
-	// the current detector after hot reloads
-	generatorService := piiServices.NewGeneratorService()
-	maskingService := piiServices.NewMaskingService(modelManager, generatorService)
-
-	var responseProcessor *processor.ResponseProcessor
-	if detector != nil {
-		responseProcessor = processor.NewResponseProcessor(&detector, cfg.Logging)
-	} else {
-		// Model is unhealthy at startup - log warning but allow server to start
-		log.Printf("[Handler] Creating handler with unhealthy model - PII detection disabled until model is fixed")
-		responseProcessor = nil
-	}
-
 	// Initialize SQLite database
 	ctx := context.Background()
 	dbConfig := piiServices.DatabaseConfig{
@@ -610,6 +660,23 @@ func NewHandler(cfg *config.Config) (*Handler, error) {
 
 	// Set debug mode based on config
 	loggingDB.SetDebugMode(cfg.Logging.DebugMode)
+
+	// Create services
+	// MaskingService now uses ModelManager as a DetectorProvider, so it always gets
+	// the current detector after hot reloads. The PIIMapping wraps the SQLite store
+	// so a given original PII maps to the same dummy across requests.
+	generatorService := piiServices.NewGeneratorService()
+	piiMapping := piiServices.NewPIIMappingWithDB(db, true)
+	maskingService := piiServices.NewMaskingService(modelManager, generatorService, piiMapping)
+
+	var responseProcessor *processor.ResponseProcessor
+	if detector != nil {
+		responseProcessor = processor.NewResponseProcessor(&detector, cfg.Logging)
+	} else {
+		// Model is unhealthy at startup - log warning but allow server to start
+		log.Printf("[Handler] Creating handler with unhealthy model - PII detection disabled until model is fixed")
+		responseProcessor = nil
+	}
 
 	// Create HTTP client that bypasses proxy to prevent infinite loop
 	// This is critical for transparent proxy mode where outbound requests

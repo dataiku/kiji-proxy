@@ -50,7 +50,7 @@ def load_and_convert_samples(samples_dir: str) -> list[dict]:
         raise ValueError("No JSON files found!")
 
     # Reuse the Label Studio → training format conversion from DatasetProcessor.
-    # The method doesn't use self, so we pass None.
+    # It's a classmethod, so no instance (and no tokenizer download) is needed.
     convert = DatasetProcessor.convert_labelstudio_to_training_format
 
     samples = []
@@ -60,7 +60,7 @@ def load_and_convert_samples(samples_dir: str) -> list[dict]:
             with json_file.open() as f:
                 ls_sample = json.load(f)
 
-            converted = convert(None, ls_sample, file_name=json_file.name)
+            converted = convert(ls_sample, file_name=json_file.name)
             if converted:
                 samples.append(converted)
             else:

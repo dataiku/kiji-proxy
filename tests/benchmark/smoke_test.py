@@ -33,6 +33,7 @@ TESTS = [
             "FIRSTNAME": ["Sarah"],
             "SURNAME": ["Johnson"],
             "PHONENUMBER": ["555-123-4567"],
+            "DATEOFBIRTH": ["March 15, 1985"],
         },
     ),
     (
@@ -42,6 +43,19 @@ TESTS = [
             "CITY": ["Springfield"],
             "STATE": ["IL"],
             "ZIP": ["62701"],
+            "BUILDINGNUM": ["123"],
+        },
+    ),
+    (
+        "John Smith\nSpringfield, IL,\nEmail: john@openai.com,\nLinkedIn: linkedin.com/in/samaltman,\nCompany: OpenAI",
+        {
+            "FIRSTNAME": ["John"],
+            "SURNAME": ["Smith"],
+            "CITY": ["Springfield"],
+            "STATE": ["IL"],
+            "EMAIL": ["john@openai.com"],
+            "URL": ["linkedin.com/in/samaltman"],
+            "COMPANYNAME": ["OpenAI"],
         },
     ),
 ]

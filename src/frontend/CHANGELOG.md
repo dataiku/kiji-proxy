@@ -1,5 +1,35 @@
 # kiji-privacy-proxy
 
+## 1.0.5
+
+### Patch Changes
+
+- 4181b20: Update CORS handling in the proxy path
+
+## 1.0.4
+
+### Patch Changes
+
+- 2cb4e06: Config file path fix, add logo
+
+## 1.0.3
+
+### Patch Changes
+
+- bdbf8c5: fix signing builds
+
+## 1.0.2
+
+### Patch Changes
+
+- 282ab97: Fix macOS quarantine issue so the app launches without being blocked by Gatekeeper after install.
+
+## 1.0.1
+
+### Patch Changes
+
+- 54bfaf2: Bump Go, electron-updater, dompurify, and dev dependencies; pin onnxruntime to 1.24.2
+
 ## 1.0.0
 
 ### Major Changes

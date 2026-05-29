@@ -6,6 +6,17 @@
 
 set -euo pipefail
 
+# Optional arg: if any first positional arg is provided (e.g. `make build-dmg`
+# passes `skip-sign`), force the ad-hoc build path even when CSC_LINK is set in
+# the environment. Release CI calls this script with no args so it still signs
+# and notarizes.
+SKIP_SIGN_ARG="${1:-}"
+if [ -n "$SKIP_SIGN_ARG" ]; then
+    echo "🔧 Skip-sign arg passed ($SKIP_SIGN_ARG) — forcing ad-hoc build (no Developer ID signing/notarization)"
+    unset CSC_LINK
+    unset CSC_KEY_PASSWORD
+fi
+
 # Enable parallel execution where possible
 PARALLEL_JOBS=$(sysctl -n hw.ncpu 2>/dev/null || echo 4)
 
@@ -495,11 +506,107 @@ if [ -z "${CSC_LINK:-}" ]; then
     fi
 else
     echo "✅ CSC_LINK detected — signing with Developer ID certificate"
-    npx electron-builder --publish never
-    if [ $? -ne 0 ]; then
+
+    # Fail loudly if notarization credentials are missing. A Developer ID-signed
+    # build that isn't notarized is worse than ad-hoc — Gatekeeper rejects it
+    # and users have to run `xattr -cr` to get past "app is damaged".
+    MISSING_NOTARIZE=""
+    [ -z "${APPLE_API_KEY:-}" ]    && MISSING_NOTARIZE="$MISSING_NOTARIZE APPLE_API_KEY"
+    [ -z "${APPLE_API_KEY_ID:-}" ] && MISSING_NOTARIZE="$MISSING_NOTARIZE APPLE_API_KEY_ID"
+    [ -z "${APPLE_API_ISSUER:-}" ] && MISSING_NOTARIZE="$MISSING_NOTARIZE APPLE_API_ISSUER"
+    if [ -n "$MISSING_NOTARIZE" ]; then
+        echo "❌ CSC_LINK is set but notarization env vars are missing:$MISSING_NOTARIZE"
+        echo "   electron-builder would silently skip notarization, producing a"
+        echo "   DMG that Gatekeeper rejects. Aborting."
+        exit 1
+    fi
+    if [ -n "${APPLE_API_KEY:-}" ] && [ ! -f "$APPLE_API_KEY" ]; then
+        echo "❌ APPLE_API_KEY=$APPLE_API_KEY does not exist or is not a file."
+        echo "   notarytool needs a .p8 key file path, not inline content."
+        exit 1
+    fi
+
+    # Tee output so we can grep for the silent-skip-signing message below.
+    # electron-builder prints this when it detects a PR context (GITHUB_BASE_REF
+    # set) and CSC_FOR_PULL_REQUEST is not "true". The build keeps going but
+    # produces a half-signed bundle that fails `codesign --verify` later with
+    # "code has no resources but signature indicates they must be present".
+    EB_LOG="$(mktemp -t electron-builder.XXXXXX)"
+    trap 'rm -f "$EB_LOG"' RETURN EXIT
+    set +e
+    npx electron-builder --publish never 2>&1 | tee "$EB_LOG"
+    EB_STATUS=${PIPESTATUS[0]}
+    set -e
+    if [ "$EB_STATUS" -ne 0 ]; then
         echo "❌ electron-builder packaging failed!"
         exit 1
     fi
+
+    # Fail-fast: detect the exact decision line that means signing was skipped.
+    # Match must be exact — electron-builder also prints a general "security
+    # concerns" warning even when CSC_FOR_PULL_REQUEST=true, so a broad grep
+    # would false-positive. See app-builder-lib/out/codeSign/macCodeSign.js.
+    if grep -qF "Current build is a part of pull request, code signing will be skipped." "$EB_LOG"; then
+        echo "❌ electron-builder silently skipped code signing (PR context detected)."
+        echo "   Set CSC_FOR_PULL_REQUEST=true on the Build DMG step, or dispatch"
+        echo "   the workflow from a non-PR branch. Aborting before verify to"
+        echo "   avoid producing a half-signed artifact."
+        exit 1
+    fi
+    # Cleanup handled by trap above.
+
+    # electron-builder notarizes + staples the .app. Verify that actually
+    # happened — silent-skip is the failure mode we're guarding against.
+    echo ""
+    echo "📦 Step 11: Verifying .app notarization + staple..."
+    echo "----------------------------------------------------"
+    APP_BUNDLE=$(find release -name "*.app" -maxdepth 3 | head -1)
+    if [ -z "$APP_BUNDLE" ]; then
+        echo "❌ Could not locate .app bundle under release/ to verify."
+        exit 1
+    fi
+    echo "Verifying: $APP_BUNDLE"
+    codesign --verify --deep --strict --verbose=2 "$APP_BUNDLE" || {
+        echo "❌ codesign verification failed on .app"
+        exit 1
+    }
+    if ! xcrun stapler validate "$APP_BUNDLE"; then
+        echo "❌ .app is not stapled — notarization did not complete."
+        echo "   Check the electron-builder log above for 'notarization successful'"
+        echo "   or 'skipped macOS notarization'."
+        exit 1
+    fi
+    echo "✅ .app is signed and stapled"
+
+    # electron-builder only signs the DMG when dmg.sign=true; it does not
+    # notarize/staple the DMG itself. Do that here so Gatekeeper accepts the
+    # DMG container too (not just the .app inside).
+    echo ""
+    echo "📦 Step 12: Notarizing + stapling DMG..."
+    echo "-----------------------------------------"
+    DMG_FILE=$(ls release/*.dmg 2>/dev/null | head -1)
+    if [ -z "$DMG_FILE" ]; then
+        echo "❌ Could not locate DMG under release/ to notarize."
+        exit 1
+    fi
+    echo "Submitting: $DMG_FILE"
+    xcrun notarytool submit "$DMG_FILE" \
+        --key "$APPLE_API_KEY" \
+        --key-id "$APPLE_API_KEY_ID" \
+        --issuer "$APPLE_API_ISSUER" \
+        --wait || {
+        echo "❌ DMG notarization failed"
+        exit 1
+    }
+    xcrun stapler staple "$DMG_FILE" || {
+        echo "❌ Stapling DMG failed"
+        exit 1
+    }
+    xcrun stapler validate "$DMG_FILE" || {
+        echo "❌ DMG staple validation failed"
+        exit 1
+    }
+    echo "✅ DMG notarized and stapled"
 fi
 
 echo ""
@@ -507,12 +614,8 @@ echo "📦 Step 13: Code signing summary..."
 echo "-----------------------------------"
 
 if [ -n "${CSC_LINK:-}" ]; then
-    echo "✅ App was signed with Developer ID certificate by electron-builder"
-    if [ -n "${APPLE_API_KEY:-}" ]; then
-        echo "✅ Notarization was handled by afterSign hook (APPLE_API_KEY set)"
-    else
-        echo "⚠️  Notarization skipped (APPLE_API_KEY not set)"
-    fi
+    echo "✅ App signed with Developer ID, notarized, and stapled"
+    echo "✅ DMG signed with Developer ID, notarized, and stapled"
 else
     echo "✅ App was ad-hoc signed with consistent identity and packaged into DMG"
 fi
@@ -539,8 +642,8 @@ if [ -f "${DMG_FILES[0]}" ]; then
     echo "💾 Size optimizations applied:"
     echo "   ✅ Removed duplicate model directories (saves ~64MB)"
     echo "   ✅ Removed pii_onnx_model directory (saves ~313MB)"
-    echo "   ✅ Used ULFO compression (better than UDZO)"
-    echo "   ✅ Maximum electron-builder compression"
+    echo "   ✅ UDZO compression"
+    echo "   ✅ electron-builder compression: normal"
 fi
 echo ""
 echo "✅ DMG build complete!"
@@ -549,7 +652,8 @@ echo "   Users can drag the app to Applications and it will automatically"
 echo "   launch the Go backend when started."
 echo ""
 if [ -n "${CSC_LINK:-}" ]; then
-    echo "🔐 Signed with Developer ID certificate and notarized"
+    echo "🔐 Signed with Developer ID certificate, notarized, and stapled"
+    echo "   (verified via stapler validate on both .app and .dmg)"
 else
     echo "🔧 Ad-hoc signed (no Developer ID certificate)"
     echo "   If users see 'Privacy Proxy is damaged' error:"

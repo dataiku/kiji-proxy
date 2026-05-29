@@ -307,7 +307,7 @@ func (s *Server) Start() error {
 func (s *Server) startTransparentProxy() {
 	proxyPort := s.config.Proxy.ProxyPort
 	if proxyPort == "" {
-		proxyPort = ":8080"
+		proxyPort = config.DefaultForwardProxyPort
 	}
 
 	log.Printf("Starting transparent proxy on port %s", proxyPort)
@@ -526,9 +526,10 @@ func (s *Server) statsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleModelSecurity(w http.ResponseWriter, r *http.Request) {
-	// Read model manifest
-	manifestPath := "model/quantized/model_manifest.json"
-	data, err := os.ReadFile(manifestPath)
+	// Read model manifest from whichever variant is currently active.
+	manifestPath := filepath.Join(s.config.ResolveModelDirectory(), "model_manifest.json")
+	data, err := os.ReadFile(manifestPath) // #nosec G304 — path derived from validated config
+
 	if err != nil {
 		http.Error(w, "Model manifest not found", http.StatusNotFound)
 		return
@@ -555,6 +556,10 @@ func (s *Server) handleModelSecurity(w http.ResponseWriter, r *http.Request) {
 // PIICheckRequest represents the request body for PII checking
 type PIICheckRequest struct {
 	Message string `json:"message"`
+	// Site is the hostname of the page that triggered the check (e.g.
+	// "chatgpt.com"). Recorded as the "model" column in /logs so calls from
+	// different AI providers are distinguishable in the UI.
+	Site string `json:"site,omitempty"`
 }
 
 // DetectedEntity represents a single detected PII entity with its label and
@@ -614,8 +619,8 @@ func (s *Server) handlePIICheck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Use the handler's masking service to check for PII
-	maskedText, maskedToOriginal, entities := s.handler.MaskPIIInText(req.Message)
+	// Mask + persist request_original / request_masked so the call appears in /logs.
+	maskedText, maskedToOriginal, entities := s.handler.MaskPIIInTextWithLogging(r.Context(), req.Message, req.Site)
 
 	// masked -> original map (consumed by UI)
 	entityDetails := make(map[string]string)

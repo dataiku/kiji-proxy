@@ -69,6 +69,7 @@ export default function PrivacyProxyUI() {
     setInputData,
     maskedInput,
     isProcessing,
+    resultProvider,
     detectedEntities,
     responseDetectedEntities,
     averageConfidence,
@@ -89,6 +90,7 @@ export default function PrivacyProxyUI() {
 
   // Misclassification reporting
   const misclassification = useMisclassificationReport();
+  const displayedProvider = resultProvider ?? settings.activeProvider;
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -300,6 +302,7 @@ export default function PrivacyProxyUI() {
                   onChange={(e) =>
                     settings.switchProvider(e.target.value as ProviderType)
                   }
+                  disabled={isProcessing}
                   className="px-3 py-2 border-2 border-slate-200 rounded-lg focus:border-blue-500 focus:outline-none text-sm bg-white"
                 >
                   {(
@@ -384,7 +387,7 @@ export default function PrivacyProxyUI() {
                   <AlertCircle className="w-4 h-4" />
                   {isElectron
                     ? `What was sent to ${
-                        PROVIDER_NAMES[settings.activeProvider]
+                        PROVIDER_NAMES[displayedProvider]
                       }`
                     : "What was sent to the LLM"}
                 </button>
@@ -398,7 +401,7 @@ export default function PrivacyProxyUI() {
                 >
                   <AlertCircle className="w-4 h-4" />
                   {isElectron
-                    ? `What ${PROVIDER_NAMES[settings.activeProvider]} returned`
+                    ? `What ${PROVIDER_NAMES[displayedProvider]} returned`
                     : "What the LLM returned"}
                 </button>
               </div>
@@ -464,7 +467,7 @@ export default function PrivacyProxyUI() {
                     <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
                       <span>Response received</span>
                       <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded">
-                        From {PROVIDER_NAMES[settings.activeProvider]}
+                        From {PROVIDER_NAMES[displayedProvider]}
                       </span>
                     </div>
                     <div
