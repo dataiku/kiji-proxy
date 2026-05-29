@@ -452,7 +452,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            debhelper devscripts fakeroot dpkg-dev
+            build-essential debhelper devscripts fakeroot dpkg-dev
 
       - name: Build .deb package
         run: |
