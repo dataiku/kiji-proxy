@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { X, Info } from "lucide-react";
 import logoImage from "../../../assets/kiji_proxy.svg";
-import TermsModal from "./TermsModal";
 import { GO_SERVER_ADDRESS } from "../../utils/providerHelpers";
 
 interface AboutModalProps {
@@ -11,7 +10,6 @@ interface AboutModalProps {
 
 export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
   const [version, setVersion] = useState<string>("Loading...");
-  const [isTermsModalOpen, setIsTermsModalOpen] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -43,7 +41,7 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
           <div className="flex items-center gap-3">
             <Info className="w-6 h-6 text-blue-600" />
             <h2 className="text-xl font-semibold text-slate-800">
-              About Kiji Privacy Proxy
+              About Kiji Privacy Proxy™
             </h2>
           </div>
           <button
@@ -61,7 +59,7 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
           <div className="flex flex-col items-center text-center">
             <img src={logoImage} alt="Kiji Logo" className="w-20 h-20 mb-4" />
             <h3 className="text-2xl font-bold text-slate-800">
-              Kiji Privacy Proxy
+              Kiji Privacy Proxy™
             </h3>
             <p className="text-slate-600 mt-2">
               PII Detection and Masking Proxy
@@ -83,7 +81,7 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
           {/* Description */}
           <div className="text-sm text-slate-600 space-y-2">
             <p>
-              Kiji Privacy Proxy automatically detects and masks personally
+              Kiji Privacy Proxy™ automatically detects and masks personally
               identifiable information (PII) in your API requests, ensuring data
               privacy when interacting with external services.
             </p>
@@ -145,12 +143,18 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
             >
               Apache 2.0 License →
             </a>
-            <button
-              onClick={() => setIsTermsModalOpen(true)}
-              className="block text-sm text-blue-600 hover:text-blue-700 hover:underline text-left"
-            >
-              Terms &amp; Conditions →
-            </button>
+          </div>
+
+          {/* No Support Obligations */}
+          <div className="text-sm text-slate-600 space-y-2">
+            <h4 className="font-semibold text-slate-800">
+              No Support Obligations
+            </h4>
+            <p>
+              The authors and contributors are under no obligation to provide
+              support, maintenance, updates, enhancements, or modifications to
+              this software.
+            </p>
           </div>
 
           {/* Copyright */}
@@ -165,7 +169,9 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
               >
                 575 Lab
               </a>{" "}
-              - Dataiku's Open Source Office. All rights reserved.
+              - Dataiku's Open Source Office.
+              <br />
+              Licensed under Apache 2.0.
             </p>
           </div>
         </div>
@@ -180,12 +186,6 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
           </button>
         </div>
       </div>
-
-      <TermsModal
-        isOpen={isTermsModalOpen}
-        onClose={() => setIsTermsModalOpen(false)}
-        requireAcceptance={false}
-      />
     </div>
   );
 }

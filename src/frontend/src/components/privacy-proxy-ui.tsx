@@ -16,7 +16,6 @@ import AdvancedSettingsModal from "./modals/AdvancedSettingsModal";
 import LoggingModal from "./modals/LoggingModal";
 import AboutModal from "./modals/AboutModal";
 import MisclassificationModal from "./modals/MisclassificationModal";
-import TermsModal from "./modals/TermsModal";
 import WelcomeModal from "./modals/WelcomeModal";
 import { useTour } from "../tour/useTour";
 import { useServerHealth } from "../hooks/useServerHealth";
@@ -49,14 +48,12 @@ export default function PrivacyProxyUI() {
   const settings = useElectronSettings({
     onSettingsOpen: () => setIsSettingsOpen(true),
     onAboutOpen: () => setIsAboutOpen(true),
-    onTermsOpen: () => {},
     onTourStart: () => startTour(),
   });
 
   // Product tour
   const { startTour, isTourActive, cancelTour } = useTour(
-    settings.welcomeModalJustClosed,
-    !settings.termsRequireAcceptance
+    settings.welcomeModalJustClosed
   );
 
   // Server health polling
@@ -697,13 +694,6 @@ export default function PrivacyProxyUI() {
         originalInput={misclassification.reportingData?.originalInput || ""}
         maskedInput={misclassification.reportingData?.maskedInput || ""}
         source={misclassification.reportingData?.source || "main"}
-      />
-
-      {/* Terms Modal */}
-      <TermsModal
-        isOpen={settings.isTermsOpen}
-        onClose={settings.closeTerms}
-        requireAcceptance={settings.termsRequireAcceptance}
       />
 
       {/* Welcome Modal */}

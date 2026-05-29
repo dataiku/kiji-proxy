@@ -681,17 +681,6 @@ function updateTrayMenu() {
 
     { type: "separator" },
     {
-      label: "Terms && Conditions",
-      click: () => {
-        showMainWindow();
-        setTimeout(() => {
-          if (mainWindow) {
-            mainWindow.webContents.send("open-terms");
-          }
-        }, 100);
-      },
-    },
-    {
       label: "Documentation",
       click: () =>
         shell.openExternal(
@@ -983,14 +972,6 @@ function createMenu() {
           click: () => {
             if (mainWindow) {
               mainWindow.webContents.send("open-about");
-            }
-          },
-        },
-        {
-          label: "Terms && Conditions",
-          click: () => {
-            if (mainWindow) {
-              mainWindow.webContents.send("open-terms");
             }
           },
         },

@@ -58,10 +58,6 @@ interface ElectronAPI {
   setCACertSetupDismissed: (
     dismissed: boolean
   ) => Promise<{ success: boolean; error?: string }>;
-  getTermsAccepted: () => Promise<boolean>;
-  setTermsAccepted: (
-    accepted: boolean
-  ) => Promise<{ success: boolean; error?: string }>;
   getWelcomeDismissed: () => Promise<boolean>;
   setWelcomeDismissed: (
     dismissed: boolean
@@ -110,8 +106,6 @@ interface ElectronAPI {
   removeSettingsListener: () => void;
   onAboutOpen: (callback: () => void) => void;
   removeAboutListener: () => void;
-  onTermsOpen: (callback: () => void) => void;
-  removeTermsListener: () => void;
   onTourOpen: (callback: () => void) => void;
   removeTourListener: () => void;
 }

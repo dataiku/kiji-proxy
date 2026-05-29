@@ -5,7 +5,6 @@ import { isElectron } from "../utils/providerHelpers";
 interface ModalCallbacks {
   onSettingsOpen: () => void;
   onAboutOpen: () => void;
-  onTermsOpen: () => void;
   onTourStart: () => void;
 }
 
@@ -22,8 +21,6 @@ export function useElectronSettings(callbacks: ModalCallbacks) {
     },
   });
   const [apiKey, setApiKey] = useState<string | null>(null);
-  const [termsRequireAcceptance, setTermsRequireAcceptance] = useState(false);
-  const [isTermsOpen, setIsTermsOpen] = useState(false);
   const [isWelcomeOpen, setIsWelcomeOpen] = useState(false);
   // In web mode, skip welcome modal persistence — start as if already closed
   const [welcomeModalJustClosed, setWelcomeModalJustClosed] = useState(
@@ -68,13 +65,6 @@ export function useElectronSettings(callbacks: ModalCallbacks) {
     if (isElectron && window.electronAPI) {
       loadSettings();
 
-      window.electronAPI.getTermsAccepted().then((accepted) => {
-        if (!accepted) {
-          setTermsRequireAcceptance(true);
-          setIsTermsOpen(true);
-        }
-      });
-
       window.electronAPI.getWelcomeDismissed().then((dismissed) => {
         if (!dismissed) {
           setTimeout(() => {
@@ -97,13 +87,6 @@ export function useElectronSettings(callbacks: ModalCallbacks) {
         });
       }
 
-      if (window.electronAPI.onTermsOpen) {
-        window.electronAPI.onTermsOpen(() => {
-          setTermsRequireAcceptance(false);
-          setIsTermsOpen(true);
-        });
-      }
-
       if (window.electronAPI.onTourOpen) {
         window.electronAPI.onTourOpen(() => {
           callbacksRef.current.onTourStart();
@@ -117,9 +100,6 @@ export function useElectronSettings(callbacks: ModalCallbacks) {
         if (window.electronAPI?.removeAboutListener) {
           window.electronAPI.removeAboutListener();
         }
-        if (window.electronAPI?.removeTermsListener) {
-          window.electronAPI.removeTermsListener();
-        }
         if (window.electronAPI?.removeTourListener) {
           window.electronAPI.removeTourListener();
         }
@@ -128,11 +108,6 @@ export function useElectronSettings(callbacks: ModalCallbacks) {
 
     return undefined;
   }, [loadSettings]);
-
-  const closeTerms = useCallback(() => {
-    setIsTermsOpen(false);
-    setTermsRequireAcceptance(false);
-  }, []);
 
   const closeWelcome = useCallback(() => {
     setIsWelcomeOpen(false);
@@ -143,13 +118,10 @@ export function useElectronSettings(callbacks: ModalCallbacks) {
     activeProvider,
     providersConfig,
     apiKey,
-    termsRequireAcceptance,
-    isTermsOpen,
     isWelcomeOpen,
     welcomeModalJustClosed,
     loadSettings,
     switchProvider,
-    closeTerms,
     closeWelcome,
   };
 }

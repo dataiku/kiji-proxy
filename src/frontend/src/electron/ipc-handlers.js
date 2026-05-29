@@ -414,13 +414,6 @@ const registerIpcHandlers = ({
   );
 
   defineConfigField(
-    "termsAccepted",
-    "get-terms-accepted",
-    "set-terms-accepted",
-    booleanField
-  );
-
-  defineConfigField(
     "welcomeDismissed",
     "get-welcome-dismissed",
     "set-welcome-dismissed",

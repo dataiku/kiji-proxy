@@ -37,10 +37,7 @@ interface TourInstance {
   addSteps: (steps: ReturnType<typeof getTourSteps>) => void;
 }
 
-export function useTour(
-  welcomeModalJustClosed: boolean,
-  termsAccepted: boolean
-) {
+export function useTour(welcomeModalJustClosed: boolean) {
   const tourRef = useRef<TourInstance | null>(null);
   const hasAutoStarted = useRef(false);
   const [tourCompleted, setTourCompleted] = useState<boolean | null>(null);
@@ -70,11 +67,10 @@ export function useTour(
     return tourRef.current;
   }, [markTourCompleted]);
 
-  // Auto-start after WelcomeModal closes and terms are accepted (first time only)
+  // Auto-start after WelcomeModal closes (first time only)
   useEffect(() => {
     if (
       welcomeModalJustClosed &&
-      termsAccepted &&
       tourCompleted === false &&
       !hasAutoStarted.current
     ) {
@@ -85,7 +81,7 @@ export function useTour(
       return () => clearTimeout(timer);
     }
     return undefined;
-  }, [welcomeModalJustClosed, termsAccepted, tourCompleted, getTour]);
+  }, [welcomeModalJustClosed, tourCompleted, getTour]);
 
   // Manual start (from menu) — always works regardless of completion state
   const startTour = useCallback(() => {
