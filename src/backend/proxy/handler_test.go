@@ -242,10 +242,11 @@ func newTestHandler(t *testing.T, detector *mockDetector, upstreamServer *httpte
 	var det pii.Detector = detector
 	detectorProvider := &mockDetectorProvider{detector: det}
 	generatorService := piiServices.NewGeneratorService()
-	maskingService := piiServices.NewMaskingService(detectorProvider, generatorService)
-	responseProcessor := processor.NewResponseProcessor(&det, cfg.Logging)
 	loggingDB := &mockLoggingDB{}
 	mappingDB := newMockMappingDB()
+	piiMapping := piiServices.NewPIIMappingWithDB(mappingDB, true)
+	maskingService := piiServices.NewMaskingService(detectorProvider, generatorService, piiMapping)
+	responseProcessor := processor.NewResponseProcessor(&det, cfg.Logging)
 
 	// If upstream server provided, use its URL as base; otherwise use a default client
 	client := http.DefaultClient
@@ -394,7 +395,7 @@ func TestHandler_BuildTargetURL(t *testing.T) {
 			if tt.query != "" {
 				req.URL.RawQuery = tt.query
 			}
-			got, err := h.buildTargetURL(req, &tt.provider)
+			got, err := h.buildTargetURL(req, &tt.provider, req.URL.Path)
 			if err != nil {
 				t.Fatalf("buildTargetURL() error = %v", err)
 			}
@@ -408,7 +409,7 @@ func TestHandler_BuildTargetURL(t *testing.T) {
 		p := providers.NewOpenAIProvider("https://api.openai.com/v1", "sk-test", nil)
 		var prov providers.Provider = p
 		req := httptest.NewRequest("POST", "/v1/chat/completions", nil)
-		got, err := h.buildTargetURL(req, &prov)
+		got, err := h.buildTargetURL(req, &prov, req.URL.Path)
 		if err != nil {
 			t.Fatalf("buildTargetURL() error = %v", err)
 		}

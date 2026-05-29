@@ -250,6 +250,10 @@ make check
 # 5. Submit PR
 ```
 
+A few things to know before your first PR:
+- **Sign the CLA** — our [CLA Assistant bot](.github/workflows/cla.yml) will comment on your first PR with a one-click link to sign Dataiku's [Individual CLA](.github/cla/CLA.md). Required before we can merge.
+- **Add yourself to [CONTRIBUTORS.md](CONTRIBUTORS.md)** once your PR is merged — every kind of contribution counts (code, docs, triage, training data).
+
 See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 
 ---

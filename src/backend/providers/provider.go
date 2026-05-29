@@ -149,6 +149,8 @@ func (p *Providers) GetProviderFromPath(host string, path string, body *[]byte, 
 		case ProviderTypeMistral:
 			provider = p.MistralProvider
 		}
+	case path == ProviderSubpathOpenAIResp:
+		provider = p.OpenAIProvider
 	case path == ProviderSubpathAnthropic:
 		provider = p.AnthropicProvider
 	case strings.HasPrefix(path, ProviderSubpathGemini):
