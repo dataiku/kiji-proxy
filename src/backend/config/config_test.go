@@ -279,6 +279,27 @@ func TestValidateConfig(t *testing.T) {
 			errString: "Proxy.ProxyPort: port must be in format ':PORT' where PORT is numeric (current value: invalid)",
 		},
 		{
+			name: "unix socket skips main proxy port validation",
+			config: func() *Config {
+				c := newDefaultConfig()
+				c.ProxyPort = "invalid"
+				c.UnixSocketPath = "/tmp/kiji-proxy.sock"
+				return c
+			}(),
+			expectErr: false,
+		},
+		{
+			name: "unix socket still validates transparent proxy port",
+			config: func() *Config {
+				c := newDefaultConfig()
+				c.UnixSocketPath = "/tmp/kiji-proxy.sock"
+				c.Proxy.ProxyPort = "invalid"
+				return c
+			}(),
+			expectErr: true,
+			errString: "Proxy.ProxyPort: port must be in format ':PORT' where PORT is numeric (current value: invalid)",
+		},
+		{
 			name: "invalid openai provider config",
 			config: func() *Config {
 				c := newDefaultConfig()

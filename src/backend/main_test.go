@@ -46,6 +46,7 @@ func TestExpandConfigPaths(t *testing.T) {
 		TokenizerPath:      "~/models/tok.json",
 		ONNXModelDirectory: "~/models",
 		UIPath:             "./src/frontend/dist",
+		UnixSocketPath:     "~/run/kiji-proxy.sock",
 		Database: config.DatabaseConfig{
 			Path: "~/.kiji/db.sqlite",
 		},
@@ -62,6 +63,7 @@ func TestExpandConfigPaths(t *testing.T) {
 		"TokenizerPath":      filepath.Join(home, "models/tok.json"),
 		"ONNXModelDirectory": filepath.Join(home, "models"),
 		"UIPath":             "./src/frontend/dist",
+		"UnixSocketPath":     filepath.Join(home, "run/kiji-proxy.sock"),
 		"Database.Path":      filepath.Join(home, ".kiji/db.sqlite"),
 		"Proxy.CAPath":       filepath.Join(home, "Library/Application Support/Kiji Privacy Proxy/certs/ca.crt"),
 		"Proxy.KeyPath":      "/absolute/keys/ca.key",
@@ -72,6 +74,7 @@ func TestExpandConfigPaths(t *testing.T) {
 		"TokenizerPath":      cfg.TokenizerPath,
 		"ONNXModelDirectory": cfg.ONNXModelDirectory,
 		"UIPath":             cfg.UIPath,
+		"UnixSocketPath":     cfg.UnixSocketPath,
 		"Database.Path":      cfg.Database.Path,
 		"Proxy.CAPath":       cfg.Proxy.CAPath,
 		"Proxy.KeyPath":      cfg.Proxy.KeyPath,
@@ -81,5 +84,16 @@ func TestExpandConfigPaths(t *testing.T) {
 		if got[field] != wantVal {
 			t.Errorf("%s = %q, want %q", field, got[field], wantVal)
 		}
+	}
+}
+
+func TestLoadApplicationConfigUnixSocket(t *testing.T) {
+	t.Setenv("PROXY_UNIX_SOCKET", "/tmp/kiji-proxy.sock")
+
+	cfg := config.DefaultConfig()
+	loadApplicationConfig(cfg)
+
+	if cfg.UnixSocketPath != "/tmp/kiji-proxy.sock" {
+		t.Errorf("UnixSocketPath = %q, want %q", cfg.UnixSocketPath, "/tmp/kiji-proxy.sock")
 	}
 }

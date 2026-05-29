@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -180,7 +181,11 @@ func NewServerWithEmbedded(cfg *config.Config, uiFS, modelFS fs.FS, version stri
 
 // Start starts the HTTP server
 func (s *Server) Start() error {
-	log.Printf("Starting Kiji Privacy Proxy service on port %s", s.config.ProxyPort)
+	if s.config.UnixSocketPath != "" {
+		log.Printf("Starting Kiji Privacy Proxy service on Unix socket %s", s.config.UnixSocketPath)
+	} else {
+		log.Printf("Starting Kiji Privacy Proxy service on port %s", s.config.ProxyPort)
+	}
 	log.Printf("Forward OpenAI requests to: %s", s.config.Providers.OpenAIProviderConfig.APIDomain)
 	log.Printf("Forward Anthropic requests to: %s", s.config.Providers.AnthropicProviderConfig.APIDomain)
 	log.Printf("Forward Gemini requests to: %s", s.config.Providers.GeminiProviderConfig.APIDomain)
@@ -300,7 +305,30 @@ func (s *Server) Start() error {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	return server.ListenAndServe()
+	return serveHTTP(server, s.config.UnixSocketPath)
+}
+
+func serveHTTP(server *http.Server, socketPath string) error {
+	if socketPath == "" {
+		return server.ListenAndServe()
+	}
+
+	if err := os.Remove(socketPath); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("remove stale Unix socket %s: %w", socketPath, err)
+	}
+
+	listener, err := net.Listen("unix", socketPath)
+	if err != nil {
+		return fmt.Errorf("listen on Unix socket %s: %w", socketPath, err)
+	}
+	defer os.Remove(socketPath)
+
+	if err := os.Chmod(socketPath, 0600); err != nil {
+		_ = listener.Close()
+		return fmt.Errorf("set Unix socket permissions on %s: %w", socketPath, err)
+	}
+
+	return server.Serve(listener)
 }
 
 // startTransparentProxy starts the transparent proxy server

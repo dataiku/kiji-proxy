@@ -96,6 +96,13 @@ cd kiji-privacy-proxy-X.Y.Z-linux-amd64
 ./run.sh
 ```
 
+Unix socket listener (optional):
+```bash
+PROXY_UNIX_SOCKET="${XDG_RUNTIME_DIR:-/run/kiji-proxy}/kiji-proxy.sock" kiji-proxy
+```
+
+When `PROXY_UNIX_SOCKET` or the config field `UnixSocketPath` is set, the main HTTP API listens on that Unix socket instead of `PROXY_PORT`. The socket is created with mode `0600`, so clients such as the DSS extension must run as the same user unless a service wrapper manages broader access.
+
 **Test It:**
 
 *macOS (with automatic PAC):*

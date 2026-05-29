@@ -71,6 +71,7 @@ type ProxyConfig struct {
 type Config struct {
 	Providers          ProvidersConfig `json:"providers"`
 	ProxyPort          string
+	UnixSocketPath     string
 	Database           DatabaseConfig
 	Logging            LoggingConfig
 	ONNXModelPath      string
@@ -104,9 +105,11 @@ func (c *Config) ResolveModelDirectory() string {
 func (c *Config) ValidateConfig() error {
 	var errs []string
 
-	// Validate ProxyPort format (":port")
-	if err := validatePort(c.ProxyPort, "ProxyPort"); err != nil {
-		errs = append(errs, err.Error())
+	if c.UnixSocketPath == "" {
+		// Validate ProxyPort format (":port")
+		if err := validatePort(c.ProxyPort, "ProxyPort"); err != nil {
+			errs = append(errs, err.Error())
+		}
 	}
 
 	// Validate ProxyConfig fields

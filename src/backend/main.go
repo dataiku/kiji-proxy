@@ -185,6 +185,7 @@ func expandConfigPaths(cfg *config.Config) {
 	cfg.TokenizerPath = expandPath(cfg.TokenizerPath)
 	cfg.ONNXModelDirectory = expandPath(cfg.ONNXModelDirectory)
 	cfg.UIPath = expandPath(cfg.UIPath)
+	cfg.UnixSocketPath = expandPath(cfg.UnixSocketPath)
 	cfg.Database.Path = expandPath(cfg.Database.Path)
 	cfg.Proxy.CAPath = expandPath(cfg.Proxy.CAPath)
 	cfg.Proxy.KeyPath = expandPath(cfg.Proxy.KeyPath)
@@ -215,6 +216,9 @@ func loadDatabaseConfig(cfg *config.Config) {
 func loadApplicationConfig(cfg *config.Config) {
 	if proxyPort := os.Getenv("PROXY_PORT"); proxyPort != "" {
 		cfg.ProxyPort = proxyPort
+	}
+	if socketPath := os.Getenv("PROXY_UNIX_SOCKET"); socketPath != "" {
+		cfg.UnixSocketPath = socketPath
 	}
 
 	// Override OpenAI provider config with environment variables
