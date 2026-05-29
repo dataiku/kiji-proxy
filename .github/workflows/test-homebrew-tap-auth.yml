@@ -19,6 +19,7 @@ jobs:
   smoke-test:
     name: Verify App can push to dataiku/homebrew-tap
     runs-on: ubuntu-latest
+    environment: "Homebrew Release"
     permissions:
       contents: read
 
