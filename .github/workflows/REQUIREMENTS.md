@@ -70,28 +70,41 @@ All five are checked up-front by the "Verify signing secrets are available" step
 
 > **Note on notarization:** `release.yml` enables notarization via the App Store Connect API key (`APPLE_API_*`). The older `APPLE_ID` / `APPLE_APP_SPECIFIC_PASSWORD` / `APPLE_TEAM_ID` approach mentioned in the workflows README is no longer used.
 
+### `Homebrew Release`
+**Settings → Environments → New environment → `Homebrew Release`**
+
+Used by the `publish-homebrew-tap` job in `release.yml` — production cask publish on every stable release.
+
+Name is case-sensitive. The job declares `environment: "Homebrew Release"`; the GitHub App credentials are env-scoped (not repo-scoped) so they cannot be extracted by a workflow run that does not opt into this environment.
+
+**Recommended environment protection rules:**
+- Restrict deployment branches to `main` and tags matching `v*` — prevents an attacker who opens a PR from extracting the App key by running a workflow on their branch.
+- Required reviewers (optional) — adds a manual gate before each cask publish.
+
+**Variables (required):**
+
+| Variable | Purpose |
+|----------|---------|
+| `HOMEBREW_TAP_APP_CLIENT_ID` | Client ID of the GitHub App authorized to push to `dataiku/homebrew-tap`. The numeric App ID also works in `actions/create-github-app-token@v2`'s `app-id` input, but Client ID is the forward-looking value. |
+
+**Secrets (required):**
+
+| Secret | Purpose |
+|--------|---------|
+| `HOMEBREW_TAP_APP_PRIVATE_KEY` | PEM private key (begins with `-----BEGIN RSA PRIVATE KEY-----`) downloaded from the GitHub App settings page. |
+
+See [§12 Homebrew Tap Publishing](#12-homebrew-tap-publishing) for the App setup and tap-repo prerequisites these values plug into.
+
 ---
 
 ## 3. Repository Variables and Secrets
 
-`GITHUB_TOKEN` is provided automatically by GitHub Actions and is sufficient for most workflows. The Homebrew tap publishing job additionally needs a scoped GitHub App credential.
-
-### Variables (Settings → Secrets and variables → Actions → Variables)
-
-| Variable | Used by | Purpose |
-|----------|---------|---------|
-| `HOMEBREW_TAP_APP_CLIENT_ID` | `release.yml` (`publish-homebrew-tap`) | Client ID of the GitHub App authorized to push to `dataiku/homebrew-tap` |
-
-### Secrets (Settings → Secrets and variables → Actions → Secrets)
-
-| Secret | Used by | Purpose |
-|--------|---------|---------|
-| `HOMEBREW_TAP_APP_PRIVATE_KEY` | `release.yml` (`publish-homebrew-tap`) | PEM private key (begins with `-----BEGIN RSA PRIVATE KEY-----`) downloaded from the GitHub App settings page |
+`GITHUB_TOKEN` is provided automatically by GitHub Actions and is sufficient for the workflows that don't declare an `environment:`.
 
 **Optional:**
 - `SIGNING_PRIVATE_KEY` — referenced by `sign-model.yml` if it is added back to the repo (the workflow is documented in the workflows README but not currently present here).
 
-See [§12 Homebrew Tap Publishing](#12-homebrew-tap-publishing) for the App setup that these values plug into. No PATs are required — the App scope replaces what a PAT would have done.
+All other credentials live in environments — see §2. No PATs are required anywhere.
 
 ---
 
@@ -115,7 +128,7 @@ See [§12 Homebrew Tap Publishing](#12-homebrew-tap-publishing) for the App setu
 | `release.yml` (build-linux) | same as above | `contents: read` | — | — | `ubuntu-latest` (container: `almalinux:9`) |
 | `release.yml` (build-chrome) | same as above | `contents: read` | — | — | `ubuntu-latest` |
 | `release.yml` (create-release) | same as above (needs all 3 builds) | `contents: write` | — | `GITHUB_TOKEN` | `ubuntu-latest` |
-| `release.yml` (publish-homebrew-tap) | same as above (needs `create-release`); skips alpha/beta/rc | `contents: read` | — | `HOMEBREW_TAP_APP_PRIVATE_KEY`, `vars.HOMEBREW_TAP_APP_CLIENT_ID` | `ubuntu-latest` |
+| `release.yml` (publish-homebrew-tap) | same as above (needs `create-release`); skips alpha/beta/rc | `contents: read` | `Homebrew Release` | `HOMEBREW_TAP_APP_PRIVATE_KEY`, `vars.HOMEBREW_TAP_APP_CLIENT_ID` (env-scoped) | `ubuntu-latest` |
 | `lint-and-test.yml` | `push`/`pull_request` on `main`/`develop` | default | — | — | `ubuntu-latest` (×5 jobs) |
 | `semantic-pr.yml` | `pull_request_target`: opened/edited/synchronize | `pull-requests: write`, `contents: read` | — | `GITHUB_TOKEN` | `ubuntu-latest` |
 | `cleanup-artifacts.yml` | daily 02:00 UTC, `workflow_dispatch` | `actions: write` | — | — | `ubuntu-latest` |
@@ -208,13 +221,14 @@ The CLA document itself is pinned by commit SHA in the workflow — updating the
 1. Create (or reuse) a GitHub App owned by the `dataiku` org.
 2. **Repository permissions:** `Contents: Read and write`. No other scopes required.
 3. **Install** the App on `dataiku/homebrew-tap` only. Do not install it on `dataiku/kiji-proxy`. The token minted in the workflow is scoped to the tap repo via the `owner` + `repositories` inputs to `actions/create-github-app-token@v2`.
-4. Generate a private key on the App settings page and store the full PEM (including the `-----BEGIN/END-----` lines) as the `HOMEBREW_TAP_APP_PRIVATE_KEY` repository secret on `dataiku/kiji-proxy`.
-5. Copy the App's **Client ID** from the App settings page and store it as the `HOMEBREW_TAP_APP_CLIENT_ID` repository variable. The Client ID is used in preference to the numeric App ID since the latter is being phased out for new App auth surfaces; the action's `app-id` input accepts either.
+4. Generate a private key on the App settings page and store the full PEM (including the `-----BEGIN/END-----` lines) as `HOMEBREW_TAP_APP_PRIVATE_KEY` on the `Homebrew Release` environment in `dataiku/kiji-proxy` (see [§2 Homebrew Release](#homebrew-release)) — **not** as a repo-level secret, so the credential is only resolvable by jobs that explicitly opt into the environment.
+5. Copy the App's **Client ID** from the App settings page and store it as `HOMEBREW_TAP_APP_CLIENT_ID` on the same environment. The Client ID is used in preference to the numeric App ID since the latter is being phased out for new App auth surfaces; the action's `app-id` input accepts either.
 
 ### Tap-repo prerequisites
 
-- Default branch is `main`.
-- A `Casks/` directory exists at the repo root (cask target path: `Casks/kiji-privacy-proxy.rb`).
+- Repo must be initialized — at least one commit on `main`. A fresh empty repo will fail `actions/checkout` with `couldn't find remote ref refs/heads/main`.
+- Default branch is `main`. If you use a different default, update both the checkout target and the final `git push origin HEAD:main` in `release.yml` accordingly.
+- A `Casks/` directory exists at the repo root (cask target path: `Casks/kiji-privacy-proxy.rb`). The publish job creates the directory if missing, but pre-creating it keeps the first run noise-free.
 - Branch protection on `main`, if enabled, must either include the App in bypass actors or be relaxed enough for direct pushes by the bot. If you want to keep strict protection, change the final `git push origin HEAD:main` step in `release.yml` to open a PR using the same App token instead.
 
 ### Cask template
@@ -239,4 +253,8 @@ Edit the template in-repo to change cask metadata (description, zap paths, depen
 - [ ] Configure branch protection on `main` with the status checks listed above
 - [ ] Ensure the `cla-signatures` branch is not protected
 - [ ] (Optional) Adjust `dependabot.yml` schedule/timezone to your team
-- [ ] (For Homebrew distribution) Create a GitHub App with `Contents: read & write`, install it on your fork's tap repo, then set the `HOMEBREW_TAP_APP_CLIENT_ID` variable and `HOMEBREW_TAP_APP_PRIVATE_KEY` secret on the source repo. Update `actions/create-github-app-token` inputs (`owner`, `repositories`) and the `git push` target if your tap lives elsewhere.
+- [ ] (For Homebrew distribution)
+  - Create a GitHub App with `Contents: read & write` and install it on your fork's tap repo only.
+  - Create the `Homebrew Release` environment and add `HOMEBREW_TAP_APP_CLIENT_ID` (variable) and `HOMEBREW_TAP_APP_PRIVATE_KEY` (secret) under it — not at the repo level.
+  - Initialize the tap repo with a `main` branch and a `Casks/` directory.
+  - Update `actions/create-github-app-token` inputs (`owner`, `repositories`) and the `git push` target in `release.yml` if your tap lives somewhere other than `dataiku/homebrew-tap`.
