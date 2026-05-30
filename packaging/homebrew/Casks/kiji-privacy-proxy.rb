@@ -13,8 +13,6 @@ cask "kiji-privacy-proxy" do
     strategy :github_latest
   end
 
-  depends_on macos: ">= :high_sierra"
-
   app "Kiji Privacy Proxy.app"
 
   zap trash: [
