@@ -396,11 +396,16 @@ jobs:
           git config user.name  "${APP_SLUG}[bot]"
           git config user.email "${APP_SLUG}[bot]@users.noreply.github.com"
 
-          if git diff --quiet -- Casks/kiji-privacy-proxy.rb; then
+          # Stage first, then compare the index against HEAD. `git diff --quiet
+          # -- <path>` ignores untracked files, so on the first publish (when
+          # the cask does not yet exist in the tap) it would wrongly report
+          # "nothing to commit" and never push. `git diff --cached --quiet`
+          # detects both brand-new and modified files.
+          git add Casks/kiji-privacy-proxy.rb
+          if git diff --cached --quiet; then
             echo "::notice::Cask already at ${VERSION}, nothing to commit."
             exit 0
           fi
 
-          git add Casks/kiji-privacy-proxy.rb
           git commit -m "kiji-privacy-proxy ${VERSION}"
           git push origin HEAD:main
