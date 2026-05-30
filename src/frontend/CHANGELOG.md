@@ -1,5 +1,11 @@
 # kiji-privacy-proxy
 
+## 1.1.3
+
+### Patch Changes
+
+- 9cf7247: Fixed homebrew release
+
 ## 1.1.2
 
 ### Patch Changes
