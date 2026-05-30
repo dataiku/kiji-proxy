@@ -1,5 +1,11 @@
 # kiji-privacy-proxy
 
+## 1.1.2
+
+### Patch Changes
+
+- 7d131c7: Updated release workflow, deb package and homebrew
+
 ## 1.1.1
 
 ### Patch Changes
