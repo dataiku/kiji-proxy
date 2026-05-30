@@ -1,0 +1,21 @@
+name: Verify Git LFS Model
+description: >
+  Pull Git LFS objects and verify the ONNX model file is materialized rather
+  than left as an LFS pointer. Requires the repository to be checked out first.
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        set -euo pipefail
+        git lfs pull
+        # Verify model file is not an LFS pointer. Use GNU stat (Linux) with a
+        # fallback to BSD stat (macOS) so this works on every build runner.
+        MODEL_SIZE=$(stat -c%s "model/quantized/model.onnx" 2>/dev/null \
+          || stat -f%z "model/quantized/model.onnx" 2>/dev/null \
+          || echo "0")
+        echo "Model file size: ${MODEL_SIZE} bytes"
+        if [ "$MODEL_SIZE" -lt 1000 ]; then
+          echo "❌ Model file appears to be an LFS pointer (too small)"
+          exit 1
+        fi

@@ -1,0 +1,148 @@
+# Reusable workflow: Linux binary build (amd64), built inside an almalinux:9
+# container for a low GLIBC floor. Called by release.yml.
+name: Build Linux Binary (reusable)
+
+on:
+  workflow_call:
+
+jobs:
+  build-linux:
+    name: Build Linux Binary
+    runs-on: ubuntu-latest
+    container:
+      image: almalinux:9
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Install system packages
+        run: |
+          set -euo pipefail
+          dnf -y install \
+            bash \
+            binutils \
+            file \
+            findutils \
+            gcc \
+            gcc-c++ \
+            git \
+            git-lfs \
+            gzip \
+            jq \
+            make \
+            nodejs \
+            npm \
+            tar \
+            unzip \
+            wget \
+            which \
+            zip
+
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+        with:
+          lfs: true
+          fetch-depth: 0
+
+      - name: Mark Repository as Safe for Git
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config --global --get-all safe.directory
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
+        with:
+          toolchain: stable
+
+      - name: Cache LFS objects
+        uses: actions/cache@v5
+        with:
+          path: .git/lfs
+          key: lfs-${{ runner.os }}-almalinux9-${{ hashFiles('.gitattributes') }}
+          restore-keys: |
+            lfs-${{ runner.os }}-almalinux9-
+
+      - name: Extract dependency versions
+        id: deps
+        uses: ./.github/actions/extract-tokenizers-version
+
+      - name: Cache Go modules
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: ${{ runner.os }}-almalinux9-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-almalinux9-go-
+
+      - name: Cache tokenizers library
+        uses: actions/cache@v5
+        with:
+          path: build/tokenizers/libtokenizers.a
+          key: ${{ runner.os }}-almalinux9-tokenizers-v${{ steps.deps.outputs.version }}-prebuilt-v1
+
+      - name: Cache ONNX Runtime library
+        uses: actions/cache@v5
+        with:
+          path: |
+            build/libonnxruntime.so.1.24.2
+            build/libonnxruntime.so
+          key: ${{ runner.os }}-almalinux9-onnx-1.24.2
+
+      - name: Extract Version
+        id: version
+        uses: ./.github/actions/extract-version
+
+      - name: Verify Git LFS Files
+        uses: ./.github/actions/verify-lfs-model
+
+      - name: Build Linux Binary
+        run: |
+          chmod +x src/scripts/build_linux.sh
+          ./src/scripts/build_linux.sh
+
+      - name: Report GLIBC requirements
+        run: |
+          chmod +x src/scripts/report_glibc_requirements.sh
+          GLIBC_REPORT="$(
+            ./src/scripts/report_glibc_requirements.sh \
+              build/kiji-proxy \
+              build/libonnxruntime.so.1.24.2
+          )"
+          echo "$GLIBC_REPORT"
+
+          GLIBC_REQUIREMENT="$(printf '%s\n' "$GLIBC_REPORT" | awk -F': ' '/^Release minimum required GLIBC:/ {print $2}' | tail -n 1)"
+          if [ -n "$GLIBC_REQUIREMENT" ]; then
+            echo "**Minimum required GLIBC:** $GLIBC_REQUIREMENT" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload Linux Archive as Artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux-assets
+          path: |
+            release/linux/*.tar.gz
+            release/linux/*.tar.gz.sha256
+          retention-days: 90
+
+      - name: Build Summary
+        if: always()
+        run: |
+          echo "## 📦 Linux Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Archive Files:**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          ls -lh release/linux/*.tar.gz 2>/dev/null | awk '{print "- " $9 " (" $5 ")"}' >> $GITHUB_STEP_SUMMARY || echo "No archive files found" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**SHA256 Checksums:**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          cat release/linux/*.sha256 2>/dev/null | awk '{print "- `" $1 "`"}' >> $GITHUB_STEP_SUMMARY || echo "No checksums found" >> $GITHUB_STEP_SUMMARY

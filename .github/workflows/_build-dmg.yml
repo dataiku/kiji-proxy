@@ -1,0 +1,206 @@
+# Reusable workflow: macOS DMG build (Apple Silicon + Intel universal).
+# Called by release.yml. Trigger gating lives in the caller's `gate` job.
+name: Build DMG (reusable)
+
+on:
+  workflow_call:
+
+jobs:
+  build-dmg:
+    name: Build DMG for Release
+    runs-on: macos-latest
+    environment: "DMG Build Environment"
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Verify signing secrets are available
+        run: |
+          MISSING=""
+          [ -z "$CSC_LINK" ] && MISSING="$MISSING CSC_LINK"
+          [ -z "$CSC_KEY_PASSWORD" ] && MISSING="$MISSING CSC_KEY_PASSWORD"
+          [ -z "$APPLE_API_KEY" ] && MISSING="$MISSING APPLE_API_KEY"
+          [ -z "$APPLE_API_KEY_ID" ] && MISSING="$MISSING APPLE_API_KEY_ID"
+          [ -z "$APPLE_API_ISSUER" ] && MISSING="$MISSING APPLE_API_ISSUER"
+          if [ -n "$MISSING" ]; then
+            echo "::error::Missing required environment secrets:$MISSING"
+            echo "Ensure the 'DMG Build Environment' environment is configured with all required secrets."
+            exit 1
+          fi
+          echo "All signing and notarization secrets are set."
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+        with:
+          lfs: true
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: package-lock.json
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          enable-cache: true
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
+        with:
+          toolchain: stable
+
+      - name: Extract dependency versions
+        id: deps
+        uses: ./.github/actions/extract-tokenizers-version
+
+      - name: Cache LFS objects
+        uses: actions/cache@v5
+        with:
+          path: .git/lfs
+          key: lfs-${{ runner.os }}-${{ hashFiles('.gitattributes') }}
+          restore-keys: |
+            lfs-${{ runner.os }}-
+
+      - name: Cache tokenizers library
+        uses: actions/cache@v5
+        with:
+          path: build/tokenizers/libtokenizers.a
+          key: ${{ runner.os }}-tokenizers-v${{ steps.deps.outputs.version }}-prebuilt-v1
+
+      - name: Cache ONNX Runtime library
+        uses: actions/cache@v5
+        with:
+          path: build/libonnxruntime.*.dylib
+          key: ${{ runner.os }}-onnx-1.24.2
+          restore-keys: |
+            ${{ runner.os }}-onnx-
+
+      - name: Extract Version
+        id: version
+        uses: ./.github/actions/extract-version
+
+      - name: Verify Git LFS Files
+        uses: ./.github/actions/verify-lfs-model
+
+      - name: Install Python Dependencies
+        run: |
+          uv venv --python 3.13
+          uv pip install onnxruntime==1.24.2
+
+      - name: Install Root Dependencies
+        run: npm ci
+
+      - name: Install Frontend Dependencies
+        run: |
+          cd src/frontend
+          npm ci
+
+      - name: Write Apple API key to file
+        run: |
+          mkdir -p "$RUNNER_TEMP/apple"
+          echo "$APPLE_API_KEY" > "$RUNNER_TEMP/apple/AuthKey.p8"
+          chmod 600 "$RUNNER_TEMP/apple/AuthKey.p8"
+        env:
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+
+      - name: Build DMG
+        # Invoke the script directly (no skip-sign arg) so signing + notarization run.
+        # `make build-dmg` passes `skip-sign` for local dev builds.
+        run: |
+          chmod +x src/scripts/build_dmg.sh
+          ./src/scripts/build_dmg.sh
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_API_KEY: ${{ runner.temp }}/apple/AuthKey.p8
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          # Force signing on `pull_request` event runs (notably the merged
+          # release-PR path: this workflow's trigger includes merged PRs with
+          # the `release` label, and on those runs GITHUB_BASE_REF is set so
+          # electron-builder treats it as a PR build and silently skips
+          # signing — producing a half-signed bundle that fails
+          # `codesign --verify` with "code has no resources but signature
+          # indicates they must be present". Safe here: the job uses the
+          # protected "DMG Build Environment", gated on maintainer approval
+          # before secrets are exposed.
+          CSC_FOR_PULL_REQUEST: "true"
+
+      - name: Normalize macOS Artifact Names
+        run: |
+          cd src/frontend/release
+          for artifact in *.dmg *-mac.zip; do
+            if [ -f "$artifact" ]; then
+              # Match the artifact names generated in latest-mac.yml.
+              # Example: "Kiji Privacy Proxy-0.2.0-arm64-mac.zip" -> "Kiji-Privacy-Proxy-0.2.0-arm64-mac.zip"
+              new_name=$(echo "$artifact" | tr ' ' '-')
+              if [ "$artifact" != "$new_name" ]; then
+                mv "$artifact" "$new_name"
+                echo "Renamed: $artifact -> $new_name"
+              else
+                echo "Already clean: $artifact"
+              fi
+            fi
+          done
+
+      - name: Generate DMG SHA256 Checksums
+        working-directory: src/frontend/release
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          dmgs=(*.dmg)
+          if [ ${#dmgs[@]} -eq 0 ]; then
+            echo "::error::No DMG files found in src/frontend/release"
+            exit 1
+          fi
+          for dmg in "${dmgs[@]}"; do
+            shasum -a 256 "$dmg" > "${dmg}.sha256"
+            echo "Generated checksum:"
+            cat "${dmg}.sha256"
+          done
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: dmg-assets
+          path: |
+            src/frontend/release/*.dmg
+            src/frontend/release/*.dmg.sha256
+            src/frontend/release/*.zip
+            src/frontend/release/latest-mac.yml
+          retention-days: 90
+
+      - name: Build Summary
+        if: always()
+        run: |
+          echo "## 📦 macOS Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**DMG Files:**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          ls -lh src/frontend/release/*.dmg 2>/dev/null | awk '{print "- " $9 " (" $5 ")"}' >> $GITHUB_STEP_SUMMARY || echo "No DMG files found" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**SHA256 Checksums:**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          cat src/frontend/release/*.dmg.sha256 2>/dev/null | awk '{print "- `" $1 "`  " $2}' >> $GITHUB_STEP_SUMMARY || echo "No checksums found" >> $GITHUB_STEP_SUMMARY

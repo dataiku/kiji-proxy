@@ -1,0 +1,21 @@
+name: Extract tokenizers version
+description: >
+  Read the github.com/daulet/tokenizers version from go.mod (used to key the
+  prebuilt tokenizers library cache). Requires the repository to be checked out.
+outputs:
+  version:
+    description: The tokenizers module version, without a leading "v".
+    value: ${{ steps.deps.outputs.version }}
+runs:
+  using: composite
+  steps:
+    - id: deps
+      shell: bash
+      run: |
+        set -euo pipefail
+        tokenizers="$(awk '/github.com\/daulet\/tokenizers/ { sub(/^v/, "", $2); print $2; exit }' go.mod)"
+        if [ -z "$tokenizers" ]; then
+          echo "Failed to determine tokenizers version from go.mod" >&2
+          exit 1
+        fi
+        echo "version=$tokenizers" >> "$GITHUB_OUTPUT"

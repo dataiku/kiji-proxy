@@ -1,0 +1,58 @@
+# Reusable workflow: package the Linux binary as a .deb (Debian-native tooling,
+# so this runs on ubuntu-latest rather than the almalinux build container).
+# Consumes the linux-assets artifact produced by _build-linux.yml.
+name: Package Linux .deb (reusable)
+
+on:
+  workflow_call:
+
+jobs:
+  package-linux-deb:
+    name: Package Linux .deb
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      - name: Download Linux binary artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: linux-assets
+          path: release/linux
+
+      - name: Install deb packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential debhelper devscripts fakeroot dpkg-dev
+
+      - name: Build .deb package
+        run: |
+          chmod +x src/scripts/build_deb.sh
+          ./src/scripts/build_deb.sh
+
+      - name: Upload .deb as Artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux-deb
+          path: |
+            release/linux/*.deb
+            release/linux/*.deb.sha256
+          retention-days: 90
+
+      - name: Build Summary
+        if: always()
+        run: |
+          echo "## 📦 Linux .deb Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Deb Packages:**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          ls -lh release/linux/*.deb 2>/dev/null | awk '{print "- " $9 " (" $5 ")"}' >> $GITHUB_STEP_SUMMARY || echo "No deb packages found" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**SHA256 Checksums:**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          cat release/linux/*.deb.sha256 2>/dev/null | awk '{print "- `" $1 "`"}' >> $GITHUB_STEP_SUMMARY || echo "No checksums found" >> $GITHUB_STEP_SUMMARY

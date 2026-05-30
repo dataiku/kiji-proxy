@@ -1,0 +1,24 @@
+name: Extract Version
+description: >
+  Resolve the release version from the pushed git tag (refs/tags/vX.Y.Z) or,
+  for non-tag builds, from src/frontend/package.json. Requires the repository
+  to be checked out first.
+outputs:
+  version:
+    description: The resolved version, without a leading "v".
+    value: ${{ steps.extract.outputs.version }}
+runs:
+  using: composite
+  steps:
+    - id: extract
+      shell: bash
+      run: |
+        if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+          # Extract version from tag (v1.2.3 -> 1.2.3)
+          VERSION=${GITHUB_REF#refs/tags/v}
+        else
+          # For non-tag builds, extract version from package.json
+          VERSION=$(cat src/frontend/package.json | grep '"version"' | head -1 | awk -F '"' '{print $4}')
+        fi
+        echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+        echo "Resolved version: $VERSION"

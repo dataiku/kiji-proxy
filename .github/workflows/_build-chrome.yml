@@ -1,0 +1,68 @@
+# Reusable workflow: package the Chrome extension. Called by release.yml.
+name: Package Chrome Extension (reusable)
+
+on:
+  workflow_call:
+
+jobs:
+  build-chrome:
+    name: Package Chrome Extension
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      - name: Extract Version
+        id: version
+        uses: ./.github/actions/extract-version
+
+      - name: Stamp Version in Manifest
+        run: |
+          cd chrome-extension
+          # Update manifest.json version to match the release tag
+          jq --arg v "${{ steps.version.outputs.version }}" '.version = $v' manifest.json > manifest.tmp
+          mv manifest.tmp manifest.json
+          echo "Manifest version set to: ${{ steps.version.outputs.version }}"
+          cat manifest.json | jq .version
+
+      - name: Package Extension
+        run: |
+          cd chrome-extension
+          zip -r ../kiji-privacy-proxy-extension-${{ steps.version.outputs.version }}.zip . \
+            -x '*.DS_Store' '*.git*'
+          echo "Package contents:"
+          unzip -l ../kiji-privacy-proxy-extension-${{ steps.version.outputs.version }}.zip
+
+      - name: Generate SHA256 Checksum
+        run: |
+          sha256sum kiji-privacy-proxy-extension-${{ steps.version.outputs.version }}.zip \
+            > kiji-privacy-proxy-extension-${{ steps.version.outputs.version }}.zip.sha256
+          cat kiji-privacy-proxy-extension-${{ steps.version.outputs.version }}.zip.sha256
+
+      - name: Upload as Artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: chrome-assets
+          path: |
+            kiji-privacy-proxy-extension-${{ steps.version.outputs.version }}.zip
+            kiji-privacy-proxy-extension-${{ steps.version.outputs.version }}.zip.sha256
+          retention-days: 90
+
+      - name: Build Summary
+        if: always()
+        run: |
+          echo "## Chrome Extension Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Package:**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          ls -lh kiji-privacy-proxy-extension-*.zip 2>/dev/null | awk '{print "- " $9 " (" $5 ")"}' >> $GITHUB_STEP_SUMMARY || echo "No zip found" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**SHA256:**" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat kiji-privacy-proxy-extension-*.sha256 2>/dev/null >> $GITHUB_STEP_SUMMARY || echo "No checksum found" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
