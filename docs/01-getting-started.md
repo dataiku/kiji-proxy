@@ -55,6 +55,16 @@ The backend supports two proxy modes that can run simultaneously:
 
 ### macOS (Desktop App)
 
+**Homebrew (recommended):**
+
+```bash
+brew install --cask dataiku/tap/kiji-privacy-proxy
+```
+
+Upgrade later with `brew upgrade --cask kiji-privacy-proxy`.
+
+**Manual download:**
+
 1. Download the latest DMG from [Releases](https://github.com/dataiku/kiji-proxy/releases)
 2. Open the DMG file
 3. Drag "Kiji Privacy Proxy" to Applications

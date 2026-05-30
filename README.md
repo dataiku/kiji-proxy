@@ -65,11 +65,16 @@ When using AI services like OpenAI or Anthropic, sensitive data in your prompts 
 ### For Users
 
 **macOS (Desktop App):**
-```bash
-# Download from releases
-# https://github.com/dataiku/kiji-proxy/releases
 
-# Install
+Homebrew (recommended):
+```bash
+brew install --cask dataiku/tap/kiji-privacy-proxy
+```
+
+Or download manually:
+```bash
+# Download the latest DMG from
+# https://github.com/dataiku/kiji-proxy/releases
 open Kiji-Privacy-Proxy-*.dmg
 # Drag to Applications folder
 ```

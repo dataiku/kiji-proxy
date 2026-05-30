@@ -127,7 +127,12 @@ jobs:
 
           ### macOS Installation
 
-          **Quick Start:**
+          **Homebrew (recommended):**
+          ```bash
+          brew install --cask dataiku/tap/kiji-privacy-proxy
+          ```
+
+          **Or download manually:**
           1. Download `Kiji-Privacy-Proxy-${{ steps.version.outputs.version }}.dmg`
           2. Open the DMG and drag to Applications
           3. Launch "Kiji Privacy Proxy"
