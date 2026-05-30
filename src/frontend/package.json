@@ -79,8 +79,7 @@
     },
     "files": [
       "dist/**/*",
-      "src/electron/electron-main.js",
-      "src/electron/electron-preload.js",
+      "src/electron/*.js",
       "package.json",
       "assets/icon.png",
       "assets/icon-16.png",
