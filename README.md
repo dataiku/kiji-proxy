@@ -1,7 +1,7 @@
 # Dataiku's Kiji Privacy Proxy
 
 <div align="center">
-  <img src="src/frontend/assets/kiji_proxy_inverted.png" alt="Kiji Privacy Proxy" width="300">
+  <img src="src/frontend/assets/kiji_proxy_inverted.png" alt="Kiji Privacy Proxy" width="640">
 
   <p>
     <a href="https://github.com/dataiku/kiji-proxy/actions/workflows/release.yml"><img src="https://github.com/dataiku/kiji-proxy/actions/workflows/release.yml/badge.svg?event=push" alt="Release"></a>
