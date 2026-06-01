@@ -98,7 +98,7 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ github.event.pull_request.merge_commit_sha || github.ref }}
 
@@ -107,7 +107,7 @@ jobs:
         uses: ./.github/actions/extract-version
 
       - name: Download all build artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           path: release-assets
 
@@ -297,7 +297,7 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ github.event.pull_request.merge_commit_sha || github.ref }}
 
@@ -319,7 +319,7 @@ jobs:
 
       - name: Download DMG artifacts
         if: steps.prerelease.outputs.is_prerelease == 'false'
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: dmg-assets
           path: dmg-assets
@@ -351,7 +351,7 @@ jobs:
       - name: Generate GitHub App token for homebrew-tap
         if: steps.prerelease.outputs.is_prerelease == 'false'
         id: app-token
-        uses: actions/create-github-app-token@v3
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
         with:
           app-id: ${{ vars.HOMEBREW_TAP_APP_CLIENT_ID }}
           private-key: ${{ secrets.HOMEBREW_TAP_APP_PRIVATE_KEY }}
@@ -360,7 +360,7 @@ jobs:
 
       - name: Checkout homebrew-tap
         if: steps.prerelease.outputs.is_prerelease == 'false'
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           repository: dataiku/homebrew-tap
           token: ${{ steps.app-token.outputs.token }}
