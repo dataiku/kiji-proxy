@@ -17,6 +17,7 @@
     }
   },
   "ProxyPort": ":8080",
+  "UnixSocketAccessMode": "USER",
   "Database": {
     "Enabled": false
   },

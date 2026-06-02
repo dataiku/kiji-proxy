@@ -22,6 +22,10 @@ const DefaultForwardProxyPort = ":8080"
 // The leading colon is intentional — this is a net.Listen-style address (e.g. ":8081").
 const DefaultTransparentProxyPort = ":8081"
 
+// DefaultUnixSocketAccessMode sets the default chmod permissions on the Unix socket,
+// but only if config.UnixSocketPath is non-null. Can be "USER", "GROUP" or "ALL".
+const DefaultUnixSocketAccessMode = "USER"
+
 // LoggingConfig holds logging configuration options
 type LoggingConfig struct {
 	LogRequests    bool // Log request content
@@ -69,17 +73,18 @@ type ProxyConfig struct {
 
 // Config holds all configuration for the PII proxy service
 type Config struct {
-	Providers          ProvidersConfig `json:"providers"`
-	ProxyPort          string
-	UnixSocketPath     string
-	Database           DatabaseConfig
-	Logging            LoggingConfig
-	ONNXModelPath      string
-	TokenizerPath      string
-	ModelVariant       string // "trained" (full precision) or "quantized" (INT8). Used to derive ONNXModelDirectory when it isn't set.
-	ONNXModelDirectory string // Explicit override; takes precedence over ModelVariant.
-	UIPath             string
-	Proxy              ProxyConfig `json:"Proxy"`
+	Providers            ProvidersConfig `json:"providers"`
+	ProxyPort            string
+	UnixSocketPath       string
+	UnixSocketAccessMode string
+	Database             DatabaseConfig
+	Logging              LoggingConfig
+	ONNXModelPath        string
+	TokenizerPath        string
+	ModelVariant         string // "trained" (full precision) or "quantized" (INT8). Used to derive ONNXModelDirectory when it isn't set.
+	ONNXModelDirectory   string // Explicit override; takes precedence over ModelVariant.
+	UIPath               string
+	Proxy                ProxyConfig `json:"Proxy"`
 }
 
 // ModelVariantTrained is the full-precision model variant.
@@ -110,6 +115,10 @@ func (c *Config) ValidateConfig() error {
 		if err := validatePort(c.ProxyPort, "ProxyPort"); err != nil {
 			errs = append(errs, err.Error())
 		}
+	} else {
+		if err := validateSocketAccessMode(c.UnixSocketAccessMode); err != nil {
+			errs = append(errs, err.Error())
+		}
 	}
 
 	// Validate ProxyConfig fields
@@ -138,6 +147,28 @@ func (c *Config) ValidateConfig() error {
 		return errors.New(strings.Join(errs, "; "))
 	}
 	return nil
+}
+
+func validateSocketAccessMode(value string) error {
+	switch value {
+	case "USER", "GROUP", "ALL":
+		return nil
+	default:
+		return fmt.Errorf("UnixSocketAccessMode: value must be one of USER, GROUP, or ALL (current value: %s)", value)
+	}
+}
+
+func SocketAccessModeToChmod(value string) (uint32, error) {
+	switch value {
+	case "USER":
+		return 0o600, nil
+	case "GROUP":
+		return 0o660, nil
+	case "ALL":
+		return 0o666, nil
+	default:
+		return 0, fmt.Errorf("UnixSocketAccessMode: value must be one of USER, GROUP, or ALL (current value: %s)", value)
+	}
 }
 
 func validatePort(port string, fieldName string) error {
@@ -253,12 +284,13 @@ func DefaultConfig() *Config {
 			MistralProviderConfig:   defaultMistralProviderConfig,
 			CustomProviderConfig:    defaultCustomProviderConfig,
 		},
-		ProxyPort:          DefaultForwardProxyPort,
-		ONNXModelPath:      "",
-		TokenizerPath:      "",
-		ModelVariant:       ModelVariantTrained,
-		ONNXModelDirectory: "",
-		UIPath:             "./src/frontend/dist",
+		ProxyPort:            DefaultForwardProxyPort,
+		UnixSocketAccessMode: DefaultUnixSocketAccessMode,
+		ONNXModelPath:        "",
+		TokenizerPath:        "",
+		ModelVariant:         ModelVariantTrained,
+		ONNXModelDirectory:   "",
+		UIPath:               "./src/frontend/dist",
 		Database: DatabaseConfig{
 			Path:         dbPath,
 			CleanupHours: 24,

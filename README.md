@@ -98,10 +98,25 @@ cd kiji-privacy-proxy-X.Y.Z-linux-amd64
 
 Unix socket listener (optional):
 ```bash
-PROXY_UNIX_SOCKET="${XDG_RUNTIME_DIR:-/run/kiji-proxy}/kiji-proxy.sock" kiji-proxy
+PROXY_UNIX_SOCKET_PATH="${XDG_RUNTIME_DIR:-/run/kiji-proxy}/kiji-proxy.sock" kiji-proxy
 ```
 
-When `PROXY_UNIX_SOCKET` or the config field `UnixSocketPath` is set, the main HTTP API listens on that Unix socket instead of `PROXY_PORT`. The socket is created with mode `0600`, so clients such as the DSS extension must run as the same user unless a service wrapper manages broader access.
+**`PROXY_UNIX_SOCKET_PATH` behavior**
+
+When `PROXY_UNIX_SOCKET_PATH` is set, Kiji listens on the given Unix socket path instead of binding the main HTTP API to `PROXY_PORT`.
+
+- If `PROXY_UNIX_SOCKET_PATH` is unset, Kiji keeps the default TCP listener behavior and binds to `PROXY_PORT`.
+- If the socket file already exists, Kiji removes the stale socket before listening.
+- The configured path is treated the same as the `UnixSocketPath` config field.
+- Socket permissions are controlled by `PROXY_UNIX_SOCKET_ACCESS_MODE` or the config field `UnixSocketAccessMode`.
+- Supported access modes are `USER`, `GROUP`, and `ALL`, which map to `0600`, `0660`, and `0666`.
+
+Example:
+```bash
+PROXY_UNIX_SOCKET_PATH="${XDG_RUNTIME_DIR:-/run/kiji-proxy}/kiji-proxy.sock" \
+PROXY_UNIX_SOCKET_ACCESS_MODE="GROUP" \
+kiji-proxy
+```
 
 **Test It:**
 

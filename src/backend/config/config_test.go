@@ -300,6 +300,17 @@ func TestValidateConfig(t *testing.T) {
 			errString: "Proxy.ProxyPort: port must be in format ':PORT' where PORT is numeric (current value: invalid)",
 		},
 		{
+			name: "unix socket rejects invalid access mode",
+			config: func() *Config {
+				c := newDefaultConfig()
+				c.UnixSocketPath = "/tmp/kiji-proxy.sock"
+				c.UnixSocketAccessMode = "TEAM"
+				return c
+			}(),
+			expectErr: true,
+			errString: "UnixSocketAccessMode: value must be one of USER, GROUP, or ALL (current value: TEAM)",
+		},
+		{
 			name: "invalid openai provider config",
 			config: func() *Config {
 				c := newDefaultConfig()
@@ -350,4 +361,36 @@ func TestValidateConfig(t *testing.T) {
 // Helper function to check for string containment in error messages
 func stringContains(s, substr string) bool {
 	return strings.Contains(s, substr)
+}
+
+func TestSocketAccessModeToChmod(t *testing.T) {
+	testCases := []struct {
+		name      string
+		value     string
+		want      uint32
+		expectErr bool
+	}{
+		{name: "user", value: "USER", want: 0o600},
+		{name: "group", value: "GROUP", want: 0o660},
+		{name: "all", value: "ALL", want: 0o666},
+		{name: "invalid", value: "TEAM", expectErr: true},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := SocketAccessModeToChmod(tc.value)
+			if tc.expectErr {
+				if err == nil {
+					t.Fatalf("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("expected no error, got %v", err)
+			}
+			if got != tc.want {
+				t.Fatalf("SocketPermModeToChmod(%q) = %#o, want %#o", tc.value, got, tc.want)
+			}
+		})
+	}
 }
