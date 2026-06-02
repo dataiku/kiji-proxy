@@ -16,6 +16,7 @@ Thank you to everyone who has contributed to Kiji Privacy Proxy!
 - **GodHad** ([@GodHad](https://github.com/GodHad))
 - **Yash Dhawan** ([@ykd007](https://github.com/ykd007))
 - **Youssef Jouini** ([@yjouini](https://github.com/yjouini))
+- **Pierre Porée** ([@Pharell](https://github.com/Ph4rell))
 
 ---
 
