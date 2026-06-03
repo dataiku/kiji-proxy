@@ -1,0 +1,5 @@
+# PyPI `label-studio-ml` is stuck at 1.0.9 (old API — no response.ModelResponse,
+# pulls a broken Flask). Install the modern backend SDK from upstream instead.
+label-studio-ml @ git+https://github.com/HumanSignal/label-studio-ml-backend.git
+openai>=1.40
+ollama>=0.4.0

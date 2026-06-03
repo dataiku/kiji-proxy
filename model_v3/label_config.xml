@@ -1,0 +1,39 @@
+<!--
+  Label Studio labeling config for the PII v3 generate→review project.
+
+  REQUIRED by the pipeline (do not rename these):
+    - <Labels name="label" toName="text">   ← the pipeline pre-fills predictions with
+                                                from_name="label", to_name="text"
+    - <Text  name="text" value="$text">      ← tasks are imported as {"data": {"text": ...}}
+
+  The Label values below are the PII taxonomy and also drive the extraction schema
+  (the predictor is constrained to this exact label set). Spans the model predicts —
+  and the spans a human draws/corrects — are {start, end, text, label}.
+-->
+<View>
+  <Labels name="label" toName="text">
+    <Label value="FIRST_NAME"              background="#E6194B"/>
+    <Label value="MIDDLE_NAME"             background="#800000"/>
+    <Label value="LAST_NAME"               background="#F032E6"/>
+    <Label value="EMAIL"                   background="#4ECDC4"/>
+    <Label value="USERNAME"                background="#3CB44B"/>
+    <Label value="PHONE"                   background="#45B7D1"/>
+    <Label value="ORG"                     background="#98D8C8"/>
+    <Label value="DATE"                    background="#F7DC6F"/>
+    <Label value="SSN"                     background="#BB8FCE"/>
+    <Label value="CREDIT_CARD"             background="#F1948A"/>
+    <Label value="BANK_ACCOUNT"            background="#85C1E9"/>
+    <Label value="IP_ADDRESS"              background="#82E0AA"/>
+    <Label value="URL"                     background="#F8C471"/>
+    <Label value="NATIONAL_ID"             background="#D7BDE2"/>
+    <Label value="STREET"                  background="#F58231"/>
+    <Label value="CITY"                    background="#9A6324"/>
+    <Label value="STATE"                   background="#911EB4"/>
+    <Label value="ZIPCODE"                 background="#808000"/>
+    <Label value="COUNTRY"                 background="#A9A9A9"/>
+    <Label value="ADDITIONAL_ADDRESS_INFO" background="#000075"/>
+    <Label value="CONFIDENTIAL ID"         background="#A768FF"/>
+  </Labels>
+
+  <Text name="text" value="$text"/>
+</View>
