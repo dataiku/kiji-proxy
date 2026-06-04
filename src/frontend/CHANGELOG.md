@@ -1,5 +1,11 @@
 # kiji-privacy-proxy
 
+## 1.2.0
+
+### Minor Changes
+
+- c87f2ca: Allow users to disable entities from detection
+
 ## 1.1.5
 
 ### Patch Changes
