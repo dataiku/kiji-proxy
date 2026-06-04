@@ -237,6 +237,27 @@ func (d *ONNXModelDetectorSimple) SetEntityConfidenceThreshold(threshold float64
 	d.entityConfidenceThreshold = threshold
 }
 
+// EntityTypes returns the deduplicated, sorted set of base entity labels from the
+// loaded model's label map. BIO prefixes are stripped via splitBIOLabel and the
+// non-entity sentinels "O" and "IGNORE" are excluded.
+func (d *ONNXModelDetectorSimple) EntityTypes() []string {
+	seen := make(map[string]struct{})
+	for _, label := range d.id2label {
+		base, _, _ := splitBIOLabel(label)
+		if base == "O" || base == "IGNORE" {
+			continue
+		}
+		seen[base] = struct{}{}
+	}
+
+	types := make([]string, 0, len(seen))
+	for base := range seen {
+		types = append(types, base)
+	}
+	sort.Strings(types)
+	return types
+}
+
 // Detect processes the input and returns detected entities
 func (d *ONNXModelDetectorSimple) Detect(ctx context.Context, input DetectorInput) (DetectorOutput, error) {
 	// Initialize session and tensors on first use

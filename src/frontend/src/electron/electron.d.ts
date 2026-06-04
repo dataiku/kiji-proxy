@@ -93,6 +93,17 @@ interface ElectronAPI {
     confidence: number
   ) => Promise<{ success: boolean; error?: string }>;
 
+  // PII entities to mask
+  getAvailableEntities: () => Promise<{
+    available?: string[];
+    enabled?: string[];
+    error?: string;
+  }>;
+  getEnabledEntities: () => Promise<string[] | null>;
+  setEnabledEntities: (
+    entities: string[]
+  ) => Promise<{ success: boolean; error?: string }>;
+
   // Platform and version info
   platform: string;
   versions: {

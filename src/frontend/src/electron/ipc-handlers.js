@@ -497,6 +497,31 @@ const registerIpcHandlers = ({
         notifyBackendBestEffort("/api/pii/confidence", { confidence }),
     }
   );
+
+  // ---- PII Entities to Mask ----
+  // Persist the user's selection of which entity types to mask and push it to
+  // the backend on change. null/unset means "mask everything" (the default).
+  defineConfigField(
+    "enabledEntities",
+    "get-enabled-entities",
+    "set-enabled-entities",
+    {
+      defaultValue: null,
+      onChange: (enabled) =>
+        notifyBackendBestEffort("/api/pii/entities", { enabled }),
+    }
+  );
+
+  // The full set of selectable entity types comes from the loaded model, so it
+  // is read live from the backend rather than persisted in the config.
+  ipcMain.handle("get-available-entities", async () => {
+    try {
+      return await backendRequest("GET", "/api/pii/entities");
+    } catch (error) {
+      console.error("Error getting available entities:", error);
+      return { error: error.message };
+    }
+  });
 };
 
 module.exports = { registerIpcHandlers };

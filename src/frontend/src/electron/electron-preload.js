@@ -181,4 +181,17 @@ contextBridge.exposeInMainWorld("electronAPI", {
   setEntityConfidence: async (confidence) => {
     return await ipcRenderer.invoke("set-entity-confidence", confidence);
   },
+
+  // PII entities to mask
+  getAvailableEntities: async () => {
+    return await ipcRenderer.invoke("get-available-entities");
+  },
+
+  getEnabledEntities: async () => {
+    return await ipcRenderer.invoke("get-enabled-entities");
+  },
+
+  setEnabledEntities: async (entities) => {
+    return await ipcRenderer.invoke("set-enabled-entities", entities);
+  },
 });

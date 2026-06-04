@@ -5,6 +5,7 @@ import (
 	"log"
 	"sort"
 	"strings"
+	"sync"
 
 	detectors "github.com/hannes/kiji-private/src/backend/pii/detectors"
 )
@@ -32,6 +33,15 @@ type MaskingService struct {
 	detectorProvider DetectorProvider
 	generator        *GeneratorService
 	mapping          *PIIMapping // optional persistent original<->dummy store; nil disables reuse
+
+	// enabledEntities is the set of base entity labels the user has chosen to
+	// mask. A nil map means "no selection has been made" and every detected
+	// entity is masked (default behavior). A non-nil map (even if empty) is an
+	// explicit selection: only labels present in it are masked. Guarded by mu so
+	// it can be updated at runtime via the settings API without recreating the
+	// service (the selection therefore survives model hot-reloads).
+	mu              sync.RWMutex
+	enabledEntities map[string]struct{}
 }
 
 // NewMaskingService creates a new masking service.
@@ -66,6 +76,11 @@ func (s *MaskingService) MaskText(text string, logPrefix string) MaskedResult {
 			Entities:         []detectors.Entity{},
 		}
 	}
+
+	// Drop entities whose type the user has deselected. Disabled types pass
+	// through unmasked. This runs before any masking so both the masked text and
+	// the returned Entities reflect only the active selection.
+	piiFound.Entities = s.filterEnabledEntities(piiFound.Entities)
 
 	if len(piiFound.Entities) == 0 {
 		log.Printf("%s No PII detected", logPrefix)
@@ -155,6 +170,78 @@ func (s *MaskingService) MaskText(text string, logPrefix string) MaskedResult {
 		MaskedToOriginal: maskedToOriginal,
 		Entities:         entities,
 	}
+}
+
+// filterEnabledEntities removes entities whose base label is not in the active
+// selection. A nil selection means "mask everything" and the input is returned
+// unchanged.
+func (s *MaskingService) filterEnabledEntities(entities []detectors.Entity) []detectors.Entity {
+	s.mu.RLock()
+	enabled := s.enabledEntities
+	s.mu.RUnlock()
+
+	if enabled == nil {
+		return entities
+	}
+
+	filtered := make([]detectors.Entity, 0, len(entities))
+	for _, e := range entities {
+		if _, ok := enabled[e.Label]; ok {
+			filtered = append(filtered, e)
+		}
+	}
+	return filtered
+}
+
+// SetEnabledEntities sets the active selection of entity labels to mask. Passing
+// nil clears the selection (mask everything); passing a non-nil slice — even an
+// empty one — is an explicit selection (an empty slice masks nothing).
+func (s *MaskingService) SetEnabledEntities(labels []string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if labels == nil {
+		s.enabledEntities = nil
+		return
+	}
+	set := make(map[string]struct{}, len(labels))
+	for _, label := range labels {
+		set[label] = struct{}{}
+	}
+	s.enabledEntities = set
+}
+
+// GetEnabledEntities returns the sorted active selection of entity labels. When
+// no explicit selection has been made it returns the full set of available
+// entity types (so callers see "everything enabled").
+func (s *MaskingService) GetEnabledEntities() []string {
+	s.mu.RLock()
+	enabled := s.enabledEntities
+	s.mu.RUnlock()
+
+	if enabled == nil {
+		available, err := s.GetAvailableEntityTypes()
+		if err != nil {
+			return []string{}
+		}
+		return available
+	}
+
+	labels := make([]string, 0, len(enabled))
+	for label := range enabled {
+		labels = append(labels, label)
+	}
+	sort.Strings(labels)
+	return labels
+}
+
+// GetAvailableEntityTypes returns the maximum set of selectable entity labels,
+// sourced from the currently loaded model.
+func (s *MaskingService) GetAvailableEntityTypes() ([]string, error) {
+	detector, err := s.detectorProvider.GetDetector()
+	if err != nil {
+		return nil, err
+	}
+	return detector.EntityTypes(), nil
 }
 
 // RestorePII restores masked PII text back to original text using the stored mapping
