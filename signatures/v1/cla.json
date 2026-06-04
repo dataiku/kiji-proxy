@@ -47,6 +47,14 @@
       "created_at": "2026-06-01T13:36:41Z",
       "repoId": 1078608280,
       "pullRequestNo": 497
+    },
+    {
+      "name": "nmartorell",
+      "id": 32619850,
+      "comment_id": 4624638969,
+      "created_at": "2026-06-04T17:33:22Z",
+      "repoId": 1078608280,
+      "pullRequestNo": 505
     }
   ]
 }
