@@ -20,6 +20,7 @@ import (
 )
 
 const responseFieldSuccess = "success"
+const responseFieldEnabled = "enabled"
 
 // RateLimiter manages rate limiting for API endpoints
 type RateLimiter struct {
@@ -755,8 +756,8 @@ func (s *Server) handlePIIEntities(w http.ResponseWriter, r *http.Request) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(map[string]interface{}{
-			"available": available,
-			"enabled":   s.handler.GetEnabledEntities(),
+			"available":          available,
+			responseFieldEnabled: s.handler.GetEnabledEntities(),
 		}); err != nil {
 			log.Printf("Failed to encode PII entities response: %v", err)
 		}
@@ -792,7 +793,7 @@ func (s *Server) handlePIIEntities(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(map[string]interface{}{
 			responseFieldSuccess: true,
-			"enabled":            req.Enabled,
+			responseFieldEnabled: req.Enabled,
 		}); err != nil {
 			log.Printf("Failed to encode PII entities response: %v", err)
 		}
@@ -834,7 +835,7 @@ func (s *Server) handleTransparentProxyToggle(w http.ResponseWriter, r *http.Req
 	w.WriteHeader(http.StatusOK)
 	response := map[string]interface{}{
 		responseFieldSuccess: true,
-		"enabled":            req.Enabled,
+		responseFieldEnabled: req.Enabled,
 	}
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		log.Printf("Failed to encode response: %v", err)
