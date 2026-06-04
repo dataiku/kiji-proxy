@@ -89,15 +89,11 @@ func TestExpandConfigPaths(t *testing.T) {
 
 func TestLoadApplicationConfigUnixSocket(t *testing.T) {
 	t.Setenv("PROXY_UNIX_SOCKET_PATH", "/tmp/kiji-proxy.sock")
-	t.Setenv("PROXY_UNIX_SOCKET_ACCESS_MODE", "GROUP")
 
 	cfg := config.DefaultConfig()
 	loadApplicationConfig(cfg)
 
 	if cfg.UnixSocketPath != "/tmp/kiji-proxy.sock" {
 		t.Errorf("UnixSocketPath = %q, want %q", cfg.UnixSocketPath, "/tmp/kiji-proxy.sock")
-	}
-	if cfg.UnixSocketAccessMode != "GROUP" {
-		t.Errorf("SocketPermMode = %q, want %q", cfg.UnixSocketAccessMode, "GROUP")
 	}
 }

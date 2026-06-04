@@ -220,9 +220,6 @@ func loadApplicationConfig(cfg *config.Config) {
 	if socketPath := os.Getenv("PROXY_UNIX_SOCKET_PATH"); socketPath != "" {
 		cfg.UnixSocketPath = socketPath
 	}
-	if socketAccessMode := os.Getenv("PROXY_UNIX_SOCKET_ACCESS_MODE"); socketAccessMode != "" {
-		cfg.UnixSocketAccessMode = socketAccessMode
-	}
 
 	// Override OpenAI provider config with environment variables
 	if openAIURL := os.Getenv("OPENAI_BASE_URL"); openAIURL != "" {

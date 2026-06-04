@@ -305,10 +305,10 @@ func (s *Server) Start() error {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	return serveHTTP(server, s.config.UnixSocketPath, s.config.UnixSocketAccessMode)
+	return serveHTTP(server, s.config.UnixSocketPath)
 }
 
-func serveHTTP(server *http.Server, socketPath, socketAccessMode string) error {
+func serveHTTP(server *http.Server, socketPath string) error {
 	if socketPath == "" {
 		return server.ListenAndServe()
 	}
@@ -323,13 +323,7 @@ func serveHTTP(server *http.Server, socketPath, socketAccessMode string) error {
 	}
 	defer os.Remove(socketPath)
 
-	socketMode, err := config.SocketAccessModeToChmod(socketAccessMode)
-	if err != nil {
-		_ = listener.Close()
-		return fmt.Errorf("validate Unix socket permissions for %s: %w", socketPath, err)
-	}
-
-	if err := os.Chmod(socketPath, os.FileMode(socketMode)); err != nil {
+	if err := os.Chmod(socketPath, 0600); err != nil {
 		_ = listener.Close()
 		return fmt.Errorf("set Unix socket permissions on %s: %w", socketPath, err)
 	}

@@ -108,14 +108,11 @@ When `PROXY_UNIX_SOCKET_PATH` is set, Kiji listens on the given Unix socket path
 - If `PROXY_UNIX_SOCKET_PATH` is unset, Kiji keeps the default TCP listener behavior and binds to `PROXY_PORT`.
 - If the socket file already exists, Kiji removes the stale socket before listening.
 - The configured path is treated the same as the `UnixSocketPath` config field.
-- Socket permissions are controlled by `PROXY_UNIX_SOCKET_ACCESS_MODE` or the config field `UnixSocketAccessMode`.
-- Supported access modes are `USER`, `GROUP`, and `ALL`, which map to `0600`, `0660`, and `0666`.
+- The proxy creates the socket with permissions `0600`. If broader access is required, the calling process or service wrapper should adjust permissions after startup.
 
 Example:
 ```bash
-PROXY_UNIX_SOCKET_PATH="${XDG_RUNTIME_DIR:-/run/kiji-proxy}/kiji-proxy.sock" \
-PROXY_UNIX_SOCKET_ACCESS_MODE="GROUP" \
-kiji-proxy
+PROXY_UNIX_SOCKET_PATH="${XDG_RUNTIME_DIR:-/run/kiji-proxy}/kiji-proxy.sock" kiji-proxy
 ```
 
 **Test It:**
