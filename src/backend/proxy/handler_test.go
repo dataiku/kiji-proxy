@@ -990,7 +990,7 @@ func TestHandler_MaskPIIInText_NoPII(t *testing.T) {
 	}
 }
 
-func TestHandler_MaskPIIInText_FilterDisabledEntities(t *testing.T) {
+func TestHandler_MaskPIIInText_DisabledEntityPassesThrough(t *testing.T) {
 	// "John a@b.com": FIRSTNAME at [0,4), EMAIL at [5,12).
 	detector := &mockDetector{
 		entities: []pii.Entity{
@@ -1001,8 +1001,8 @@ func TestHandler_MaskPIIInText_FilterDisabledEntities(t *testing.T) {
 	}
 	h := newTestHandler(t, detector, nil)
 
-	// Only mask first names; email must pass through unmasked.
-	h.SetEnabledEntities([]string{"FIRSTNAME"})
+	// Disable EMAIL only; it must pass through unmasked while FIRSTNAME is masked.
+	h.SetDisabledEntities([]string{"EMAIL"})
 
 	maskedText, mapping, entities := h.maskPIIInText("John a@b.com", "[test]")
 
@@ -1020,7 +1020,9 @@ func TestHandler_MaskPIIInText_FilterDisabledEntities(t *testing.T) {
 	}
 }
 
-func TestHandler_MaskPIIInText_DeselectAllMasksNothing(t *testing.T) {
+func TestHandler_MaskPIIInText_EmptyDisabledMasksAll(t *testing.T) {
+	// The fail-closed property: an empty exclusion list masks everything, so an
+	// accidental cleared selection never leaks PII.
 	detector := &mockDetector{
 		entities: []pii.Entity{
 			{Text: "John", Label: "FIRSTNAME", StartPos: 0, EndPos: 4, Confidence: 0.95},
@@ -1029,16 +1031,15 @@ func TestHandler_MaskPIIInText_DeselectAllMasksNothing(t *testing.T) {
 	}
 	h := newTestHandler(t, detector, nil)
 
-	// An explicit empty selection (non-nil) means mask nothing.
-	h.SetEnabledEntities([]string{})
+	h.SetDisabledEntities([]string{}) // explicit empty => mask everything
 
 	maskedText, mapping, entities := h.maskPIIInText("John here", "[test]")
 
-	if maskedText != "John here" {
-		t.Errorf("expected unchanged text when nothing is enabled, got %q", maskedText)
+	if strings.Contains(maskedText, "John") {
+		t.Errorf("expected FIRSTNAME to be masked when nothing is disabled, got %q", maskedText)
 	}
-	if len(mapping) != 0 || len(entities) != 0 {
-		t.Errorf("expected no masking, got mapping=%v entities=%v", mapping, entities)
+	if len(mapping) != 1 || len(entities) != 1 {
+		t.Errorf("expected one entity masked, got mapping=%v entities=%v", mapping, entities)
 	}
 }
 
@@ -1054,9 +1055,9 @@ func TestHandler_EntityTypeAccessors(t *testing.T) {
 		t.Errorf("unexpected available types: %v", available)
 	}
 
-	// With no explicit selection, GetEnabledEntities reports everything available.
-	enabled := h.GetEnabledEntities()
-	if len(enabled) != 2 {
-		t.Errorf("expected all entities enabled by default, got %v", enabled)
+	// With no explicit selection, nothing is disabled (everything is masked).
+	disabled := h.GetDisabledEntities()
+	if len(disabled) != 0 {
+		t.Errorf("expected no disabled entities by default, got %v", disabled)
 	}
 }

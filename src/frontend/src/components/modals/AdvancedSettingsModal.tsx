@@ -110,19 +110,17 @@ export default function AdvancedSettingsModal({
     if (!window.electronAPI) return;
 
     try {
-      const [info, savedEnabled] = await Promise.all([
+      const [info, savedDisabled] = await Promise.all([
         window.electronAPI.getAvailableEntities(),
-        window.electronAPI.getEnabledEntities(),
+        window.electronAPI.getDisabledEntities(),
       ]);
       const available = info?.available ?? [];
       setAvailableEntities(available);
-      // No saved selection => default to everything enabled. Otherwise keep only
-      // saved labels the currently loaded model still supports.
-      const enabled =
-        savedEnabled == null
-          ? new Set(available)
-          : new Set(savedEnabled.filter((e) => available.includes(e)));
-      setEnabledEntities(enabled);
+      // The stored value is the exclusion list (types left unmasked). A checkbox
+      // is checked when its type is NOT excluded, so the default (nothing
+      // excluded) shows everything checked => mask everything.
+      const disabled = new Set(savedDisabled ?? []);
+      setEnabledEntities(new Set(available.filter((e) => !disabled.has(e))));
     } catch (error) {
       console.error("Error loading entities:", error);
     }
@@ -173,12 +171,15 @@ export default function AdvancedSettingsModal({
     if (!window.electronAPI) return;
 
     setEnabledEntities(next);
+    // Persist the inverse — the exclusion list of types to leave unmasked — so an
+    // empty selection means "mask everything" and never leaks PII by accident.
+    const disabled = availableEntities.filter((label) => !next.has(label));
     try {
-      await window.electronAPI.setEnabledEntities([...next]);
+      await window.electronAPI.setDisabledEntities(disabled);
       setEntitiesSaved(true);
       setTimeout(() => setEntitiesSaved(false), 2000);
     } catch (error) {
-      console.error("Error saving enabled entities:", error);
+      console.error("Error saving entity selection:", error);
     }
   };
 

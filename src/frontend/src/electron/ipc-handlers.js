@@ -499,16 +499,18 @@ const registerIpcHandlers = ({
   );
 
   // ---- PII Entities to Mask ----
-  // Persist the user's selection of which entity types to mask and push it to
-  // the backend on change. null/unset means "mask everything" (the default).
+  // Persist the exclusion list — the entity types to leave UNMASKED — and push
+  // it to the backend on change. Storing the exclusion (rather than the masked
+  // set) is deliberate: null/empty means "nothing excluded, mask everything", so
+  // the default and any accidental clearing fail closed toward masking.
   defineConfigField(
-    "enabledEntities",
-    "get-enabled-entities",
-    "set-enabled-entities",
+    "disabledEntities",
+    "get-disabled-entities",
+    "set-disabled-entities",
     {
       defaultValue: null,
-      onChange: (enabled) =>
-        notifyBackendBestEffort("/api/pii/entities", { enabled }),
+      onChange: (disabled) =>
+        notifyBackendBestEffort("/api/pii/entities", { disabled }),
     }
   );
 

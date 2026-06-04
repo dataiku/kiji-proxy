@@ -182,16 +182,17 @@ contextBridge.exposeInMainWorld("electronAPI", {
     return await ipcRenderer.invoke("set-entity-confidence", confidence);
   },
 
-  // PII entities to mask
+  // PII entities to mask. The stored value is the exclusion list (types left
+  // unmasked); empty means "mask everything".
   getAvailableEntities: async () => {
     return await ipcRenderer.invoke("get-available-entities");
   },
 
-  getEnabledEntities: async () => {
-    return await ipcRenderer.invoke("get-enabled-entities");
+  getDisabledEntities: async () => {
+    return await ipcRenderer.invoke("get-disabled-entities");
   },
 
-  setEnabledEntities: async (entities) => {
-    return await ipcRenderer.invoke("set-enabled-entities", entities);
+  setDisabledEntities: async (entities) => {
+    return await ipcRenderer.invoke("set-disabled-entities", entities);
   },
 });

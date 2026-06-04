@@ -21,6 +21,7 @@ import (
 
 const responseFieldSuccess = "success"
 const responseFieldEnabled = "enabled"
+const responseFieldDisabled = "disabled"
 
 // RateLimiter manages rate limiting for API endpoints
 type RateLimiter struct {
@@ -737,8 +738,9 @@ func (s *Server) handlePIIConfidence(w http.ResponseWriter, r *http.Request) {
 }
 
 // handlePIIEntities handles GET/POST /api/pii/entities requests. GET returns the
-// available entity types (from the loaded model) plus the currently enabled
-// selection. POST replaces the enabled selection with the provided list.
+// available entity types (from the loaded model) plus the entity types currently
+// disabled (left unmasked). POST replaces the disabled set with the provided
+// list; an empty list means "mask everything" (fail closed).
 func (s *Server) handlePIIEntities(w http.ResponseWriter, r *http.Request) {
 	s.corsHandler(w, r)
 
@@ -756,15 +758,15 @@ func (s *Server) handlePIIEntities(w http.ResponseWriter, r *http.Request) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(map[string]interface{}{
-			"available":          available,
-			responseFieldEnabled: s.handler.GetEnabledEntities(),
+			"available":           available,
+			responseFieldDisabled: s.handler.GetDisabledEntities(),
 		}); err != nil {
 			log.Printf("Failed to encode PII entities response: %v", err)
 		}
 
 	case http.MethodPost:
 		var req struct {
-			Enabled []string `json:"enabled"`
+			Disabled []string `json:"disabled"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "Invalid request", http.StatusBadRequest)
@@ -779,7 +781,7 @@ func (s *Server) handlePIIEntities(w http.ResponseWriter, r *http.Request) {
 			for _, label := range available {
 				valid[label] = struct{}{}
 			}
-			for _, label := range req.Enabled {
+			for _, label := range req.Disabled {
 				if _, ok := valid[label]; !ok {
 					http.Error(w, "Unknown entity label: "+label, http.StatusBadRequest)
 					return
@@ -787,13 +789,13 @@ func (s *Server) handlePIIEntities(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		s.handler.SetEnabledEntities(req.Enabled)
-		log.Printf("PII enabled entities updated: %d selected", len(req.Enabled))
+		s.handler.SetDisabledEntities(req.Disabled)
+		log.Printf("PII disabled (passthrough) entities updated: %d left unmasked", len(req.Disabled))
 
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(map[string]interface{}{
-			responseFieldSuccess: true,
-			responseFieldEnabled: req.Enabled,
+			responseFieldSuccess:  true,
+			responseFieldDisabled: req.Disabled,
 		}); err != nil {
 			log.Printf("Failed to encode PII entities response: %v", err)
 		}
