@@ -31,6 +31,7 @@ type Handler struct {
 	modelManager      *piiServices.ModelManager
 	providers         *providers.Providers
 	detector          *pii.Detector
+	regexDetector     *pii.RegexDetector // nil when the regex detector is not enabled
 	responseProcessor *processor.ResponseProcessor
 	maskingService    *piiServices.MaskingService
 	loggingDB         piiServices.LoggingDB    // Database or in-memory storage for logging
@@ -99,6 +100,34 @@ func (h *Handler) GetAvailableEntityTypes() ([]string, error) {
 		return nil, fmt.Errorf("masking service not initialized")
 	}
 	return h.maskingService.GetAvailableEntityTypes()
+}
+
+// GetCustomRegexes returns the regex detector's current patterns. It returns an
+// empty slice when the regex detector is not enabled.
+func (h *Handler) GetCustomRegexes() []config.RegexPatternConfig {
+	if h.regexDetector == nil {
+		return []config.RegexPatternConfig{}
+	}
+	patterns := h.regexDetector.Patterns()
+	out := make([]config.RegexPatternConfig, len(patterns))
+	for i, p := range patterns {
+		out[i] = config.RegexPatternConfig{Name: p.Name, Pattern: p.Pattern}
+	}
+	return out
+}
+
+// SetCustomRegexes validates and replaces the regex detector's patterns. It
+// returns an error if the regex detector is not enabled or a pattern is invalid;
+// on error the existing patterns are left unchanged.
+func (h *Handler) SetCustomRegexes(regexes []config.RegexPatternConfig) error {
+	if h.regexDetector == nil {
+		return fmt.Errorf("regex detector is not enabled")
+	}
+	patterns := make([]pii.RegexPattern, len(regexes))
+	for i, r := range regexes {
+		patterns[i] = pii.RegexPattern{Name: r.Name, Pattern: r.Pattern}
+	}
+	return h.regexDetector.SetPatterns(patterns)
 }
 
 // GetModelInfo returns information about the current model state
@@ -630,24 +659,28 @@ func enabledDetectorSet(names []string) map[string]bool {
 
 // buildExtraDetectors constructs the non-ONNX detectors enabled in config. ONNX is
 // managed separately by ModelManager. A regex set that fails to compile is logged
-// and skipped so a single bad pattern can't stop the proxy from starting.
-func buildExtraDetectors(cfg *config.Config, enabled map[string]bool) []pii.Detector {
+// and skipped so a single bad pattern can't stop the proxy from starting. The
+// concrete regex detector is also returned (nil when disabled or invalid) so the
+// handler can expose it for runtime get/set.
+func buildExtraDetectors(cfg *config.Config, enabled map[string]bool) ([]pii.Detector, *pii.RegexDetector) {
 	var extra []pii.Detector
+	var regexDetector *pii.RegexDetector
 
 	if enabled[config.DetectorTypeRegex] {
 		patterns := make([]pii.RegexPattern, 0, len(cfg.CustomRegexes))
 		for _, p := range cfg.CustomRegexes {
 			patterns = append(patterns, pii.RegexPattern{Name: p.Name, Pattern: p.Pattern})
 		}
-		if regexDetector, err := pii.NewRegexDetector(patterns); err != nil {
+		if rd, err := pii.NewRegexDetector(patterns); err != nil {
 			log.Printf("[Handler] Skipping regex detector due to config error: %v", err)
 		} else {
 			log.Printf("[Handler] Regex detector enabled with %d pattern(s)", len(patterns))
-			extra = append(extra, regexDetector)
+			regexDetector = rd
+			extra = append(extra, rd)
 		}
 	}
 
-	return extra
+	return extra, regexDetector
 }
 
 func NewHandler(cfg *config.Config) (*Handler, error) {
@@ -662,7 +695,7 @@ func NewHandler(cfg *config.Config) (*Handler, error) {
 	// build the static (non-ONNX) detectors. ONNX is managed by ModelManager itself.
 	enabled := enabledDetectorSet(cfg.Detectors)
 	onnxEnabled := enabled[config.DetectorTypeONNX]
-	extraDetectors := buildExtraDetectors(cfg, enabled)
+	extraDetectors, regexDetector := buildExtraDetectors(cfg, enabled)
 
 	log.Printf("[Handler] Initializing ModelManager with directory: %s (variant=%q, onnx=%t, extraDetectors=%d)", modelDir, cfg.ModelVariant, onnxEnabled, len(extraDetectors))
 	modelManager, err = piiServices.NewModelManager(modelDir, onnxEnabled, extraDetectors...)
@@ -769,6 +802,7 @@ func NewHandler(cfg *config.Config) (*Handler, error) {
 		modelManager:      modelManager,
 		providers:         &providers,
 		detector:          &detector,
+		regexDetector:     regexDetector,
 		responseProcessor: responseProcessor,
 		maskingService:    maskingService,
 		loggingDB:         loggingDB,

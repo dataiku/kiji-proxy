@@ -105,6 +105,16 @@ interface ElectronAPI {
     entities: string[]
   ) => Promise<{ success: boolean; error?: string }>;
 
+  // PII custom regex patterns (name + pattern), read live from / written to the
+  // backend regex detector. Name is used as the detected entity type.
+  getCustomRegexes: () => Promise<{
+    regexes?: Array<{ name: string; pattern: string }>;
+    error?: string;
+  }>;
+  setCustomRegexes: (
+    regexes: Array<{ name: string; pattern: string }>
+  ) => Promise<{ success: boolean; error?: string }>;
+
   // Platform and version info
   platform: string;
   versions: {

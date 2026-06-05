@@ -195,4 +195,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
   setDisabledEntities: async (entities) => {
     return await ipcRenderer.invoke("set-disabled-entities", entities);
   },
+
+  // PII custom regex patterns (name + pattern), read live from / written to the
+  // backend regex detector.
+  getCustomRegexes: async () => {
+    return await ipcRenderer.invoke("get-custom-regexes");
+  },
+
+  setCustomRegexes: async (regexes) => {
+    return await ipcRenderer.invoke("set-custom-regexes", regexes);
+  },
 });

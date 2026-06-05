@@ -166,3 +166,44 @@ func TestRegexDetector_Close(t *testing.T) {
 		t.Errorf("Close() = %v, want nil", err)
 	}
 }
+
+func TestRegexDetector_PatternsRoundTrip(t *testing.T) {
+	d := newTestRegexDetector(t, emailPattern, ssnPattern)
+	got := d.Patterns()
+	want := []RegexPattern{emailPattern, ssnPattern}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Patterns() = %v, want %v", got, want)
+	}
+}
+
+func TestRegexDetector_SetPatternsReplaces(t *testing.T) {
+	d := newTestRegexDetector(t, ssnPattern)
+
+	if err := d.SetPatterns([]RegexPattern{emailPattern}); err != nil {
+		t.Fatalf("SetPatterns failed: %v", err)
+	}
+
+	// EntityTypes and Detect must reflect the new pattern set.
+	if got := d.EntityTypes(); !reflect.DeepEqual(got, []string{"EMAIL"}) {
+		t.Errorf("EntityTypes() = %v, want [EMAIL]", got)
+	}
+	out, err := d.Detect(context.Background(), DetectorInput{Text: "a@b.com 123-45-6789"})
+	if err != nil {
+		t.Fatalf("Detect failed: %v", err)
+	}
+	if len(out.Entities) != 1 || out.Entities[0].Label != "EMAIL" {
+		t.Errorf("after SetPatterns expected only EMAIL match, got %+v", out.Entities)
+	}
+}
+
+func TestRegexDetector_SetPatternsInvalidKeepsOld(t *testing.T) {
+	d := newTestRegexDetector(t, ssnPattern)
+
+	if err := d.SetPatterns([]RegexPattern{{Name: "BAD", Pattern: "("}}); err == nil {
+		t.Fatal("expected error for uncompilable pattern, got nil")
+	}
+	// The original patterns must be untouched after a failed update.
+	if got := d.Patterns(); !reflect.DeepEqual(got, []RegexPattern{ssnPattern}) {
+		t.Errorf("patterns changed after failed SetPatterns: %v", got)
+	}
+}

@@ -22,6 +22,7 @@ import (
 const responseFieldSuccess = "success"
 const responseFieldEnabled = "enabled"
 const responseFieldDisabled = "disabled"
+const responseFieldRegexes = "regexes"
 
 // RateLimiter manages rate limiting for API endpoints
 type RateLimiter struct {
@@ -244,6 +245,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/pii/check", s.handlePIICheck)
 	mux.HandleFunc("/api/pii/confidence", s.handlePIIConfidence)
 	mux.HandleFunc("/api/pii/entities", s.handlePIIEntities)
+	mux.HandleFunc("/api/pii/regexes", s.handlePIIRegexes)
 
 	// Add provider endpoints
 	mux.Handle(providers.ProviderSubpathOpenAI, s.handler) // same as Mistral
@@ -375,6 +377,8 @@ func (s *Server) startTransparentProxy() {
 			s.handlePIIConfidence(w, r)
 		case "/api/pii/entities":
 			s.handlePIIEntities(w, r)
+		case "/api/pii/regexes":
+			s.handlePIIRegexes(w, r)
 		default:
 			// All other HTTP/HTTPS requests go to transparent proxy
 			s.transparentProxy.ServeHTTP(w, r)
@@ -798,6 +802,55 @@ func (s *Server) handlePIIEntities(w http.ResponseWriter, r *http.Request) {
 			responseFieldDisabled: req.Disabled,
 		}); err != nil {
 			log.Printf("Failed to encode PII entities response: %v", err)
+		}
+
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// handlePIIRegexes handles GET/POST /api/pii/regexes requests. GET returns the
+// custom regex patterns currently used by the regex detector (name + pattern).
+// POST replaces the whole set with the provided list; patterns that fail to
+// compile (or a disabled regex detector) are rejected with 400.
+func (s *Server) handlePIIRegexes(w http.ResponseWriter, r *http.Request) {
+	s.corsHandler(w, r)
+
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(map[string]interface{}{
+			responseFieldRegexes: s.handler.GetCustomRegexes(),
+		}); err != nil {
+			log.Printf("Failed to encode PII regexes response: %v", err)
+		}
+
+	case http.MethodPost:
+		var req struct {
+			Regexes []config.RegexPatternConfig `json:"regexes"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request", http.StatusBadRequest)
+			return
+		}
+
+		if err := s.handler.SetCustomRegexes(req.Regexes); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		log.Printf("PII custom regexes updated: %d pattern(s)", len(req.Regexes))
+
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(map[string]interface{}{
+			responseFieldSuccess: true,
+			responseFieldRegexes: req.Regexes,
+		}); err != nil {
+			log.Printf("Failed to encode PII regexes response: %v", err)
 		}
 
 	default:

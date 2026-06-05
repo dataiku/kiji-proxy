@@ -1,164 +1,223 @@
 import { useState, useEffect } from "react";
-import { X, Server, FolderOpen, Shield, AlertTriangle } from "lucide-react";
-import CACertSetupModal from "./CACertSetupModal";
+import { X, Shield, ListChecks, Regex, Plus, Minus } from "lucide-react";
 import { isElectron } from "../../utils/providerHelpers";
 
-interface AdvancedSettingsModalProps {
+interface PIISettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-export default function AdvancedSettingsModal({
+// Friendly display names for the model's raw entity labels. Unknown labels
+// (e.g. from a custom model) fall back to a capitalized form.
+const ENTITY_LABEL_NAMES: Record<string, string> = {
+  SURNAME: "Surname",
+  FIRSTNAME: "First Name",
+  BUILDINGNUM: "Building Number",
+  DATEOFBIRTH: "Date of Birth",
+  EMAIL: "Email",
+  PHONENUMBER: "Phone Number",
+  CITY: "City",
+  URL: "URL",
+  COMPANYNAME: "Company Name",
+  STATE: "State",
+  ZIP: "ZIP Code",
+  STREET: "Street",
+  COUNTRY: "Country",
+  SSN: "SSN",
+  DRIVERLICENSENUM: "Driver License Number",
+  PASSPORTID: "Passport ID",
+  NATIONALID: "National ID",
+  IDCARDNUM: "ID Card Number",
+  TAXNUM: "Tax Number",
+  LICENSEPLATENUM: "License Plate Number",
+  PASSWORD: "Password",
+  IBAN: "IBAN",
+  AGE: "Age",
+  SECURITYTOKEN: "Security Token",
+  CREDITCARDNUMBER: "Credit Card Number",
+  USERNAME: "Username",
+};
+
+const humanizeEntity = (label: string): string =>
+  ENTITY_LABEL_NAMES[label] ??
+  label.charAt(0).toUpperCase() + label.slice(1).toLowerCase();
+
+export default function PIISettingsModal({
   isOpen,
   onClose,
-}: AdvancedSettingsModalProps) {
-  // Model directory state
-  const [modelDirectory, setModelDirectory] = useState("");
-  const [_hasModelDirectory, setHasModelDirectory] = useState(false);
-  const [modelInfo, setModelInfo] = useState<{
-    healthy: boolean;
-    directory?: string;
-    error?: string;
-  } | null>(null);
-  const [isReloading, setIsReloading] = useState(false);
-  const [reloadMessage, setReloadMessage] = useState<{
-    type: "success" | "error";
-    text: string;
-  } | null>(null);
+}: PIISettingsModalProps) {
+  // PII detection confidence state
+  const [entityConfidence, setEntityConfidence] = useState(0.25);
+  const [confidenceSaved, setConfidenceSaved] = useState(false);
 
-  // Transparent proxy state
-  const [transparentProxyEnabled, setTransparentProxyEnabled] = useState(false);
-  const [isTogglingProxy, setIsTogglingProxy] = useState(false);
-  const [isCACertSetupOpen, setIsCACertSetupOpen] = useState(false);
+  // Entities-to-mask state
+  const [availableEntities, setAvailableEntities] = useState<string[]>([]);
+  const [enabledEntities, setEnabledEntities] = useState<Set<string>>(
+    new Set()
+  );
+  const [entitiesSaved, setEntitiesSaved] = useState(false);
 
-  const loadTransparentProxySetting = async () => {
+  // Custom regex patterns state. Rows are edited locally (including incomplete
+  // ones) and only complete rows are persisted to the backend.
+  const [customRegexes, setCustomRegexes] = useState<
+    Array<{ name: string; pattern: string }>
+  >([]);
+  const [selectedRegexIndex, setSelectedRegexIndex] = useState<number | null>(
+    null
+  );
+  const [regexesSaved, setRegexesSaved] = useState(false);
+  const [regexError, setRegexError] = useState<string | null>(null);
+
+  const loadEntityConfidence = async () => {
     if (!window.electronAPI) return;
 
     try {
-      const enabled = await window.electronAPI.getTransparentProxyEnabled();
-      setTransparentProxyEnabled(enabled);
+      const confidence = await window.electronAPI.getEntityConfidence();
+      setEntityConfidence(confidence);
     } catch (error) {
-      console.error("Error loading transparent proxy setting:", error);
+      console.error("Error loading entity confidence:", error);
     }
   };
 
-  const loadModelInfo = async () => {
+  const loadEntities = async () => {
     if (!window.electronAPI) return;
 
     try {
-      const [storedDir, info] = await Promise.all([
-        window.electronAPI.getModelDirectory(),
-        window.electronAPI.getModelInfo(),
+      const [info, savedDisabled] = await Promise.all([
+        window.electronAPI.getAvailableEntities(),
+        window.electronAPI.getDisabledEntities(),
       ]);
-
-      setHasModelDirectory(!!storedDir);
-      setModelDirectory(storedDir || "");
-      setModelInfo(info);
+      const available = info?.available ?? [];
+      setAvailableEntities(available);
+      // The stored value is the exclusion list (types left unmasked). A checkbox
+      // is checked when its type is NOT excluded, so the default (nothing
+      // excluded) shows everything checked => mask everything.
+      const disabled = new Set(savedDisabled ?? []);
+      setEnabledEntities(new Set(available.filter((e) => !disabled.has(e))));
     } catch (error) {
-      console.error("Error loading model info:", error);
+      console.error("Error loading entities:", error);
+    }
+  };
+
+  const loadRegexes = async () => {
+    if (!window.electronAPI) return;
+
+    try {
+      const info = await window.electronAPI.getCustomRegexes();
+      setCustomRegexes(info?.regexes ?? []);
+      setSelectedRegexIndex(null);
+    } catch (error) {
+      console.error("Error loading custom regexes:", error);
     }
   };
 
   useEffect(() => {
     if (isOpen && isElectron) {
       /* eslint-disable react-hooks/set-state-in-effect */
-      loadModelInfo();
-      loadTransparentProxySetting();
+      loadEntityConfidence();
+      loadEntities();
+      loadRegexes();
       /* eslint-enable react-hooks/set-state-in-effect */
     }
   }, [isOpen]);
 
-  const handleToggleTransparentProxy = async () => {
+  const handleSetEntityConfidence = async (confidence: number) => {
     if (!window.electronAPI) return;
 
-    const newValue = !transparentProxyEnabled;
-
-    // If enabling, show CA cert setup modal first
-    if (newValue) {
-      setIsCACertSetupOpen(true);
-    }
-
-    setIsTogglingProxy(true);
+    setEntityConfidence(confidence);
     try {
-      const result = await window.electronAPI.setTransparentProxyEnabled(
-        newValue
-      );
-      if (result.success) {
-        setTransparentProxyEnabled(newValue);
-      }
+      await window.electronAPI.setEntityConfidence(confidence);
+      setConfidenceSaved(true);
+      setTimeout(() => setConfidenceSaved(false), 2000);
     } catch (error) {
-      console.error("Error toggling transparent proxy:", error);
-    } finally {
-      setIsTogglingProxy(false);
+      console.error("Error setting entity confidence:", error);
     }
   };
 
-  const handleReloadModel = async () => {
-    if (!window.electronAPI || !modelDirectory.trim()) return;
+  const persistEnabledEntities = async (next: Set<string>) => {
+    if (!window.electronAPI) return;
 
-    setIsReloading(true);
-    setReloadMessage(null);
-
+    setEnabledEntities(next);
+    // Persist the inverse — the exclusion list of types to leave unmasked — so an
+    // empty selection means "mask everything" and never leaks PII by accident.
+    const disabled = availableEntities.filter((label) => !next.has(label));
     try {
-      // First, save the directory to config
-      const saveResult = await window.electronAPI.setModelDirectory(
-        modelDirectory.trim()
-      );
+      await window.electronAPI.setDisabledEntities(disabled);
+      setEntitiesSaved(true);
+      setTimeout(() => setEntitiesSaved(false), 2000);
+    } catch (error) {
+      console.error("Error saving entity selection:", error);
+    }
+  };
 
-      if (!saveResult.success) {
-        setReloadMessage({
-          type: "error",
-          text: saveResult.error || "Failed to save model directory",
-        });
-        setIsReloading(false);
+  const handleToggleEntity = (label: string) => {
+    const next = new Set(enabledEntities);
+    if (next.has(label)) {
+      next.delete(label);
+    } else {
+      next.add(label);
+    }
+    persistEnabledEntities(next);
+  };
+
+  const handleSelectAllEntities = () =>
+    persistEnabledEntities(new Set(availableEntities));
+
+  const handleDeselectAllEntities = () => persistEnabledEntities(new Set());
+
+  const persistRegexes = async (
+    rows: Array<{ name: string; pattern: string }>
+  ) => {
+    if (!window.electronAPI) return;
+
+    // Only send complete rows; a freshly added blank row stays in the editor
+    // until the user fills both fields in. The name is used as the entity type,
+    // so both name and pattern are required.
+    const complete = rows
+      .map((r) => ({ name: r.name.trim(), pattern: r.pattern.trim() }))
+      .filter((r) => r.name && r.pattern);
+
+    setRegexError(null);
+    try {
+      const result = await window.electronAPI.setCustomRegexes(complete);
+      if (result?.success === false) {
+        // The backend rejects invalid patterns with a 400; surface a friendly
+        // hint rather than the low-level transport error.
+        setRegexError(
+          "Failed to save patterns. Check that each name and pattern is a valid RE2 expression."
+        );
         return;
       }
-
-      setHasModelDirectory(true);
-
-      // Then, reload the model
-      const result = await window.electronAPI.reloadModel(
-        modelDirectory.trim()
-      );
-
-      if (result.success) {
-        setReloadMessage({
-          type: "success",
-          text: "Model saved and reloaded successfully!",
-        });
-        await loadModelInfo();
-      } else {
-        setReloadMessage({
-          type: "error",
-          text: result.error || "Failed to reload model",
-        });
-      }
+      setRegexesSaved(true);
+      setTimeout(() => setRegexesSaved(false), 2000);
     } catch (error) {
-      console.error("Error reloading model:", error);
-      setReloadMessage({
-        type: "error",
-        text: error instanceof Error ? error.message : "Unknown error",
-      });
-    } finally {
-      setIsReloading(false);
+      console.error("Error saving custom regexes:", error);
+      setRegexError("Failed to save patterns.");
     }
   };
 
-  const handleBrowseModelDirectory = async () => {
-    if (!window.electronAPI) return;
+  const handleRegexFieldChange = (
+    index: number,
+    field: "name" | "pattern",
+    value: string
+  ) => {
+    setCustomRegexes((prev) =>
+      prev.map((row, i) => (i === index ? { ...row, [field]: value } : row))
+    );
+  };
 
-    try {
-      const selectedPath = await window.electronAPI.selectModelDirectory();
-      if (selectedPath) {
-        setModelDirectory(selectedPath);
-      }
-    } catch (error) {
-      console.error("Error selecting model directory:", error);
-      setReloadMessage({
-        type: "error",
-        text: "Failed to open folder selector",
-      });
-    }
+  const handleAddRegex = () => {
+    const next = [...customRegexes, { name: "", pattern: "" }];
+    setCustomRegexes(next);
+    setSelectedRegexIndex(next.length - 1);
+  };
+
+  const handleRemoveRegex = () => {
+    if (selectedRegexIndex === null) return;
+    const next = customRegexes.filter((_, i) => i !== selectedRegexIndex);
+    setSelectedRegexIndex(null);
+    setCustomRegexes(next);
+    persistRegexes(next);
   };
 
   if (!isOpen) return null;
@@ -168,9 +227,7 @@ export default function AdvancedSettingsModal({
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
         <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-4">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-bold text-slate-800">
-              Advanced Settings
-            </h2>
+            <h2 className="text-2xl font-bold text-slate-800">PII Settings</h2>
             <button
               onClick={onClose}
               className="text-slate-500 hover:text-slate-700 transition-colors"
@@ -179,7 +236,7 @@ export default function AdvancedSettingsModal({
             </button>
           </div>
           <p className="text-slate-600">
-            Advanced settings are only available in Electron mode.
+            PII settings are only available in Electron mode.
           </p>
         </div>
       </div>
@@ -191,9 +248,7 @@ export default function AdvancedSettingsModal({
       <div className="bg-white rounded-xl shadow-2xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-slate-800">
-            Advanced Settings
-          </h2>
+          <h2 className="text-2xl font-bold text-slate-800">PII Settings</h2>
           <button
             onClick={onClose}
             className="text-slate-500 hover:text-slate-700 transition-colors"
@@ -203,42 +258,6 @@ export default function AdvancedSettingsModal({
         </div>
 
         <div className="space-y-6">
-          {/* Transparent Proxy Toggle */}
-          <div>
-            <div className="flex items-center justify-between">
-              <label className="block text-sm font-semibold text-slate-700 flex items-center gap-2">
-                <Shield className="w-4 h-4" />
-                Transparent Proxy
-              </label>
-              <button
-                onClick={handleToggleTransparentProxy}
-                disabled={isTogglingProxy}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                  transparentProxyEnabled ? "bg-blue-600" : "bg-slate-300"
-                } ${isTogglingProxy ? "opacity-50 cursor-not-allowed" : ""}`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    transparentProxyEnabled ? "translate-x-6" : "translate-x-1"
-                  }`}
-                />
-              </button>
-            </div>
-            <p className="text-xs text-slate-500 mt-2">
-              Intercept HTTPS traffic system-wide for automatic PII protection.
-            </p>
-            <div className="mt-2 p-2 rounded bg-amber-50 border border-amber-200">
-              <div className="flex items-start gap-2">
-                <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-                <p className="text-xs text-amber-700">
-                  <strong>Experimental:</strong> This feature requires CA
-                  certificate installation and may affect system network
-                  settings.
-                </p>
-              </div>
-            </div>
-          </div>
-
           {/* PII Detection Sensitivity */}
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
@@ -430,100 +449,8 @@ export default function AdvancedSettingsModal({
               <p className="text-xs text-green-600 mt-1">Setting saved.</p>
             )}
           </div>
-
-          {/* Load Custom Kiji PII Model */}
-          <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
-              <Server className="w-4 h-4" />
-              Load Custom Kiji PII Model
-            </label>
-
-            {/* Current Model Info */}
-            {modelInfo && (
-              <div
-                className={`mb-2 p-2 rounded ${
-                  modelInfo.healthy
-                    ? "bg-green-50 border border-green-200"
-                    : "bg-red-50 border border-red-200"
-                }`}
-              >
-                <div className="text-xs">
-                  <span
-                    className={
-                      modelInfo.healthy ? "text-green-700" : "text-red-700"
-                    }
-                  >
-                    Status: {modelInfo.healthy ? "Healthy" : "Unhealthy"}
-                  </span>
-                  {modelInfo.directory && (
-                    <div className="text-slate-600 mt-1 break-all">
-                      Current: {modelInfo.directory}
-                    </div>
-                  )}
-                  {modelInfo.error && (
-                    <div className="text-red-700 mt-1 break-all">
-                      Error: {modelInfo.error}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={modelDirectory}
-                onChange={(e) => setModelDirectory(e.target.value)}
-                placeholder="/path/to/model/directory"
-                className="flex-1 px-4 py-2 border-2 border-slate-200 rounded-lg focus:border-blue-500 focus:outline-none font-mono text-sm placeholder:text-gray-400"
-              />
-              <button
-                onClick={handleBrowseModelDirectory}
-                className="px-4 py-2 bg-slate-100 border-2 border-slate-200 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors flex items-center gap-2"
-                title="Browse for folder"
-              >
-                <FolderOpen className="w-4 h-4" />
-                Browse
-              </button>
-            </div>
-
-            <p className="text-xs text-slate-500 mt-1">
-              Directory must contain: model.onnx, tokenizer.json,
-              label_mappings.json
-            </p>
-
-            {/* Action Button */}
-            <div className="mt-2">
-              <button
-                onClick={handleReloadModel}
-                disabled={isReloading || !modelDirectory.trim()}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm transition-colors w-full"
-              >
-                {isReloading ? "Reloading..." : "Reload Model"}
-              </button>
-            </div>
-
-            {/* Reload Message */}
-            {reloadMessage && (
-              <div
-                className={`mt-2 p-2 rounded text-sm ${
-                  reloadMessage.type === "success"
-                    ? "bg-green-50 text-green-800 border border-green-200"
-                    : "bg-red-50 text-red-800 border border-red-200"
-                }`}
-              >
-                {reloadMessage.text}
-              </div>
-            )}
-          </div>
         </div>
       </div>
-
-      {/* CA Certificate Setup Modal */}
-      <CACertSetupModal
-        isOpen={isCACertSetupOpen}
-        onClose={() => setIsCACertSetupOpen(false)}
-      />
     </div>
   );
 }

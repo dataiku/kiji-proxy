@@ -524,6 +524,27 @@ const registerIpcHandlers = ({
       return { error: error.message };
     }
   });
+
+  // ---- PII Custom Regexes ----
+  // The regex detector is the source of truth (seeded from the backend config),
+  // so patterns are read live from the backend and written straight through.
+  ipcMain.handle("get-custom-regexes", async () => {
+    try {
+      return await backendRequest("GET", "/api/pii/regexes");
+    } catch (error) {
+      console.error("Error getting custom regexes:", error);
+      return { error: error.message };
+    }
+  });
+
+  ipcMain.handle("set-custom-regexes", async (_event, regexes) => {
+    try {
+      return await backendRequest("POST", "/api/pii/regexes", { regexes });
+    } catch (error) {
+      console.error("Error setting custom regexes:", error);
+      return { success: false, error: error.message };
+    }
+  });
 };
 
 module.exports = { registerIpcHandlers };
