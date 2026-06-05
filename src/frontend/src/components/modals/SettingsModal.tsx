@@ -15,6 +15,7 @@ import {
   Unlock,
   Globe,
   FolderOpen,
+  Shield,
 } from "lucide-react";
 
 // Providers that support a user-configurable custom endpoint URL.
@@ -84,12 +85,14 @@ const PROVIDER_ORDER: ProviderType[] = [
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onOpenPIISettings: () => void;
   onOpenAdvancedSettings: () => void;
 }
 
 export default function SettingsModal({
   isOpen,
   onClose,
+  onOpenPIISettings,
   onOpenAdvancedSettings,
 }: SettingsModalProps) {
   const [isLoading, setIsLoading] = useState(false);
@@ -616,6 +619,29 @@ export default function SettingsModal({
                 Your API keys are stored securely using system keychain
                 encryption.
               </p>
+            </div>
+
+            {/* PII Settings Link */}
+            <div
+              onClick={() => {
+                onOpenPIISettings();
+                onClose();
+              }}
+              className="border-2 border-slate-200 rounded-lg p-4 hover:border-slate-300 hover:bg-slate-50 transition-colors cursor-pointer"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Shield className="w-5 h-5 text-slate-600" />
+                  <div>
+                    <p className="font-medium text-slate-700">PII Settings</p>
+                    <p className="text-xs text-slate-500">
+                      Detection sensitivity, entities to mask, and custom regex
+                      patterns
+                    </p>
+                  </div>
+                </div>
+                <ChevronRight className="w-5 h-5 text-slate-400" />
+              </div>
             </div>
 
             {/* Advanced Settings Link */}

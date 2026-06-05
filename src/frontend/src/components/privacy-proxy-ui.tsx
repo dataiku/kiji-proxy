@@ -12,6 +12,7 @@ import {
 import logoImage from "../../assets/kiji_proxy.svg";
 import kijiMascot from "../../assets/kiji_proxy.svg";
 import SettingsModal from "./modals/SettingsModal";
+import PIISettingsModal from "./modals/PIISettingsModal";
 import AdvancedSettingsModal from "./modals/AdvancedSettingsModal";
 import LoggingModal from "./modals/LoggingModal";
 import AboutModal from "./modals/AboutModal";
@@ -33,6 +34,7 @@ import { PROVIDER_NAMES } from "../types/provider";
 export default function PrivacyProxyUI() {
   // UI toggle state (simple enough to stay in the component)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isPIISettingsOpen, setIsPIISettingsOpen] = useState(false);
   const [isAdvancedSettingsOpen, setIsAdvancedSettingsOpen] = useState(false);
   const [isLoggingOpen, setIsLoggingOpen] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
@@ -664,7 +666,14 @@ export default function PrivacyProxyUI() {
           setIsSettingsOpen(false);
           settings.loadSettings();
         }}
+        onOpenPIISettings={() => setIsPIISettingsOpen(true)}
         onOpenAdvancedSettings={() => setIsAdvancedSettingsOpen(true)}
+      />
+
+      {/* PII Settings Modal */}
+      <PIISettingsModal
+        isOpen={isPIISettingsOpen}
+        onClose={() => setIsPIISettingsOpen(false)}
       />
 
       {/* Advanced Settings Modal */}
