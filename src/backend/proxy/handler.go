@@ -606,6 +606,50 @@ func (h *Handler) GetHTTPClient() *http.Client {
 	return h.client
 }
 
+// enabledDetectorSet builds the set of enabled detector types from config,
+// logging and ignoring any unrecognized names. A nil/empty list falls back to the
+// default set so detection is never silently disabled by an omitted or empty
+// field (failing closed toward detection in a privacy proxy).
+func enabledDetectorSet(names []string) map[string]bool {
+	if len(names) == 0 {
+		log.Printf("[Handler] No detectors configured; using defaults %v", config.DefaultDetectors())
+		names = config.DefaultDetectors()
+	}
+
+	enabled := make(map[string]bool, len(names))
+	for _, name := range names {
+		switch name {
+		case config.DetectorTypeONNX, config.DetectorTypeRegex:
+			enabled[name] = true
+		default:
+			log.Printf("[Handler] Unknown detector %q in config; ignoring", name)
+		}
+	}
+	return enabled
+}
+
+// buildExtraDetectors constructs the non-ONNX detectors enabled in config. ONNX is
+// managed separately by ModelManager. A regex set that fails to compile is logged
+// and skipped so a single bad pattern can't stop the proxy from starting.
+func buildExtraDetectors(cfg *config.Config, enabled map[string]bool) []pii.Detector {
+	var extra []pii.Detector
+
+	if enabled[config.DetectorTypeRegex] {
+		patterns := make([]pii.RegexPattern, 0, len(cfg.CustomRegexes))
+		for _, p := range cfg.CustomRegexes {
+			patterns = append(patterns, pii.RegexPattern{Name: p.Name, Pattern: p.Pattern})
+		}
+		if regexDetector, err := pii.NewRegexDetector(patterns); err != nil {
+			log.Printf("[Handler] Skipping regex detector due to config error: %v", err)
+		} else {
+			log.Printf("[Handler] Regex detector enabled with %d pattern(s)", len(patterns))
+			extra = append(extra, regexDetector)
+		}
+	}
+
+	return extra
+}
+
 func NewHandler(cfg *config.Config) (*Handler, error) {
 	var modelManager *piiServices.ModelManager
 	var detector pii.Detector
@@ -614,8 +658,14 @@ func NewHandler(cfg *config.Config) (*Handler, error) {
 	// Initialize model manager for ONNX detector
 	modelDir := cfg.ResolveModelDirectory()
 
-	log.Printf("[Handler] Initializing ModelManager with directory: %s (variant=%q)", modelDir, cfg.ModelVariant)
-	modelManager, err = piiServices.NewModelManager(modelDir)
+	// Determine which detectors are enabled from config (default: onnx + regex) and
+	// build the static (non-ONNX) detectors. ONNX is managed by ModelManager itself.
+	enabled := enabledDetectorSet(cfg.Detectors)
+	onnxEnabled := enabled[config.DetectorTypeONNX]
+	extraDetectors := buildExtraDetectors(cfg, enabled)
+
+	log.Printf("[Handler] Initializing ModelManager with directory: %s (variant=%q, onnx=%t, extraDetectors=%d)", modelDir, cfg.ModelVariant, onnxEnabled, len(extraDetectors))
+	modelManager, err = piiServices.NewModelManager(modelDir, onnxEnabled, extraDetectors...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize model manager: %w", err)
 	}

@@ -1,6 +1,8 @@
 package config
 
 import (
+	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -350,4 +352,51 @@ func TestValidateConfig(t *testing.T) {
 // Helper function to check for string containment in error messages
 func stringContains(s, substr string) bool {
 	return strings.Contains(s, substr)
+}
+
+func TestDefaultConfig_Detectors(t *testing.T) {
+	cfg := DefaultConfig()
+	want := []string{DetectorTypeONNX, DetectorTypeRegex}
+	if !reflect.DeepEqual(cfg.Detectors, want) {
+		t.Errorf("DefaultConfig().Detectors = %v, want %v", cfg.Detectors, want)
+	}
+}
+
+// An absent "detectors" key must not clobber the default, while an explicit value
+// overrides it. This mirrors how config files are decoded over DefaultConfig.
+func TestConfig_DetectorsDecode(t *testing.T) {
+	t.Run("absent keeps default", func(t *testing.T) {
+		cfg := DefaultConfig()
+		if err := json.Unmarshal([]byte(`{"ProxyPort": ":9999"}`), cfg); err != nil {
+			t.Fatalf("unmarshal failed: %v", err)
+		}
+		want := []string{DetectorTypeONNX, DetectorTypeRegex}
+		if !reflect.DeepEqual(cfg.Detectors, want) {
+			t.Errorf("Detectors = %v, want default %v", cfg.Detectors, want)
+		}
+	})
+
+	t.Run("explicit overrides", func(t *testing.T) {
+		cfg := DefaultConfig()
+		if err := json.Unmarshal([]byte(`{"detectors": ["regex"]}`), cfg); err != nil {
+			t.Fatalf("unmarshal failed: %v", err)
+		}
+		if !reflect.DeepEqual(cfg.Detectors, []string{DetectorTypeRegex}) {
+			t.Errorf("Detectors = %v, want [regex]", cfg.Detectors)
+		}
+	})
+}
+
+func TestConfig_CustomRegexesDecode(t *testing.T) {
+	cfg := DefaultConfig()
+	raw := `{"custom_regexes": [{"name": "EMAIL", "pattern": "\\S+@\\S+"}]}`
+	if err := json.Unmarshal([]byte(raw), cfg); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+	if len(cfg.CustomRegexes) != 1 {
+		t.Fatalf("expected 1 custom regex, got %d", len(cfg.CustomRegexes))
+	}
+	if cfg.CustomRegexes[0].Name != "EMAIL" || cfg.CustomRegexes[0].Pattern != `\S+@\S+` {
+		t.Errorf("unexpected custom regex: %+v", cfg.CustomRegexes[0])
+	}
 }

@@ -58,6 +58,27 @@ type ProvidersConfig struct {
 	CustomProviderConfig    ProviderConfig         `json:"custom_provider_config"`
 }
 
+// Detector type identifiers used in Config.Detectors to select which PII
+// detectors run. DetectorTypeONNX is the trained model; DetectorTypeRegex runs
+// the user-supplied CustomRegexes.
+const (
+	DetectorTypeONNX  = "onnx"
+	DetectorTypeRegex = "regex"
+)
+
+// DefaultDetectors is the detector set used when none is configured.
+func DefaultDetectors() []string {
+	return []string{DetectorTypeONNX, DetectorTypeRegex}
+}
+
+// RegexPatternConfig defines a single named regular expression used by the regex
+// detector. Name is emitted as the detected entity type for every match the
+// pattern produces; Pattern is a Go (RE2) regular expression.
+type RegexPatternConfig struct {
+	Name    string `json:"name"`
+	Pattern string `json:"pattern"`
+}
+
 // ProxyConfig holds transparent proxy configuration
 type ProxyConfig struct {
 	TransparentEnabled bool   `json:"transparent_enabled"`
@@ -80,6 +101,13 @@ type Config struct {
 	ONNXModelDirectory string // Explicit override; takes precedence over ModelVariant.
 	UIPath             string
 	Proxy              ProxyConfig `json:"Proxy"`
+	// Detectors selects which PII detectors run, in order. Recognized values are
+	// "onnx" and "regex" (see DetectorType* constants). Defaults to both.
+	Detectors []string `json:"detectors"`
+	// CustomRegexes are user-defined regex patterns for the regex detector. Each
+	// entry pairs a name (used as the detected entity type) with a regular
+	// expression. Empty means no custom regex detection.
+	CustomRegexes []RegexPatternConfig `json:"custom_regexes"`
 }
 
 // ModelVariantTrained is the full-precision model variant.
@@ -277,6 +305,8 @@ func DefaultConfig() *Config {
 			KeyPath:            keyPath,
 			EnablePAC:          true, // Enable PAC by default for automatic proxy configuration
 		},
+		Detectors:     DefaultDetectors(),
+		CustomRegexes: []RegexPatternConfig{},
 	}
 }
 
