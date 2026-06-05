@@ -207,15 +207,31 @@ func (mm *ModelManager) GetEntityConfidenceThreshold() float64 {
 	return mm.entityConfidenceThreshold
 }
 
+// activeDetectorNamesLocked returns the names of the detectors GetDetector would
+// currently hand out, in the same order: the ONNX detector (only when enabled and
+// healthy) followed by the extra detectors. Callers must hold mm.mu.
+func (mm *ModelManager) activeDetectorNamesLocked() []string {
+	names := make([]string, 0, len(mm.extraDetectors)+1)
+	if mm.onnxEnabled && mm.isHealthy && mm.currentDetector != nil {
+		names = append(names, mm.currentDetector.GetName())
+	}
+	for _, d := range mm.extraDetectors {
+		names = append(names, d.GetName())
+	}
+	return names
+}
+
 // GetInfo returns information about the current model state
 func (mm *ModelManager) GetInfo() map[string]interface{} {
 	mm.mu.RLock()
 	defer mm.mu.RUnlock()
 
 	info := map[string]interface{}{
-		"directory":  mm.modelDirectory,
-		"healthy":    mm.isHealthy,
-		"confidence": mm.entityConfidenceThreshold,
+		"directory":    mm.modelDirectory,
+		"healthy":      mm.isHealthy,
+		"confidence":   mm.entityConfidenceThreshold,
+		"onnx_enabled": mm.onnxEnabled,
+		"detectors":    mm.activeDetectorNamesLocked(),
 	}
 
 	if mm.lastError != nil {
