@@ -96,3 +96,21 @@ export interface LogEntry {
   timestamp: Date;
   transactionId?: string;
 }
+
+// Sortable columns for the PII mappings table (must match the backend whitelist)
+export type MappingSortColumn =
+  | "pii_type"
+  | "original_pii"
+  | "dummy_pii"
+  | "created_at";
+
+export type SortOrder = "asc" | "desc";
+
+// A single recorded PII mapping (original value -> masked replacement)
+export interface Mapping {
+  id: string;
+  piiType: string; // entity type, from pii_type
+  original: string; // original_pii
+  masked: string; // dummy_pii
+  createdAt: Date; // created_at — date of first entity
+}

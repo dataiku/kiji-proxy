@@ -52,6 +52,10 @@ type PIIMappingDB interface {
 	// GetMappingsCount returns the total number of PII mappings
 	GetMappingsCount(ctx context.Context) (int, error)
 
+	// GetMappings retrieves PII mappings with pagination and sorting.
+	// sortColumn is validated against a whitelist; sortDescending controls direction.
+	GetMappings(ctx context.Context, limit int, offset int, sortColumn string, sortDescending bool) ([]map[string]interface{}, error)
+
 	// Close closes the database connection
 	Close() error
 }
@@ -275,6 +279,76 @@ func (s *SQLitePIIMappingDB) GetMappingsCount(ctx context.Context) (int, error) 
 		return 0, fmt.Errorf("failed to get mappings count: %w", err)
 	}
 	return count, nil
+}
+
+// allowedMappingSortColumns maps API-facing sort keys to actual SQL column
+// names. Only keys present here may be used in ORDER BY; user input never
+// reaches the query string directly, which prevents SQL injection.
+var allowedMappingSortColumns = map[string]string{
+	"pii_type":     "pii_type",
+	"original_pii": "original_pii",
+	"dummy_pii":    "dummy_pii",
+	"created_at":   "created_at",
+}
+
+// GetMappings retrieves PII mappings from the database with pagination and sorting.
+func (s *SQLitePIIMappingDB) GetMappings(ctx context.Context, limit int, offset int, sortColumn string, sortDescending bool) ([]map[string]interface{}, error) {
+	column, ok := allowedMappingSortColumns[sortColumn]
+	if !ok {
+		column = "created_at" // safe default
+	}
+	order := "ASC"
+	if sortDescending {
+		order = "DESC"
+	}
+
+	// Secondary sort by id keeps ordering stable across pages when the primary
+	// column has ties. Both column and order come only from constants above, so
+	// this Sprintf cannot be injected; limit/offset stay bound parameters.
+	query := fmt.Sprintf(`
+	SELECT id, original_pii, dummy_pii, pii_type, confidence, created_at, last_accessed_at, access_count
+	FROM pii_mappings
+	ORDER BY %s %s, id %s
+	LIMIT ? OFFSET ?
+	`, column, order, order)
+
+	rows, err := s.db.QueryContext(ctx, query, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query mappings: %w", err)
+	}
+	defer rows.Close()
+
+	var mappings []map[string]interface{}
+	for rows.Next() {
+		var id int
+		var originalPII, dummyPII, piiType, createdAt, lastAccessedAt string
+		var confidence float64
+		var accessCount int
+
+		if err := rows.Scan(&id, &originalPII, &dummyPII, &piiType, &confidence, &createdAt, &lastAccessedAt, &accessCount); err != nil {
+			return nil, fmt.Errorf("failed to scan mapping row: %w", err)
+		}
+
+		// Parse created_at into time.Time so it serializes as RFC3339 for the
+		// frontend (matching how GetLogs returns timestamps).
+		parsedCreated, _ := time.Parse("2006-01-02 15:04:05", createdAt)
+
+		mappings = append(mappings, map[string]interface{}{
+			"id":           id,
+			"original_pii": originalPII,
+			"dummy_pii":    dummyPII,
+			"pii_type":     piiType,
+			"confidence":   confidence,
+			"created_at":   parsedCreated,
+			"access_count": accessCount,
+		})
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating mapping rows: %w", err)
+	}
+
+	return mappings, nil
 }
 
 // Close closes the database connection

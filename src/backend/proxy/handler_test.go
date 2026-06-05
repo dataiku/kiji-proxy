@@ -152,6 +152,17 @@ func (m *mockMappingDB) GetMappingsCount(_ context.Context) (int, error) {
 	return len(m.mappings), nil
 }
 
+func (m *mockMappingDB) GetMappings(_ context.Context, _ int, _ int, _ string, _ bool) ([]map[string]interface{}, error) {
+	result := make([]map[string]interface{}, 0, len(m.mappings))
+	for original, dummy := range m.mappings {
+		result = append(result, map[string]interface{}{
+			"original_pii": original,
+			"dummy_pii":    dummy,
+		})
+	}
+	return result, nil
+}
+
 func (m *mockMappingDB) Close() error {
 	return nil
 }

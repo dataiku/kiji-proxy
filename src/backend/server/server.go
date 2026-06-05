@@ -520,6 +520,9 @@ func (s *Server) mappingsHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Route based on HTTP method
 	switch r.Method {
+	case http.MethodGet:
+		// Delegate to the handler's HandleMappings method
+		s.handler.HandleMappings(w, r)
 	case http.MethodDelete:
 		// Delegate to the handler's HandleClearMappings method
 		s.handler.HandleClearMappings(w, r)

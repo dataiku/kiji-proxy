@@ -8,12 +8,14 @@ import {
   Menu,
   Flag,
   HelpCircle,
+  Database,
 } from "lucide-react";
 import logoImage from "../../assets/kiji_proxy.svg";
 import kijiMascot from "../../assets/kiji_proxy.svg";
 import SettingsModal from "./modals/SettingsModal";
 import AdvancedSettingsModal from "./modals/AdvancedSettingsModal";
 import LoggingModal from "./modals/LoggingModal";
+import MappingsModal from "./modals/MappingsModal";
 import AboutModal from "./modals/AboutModal";
 import MisclassificationModal from "./modals/MisclassificationModal";
 import WelcomeModal from "./modals/WelcomeModal";
@@ -35,6 +37,7 @@ export default function PrivacyProxyUI() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isAdvancedSettingsOpen, setIsAdvancedSettingsOpen] = useState(false);
   const [isLoggingOpen, setIsLoggingOpen] = useState(false);
+  const [isMappingsOpen, setIsMappingsOpen] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
@@ -163,10 +166,20 @@ export default function PrivacyProxyUI() {
                   <div className="absolute left-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-slate-200 z-50">
                     <button
                       onClick={() => {
-                        setIsSettingsOpen(true);
+                        setIsMappingsOpen(true);
                         setIsMenuOpen(false);
                       }}
                       className="w-full text-left px-4 py-3 text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2 first:rounded-t-lg"
+                    >
+                      <Database className="w-4 h-4" />
+                      Mappings
+                    </button>
+                    <button
+                      onClick={() => {
+                        setIsSettingsOpen(true);
+                        setIsMenuOpen(false);
+                      }}
+                      className="w-full text-left px-4 py-3 text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
                     >
                       <Settings className="w-4 h-4" />
                       Settings
@@ -680,6 +693,12 @@ export default function PrivacyProxyUI() {
         onReportMisclassification={(logEntry: LogEntry) =>
           misclassification.handleReportFromLog(logEntry, modelSignature)
         }
+      />
+
+      {/* Mappings Modal */}
+      <MappingsModal
+        isOpen={isMappingsOpen}
+        onClose={() => setIsMappingsOpen(false)}
       />
 
       {/* About Modal */}
