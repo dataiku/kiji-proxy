@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -15,6 +16,10 @@ import (
 	detectors "github.com/hannes/kiji-private/src/backend/pii/detectors"
 	_ "modernc.org/sqlite"
 )
+
+// ErrMappingNotFound is returned when a mapping lookup/delete targets an id that
+// does not exist.
+var ErrMappingNotFound = errors.New("mapping not found")
 
 // Direction values used when storing request/response logs.
 const (
@@ -42,6 +47,11 @@ type PIIMappingDB interface {
 
 	// DeleteMapping removes a mapping from the database
 	DeleteMapping(ctx context.Context, original string) error
+
+	// DeleteMappingByID removes a single mapping by its row id, returning the
+	// deleted original and dummy values (so callers can evict caches). Returns
+	// ErrMappingNotFound if no row has that id.
+	DeleteMappingByID(ctx context.Context, id int) (original string, dummy string, err error)
 
 	// CleanupOldMappings removes mappings older than specified duration
 	CleanupOldMappings(ctx context.Context, olderThan time.Duration) (int64, error)
@@ -246,6 +256,26 @@ func (s *SQLitePIIMappingDB) DeleteMapping(ctx context.Context, original string)
 	query := `DELETE FROM pii_mappings WHERE original_pii = ?`
 	_, err := s.db.ExecContext(ctx, query, original)
 	return err
+}
+
+// DeleteMappingByID removes a single mapping by row id. It first looks up the
+// original/dummy values (so the caller can evict in-memory caches), then deletes
+// the row. Returns ErrMappingNotFound if the id does not exist.
+func (s *SQLitePIIMappingDB) DeleteMappingByID(ctx context.Context, id int) (string, string, error) {
+	var original, dummy string
+	err := s.db.QueryRowContext(ctx, `SELECT original_pii, dummy_pii FROM pii_mappings WHERE id = ?`, id).Scan(&original, &dummy)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", "", ErrMappingNotFound
+		}
+		return "", "", fmt.Errorf("failed to look up mapping: %w", err)
+	}
+
+	if _, err := s.db.ExecContext(ctx, `DELETE FROM pii_mappings WHERE id = ?`, id); err != nil {
+		return "", "", fmt.Errorf("failed to delete mapping: %w", err)
+	}
+
+	return original, dummy, nil
 }
 
 // CleanupOldMappings removes mappings older than specified duration

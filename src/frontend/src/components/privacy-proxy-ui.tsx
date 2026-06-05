@@ -176,16 +176,6 @@ export default function PrivacyProxyUI() {
                     </button>
                     <button
                       onClick={() => {
-                        setIsSettingsOpen(true);
-                        setIsMenuOpen(false);
-                      }}
-                      className="w-full text-left px-4 py-3 text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
-                    >
-                      <Settings className="w-4 h-4" />
-                      Settings
-                    </button>
-                    <button
-                      onClick={() => {
                         setIsLoggingOpen(true);
                         setIsMenuOpen(false);
                       }}
@@ -193,6 +183,16 @@ export default function PrivacyProxyUI() {
                     >
                       <FileText className="w-4 h-4" />
                       Logging
+                    </button>
+                    <button
+                      onClick={() => {
+                        setIsSettingsOpen(true);
+                        setIsMenuOpen(false);
+                      }}
+                      className="w-full text-left px-4 py-3 text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
+                    >
+                      <Settings className="w-4 h-4" />
+                      Settings
                     </button>
                     <button
                       onClick={() => {

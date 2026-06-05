@@ -11,6 +11,8 @@ const PAGE_SIZE = 50;
 export function useMappings(isOpen: boolean) {
   const [mappings, setMappings] = useState<Mapping[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
@@ -115,9 +117,60 @@ export function useMappings(isOpen: boolean) {
     loadMappings(0, sortColumn, sortOrder);
   }, [loadMappings, sortColumn, sortOrder]);
 
+  // Delete every mapping (DELETE /mappings with no id).
+  const handleClearAll = useCallback(async () => {
+    setIsClearing(true);
+    setError(null);
+    try {
+      const response = await fetch(apiUrl("/mappings", isElectron), {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      setMappings([]);
+      setTotal(0);
+      setPage(0);
+      setHasMore(false);
+    } catch (err) {
+      console.error("Error clearing mappings:", err);
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to clear mappings";
+      setError(errorMessage);
+    } finally {
+      setIsClearing(false);
+    }
+  }, []);
+
+  // Delete a single mapping by id; optimistically drop the row on success.
+  const handleDeleteOne = useCallback(async (id: string) => {
+    setDeletingId(id);
+    setError(null);
+    try {
+      const response = await fetch(
+        `${apiUrl("/mappings", isElectron)}?id=${encodeURIComponent(id)}`,
+        { method: "DELETE" }
+      );
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      setMappings((prev) => prev.filter((m) => m.id !== id));
+      setTotal((prev) => (prev > 0 ? prev - 1 : 0));
+    } catch (err) {
+      console.error("Error deleting mapping:", err);
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to delete mapping";
+      setError(errorMessage);
+    } finally {
+      setDeletingId(null);
+    }
+  }, []);
+
   return {
     mappings,
     isLoading,
+    isClearing,
+    deletingId,
     error,
     hasMore,
     total,
@@ -125,6 +178,8 @@ export function useMappings(isOpen: boolean) {
     sortOrder,
     handleLoadMore,
     handleSort,
+    handleClearAll,
+    handleDeleteOne,
     retry,
   };
 }

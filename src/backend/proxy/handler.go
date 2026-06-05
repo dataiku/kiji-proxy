@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -35,6 +36,7 @@ type Handler struct {
 	maskingService    *piiServices.MaskingService
 	loggingDB         piiServices.LoggingDB    // Database or in-memory storage for logging
 	mappingDB         piiServices.PIIMappingDB // Same instance as loggingDB, for mapping operations
+	piiMapping        *piiServices.PIIMapping  // Cache+DB wrapper; used for cache-consistent clear/delete
 }
 
 // ReloadModel reloads the PII model from the specified directory
@@ -723,6 +725,7 @@ func NewHandler(cfg *config.Config) (*Handler, error) {
 		maskingService:    maskingService,
 		loggingDB:         loggingDB,
 		mappingDB:         loggingDB.(piiServices.PIIMappingDB), // Same instance, different interface
+		piiMapping:        piiMapping,
 	}, nil
 }
 
@@ -949,14 +952,56 @@ func (h *Handler) HandleMappings(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// HandleClearMappings handles DELETE requests to clear all PII mappings
-func (h *Handler) HandleClearMappings(w http.ResponseWriter, r *http.Request) {
-	if h.mappingDB == nil {
+// HandleDeleteMapping handles DELETE /mappings?id=<id> to remove a single mapping.
+func (h *Handler) HandleDeleteMapping(w http.ResponseWriter, r *http.Request) {
+	if h.piiMapping == nil {
 		http.Error(w, "PII mapping storage not available", http.StatusServiceUnavailable)
 		return
 	}
 
-	h.handleClearOperation(w, r, "PII mappings", h.mappingDB.ClearMappings)
+	id, err := strconv.Atoi(r.URL.Query().Get("id"))
+	if err != nil || id <= 0 {
+		http.Error(w, "Invalid mapping id", http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	if err := h.piiMapping.DeleteByID(ctx, id); err != nil {
+		if errors.Is(err, piiServices.ErrMappingNotFound) {
+			http.Error(w, "Mapping not found", http.StatusNotFound)
+			return
+		}
+		log.Printf("[Mappings] ❌ Failed to delete mapping %d: %v", id, err)
+		http.Error(w, fmt.Sprintf("Failed to delete mapping: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	log.Printf("[Mappings] ✓ Deleted mapping %d", id)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"id":      id,
+	}); err != nil {
+		log.Printf("[Mappings] ❌ Failed to write response: %v", err)
+	}
+}
+
+// HandleClearMappings handles DELETE requests to clear all PII mappings
+func (h *Handler) HandleClearMappings(w http.ResponseWriter, r *http.Request) {
+	if h.piiMapping == nil {
+		http.Error(w, "PII mapping storage not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	// Route through the cache wrapper so the in-memory cache is cleared too,
+	// not just the database row store.
+	h.handleClearOperation(w, r, "PII mappings", func(context.Context) error {
+		return h.piiMapping.ClearAll()
+	})
 }
 
 // HandleStats handles GET requests to retrieve statistics about logs and mappings

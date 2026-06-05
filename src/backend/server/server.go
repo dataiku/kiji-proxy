@@ -524,8 +524,12 @@ func (s *Server) mappingsHandler(w http.ResponseWriter, r *http.Request) {
 		// Delegate to the handler's HandleMappings method
 		s.handler.HandleMappings(w, r)
 	case http.MethodDelete:
-		// Delegate to the handler's HandleClearMappings method
-		s.handler.HandleClearMappings(w, r)
+		// With an ?id=<id> param, delete a single mapping; otherwise clear all.
+		if r.URL.Query().Get("id") != "" {
+			s.handler.HandleDeleteMapping(w, r)
+		} else {
+			s.handler.HandleClearMappings(w, r)
+		}
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}

@@ -1,4 +1,13 @@
-import { X, Database, ChevronUp, ChevronDown } from "lucide-react";
+import { useState } from "react";
+import {
+  X,
+  Database,
+  ChevronUp,
+  ChevronDown,
+  Trash2,
+  AlertTriangle,
+  Check,
+} from "lucide-react";
 import type { MappingSortColumn, SortOrder } from "../../types/provider";
 import { useMappings } from "../../hooks/useMappings";
 import { formatTimestamp } from "../../utils/logFormatters";
@@ -60,9 +69,16 @@ function SortableHeader({
 }
 
 export default function MappingsModal({ isOpen, onClose }: MappingsModalProps) {
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(
+    null
+  );
+
   const {
     mappings,
     isLoading,
+    isClearing,
+    deletingId,
     error,
     hasMore,
     total,
@@ -70,6 +86,8 @@ export default function MappingsModal({ isOpen, onClose }: MappingsModalProps) {
     sortOrder,
     handleLoadMore,
     handleSort,
+    handleClearAll,
+    handleDeleteOne,
     retry,
   } = useMappings(isOpen);
 
@@ -77,6 +95,55 @@ export default function MappingsModal({ isOpen, onClose }: MappingsModalProps) {
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      {/* Clear Confirmation Dialog */}
+      {showClearConfirm && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-60">
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-red-100 rounded-full">
+                <AlertTriangle className="w-6 h-6 text-red-600" />
+              </div>
+              <h3 className="text-xl font-bold text-slate-800">
+                Clear All Mappings?
+              </h3>
+            </div>
+            <p className="text-slate-600 mb-6">
+              This will permanently delete all {total} PII mapping
+              {total === 1 ? "" : "s"}. This action cannot be undone.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowClearConfirm(false)}
+                disabled={isClearing}
+                className="px-4 py-2 border-2 border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors font-medium disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  await handleClearAll();
+                  setShowClearConfirm(false);
+                }}
+                disabled={isClearing}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center gap-2 disabled:opacity-50"
+              >
+                {isClearing ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Clearing...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    Clear All Mappings
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-xl shadow-2xl p-6 max-w-6xl w-full max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
@@ -89,19 +156,31 @@ export default function MappingsModal({ isOpen, onClose }: MappingsModalProps) {
               </span>
             )}
           </div>
-          <button
-            onClick={onClose}
-            className="text-slate-500 hover:text-slate-700 transition-colors"
-          >
-            <X className="w-6 h-6" />
-          </button>
+          <div className="flex items-center gap-2">
+            {total > 0 && (
+              <button
+                onClick={() => setShowClearConfirm(true)}
+                className="flex items-center gap-2 px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                title="Clear all mappings"
+              >
+                <Trash2 className="w-5 h-5" />
+                <span className="text-sm font-medium">Clear All</span>
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="text-slate-500 hover:text-slate-700 transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
         </div>
 
         {/* Error Display */}
         {error && (
           <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
             <div className="text-red-600 text-sm flex-1">
-              <strong>Error loading mappings:</strong> {error}
+              <strong>Error:</strong> {error}
             </div>
             <button
               onClick={retry}
@@ -156,13 +235,16 @@ export default function MappingsModal({ isOpen, onClose }: MappingsModalProps) {
                       activeOrder={sortOrder}
                       onSort={handleSort}
                     />
+                    <th className="px-4 py-3 text-right text-sm font-semibold text-slate-700 border-b border-slate-200 w-px">
+                      <span className="sr-only">Actions</span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {mappings.map((m) => (
                     <tr
                       key={m.id}
-                      className="hover:bg-slate-50 transition-colors border-b border-slate-100"
+                      className="group hover:bg-slate-50 transition-colors border-b border-slate-100"
                     >
                       <td className="px-4 py-3 text-sm">
                         <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs font-medium">
@@ -177,6 +259,46 @@ export default function MappingsModal({ isOpen, onClose }: MappingsModalProps) {
                       </td>
                       <td className="px-4 py-3 text-sm text-slate-600 whitespace-nowrap">
                         {formatTimestamp(m.createdAt)}
+                      </td>
+                      <td className="px-4 py-3 text-right whitespace-nowrap">
+                        {deletingId === m.id ? (
+                          <div className="inline-flex w-5 h-5 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
+                        ) : confirmingDeleteId === m.id ? (
+                          <div className="inline-flex items-center gap-1">
+                            <span className="text-xs text-slate-500 mr-1">
+                              Delete?
+                            </span>
+                            <button
+                              type="button"
+                              aria-label="Confirm delete"
+                              onClick={async () => {
+                                await handleDeleteOne(m.id);
+                                setConfirmingDeleteId(null);
+                              }}
+                              className="p-1 text-red-600 hover:bg-red-100 rounded transition-colors"
+                            >
+                              <Check className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              aria-label="Cancel delete"
+                              onClick={() => setConfirmingDeleteId(null)}
+                              className="p-1 text-slate-500 hover:bg-slate-200 rounded transition-colors"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            aria-label="Delete mapping"
+                            title="Delete mapping"
+                            onClick={() => setConfirmingDeleteId(m.id)}
+                            className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}

@@ -112,6 +112,25 @@ func (m *PIIMapping) GetOriginal(dummy string) (string, bool) {
 	return m.getValue(dummy, false)
 }
 
+// DeleteByID removes a single mapping (by row id) from both the database and the
+// in-memory cache, keeping the two consistent. Returns ErrMappingNotFound when
+// the id does not exist.
+func (m *PIIMapping) DeleteByID(ctx context.Context, id int) error {
+	original, dummy, err := m.db.DeleteMappingByID(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	if m.useCache {
+		m.mutex.Lock()
+		delete(m.OriginalToDummy, original)
+		delete(m.DummyToOriginal, dummy)
+		m.mutex.Unlock()
+	}
+
+	return nil
+}
+
 // Clear removes all mappings from cache (database mappings remain)
 func (m *PIIMapping) Clear() {
 	m.mutex.Lock()
