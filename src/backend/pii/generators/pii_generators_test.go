@@ -414,12 +414,24 @@ func TestSecurityTokenGenerator(t *testing.T) {
 }
 
 func TestGenericGenerator(t *testing.T) {
-	rng := getTestRand(42)
-	result := GenericGenerator(rng, "some original value")
+	result := GenericGenerator("EMAIL", "some original value")
 
-	expected := "[REDACTED]"
-	if result != expected {
-		t.Errorf("GenericGenerator returned %s, expected %s", result, expected)
+	if !strings.HasPrefix(result, "[REDACTED_EMAIL_") {
+		t.Errorf("GenericGenerator returned %s, expected prefix [REDACTED_EMAIL_", result)
+	}
+	if !strings.HasSuffix(result, "]") {
+		t.Errorf("GenericGenerator returned %s, expected suffix ]", result)
+	}
+
+	// The hash segment must be exactly 6 hex characters.
+	hashPattern := regexp.MustCompile(`^\[REDACTED_EMAIL_[0-9a-f]{6}\]$`)
+	if !hashPattern.MatchString(result) {
+		t.Errorf("GenericGenerator returned %s, expected format [REDACTED_EMAIL_<6 hex>]", result)
+	}
+
+	// Same original must yield a stable placeholder.
+	if again := GenericGenerator("EMAIL", "some original value"); again != result {
+		t.Errorf("GenericGenerator not deterministic: %s vs %s", result, again)
 	}
 }
 
@@ -478,7 +490,6 @@ func TestAllGeneratorsNonEmpty(t *testing.T) {
 		"IbanGenerator":               IbanGenerator,
 		"AgeGenerator":                AgeGenerator,
 		"SecurityTokenGenerator":      SecurityTokenGenerator,
-		"GenericGenerator":            GenericGenerator,
 	}
 
 	for name, generator := range generators {

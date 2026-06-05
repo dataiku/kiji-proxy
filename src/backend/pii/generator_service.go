@@ -92,5 +92,5 @@ func (s *GeneratorService) getGeneratorForLabel(label string) func(string) strin
 	}
 
 	// Return generic generator for unknown labels
-	return func(original string) string { return piiGenerators.GenericGenerator(s.rng, original) }
+	return func(original string) string { return piiGenerators.GenericGenerator(label, original) }
 }

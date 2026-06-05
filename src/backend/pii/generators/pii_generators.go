@@ -1,6 +1,8 @@
 package pii
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"math/rand"
 )
@@ -491,7 +493,11 @@ func SecurityTokenGenerator(rng *rand.Rand, original string) string {
 	return prefix + string(token)
 }
 
-// GenericGenerator is a fallback generator for unknown types
-func GenericGenerator(rng *rand.Rand, original string) string {
-	return "[REDACTED]"
+// GenericGenerator is a fallback generator for unknown types. It returns a
+// deterministic placeholder of the form "[REDACTED_{type}_{hash}]", where hash
+// is a 6-character hex digest of the original value.
+func GenericGenerator(typeName, original string) string {
+	sum := sha256.Sum256([]byte(original))
+	hash := hex.EncodeToString(sum[:])[:6]
+	return fmt.Sprintf("[REDACTED_%s_%s]", typeName, hash)
 }
