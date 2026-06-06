@@ -1,5 +1,11 @@
 # kiji-privacy-proxy
 
+## 1.3.0
+
+### Minor Changes
+
+- 24267dc: Allow users to disable specific entities from masking, allow custom regex, added listing of the masked entities
+
 ## 1.2.0
 
 ### Minor Changes
