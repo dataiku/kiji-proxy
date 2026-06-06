@@ -56,7 +56,7 @@ continuously instead of after a batch. `max_seeds=None` runs forever.
 ## Provider switch (same as v2)
 
 ```bash
-PII_PROVIDER=openai  OPENAI_MODEL=gpt-4o                 # default — best extraction quality
+PII_PROVIDER=openai  OPENAI_MODEL=gpt-5.4-mini           # default — best extraction quality
 PII_PROVIDER=ollama  OLLAMA_MODEL=gemma4:e2b  OLLAMA_HOST=http://localhost:11434
 ```
 

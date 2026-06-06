@@ -16,7 +16,7 @@ training example ends up as a human-verified annotation on real (generated) text
 there is no augmentation/label-transfer step.
 
 Provider switch (same env vars as model_v2):
-  PII_PROVIDER=openai  OPENAI_API_KEY=...  OPENAI_MODEL=gpt-4o            (default)
+  PII_PROVIDER=openai  OPENAI_API_KEY=...  OPENAI_MODEL=gpt-5.4-mini      (default)
   PII_PROVIDER=ollama  OLLAMA_HOST=http://localhost:11434  OLLAMA_MODEL=gemma4:e2b
 
 Run (continuous — Ctrl-C to stop):
@@ -63,7 +63,7 @@ LS_HEADERS = {
 
 # ── LLM provider switch (mirrors model_v2) ───────────────────────────────────
 PII_PROVIDER = os.getenv("PII_PROVIDER", "openai").lower()
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.4-mini")
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "gemma4:e2b")
 MODEL_NAME = OLLAMA_MODEL if PII_PROVIDER == "ollama" else OPENAI_MODEL
