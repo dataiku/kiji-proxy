@@ -311,21 +311,28 @@ func (s *SQLitePIIMappingDB) GetMappingsCount(ctx context.Context) (int, error) 
 	return count, nil
 }
 
+const (
+	MappingColumnPIIType     = "pii_type"
+	MappingColumnOriginalPII = "original_pii"
+	MappingColumnDummyPII    = "dummy_pii"
+	MappingColumnCreatedAt   = "created_at"
+)
+
 // allowedMappingSortColumns maps API-facing sort keys to actual SQL column
 // names. Only keys present here may be used in ORDER BY; user input never
 // reaches the query string directly, which prevents SQL injection.
 var allowedMappingSortColumns = map[string]string{
-	"pii_type":     "pii_type",
-	"original_pii": "original_pii",
-	"dummy_pii":    "dummy_pii",
-	"created_at":   "created_at",
+	MappingColumnPIIType:     MappingColumnPIIType,
+	MappingColumnOriginalPII: MappingColumnOriginalPII,
+	MappingColumnDummyPII:    MappingColumnDummyPII,
+	MappingColumnCreatedAt:   MappingColumnCreatedAt,
 }
 
 // GetMappings retrieves PII mappings from the database with pagination and sorting.
 func (s *SQLitePIIMappingDB) GetMappings(ctx context.Context, limit int, offset int, sortColumn string, sortDescending bool) ([]map[string]interface{}, error) {
 	column, ok := allowedMappingSortColumns[sortColumn]
 	if !ok {
-		column = "created_at" // safe default
+		column = MappingColumnCreatedAt // safe default
 	}
 	order := "ASC"
 	if sortDescending {
@@ -364,13 +371,13 @@ func (s *SQLitePIIMappingDB) GetMappings(ctx context.Context, limit int, offset 
 		parsedCreated, _ := time.Parse("2006-01-02 15:04:05", createdAt)
 
 		mappings = append(mappings, map[string]interface{}{
-			"id":           id,
-			"original_pii": originalPII,
-			"dummy_pii":    dummyPII,
-			"pii_type":     piiType,
-			"confidence":   confidence,
-			"created_at":   parsedCreated,
-			"access_count": accessCount,
+			"id":                     id,
+			MappingColumnOriginalPII: originalPII,
+			MappingColumnDummyPII:    dummyPII,
+			MappingColumnPIIType:     piiType,
+			"confidence":             confidence,
+			MappingColumnCreatedAt:   parsedCreated,
+			"access_count":           accessCount,
 		})
 	}
 

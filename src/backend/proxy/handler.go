@@ -856,12 +856,14 @@ func (h *Handler) HandleClearLogs(w http.ResponseWriter, r *http.Request) {
 	h.handleClearOperation(w, r, "Logs", h.loggingDB.ClearLogs)
 }
 
-// allowedMappingSorts whitelists the sortable columns exposed by the mappings API.
+// allowedMappingSorts whitelists the sortable columns exposed by the mappings
+// API. Keys reuse the column constants from the pii package so the API
+// accept-list, SQL columns, and JSON response keys stay in sync.
 var allowedMappingSorts = map[string]bool{
-	"pii_type":     true,
-	"original_pii": true,
-	"dummy_pii":    true,
-	"created_at":   true,
+	piiServices.MappingColumnPIIType:     true,
+	piiServices.MappingColumnOriginalPII: true,
+	piiServices.MappingColumnDummyPII:    true,
+	piiServices.MappingColumnCreatedAt:   true,
 }
 
 // HandleMappings handles GET requests to retrieve PII mappings (paginated and sortable)
@@ -892,7 +894,7 @@ func (h *Handler) HandleMappings(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Parse and validate sort column (defaults to created_at)
-	sortColumn := "created_at"
+	sortColumn := piiServices.MappingColumnCreatedAt
 	if s := r.URL.Query().Get("sort"); s != "" {
 		if !allowedMappingSorts[s] {
 			http.Error(w, "Invalid sort column", http.StatusBadRequest)
