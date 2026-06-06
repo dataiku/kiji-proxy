@@ -332,7 +332,7 @@ These are produced automatically by the training pipeline in the `model/quantize
 ### Load the model
 
 1. Open the Kiji desktop app.
-2. Open the hamburger menu and click **Advanced Settings**.
+2. Open **Settings** from the hamburger menu, then click **Advanced Settings**.
 3. In the **Load Custom Kiji PII Model** section, enter the path to your model directory or click **Browse** to select it.
 4. Click **Reload Model**.
 5. The status indicator will show **Healthy** if the model loaded successfully.
@@ -341,13 +341,15 @@ These are produced automatically by the training pipeline in the `model/quantize
 
 ### Adjust detection sensitivity
 
-After loading a custom model, you may want to adjust the PII detection sensitivity. In the same Advanced Settings modal:
+After loading a custom model, you may want to adjust the PII detection sensitivity. This lives in **Menu → Settings → PII Settings** (alongside the entity-masking and custom-regex controls):
 
 - **Low** (0.1 threshold) - Catches more potential PII but may have more false positives
 - **Medium** (0.25 threshold) - Balanced detection (default)
 - **High** (0.5 threshold) - More precise but may miss some PII
 
-<!-- Screenshot: Advanced Settings modal showing the PII Detection Sensitivity selector -->
+See [Masking Controls & Review](08-masking-controls.md#pii-detection-sensitivity) for the full set of masking controls.
+
+<!-- Screenshot: PII Settings modal showing the PII Detection Sensitivity selector -->
 
 ## End-to-end example
 

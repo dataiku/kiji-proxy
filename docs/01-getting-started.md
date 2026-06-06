@@ -268,6 +268,7 @@ sudo trust extract-compat
    - Set your API keys (OpenAI, Anthropic, Gemini, Mistral)
    - Configure proxy ports (forward proxy default: 8080, transparent proxy default: 8081)
    - Enable/disable PII logging
+   - Tune what gets masked via **Menu → Settings → PII Settings** (detection sensitivity, which entity types to mask, custom regex patterns). See [Masking Controls & Review](08-masking-controls.md).
 
 3. **Test the proxy:**
 
@@ -365,6 +366,8 @@ export TRANSPARENT_PROXY_CA_PATH="~/.kiji-proxy/certs/ca.crt"
 export TRANSPARENT_PROXY_KEY_PATH="~/.kiji-proxy/certs/ca.key"
 ```
 
+> **Custom regex patterns:** beyond the `DETECTOR_NAME` switch above, you can add your own named regex rules that run alongside the ML model. Set them in the desktop UI (PII Settings) or via the `custom_regexes` config field below. See [Masking Controls & Review](08-masking-controls.md#custom-regex-patterns).
+
 **Config File Example:**
 
 ```json
@@ -396,6 +399,9 @@ export TRANSPARENT_PROXY_KEY_PATH="~/.kiji-proxy/certs/ca.key"
   },
   "ProxyPort": ":8080",
   "DetectorName": "onnx_model_detector",
+  "custom_regexes": [
+    { "name": "EMPLOYEE_ID", "pattern": "EMP-\\d{4}" }
+  ],
   "Logging": {
     "LogRequests": true,
     "LogResponses": true,
@@ -588,7 +594,9 @@ Now that you have Kiji Privacy Proxy running, here's what to explore next:
 2. **Test PII Detection:**
    - Send requests with sensitive data
    - Review logs to see masked values
-   - Configure PII detection sensitivity
+   - Tune detection sensitivity, disable entity types, and add custom regex rules in **PII Settings**
+   - Audit and delete recorded mappings via **Menu → Mappings**
+   - See [Masking Controls & Review](08-masking-controls.md)
 
 3. **Production Deployment:**
    - Set up systemd service (Linux)
@@ -618,6 +626,7 @@ Now that you have Kiji Privacy Proxy running, here's what to explore next:
 - [Building & Deployment](03-building-deployment.md) - Building from source
 - [Release Management](04-release-management.md) - Versioning and releases
 - [Advanced Topics](05-advanced-topics.md) - MITM proxy, model signing, troubleshooting
+- [Masking Controls & Review](08-masking-controls.md) - Disable entity types, custom regex, mapping review
 
 ## Getting Help
 

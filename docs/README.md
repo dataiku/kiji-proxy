@@ -11,6 +11,8 @@ Kiji Privacy Proxy is an intelligent privacy layer for API traffic. It automatic
 - 🌐 **Automatic Proxy Configuration (PAC)** - No manual setup for browsers on macOS
 - 🤖 **ML-Powered PII Detection** - ONNX-based model for accurate detection
 - 🎭 **Automatic Masking & Restoration** - Seamless data protection
+- 🎚️ **Configurable Masking** - Disable entity types or add custom regex patterns
+- 🗂️ **Mapping Review** - Inspect and delete recorded masked values
 - 💻 **Desktop App (macOS)** - Electron-based UI for easy management
 - 🐧 **API Server (Linux)** - Standalone backend for server deployments
 - 📊 **Request Logging** - Complete audit trail with masked data
@@ -129,6 +131,21 @@ Train a custom PII detection model with your own entity types, data, and domain-
 
 ---
 
+### [Chapter 8: Masking Controls & Review](08-masking-controls.md)
+
+Control what gets masked and review what already has been, from the desktop app.
+
+**Topics:**
+- Tuning PII detection sensitivity
+- Disabling specific entity types so they pass through unmasked
+- Adding custom regex patterns for domain-specific PII
+- Reviewing, sorting, and deleting masked mappings
+- Driving the same controls via config file and HTTP API (standalone)
+
+**Start here if you're:** Deciding which data to mask, adding custom detection rules, or auditing what Kiji has masked.
+
+---
+
 ## Quick Links
 
 ### Getting Started
@@ -163,6 +180,12 @@ Train a custom PII detection model with your own entity types, data, and domain-
 - [Reviewing Data in Label Studio](07-customizing-pii-model.md#reviewing-data-in-label-studio)
 - [Training with Metaflow](07-customizing-pii-model.md#training-the-model-with-metaflow)
 - [Loading a Custom Model](07-customizing-pii-model.md#loading-your-custom-model-in-the-app)
+
+### Masking Controls
+- [Detection Sensitivity](08-masking-controls.md#pii-detection-sensitivity)
+- [Disable Entity Types](08-masking-controls.md#choosing-which-entities-to-mask)
+- [Custom Regex Patterns](08-masking-controls.md#custom-regex-patterns)
+- [Review & Delete Mappings](08-masking-controls.md#reviewing-and-deleting-masked-entities)
 
 ## Document Status
 
@@ -234,5 +257,5 @@ See LICENSE file in the repository root.
 ---
 
 **Documentation Version:** 1.0.0  
-**Last Updated:** 2026-01-06  
+**Last Updated:** 2026-06-06  
 **Maintained By:** 575 Lab, Dataiku's Open Source Office

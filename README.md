@@ -42,6 +42,8 @@ When using AI services like OpenAI or Anthropic, sensitive data in your prompts 
 - **🔒 Automatic PII Protection** - ML-powered detection of 26 PII types (emails, SSNs, credit cards, etc.)
 - **🎭 Seamless Masking** - Replaces sensitive data with realistic dummy values before API calls
 - **🔄 Transparent Restoration** - Restores original data in responses so your app works normally
+- **🎚️ Configurable Masking** - Disable specific entity types or add your own regex rules for domain-specific PII ([details](docs/08-masking-controls.md))
+- **🗂️ Review & Delete Mappings** - Inspect every masked value and clear mappings from the app
 - **🚀 Zero Code Changes** - Works as a transparent proxy with automatic configuration (PAC) on macOS
 - **🌐 Browser-Ready** - Automatic proxy setup for Safari, Chrome - no environment variables needed
 - **🧩 Chrome Extension** - Inline PII detection for ChatGPT, Claude, Gemini, and other AI chat sites ([details](docs/06-chrome-extension.md))
@@ -192,6 +194,8 @@ make electron
 
 - **26 PII Types Detected** - Email, phone, SSN, credit cards, addresses, URLs, and more
 - **ML-Powered** - DistilBERT transformer model with ONNX Runtime ([model](https://huggingface.co/DataikuNLP/kiji-pii-model-onnx), [dataset](https://huggingface.co/datasets/DataikuNLP/kiji-pii-training-data))
+- **Configurable Masking** - Disable entity types, tune sensitivity, or add custom regex patterns
+- **Mapping Review** - Sortable view of masked values with per-entry and bulk delete
 - **Automatic Configuration** - PAC (Proxy Auto-Config) for zero-setup browser integration on macOS
 - **Real-Time Processing** - Sub-100ms latency for most requests
 - **Thread-Safe** - Handles concurrent requests with isolated mappings
@@ -210,6 +214,9 @@ Complete documentation is available in [docs/README.md](docs/README.md):
 - **[Building & Deployment](docs/03-building-deployment.md)** - Building from source, production deployment
 - **[Release Management](docs/04-release-management.md)** - Versioning, changesets, CI/CD
 - **[Advanced Topics](docs/05-advanced-topics.md)** - MITM proxy, model signing, troubleshooting
+- **[Chrome Extension](docs/06-chrome-extension.md)** - Building, configuring, and publishing the PII Guard extension
+- **[Customizing the PII Model](docs/07-customizing-pii-model.md)** - Training a model with your own entity types
+- **[Masking Controls & Review](docs/08-masking-controls.md)** - Disable entity types, custom regex, mapping review
 
 **Quick Links:**
 - [Installation Guide](docs/01-getting-started.md#quick-installation)
@@ -217,6 +224,7 @@ Complete documentation is available in [docs/README.md](docs/README.md):
 - [VSCode Debugging](docs/02-development-guide.md#vscode-debugging)
 - [Build for macOS](docs/03-building-deployment.md#building-for-macos)
 - [Build for Linux](docs/03-building-deployment.md#building-for-linux)
+- [Masking Controls](docs/08-masking-controls.md) - disable entities, custom regex, review mappings
 
 ---
 
@@ -248,11 +256,13 @@ You can train your own model or fine-tune the existing one. See [Customizing the
 
 **What Happens:**
 1. Your app sends request to Kiji Privacy Proxy
-2. Kiji detects PII using ML model
+2. Kiji detects PII using the ML model (plus any custom regex rules) for the entity types you've enabled
 3. PII is replaced with dummy data
 4. Request forwarded to the provider (OpenAI, Anthropic, Gemini, Mistral) with masked data
 5. Response received and PII restored
 6. Original-looking response returned to your app
+
+You control which entity types are masked and can review or delete recorded mappings from the app — see [Masking Controls & Review](docs/08-masking-controls.md).
 
 ---
 
