@@ -748,6 +748,19 @@ func (s *Server) handlePIIConfidence(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// savePIISettings snapshots the current disabled labels and custom regexes from
+// the handler and persists them to pii_settings.json so they survive restarts.
+// A persistence failure is logged but not surfaced to the caller — the in-memory
+// update has already taken effect; only durability across restarts is lost.
+func (s *Server) savePIISettings() {
+	if err := config.SavePIISettings(&config.PIISettings{
+		DisabledEntities: s.handler.GetDisabledEntities(),
+		CustomRegexes:    s.handler.GetCustomRegexes(),
+	}); err != nil {
+		log.Printf("Failed to persist PII settings to %s: %v", config.PIISettingsPath(), err)
+	}
+}
+
 // handlePIIEntities handles GET/POST /api/pii/entities requests. GET returns the
 // available entity types (from the loaded model) plus the entity types currently
 // disabled (left unmasked). POST replaces the disabled set with the provided
@@ -801,6 +814,7 @@ func (s *Server) handlePIIEntities(w http.ResponseWriter, r *http.Request) {
 		}
 
 		s.handler.SetDisabledEntities(req.Disabled)
+		s.savePIISettings()
 		log.Printf("PII disabled (passthrough) entities updated: %d left unmasked", len(req.Disabled))
 
 		w.Header().Set("Content-Type", "application/json")
@@ -850,6 +864,7 @@ func (s *Server) handlePIIRegexes(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
+		s.savePIISettings()
 		log.Printf("PII custom regexes updated: %d pattern(s)", len(req.Regexes))
 
 		w.Header().Set("Content-Type", "application/json")

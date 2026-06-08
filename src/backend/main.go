@@ -90,6 +90,18 @@ func run(configPath *string) error {
 	loadConfigFromEnv(cfg)
 	expandConfigPaths(cfg)
 
+	// Overlay PII settings the UI persisted via the POST endpoints (custom regexes
+	// and disabled labels). These are the user's latest runtime choices, so they
+	// take precedence over the config defaults and survive restarts.
+	if settings, err := config.LoadPIISettings(); err != nil {
+		log.Printf("Failed to load persisted PII settings, using config defaults: %v", err)
+	} else if settings != nil {
+		cfg.CustomRegexes = settings.CustomRegexes
+		cfg.DisabledEntities = settings.DisabledEntities
+		log.Printf("Loaded persisted PII settings: %d custom regex(es), %d disabled label(s)",
+			len(settings.CustomRegexes), len(settings.DisabledEntities))
+	}
+
 	if err := cfg.ValidateConfig(); err != nil {
 		return err
 	}

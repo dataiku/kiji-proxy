@@ -108,6 +108,10 @@ type Config struct {
 	// entry pairs a name (used as the detected entity type) with a regular
 	// expression. Empty means no custom regex detection.
 	CustomRegexes []RegexPatternConfig `json:"custom_regexes"`
+	// DisabledEntities is the set of entity labels the user has chosen to leave
+	// UNMASKED. Empty/nil means "mask everything" (fail closed). Persisted via
+	// pii_settings.json and reapplied at startup (see PIISettings).
+	DisabledEntities []string `json:"disabled_entities"`
 }
 
 // ModelVariantTrained is the full-precision model variant.
@@ -305,8 +309,9 @@ func DefaultConfig() *Config {
 			KeyPath:            keyPath,
 			EnablePAC:          true, // Enable PAC by default for automatic proxy configuration
 		},
-		Detectors:     DefaultDetectors(),
-		CustomRegexes: []RegexPatternConfig{},
+		Detectors:        DefaultDetectors(),
+		CustomRegexes:    []RegexPatternConfig{},
+		DisabledEntities: []string{},
 	}
 }
 

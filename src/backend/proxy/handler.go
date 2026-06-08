@@ -778,6 +778,9 @@ func NewHandler(cfg *config.Config) (*Handler, error) {
 	generatorService := piiServices.NewGeneratorService()
 	piiMapping := piiServices.NewPIIMappingWithDB(db, true)
 	maskingService := piiServices.NewMaskingService(modelManager, generatorService, piiMapping)
+	// Seed the disabled (passthrough) entity labels persisted from a previous run.
+	// Empty/nil leaves everything masked (fail closed).
+	maskingService.SetDisabledEntities(cfg.DisabledEntities)
 
 	var responseProcessor *processor.ResponseProcessor
 	if detector != nil {
