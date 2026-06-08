@@ -1,5 +1,11 @@
 # kiji-privacy-proxy
 
+## 1.3.1
+
+### Patch Changes
+
+- aed5ea4: Fix pii settings
+
 ## 1.3.0
 
 ### Minor Changes
