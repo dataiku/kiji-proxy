@@ -9,7 +9,7 @@ import (
 	"net/url"
 	"strings"
 
-	pii "github.com/hannes/kiji-private/src/backend/pii/detectors"
+	pii "github.com/dataiku/kiji-proxy/src/backend/pii/detectors"
 )
 
 // normalizeBaseURL takes an apiDomain that may be a bare domain (e.g. "api.openai.com")

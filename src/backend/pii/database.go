@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hannes/kiji-private/src/backend/paths"
-	detectors "github.com/hannes/kiji-private/src/backend/pii/detectors"
+	"github.com/dataiku/kiji-proxy/src/backend/paths"
+	detectors "github.com/dataiku/kiji-proxy/src/backend/pii/detectors"
 	_ "modernc.org/sqlite"
 )
 

@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hannes/kiji-private/src/backend/config"
-	piiServices "github.com/hannes/kiji-private/src/backend/pii"
-	pii "github.com/hannes/kiji-private/src/backend/pii/detectors"
-	"github.com/hannes/kiji-private/src/backend/processor"
-	"github.com/hannes/kiji-private/src/backend/providers"
+	"github.com/dataiku/kiji-proxy/src/backend/config"
+	piiServices "github.com/dataiku/kiji-proxy/src/backend/pii"
+	pii "github.com/dataiku/kiji-proxy/src/backend/pii/detectors"
+	"github.com/dataiku/kiji-proxy/src/backend/processor"
+	"github.com/dataiku/kiji-proxy/src/backend/providers"
 )
 
 // --- Mock implementations ---

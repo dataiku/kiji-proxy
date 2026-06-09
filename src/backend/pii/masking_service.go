@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	detectors "github.com/hannes/kiji-private/src/backend/pii/detectors"
+	detectors "github.com/dataiku/kiji-proxy/src/backend/pii/detectors"
 )
 
 // minSweepLen is the smallest original-PII length we will mass-replace.

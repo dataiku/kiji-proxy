@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/hannes/kiji-private/src/backend/paths"
-	"github.com/hannes/kiji-private/src/backend/providers"
+	"github.com/dataiku/kiji-proxy/src/backend/paths"
+	"github.com/dataiku/kiji-proxy/src/backend/providers"
 )
 
 // DefaultForwardProxyPort is the default port for the forward proxy.

@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/hannes/kiji-private/src/backend/config"
+	"github.com/dataiku/kiji-proxy/src/backend/config"
 )
 
 func TestExpandPath(t *testing.T) {

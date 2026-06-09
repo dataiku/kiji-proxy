@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	pii "github.com/hannes/kiji-private/src/backend/pii/detectors"
+	pii "github.com/dataiku/kiji-proxy/src/backend/pii/detectors"
 )
 
 // ModelManager manages PII model lifecycle with thread-safe hot reload capability.

@@ -12,10 +12,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hannes/kiji-private/src/backend/config"
-	"github.com/hannes/kiji-private/src/backend/paths"
-	"github.com/hannes/kiji-private/src/backend/providers"
-	"github.com/hannes/kiji-private/src/backend/proxy"
+	"github.com/dataiku/kiji-proxy/src/backend/config"
+	"github.com/dataiku/kiji-proxy/src/backend/paths"
+	"github.com/dataiku/kiji-proxy/src/backend/providers"
+	"github.com/dataiku/kiji-proxy/src/backend/proxy"
 	"golang.org/x/time/rate"
 )
 

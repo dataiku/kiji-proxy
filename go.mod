@@ -1,4 +1,4 @@
-module github.com/hannes/kiji-private
+module github.com/dataiku/kiji-proxy
 
 go 1.25.0
 

@@ -4,7 +4,7 @@ import (
 	"math/rand"
 	"time"
 
-	piiGenerators "github.com/hannes/kiji-private/src/backend/pii/generators"
+	piiGenerators "github.com/dataiku/kiji-proxy/src/backend/pii/generators"
 )
 
 // PII entity labels recognized by the generator service.

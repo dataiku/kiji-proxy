@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	pii "github.com/hannes/kiji-private/src/backend/pii/detectors"
+	pii "github.com/dataiku/kiji-proxy/src/backend/pii/detectors"
 )
 
 const (

@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/hannes/kiji-private/src/backend/paths"
+	"github.com/dataiku/kiji-proxy/src/backend/paths"
 )
 
 // PIISettingsFileName is the name of the file holding the runtime-tunable PII
