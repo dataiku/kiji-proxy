@@ -1,0 +1,1577 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kiji Privacy Proxy — Your prompts leave. Your data doesn't.</title>
+    <meta
+      name="description"
+      content="Kiji is an open-source privacy proxy that detects and masks PII in your AI API requests locally, then restores it in responses. Works with OpenAI, Anthropic, Claude Code and more."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --paper: #f5f7f3;
+        --paper-2: #ecf0ea;
+        --ink: #0f1a15;
+        --ink-soft: #3d4a43;
+        --mist: #d8e0d8;
+        --emerald: #0e7c5b;
+        --emerald-deep: #0a5c44;
+        --spruce: #0b231b;
+        --spruce-2: #0e2c22;
+        --copper: #c2622b;
+        --copper-soft: #f3e2d4;
+        --mint: #dfefe7;
+        --code-green: #5bd6a6;
+        --code-dim: #7e9c8e;
+        --code-amber: #e8b05c;
+        --radius: 14px;
+        --font-display: "Bricolage Grotesque", sans-serif;
+        --font-body: "IBM Plex Sans", sans-serif;
+        --font-mono: "IBM Plex Mono", monospace;
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        font-family: var(--font-body);
+        background: var(--paper);
+        color: var(--ink);
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+        overflow-x: hidden;
+      }
+      ::selection {
+        background: var(--emerald);
+        color: #fff;
+      }
+      a {
+        color: inherit;
+      }
+      .wrap {
+        max-width: 1120px;
+        margin: 0 auto;
+        padding: 0 28px;
+      }
+
+      /* ---------- nav ---------- */
+      nav {
+        position: sticky;
+        top: 0;
+        z-index: 50;
+        background: rgba(245, 247, 243, 0.85);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border-bottom: 1px solid var(--mist);
+      }
+      .nav-inner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 64px;
+      }
+      .logo {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-family: var(--font-display);
+        font-weight: 800;
+        font-size: 1.15rem;
+        text-decoration: none;
+        letter-spacing: -0.01em;
+      }
+      .logo-mark {
+        width: 30px;
+        height: 30px;
+        border-radius: 8px;
+        background: var(--spruce);
+        display: grid;
+        place-items: center;
+        flex: none;
+      }
+      .logo-mark svg {
+        display: block;
+      }
+      .nav-links {
+        display: flex;
+        align-items: center;
+        gap: 26px;
+        font-size: 0.92rem;
+        font-weight: 500;
+      }
+      .nav-links a {
+        text-decoration: none;
+        color: var(--ink-soft);
+        transition: color 0.2s;
+      }
+      .nav-links a:hover {
+        color: var(--emerald-deep);
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-family: var(--font-body);
+        font-weight: 600;
+        font-size: 0.95rem;
+        padding: 11px 20px;
+        border-radius: 10px;
+        text-decoration: none;
+        border: 1px solid transparent;
+        cursor: pointer;
+        transition: transform 0.15s ease, box-shadow 0.2s ease, background 0.2s;
+      }
+      .btn:focus-visible,
+      a:focus-visible,
+      button:focus-visible {
+        outline: 2px solid var(--emerald);
+        outline-offset: 2px;
+      }
+      .btn-primary {
+        background: var(--emerald);
+        color: #fff;
+        box-shadow: 0 1px 0 rgba(15, 26, 21, 0.08);
+      }
+      .btn-primary:hover {
+        background: var(--emerald-deep);
+        transform: translateY(-1px);
+        box-shadow: 0 6px 16px rgba(14, 124, 91, 0.25);
+      }
+      .btn-ghost {
+        border-color: var(--mist);
+        color: var(--ink);
+        background: transparent;
+      }
+      .btn-ghost:hover {
+        border-color: var(--emerald);
+        color: var(--emerald-deep);
+        transform: translateY(-1px);
+      }
+      .btn-sm {
+        padding: 8px 14px;
+        font-size: 0.85rem;
+        border-radius: 8px;
+      }
+
+      /* ---------- hero ---------- */
+      .hero {
+        padding: 84px 0 64px;
+        position: relative;
+      }
+      .hero-grid {
+        display: grid;
+        grid-template-columns: 1.05fr 0.95fr;
+        gap: 56px;
+        align-items: center;
+      }
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-family: var(--font-mono);
+        font-size: 0.75rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--emerald-deep);
+        background: var(--mint);
+        border: 1px solid #c6e2d4;
+        padding: 6px 12px;
+        border-radius: 999px;
+        margin-bottom: 22px;
+      }
+      .eyebrow .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--emerald);
+        animation: pulse 2.4s infinite;
+      }
+      @keyframes pulse {
+        0%,
+        100% {
+          box-shadow: 0 0 0 0 rgba(14, 124, 91, 0.45);
+        }
+        55% {
+          box-shadow: 0 0 0 7px rgba(14, 124, 91, 0);
+        }
+      }
+      h1 {
+        font-family: var(--font-display);
+        font-size: clamp(2.5rem, 5.2vw, 3.9rem);
+        font-weight: 800;
+        line-height: 1.04;
+        letter-spacing: -0.025em;
+        margin-bottom: 20px;
+      }
+      h1 .stay {
+        color: var(--emerald);
+      }
+      .hero p.lede {
+        font-size: 1.16rem;
+        color: var(--ink-soft);
+        max-width: 34rem;
+        margin-bottom: 32px;
+      }
+      .hero-cta {
+        display: flex;
+        gap: 14px;
+        flex-wrap: wrap;
+        margin-bottom: 30px;
+      }
+      .hero-meta {
+        display: flex;
+        gap: 22px;
+        flex-wrap: wrap;
+        font-family: var(--font-mono);
+        font-size: 0.78rem;
+        color: var(--ink-soft);
+      }
+      .hero-meta span {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+      }
+      .hero-meta svg {
+        flex: none;
+      }
+
+      /* terminal */
+      .terminal {
+        background: var(--spruce);
+        border-radius: var(--radius);
+        box-shadow: 0 24px 60px -18px rgba(11, 35, 27, 0.5),
+          0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+        overflow: hidden;
+        font-family: var(--font-mono);
+        font-size: 0.83rem;
+        transform: rotate(0.4deg);
+      }
+      .term-bar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 16px;
+        background: var(--spruce-2);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      }
+      .term-bar i {
+        width: 11px;
+        height: 11px;
+        border-radius: 50%;
+        background: #27433a;
+        display: block;
+      }
+      .term-bar .t {
+        margin-left: auto;
+        color: var(--code-dim);
+        font-size: 0.72rem;
+      }
+      .term-body {
+        padding: 20px 20px 24px;
+        color: #cfe3d9;
+        min-height: 330px;
+      }
+      .term-line {
+        margin-bottom: 10px;
+        line-height: 1.75;
+      }
+      .term-label {
+        color: var(--code-dim);
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        display: block;
+        margin: 14px 0 6px;
+      }
+      .pii {
+        display: inline-block;
+        padding: 1px 7px;
+        border-radius: 6px;
+        background: rgba(194, 98, 43, 0.22);
+        color: #f0b98b;
+        border: 1px solid rgba(240, 185, 139, 0.35);
+        transition: all 0.45s cubic-bezier(0.6, 0.05, 0.2, 1);
+        white-space: nowrap;
+      }
+      .pii.masked {
+        background: rgba(91, 214, 166, 0.16);
+        color: var(--code-green);
+        border-color: rgba(91, 214, 166, 0.4);
+      }
+      .term-arrow {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: var(--code-dim);
+        font-size: 0.72rem;
+        margin: 12px 0;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+      .term-arrow .flow {
+        flex: 1;
+        height: 1px;
+        background: linear-gradient(
+          90deg,
+          rgba(91, 214, 166, 0),
+          rgba(91, 214, 166, 0.55),
+          rgba(91, 214, 166, 0)
+        );
+        background-size: 200% 100%;
+        animation: flow 2.2s linear infinite;
+      }
+      @keyframes flow {
+        from {
+          background-position: 200% 0;
+        }
+        to {
+          background-position: -200% 0;
+        }
+      }
+      .term-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 14px;
+        color: var(--code-green);
+        font-size: 0.74rem;
+      }
+      .term-status .tick {
+        width: 15px;
+        height: 15px;
+        border-radius: 50%;
+        background: rgba(91, 214, 166, 0.15);
+        display: grid;
+        place-items: center;
+        border: 1px solid rgba(91, 214, 166, 0.4);
+      }
+      .cursor {
+        display: inline-block;
+        width: 7px;
+        height: 14px;
+        background: var(--code-green);
+        vertical-align: -2px;
+        animation: blink 1s steps(1) infinite;
+      }
+      @keyframes blink {
+        50% {
+          opacity: 0;
+        }
+      }
+
+      /* ---------- pipeline strip ---------- */
+      .pipeline {
+        border-top: 1px solid var(--mist);
+        border-bottom: 1px solid var(--mist);
+        background: var(--paper-2);
+      }
+      .pipe-inner {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0;
+      }
+      .pipe-step {
+        padding: 30px 28px;
+        display: flex;
+        gap: 16px;
+        align-items: flex-start;
+        position: relative;
+      }
+      .pipe-step + .pipe-step {
+        border-left: 1px solid var(--mist);
+      }
+      .pipe-num {
+        font-family: var(--font-mono);
+        font-size: 0.72rem;
+        color: var(--emerald-deep);
+        border: 1px solid var(--emerald);
+        border-radius: 6px;
+        padding: 3px 8px;
+        flex: none;
+        margin-top: 3px;
+      }
+      .pipe-step h3 {
+        font-family: var(--font-display);
+        font-size: 1.02rem;
+        font-weight: 700;
+        margin-bottom: 3px;
+      }
+      .pipe-step p {
+        font-size: 0.88rem;
+        color: var(--ink-soft);
+        line-height: 1.5;
+      }
+
+      /* ---------- sections ---------- */
+      section {
+        padding: 96px 0;
+      }
+      .sec-head {
+        max-width: 42rem;
+        margin-bottom: 56px;
+      }
+      .sec-kicker {
+        font-family: var(--font-mono);
+        font-size: 0.75rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--copper);
+        display: block;
+        margin-bottom: 14px;
+      }
+      h2 {
+        font-family: var(--font-display);
+        font-size: clamp(1.9rem, 3.4vw, 2.7rem);
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        line-height: 1.1;
+        margin-bottom: 18px;
+      }
+      .sec-head p {
+        font-size: 1.08rem;
+        color: var(--ink-soft);
+      }
+
+      /* why cards */
+      .why-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 20px;
+      }
+      .card {
+        background: #fff;
+        border: 1px solid var(--mist);
+        border-radius: var(--radius);
+        padding: 30px 28px;
+        transition: transform 0.25s ease, box-shadow 0.25s ease,
+          border-color 0.25s;
+      }
+      .card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 18px 40px -20px rgba(11, 35, 27, 0.25);
+        border-color: #bcd3c5;
+      }
+      .card-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 11px;
+        background: var(--mint);
+        display: grid;
+        place-items: center;
+        margin-bottom: 18px;
+        color: var(--emerald-deep);
+      }
+      .card h3 {
+        font-family: var(--font-display);
+        font-size: 1.18rem;
+        font-weight: 700;
+        margin-bottom: 8px;
+        letter-spacing: -0.01em;
+      }
+      .card p {
+        font-size: 0.95rem;
+        color: var(--ink-soft);
+      }
+      .card code {
+        font-family: var(--font-mono);
+        font-size: 0.83em;
+        background: var(--paper-2);
+        padding: 1px 6px;
+        border-radius: 5px;
+        border: 1px solid var(--mist);
+      }
+
+      /* use-case line */
+      .usecases {
+        margin-top: 40px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+      .chip {
+        font-family: var(--font-mono);
+        font-size: 0.76rem;
+        color: var(--ink-soft);
+        border: 1px dashed #bfccc2;
+        border-radius: 999px;
+        padding: 7px 15px;
+        background: transparent;
+      }
+
+      /* ---------- quickstart ---------- */
+      .dark-section {
+        background: var(--spruce);
+        color: #e6f1ea;
+        border-radius: 28px;
+        margin: 0 16px;
+      }
+      .dark-section .sec-kicker {
+        color: var(--code-amber);
+      }
+      .dark-section h2 {
+        color: #fff;
+      }
+      .dark-section .sec-head p {
+        color: #a9c3b6;
+      }
+      .tabs {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 22px;
+        flex-wrap: wrap;
+      }
+      .tab {
+        font-family: var(--font-mono);
+        font-size: 0.82rem;
+        font-weight: 500;
+        color: #a9c3b6;
+        background: transparent;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        padding: 9px 18px;
+        border-radius: 9px;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+      .tab:hover {
+        border-color: rgba(91, 214, 166, 0.5);
+        color: #fff;
+      }
+      .tab.active {
+        background: var(--emerald);
+        border-color: var(--emerald);
+        color: #fff;
+      }
+      .codeblock {
+        position: relative;
+        background: var(--spruce-2);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 12px;
+        font-family: var(--font-mono);
+        font-size: 0.84rem;
+        line-height: 1.75;
+        overflow: hidden;
+      }
+      .codeblock pre {
+        padding: 22px 24px;
+        overflow-x: auto;
+        color: #d5e8dd;
+      }
+      .codeblock .cm {
+        color: var(--code-dim);
+      }
+      .codeblock .kw {
+        color: var(--code-green);
+      }
+      .codeblock .st {
+        color: var(--code-amber);
+      }
+      .copy-btn {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        font-family: var(--font-mono);
+        font-size: 0.72rem;
+        color: #a9c3b6;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 7px;
+        padding: 6px 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+      .copy-btn:hover {
+        color: #fff;
+        border-color: rgba(91, 214, 166, 0.6);
+      }
+      .copy-btn.copied {
+        color: var(--code-green);
+        border-color: var(--code-green);
+      }
+      .qs-note {
+        margin-top: 18px;
+        font-size: 0.88rem;
+        color: #a9c3b6;
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+      }
+      .qs-note a {
+        color: var(--code-green);
+      }
+      .qs-pane {
+        display: none;
+      }
+      .qs-pane.active {
+        display: block;
+        animation: fadeUp 0.35s ease;
+      }
+      @keyframes fadeUp {
+        from {
+          opacity: 0;
+          transform: translateY(8px);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+
+      /* ---------- examples ---------- */
+      .ex-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 24px;
+        align-items: start;
+      }
+      .ex-card {
+        background: #fff;
+        border: 1px solid var(--mist);
+        border-radius: var(--radius);
+        overflow: hidden;
+        transition: transform 0.25s ease, box-shadow 0.25s ease;
+      }
+      .ex-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 18px 40px -20px rgba(11, 35, 27, 0.22);
+      }
+      .ex-card .head {
+        padding: 24px 26px 0;
+      }
+      .ex-tag {
+        display: inline-block;
+        font-family: var(--font-mono);
+        font-size: 0.7rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--emerald-deep);
+        background: var(--mint);
+        border-radius: 6px;
+        padding: 4px 10px;
+        margin-bottom: 14px;
+      }
+      .ex-card h3 {
+        font-family: var(--font-display);
+        font-size: 1.3rem;
+        font-weight: 700;
+        margin-bottom: 8px;
+        letter-spacing: -0.01em;
+      }
+      .ex-card .head p {
+        font-size: 0.93rem;
+        color: var(--ink-soft);
+        margin-bottom: 20px;
+      }
+      .ex-card .codeblock {
+        border-radius: 0;
+        border-left: none;
+        border-right: none;
+        border-bottom: none;
+        font-size: 0.8rem;
+      }
+      .ex-card .codeblock pre {
+        padding: 20px 24px;
+      }
+      .full {
+        grid-column: 1/-1;
+      }
+
+      /* ---------- cta ---------- */
+      .cta-final {
+        text-align: center;
+        padding: 110px 0 120px;
+      }
+      .cta-final h2 {
+        margin-bottom: 16px;
+      }
+      .cta-final p {
+        color: var(--ink-soft);
+        font-size: 1.1rem;
+        max-width: 34rem;
+        margin: 0 auto 36px;
+      }
+      .cta-final .hero-cta {
+        justify-content: center;
+      }
+
+      /* ---------- footer ---------- */
+      footer {
+        border-top: 1px solid var(--mist);
+        padding: 40px 0;
+        background: var(--paper-2);
+      }
+      .foot {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 20px;
+        flex-wrap: wrap;
+        font-size: 0.88rem;
+        color: var(--ink-soft);
+      }
+      .foot-links {
+        display: flex;
+        gap: 22px;
+        flex-wrap: wrap;
+      }
+      .foot-links a {
+        text-decoration: none;
+        transition: color 0.2s;
+      }
+      .foot-links a:hover {
+        color: var(--emerald-deep);
+      }
+
+      /* ---------- reveal ---------- */
+      .reveal {
+        opacity: 0;
+        transform: translateY(22px);
+        transition: opacity 0.6s ease, transform 0.6s ease;
+      }
+      .reveal.in {
+        opacity: 1;
+        transform: none;
+      }
+      .reveal.d1 {
+        transition-delay: 0.08s;
+      }
+      .reveal.d2 {
+        transition-delay: 0.16s;
+      }
+      .reveal.d3 {
+        transition-delay: 0.24s;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation: none !important;
+          transition: none !important;
+        }
+        .reveal {
+          opacity: 1;
+          transform: none;
+        }
+        html {
+          scroll-behavior: auto;
+        }
+      }
+
+      /* ---------- responsive ---------- */
+      @media (max-width: 920px) {
+        .hero-grid {
+          grid-template-columns: 1fr;
+          gap: 44px;
+        }
+        .terminal {
+          transform: none;
+        }
+        .pipe-inner {
+          grid-template-columns: 1fr;
+        }
+        .pipe-step + .pipe-step {
+          border-left: none;
+          border-top: 1px solid var(--mist);
+        }
+        .why-grid,
+        .ex-grid {
+          grid-template-columns: 1fr;
+        }
+        .nav-links a:not(.btn) {
+          display: none;
+        }
+        section {
+          padding: 72px 0;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <nav>
+      <div class="wrap nav-inner">
+        <a class="logo" href="#top" aria-label="Kiji Privacy Proxy home">
+          <span class="logo-mark" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path
+                d="M2 8.5C2 5 5 2.5 8.5 3.5C12 4.5 13.5 7 14 11.5C10.5 13.5 6.5 13 4.5 11C3 9.7 2 9.4 2 8.5Z"
+                fill="#5BD6A6"
+              />
+              <circle cx="10.4" cy="6.6" r="1" fill="#0B231B" />
+            </svg>
+          </span>
+          Kiji
+          <span style="font-weight: 400; color: var(--ink-soft)"
+            >Privacy Proxy</span
+          >
+        </a>
+        <div class="nav-links">
+          <a href="#why">Why Kiji</a>
+          <a href="#quickstart">Quickstart</a>
+          <a href="#examples">Examples</a>
+          <a
+            class="btn btn-ghost btn-sm"
+            href="https://github.com/dataiku/kiji-proxy"
+            target="_blank"
+            rel="noopener"
+          >
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 16 16"
+              fill="currentColor"
+              aria-hidden="true"
+            >
+              <path
+                d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"
+              />
+            </svg>
+            Star on GitHub
+          </a>
+        </div>
+      </div>
+    </nav>
+
+    <header class="hero" id="top">
+      <div class="wrap hero-grid">
+        <div>
+          <span class="eyebrow"
+            ><span class="dot"></span>Open source · Apache 2.0 · by Dataiku's
+            575 Lab</span
+          >
+          <h1>
+            Your prompts leave.<br /><span class="stay"
+              >Your data doesn't.</span
+            >
+          </h1>
+          <p class="lede">
+            Kiji is a local privacy proxy that detects PII in your AI requests,
+            swaps it for realistic dummy values before anything reaches OpenAI,
+            Anthropic, Gemini or Mistral — then restores the original data in
+            the response. Zero code changes.
+          </p>
+          <div class="hero-cta">
+            <a
+              class="btn btn-primary"
+              href="https://github.com/dataiku/kiji-proxy/releases"
+              target="_blank"
+              rel="noopener"
+              >Download for macOS / Linux</a
+            >
+            <a class="btn btn-ghost" href="#quickstart">Quickstart →</a>
+          </div>
+          <div class="hero-meta">
+            <span
+              ><svg
+                width="13"
+                height="13"
+                viewBox="0 0 16 16"
+                fill="currentColor"
+              >
+                <path
+                  d="M8 1l2.1 4.3 4.7.7-3.4 3.3.8 4.7L8 11.8 3.8 14l.8-4.7L1.2 6l4.7-.7L8 1z"
+                /></svg
+              >26 PII types detected</span
+            >
+            <span
+              ><svg
+                width="13"
+                height="13"
+                viewBox="0 0 16 16"
+                fill="currentColor"
+              >
+                <circle
+                  cx="8"
+                  cy="8"
+                  r="6"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                />
+                <path
+                  d="M8 4.5V8l2.3 2.3"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  fill="none"
+                  stroke-linecap="round"
+                /></svg
+              >Sub-100ms latency</span
+            >
+            <span
+              ><svg
+                width="13"
+                height="13"
+                viewBox="0 0 16 16"
+                fill="currentColor"
+              >
+                <rect
+                  x="3"
+                  y="7"
+                  width="10"
+                  height="7"
+                  rx="1.5"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                />
+                <path
+                  d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                /></svg
+              >100% local inference</span
+            >
+          </div>
+        </div>
+
+        <div
+          class="terminal"
+          role="img"
+          aria-label="Animated demo: Kiji masks an email and a name in a request before it reaches the AI provider, then restores them in the response."
+        >
+          <div class="term-bar">
+            <i></i><i></i><i></i
+            ><span class="t">kiji-proxy · 127.0.0.1:8081</span>
+          </div>
+          <div class="term-body">
+            <span class="term-label">→ Your request</span>
+            <div class="term-line">
+              "Draft a renewal email to
+              <span class="pii" id="p1">sarah.chen@acme.com</span> about
+              <span class="pii" id="p2">Acme Corp</span>'s contract, card ending
+              <span class="pii" id="p3">4242</span>."
+            </div>
+            <div class="term-arrow">
+              <span id="arrow-label">detecting pii</span
+              ><span class="flow"></span><span>provider api</span>
+            </div>
+            <span class="term-label">← Response to your app</span>
+            <div class="term-line" id="resp" style="color: var(--code-dim)">
+              waiting<span class="cursor"></span>
+            </div>
+            <div class="term-status" id="status" style="opacity: 0">
+              <span class="tick"
+                ><svg width="9" height="9" viewBox="0 0 10 10" fill="none">
+                  <path
+                    d="M1.5 5.5L4 8l4.5-6"
+                    stroke="#5BD6A6"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  /></svg
+              ></span>
+              3 PII tokens masked in transit · originals restored locally
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="pipeline">
+      <div class="wrap pipe-inner">
+        <div class="pipe-step reveal">
+          <span class="pipe-num">DETECT</span>
+          <div>
+            <h3>ML finds the sensitive bits</h3>
+            <p>
+              A local DistilBERT model (ONNX) spots emails, names, SSNs, credit
+              cards and 22 more PII types in real time.
+            </p>
+          </div>
+        </div>
+        <div class="pipe-step reveal d1">
+          <span class="pipe-num">MASK</span>
+          <div>
+            <h3>Realistic stand-ins go out</h3>
+            <p>
+              PII is swapped for plausible dummy values, so the model still
+              reasons naturally — it just never sees the truth.
+            </p>
+          </div>
+        </div>
+        <div class="pipe-step reveal d2">
+          <span class="pipe-num">RESTORE</span>
+          <div>
+            <h3>Originals come back</h3>
+            <p>
+              Kiji re-inserts the real data into the response on your machine.
+              Your app behaves as if nothing happened.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <section id="why">
+      <div class="wrap">
+        <div class="sec-head reveal">
+          <span class="sec-kicker">Why Kiji</span>
+          <h2>Every prompt is a data export.</h2>
+          <p>
+            Customer emails in support drafts. Real names in meeting notes.
+            Credit card fragments in logs you ask an LLM to debug. Once sent,
+            that data is outside your control. Kiji puts a checkpoint between
+            your tools and the API — without changing how you work.
+          </p>
+        </div>
+        <div class="why-grid">
+          <div class="card reveal">
+            <div class="card-icon">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <path
+                  d="M10 2l6.5 2.6v4.6c0 4-2.7 6.9-6.5 8.2-3.8-1.3-6.5-4.2-6.5-8.2V4.6L10 2z"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="M7 10l2 2 4-4.5"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+            </div>
+            <h3>Automatic PII protection</h3>
+            <p>
+              ML-powered detection of 26 PII types — no regex lists to maintain,
+              no manual redaction. The model and training data are open on
+              HuggingFace, and you can fine-tune your own.
+            </p>
+          </div>
+          <div class="card reveal d1">
+            <div class="card-icon">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <rect
+                  x="2.5"
+                  y="5"
+                  width="15"
+                  height="10"
+                  rx="2"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                />
+                <path
+                  d="M5.5 9h4M5.5 12h7"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linecap="round"
+                />
+              </svg>
+            </div>
+            <h3>Zero code changes</h3>
+            <p>
+              Run it as a transparent proxy. On macOS, PAC auto-configures
+              Safari and Chrome; for CLI tools you set
+              <code>HTTPS_PROXY</code> once. Your existing apps, SDKs and agents
+              keep working.
+            </p>
+          </div>
+          <div class="card reveal d2">
+            <div class="card-icon">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <rect
+                  x="3"
+                  y="9"
+                  width="14"
+                  height="8"
+                  rx="2"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                />
+                <path
+                  d="M6.5 9V6.5a3.5 3.5 0 0 1 7 0V9"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                />
+                <circle cx="10" cy="13" r="1.4" fill="currentColor" />
+              </svg>
+            </div>
+            <h3>Everything stays local</h3>
+            <p>
+              Detection runs on your machine with ONNX Runtime — no external
+              calls, no telemetry, no third-party PII service. The mapping
+              between real and dummy values never leaves your device.
+            </p>
+          </div>
+          <div class="card reveal d3">
+            <div class="card-icon">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <path
+                  d="M3 14.5l4.5-4.5 3 3L17 6.5"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="M13 6.5h4v4"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+            </div>
+            <h3>Built for compliance</h3>
+            <p>
+              Reduce GDPR, HIPAA and CCPA exposure when teams use AI for
+              support, log analysis or development. A visual desktop UI shows
+              exactly what was masked, when.
+            </p>
+          </div>
+        </div>
+        <div class="usecases reveal">
+          <span class="chip">Customer support with ChatGPT</span>
+          <span class="chip">Log analysis with LLMs</span>
+          <span class="chip">Coding agents on real codebases</span>
+          <span class="chip">GDPR · HIPAA · CCPA</span>
+          <span class="chip">Chrome extension for AI chat sites</span>
+        </div>
+      </div>
+    </section>
+
+    <section id="quickstart" class="dark-section">
+      <div class="wrap">
+        <div class="sec-head reveal">
+          <span class="sec-kicker">Quickstart</span>
+          <h2>Protected in two minutes.</h2>
+          <p>
+            Download a release, start the proxy, point your traffic at it.
+            That's the whole setup.
+          </p>
+        </div>
+
+        <div class="reveal">
+          <div class="tabs" role="tablist" aria-label="Platform">
+            <button
+              class="tab active"
+              role="tab"
+              aria-selected="true"
+              data-pane="mac"
+            >
+              macOS
+            </button>
+            <button
+              class="tab"
+              role="tab"
+              aria-selected="false"
+              data-pane="linux"
+            >
+              Linux
+            </button>
+            <button
+              class="tab"
+              role="tab"
+              aria-selected="false"
+              data-pane="dev"
+            >
+              From source
+            </button>
+          </div>
+
+          <div class="qs-pane active" id="pane-mac" role="tabpanel">
+            <div class="codeblock">
+              <button class="copy-btn" type="button">Copy</button>
+              <pre><span class="cm"># 1. Download the .dmg from GitHub Releases and drag to Applications</span>
+<span class="cm">#    https://github.com/dataiku/kiji-proxy/releases</span>
+
+<span class="cm"># 2. Start with sudo for automatic browser configuration (PAC)</span>
+<span class="kw">sudo</span> <span class="st">"/Applications/Kiji Privacy Proxy.app/Contents/MacOS/kiji-proxy"</span>
+
+<span class="cm"># Safari & Chrome now route AI API traffic through Kiji automatically.</span>
+<span class="cm"># 3. For CLI tools, point them at the proxy:</span>
+<span class="kw">export</span> HTTP_PROXY=http://127.0.0.1:8081
+<span class="kw">export</span> HTTPS_PROXY=http://127.0.0.1:8081</pre>
+            </div>
+          </div>
+
+          <div class="qs-pane" id="pane-linux" role="tabpanel">
+            <div class="codeblock">
+              <button class="copy-btn" type="button">Copy</button>
+              <pre><span class="cm"># 1. Download and extract the standalone server</span>
+<span class="kw">wget</span> https://github.com/dataiku/kiji-proxy/releases/download/vX.Y.Z/kiji-privacy-proxy-X.Y.Z-linux-amd64.tar.gz
+<span class="kw">tar</span> -xzf kiji-privacy-proxy-X.Y.Z-linux-amd64.tar.gz
+<span class="kw">cd</span> kiji-privacy-proxy-X.Y.Z-linux-amd64
+
+<span class="cm"># 2. Run it</span>
+./run.sh
+
+<span class="cm"># 3. Route your tools through the proxy</span>
+<span class="kw">export</span> HTTP_PROXY=http://127.0.0.1:8081
+<span class="kw">export</span> HTTPS_PROXY=http://127.0.0.1:8081</pre>
+            </div>
+          </div>
+
+          <div class="qs-pane" id="pane-dev" role="tabpanel">
+            <div class="codeblock">
+              <button class="copy-btn" type="button">Copy</button>
+              <pre><span class="cm"># Requires Go 1.25+, Node 20+, Python 3.13+, Rust</span>
+<span class="kw">git clone</span> https://github.com/dataiku/kiji-proxy.git
+<span class="kw">cd</span> kiji-proxy
+
+<span class="kw">make</span> electron-install
+<span class="kw">make</span> setup-onnx
+
+<span class="cm"># Run the desktop app</span>
+<span class="kw">make</span> electron</pre>
+            </div>
+          </div>
+
+          <p class="qs-note">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 16 16"
+              fill="none"
+              style="flex: none; margin-top: 3px"
+            >
+              <circle
+                cx="8"
+                cy="8"
+                r="6.5"
+                stroke="#5BD6A6"
+                stroke-width="1.4"
+              />
+              <path
+                d="M8 7.5v3.5M8 5.2v.2"
+                stroke="#5BD6A6"
+                stroke-width="1.5"
+                stroke-linecap="round"
+              />
+            </svg>
+            <span
+              >Kiji listens as a forward proxy on <strong>:8080</strong> and a
+              transparent proxy on <strong>:8081</strong>. Full setup details in
+              the
+              <a
+                href="https://github.com/dataiku/kiji-proxy/blob/main/docs/01-getting-started.md"
+                target="_blank"
+                rel="noopener"
+                >Getting Started guide</a
+              >.</span
+            >
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section id="examples">
+      <div class="wrap">
+        <div class="sec-head reveal">
+          <span class="sec-kicker">Examples</span>
+          <h2>Put it in front of the tools you already use.</h2>
+          <p>
+            Anything that respects proxy environment variables — agents, SDKs,
+            plain curl — can run through Kiji.
+          </p>
+        </div>
+        <div class="ex-grid">
+          <div class="ex-card full reveal">
+            <div class="head">
+              <span class="ex-tag">Coding agents</span>
+              <h3>Claude Code, with a privacy layer</h3>
+              <p>
+                Coding agents read your real code, configs and logs — which
+                often contain customer emails, names and keys. Route Claude Code
+                through Kiji and PII is masked before any request leaves your
+                machine, then restored in the responses you see.
+              </p>
+            </div>
+            <div class="codeblock">
+              <button class="copy-btn" type="button">Copy</button>
+              <pre><span class="cm"># 1. Start Kiji (macOS shown; see Quickstart for Linux)</span>
+<span class="kw">sudo</span> <span class="st">"/Applications/Kiji Privacy Proxy.app/Contents/MacOS/kiji-proxy"</span>
+
+<span class="cm"># 2. Route Claude Code through the transparent proxy</span>
+<span class="kw">export</span> HTTP_PROXY=http://127.0.0.1:8081
+<span class="kw">export</span> HTTPS_PROXY=http://127.0.0.1:8081
+
+<span class="cm"># 3. Work as usual — requests to the Anthropic API are masked in transit</span>
+<span class="kw">claude</span> <span class="st">"summarize the customer complaints in support_log.txt"</span>
+
+<span class="cm"># Kiji's UI shows each masked token; originals are restored in the output.</span></pre>
+            </div>
+          </div>
+
+          <div class="ex-card reveal">
+            <div class="head">
+              <span class="ex-tag">API · curl</span>
+              <h3>Any OpenAI-style request</h3>
+              <p>
+                Send a prompt containing an email through the proxy and watch it
+                get masked before it leaves.
+              </p>
+            </div>
+            <div class="codeblock">
+              <button class="copy-btn" type="button">Copy</button>
+              <pre><span class="kw">export</span> HTTPS_PROXY=http://127.0.0.1:8081
+
+<span class="kw">curl</span> https://api.openai.com/v1/chat/completions \
+  -H <span class="st">"Authorization: Bearer $OPENAI_API_KEY"</span> \
+  -H <span class="st">"Content-Type: application/json"</span> \
+  -d <span class="st">'{"model":"gpt-4","messages":[{"role":"user",
+       "content":"My email is john@example.com"}]}'</span>
+
+<span class="cm"># Sent to OpenAI: a dummy address.</span>
+<span class="cm"># Returned to you: john@example.com, restored.</span></pre>
+            </div>
+          </div>
+
+          <div class="ex-card reveal d1">
+            <div class="head">
+              <span class="ex-tag">Browser</span>
+              <h3>Chrome extension for AI chats</h3>
+              <p>
+                Inline PII detection while you type on ChatGPT, Claude, Gemini
+                and other AI chat sites — flagged before you hit send.
+              </p>
+            </div>
+            <div class="codeblock">
+              <button class="copy-btn" type="button">Copy</button>
+              <pre><span class="cm"># Load the extension from the repo</span>
+<span class="kw">git clone</span> https://github.com/dataiku/kiji-proxy.git
+
+<span class="cm"># chrome://extensions → Developer mode</span>
+<span class="cm"># → "Load unpacked" → select chrome-extension/</span>
+
+<span class="cm"># Docs: docs/06-chrome-extension.md</span></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="cta-final">
+      <div class="wrap reveal">
+        <span class="sec-kicker">Get started</span>
+        <h2>Use AI fearlessly.</h2>
+        <p>
+          Free, open source, and built to disappear into your workflow. Star the
+          repo, run the quickstart, and keep your data where it belongs.
+        </p>
+        <div class="hero-cta">
+          <a
+            class="btn btn-primary"
+            href="https://github.com/dataiku/kiji-proxy"
+            target="_blank"
+            rel="noopener"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 16 16"
+              fill="currentColor"
+              aria-hidden="true"
+            >
+              <path
+                d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"
+              />
+            </svg>
+            View on GitHub
+          </a>
+          <a
+            class="btn btn-ghost"
+            href="https://join.slack.com/t/dataiku-opensource/shared_invite/zt-3o6yq14rp-FTtAHZYhyru~jLZ~S6xPLA"
+            target="_blank"
+            rel="noopener"
+            >Join the Slack community</a
+          >
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      <div class="wrap foot">
+        <span
+          >© 2026 Dataiku SAS · Apache 2.0 · Made by
+          <a
+            href="https://www.dataiku.com/company/dataiku-for-the-future/open-source/"
+            target="_blank"
+            rel="noopener"
+            >575 Lab</a
+          >, Dataiku's Open Source Office</span
+        >
+        <div class="foot-links">
+          <a
+            href="https://github.com/dataiku/kiji-proxy/blob/main/docs/README.md"
+            target="_blank"
+            rel="noopener"
+            >Docs</a
+          >
+          <a
+            href="https://github.com/dataiku/kiji-proxy/issues"
+            target="_blank"
+            rel="noopener"
+            >Issues</a
+          >
+          <a
+            href="https://github.com/dataiku/kiji-proxy/discussions"
+            target="_blank"
+            rel="noopener"
+            >Discussions</a
+          >
+          <a
+            href="https://huggingface.co/DataikuNLP/kiji-pii-model-onnx"
+            target="_blank"
+            rel="noopener"
+            >Model on HuggingFace</a
+          >
+        </div>
+      </div>
+    </footer>
+
+    <script>
+      // ---------- hero masking animation ----------
+      (function () {
+        const reduced = window.matchMedia(
+          "(prefers-reduced-motion: reduce)"
+        ).matches;
+        const tokens = [
+          {
+            el: document.getElementById("p1"),
+            real: "sarah.chen@acme.com",
+            fake: "j.miller@example.org",
+          },
+          {
+            el: document.getElementById("p2"),
+            real: "Acme Corp",
+            fake: "Northwind Ltd",
+          },
+          { el: document.getElementById("p3"), real: "4242", fake: "7301" },
+        ];
+        const resp = document.getElementById("resp");
+        const status = document.getElementById("status");
+        const arrowLabel = document.getElementById("arrow-label");
+        const respText =
+          "Subject: Your contract renewal — Hi Sarah, ahead of Acme Corp\u2019s renewal date\u2026";
+
+        if (reduced) {
+          tokens.forEach((t) => {
+            t.el.classList.add("masked");
+            t.el.textContent = t.fake;
+          });
+          resp.style.color = "";
+          resp.textContent = respText;
+          status.style.opacity = "1";
+          arrowLabel.textContent = "masked in transit";
+          return;
+        }
+        function typeInto(el, text, done) {
+          el.style.color = "";
+          el.textContent = "";
+          const cur = document.createElement("span");
+          cur.className = "cursor";
+          el.appendChild(cur);
+          let i = 0;
+          (function step() {
+            if (i < text.length) {
+              cur.before(document.createTextNode(text.slice(i, i + 2)));
+              i += 2;
+              setTimeout(step, 18);
+            } else {
+              cur.remove();
+              done && done();
+            }
+          })();
+        }
+        function cycle() {
+          // reset
+          tokens.forEach((t) => {
+            t.el.classList.remove("masked");
+            t.el.textContent = t.real;
+          });
+          resp.style.color = "var(--code-dim)";
+          resp.innerHTML = 'waiting<span class="cursor"></span>';
+          status.style.opacity = "0";
+          status.style.transition = "opacity .4s";
+          arrowLabel.textContent = "detecting pii";
+          // mask one by one
+          tokens.forEach((t, idx) => {
+            setTimeout(() => {
+              t.el.classList.add("masked");
+              t.el.textContent = t.fake;
+            }, 1100 + idx * 550);
+          });
+          setTimeout(() => {
+            arrowLabel.textContent = "masked in transit";
+          }, 1100 + tokens.length * 550);
+          // response
+          setTimeout(() => {
+            typeInto(resp, respText, () => {
+              status.style.opacity = "1";
+            });
+          }, 3400);
+          setTimeout(cycle, 9800);
+        }
+        cycle();
+      })();
+
+      // ---------- tabs ----------
+      document.querySelectorAll(".tab").forEach((tab) => {
+        tab.addEventListener("click", () => {
+          document.querySelectorAll(".tab").forEach((t) => {
+            t.classList.remove("active");
+            t.setAttribute("aria-selected", "false");
+          });
+          document
+            .querySelectorAll(".qs-pane")
+            .forEach((p) => p.classList.remove("active"));
+          tab.classList.add("active");
+          tab.setAttribute("aria-selected", "true");
+          document
+            .getElementById("pane-" + tab.dataset.pane)
+            .classList.add("active");
+        });
+      });
+
+      // ---------- copy buttons ----------
+      document.querySelectorAll(".copy-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const code = btn.parentElement.querySelector("pre").innerText;
+          navigator.clipboard.writeText(code).then(() => {
+            btn.textContent = "Copied ✓";
+            btn.classList.add("copied");
+            setTimeout(() => {
+              btn.textContent = "Copy";
+              btn.classList.remove("copied");
+            }, 1800);
+          });
+        });
+      });
+
+      // ---------- scroll reveal ----------
+      (function () {
+        const els = document.querySelectorAll(".reveal");
+        if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+          els.forEach((e) => e.classList.add("in"));
+          return;
+        }
+        const io = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((e) => {
+              if (e.isIntersecting) {
+                e.target.classList.add("in");
+                io.unobserve(e.target);
+              }
+            });
+          },
+          { threshold: 0.12 }
+        );
+        els.forEach((e) => io.observe(e));
+      })();
+    </script>
+  </body>
+</html>
