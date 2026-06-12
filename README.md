@@ -418,6 +418,37 @@ This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENS
 
 ---
 
+## 🤝 Project Partners
+
+Kiji is built in collaboration with these partners ([read the announcement](https://www.dataiku.com/stories/blog/kiji-privacy-proxy)):
+
+<div align="center">
+  <a href="https://outerbounds.com">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="src/frontend/assets/partners/outerbounds-dark.svg">
+      <img src="src/frontend/assets/partners/outerbounds.svg" alt="Outerbounds" height="26">
+    </picture>
+  </a>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+  <a href="https://humansignal.com">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="src/frontend/assets/partners/humansignal-dark.svg">
+      <img src="src/frontend/assets/partners/humansignal.svg" alt="HumanSignal" height="36">
+    </picture>
+  </a>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+  <a href="https://doubleword.ai">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="src/frontend/assets/partners/doubleword-dark.png">
+      <img src="src/frontend/assets/partners/doubleword.png" alt="Doubleword" height="36">
+    </picture>
+  </a>
+</div>
+
+- **[Outerbounds](https://outerbounds.com)** — ML infrastructure: [Metaflow](https://metaflow.org) orchestrates the model training pipelines
+- **[HumanSignal](https://humansignal.com)** — Data labeling: [Label Studio](https://labelstud.io) powers dataset annotation and refinement
+- **[Doubleword](https://doubleword.ai)** — Inference platform used to generate the synthetic training data
+
+---
+
 ## 🙏 Acknowledgments
 
 - **ONNX Runtime** - Microsoft's cross-platform ML inference engine
