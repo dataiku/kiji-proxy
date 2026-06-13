@@ -55,6 +55,20 @@ func (p *AnthropicProvider) ExtractRequestText(data map[string]interface{}) (str
 		}
 		if content, ok := msgMap["content"].(string); ok {
 			result.WriteString(content + "\n")
+		} else if blocks, ok := msgMap["content"].([]interface{}); ok {
+			// Messages API content-block array: collect text from text blocks.
+			for _, blk := range blocks {
+				blkMap, ok := blk.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				if t, _ := blkMap["type"].(string); t != "text" {
+					continue
+				}
+				if text, ok := blkMap["text"].(string); ok {
+					result.WriteString(text + "\n")
+				}
+			}
 		}
 	}
 	return result.String(), nil
@@ -91,24 +105,46 @@ func (p *AnthropicProvider) CreateMaskedRequest(maskedRequest map[string]interfa
 		return maskedToOriginal, &entities, fmt.Errorf("no messages field in request")
 	}
 
+	// mask runs PII detection over a single piece of text and merges the
+	// resulting entities and mappings into the accumulators above.
+	mask := func(text string) string {
+		maskedText, _maskedToOriginal, _entities := maskPIIInText(text, "[MaskedRequest]")
+		entities = append(entities, _entities...)
+		for k, v := range _maskedToOriginal {
+			maskedToOriginal[k] = v
+		}
+		return maskedText
+	}
+
 	for _, msg := range messages {
 		msgMap, ok := msg.(map[string]interface{})
 		if !ok {
 			continue
 		}
-		content, ok := msgMap["content"].(string)
-		if !ok {
-			continue
-		}
 
-		// Mask PII in this message's content and update message content with masked text
-		maskedText, _maskedToOriginal, _entities := maskPIIInText(content, "[MaskedRequest]")
-		msgMap["content"] = maskedText
-
-		// Collect entities and mappings
-		entities = append(entities, _entities...)
-		for k, v := range _maskedToOriginal {
-			maskedToOriginal[k] = v
+		// The Messages API allows `content` to be either a plain string or an
+		// array of typed content blocks (Claude Code always uses the latter).
+		// Handle both so PII is masked in either shape.
+		switch content := msgMap["content"].(type) {
+		case string:
+			msgMap["content"] = mask(content)
+		case []interface{}:
+			for _, blk := range content {
+				blkMap, ok := blk.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				// Only text blocks carry free text; skip image / tool_use /
+				// tool_result blocks (different/nested shapes).
+				if t, _ := blkMap["type"].(string); t != "text" {
+					continue
+				}
+				text, ok := blkMap["text"].(string)
+				if !ok {
+					continue
+				}
+				blkMap["text"] = mask(text)
+			}
 		}
 	}
 

@@ -457,15 +457,40 @@ func (tp *TransparentProxy) interceptHTTPOverTLS(conn net.Conn, r *http.Request,
 	// Explicitly set Accept-Encoding to identity to avoid compressed responses
 	proxyReq.Header.Set("Accept-Encoding", "identity")
 
-	// Forward request using handler's HTTP client (bypasses proxy to prevent infinite loop)
-	log.Printf("[TransparentProxy] Forwarding TLS request directly to %s (bypassing proxy)", targetURL)
-	resp, err := tp.handler.GetHTTPClient().Do(proxyReq)
+	// Forward request using handler's HTTP client (bypasses proxy to prevent infinite loop).
+	// Streaming requests use a client without an overall timeout so long-lived
+	// SSE token streams are not cut off mid-response.
+	wantStream := requestWantsStream(processed.RedactedBody)
+	httpClient := tp.handler.GetHTTPClient()
+	if wantStream {
+		httpClient = streamingClient
+	}
+	log.Printf("[TransparentProxy] Forwarding TLS request directly to %s (bypassing proxy, stream=%t)", targetURL, wantStream)
+	resp, err := httpClient.Do(proxyReq)
 	if err != nil {
 		log.Printf("[TransparentProxy] ❌ Failed to forward request: %v", err)
 		tp.writeErrorResponse(conn, http.StatusBadGateway, fmt.Sprintf("Failed to forward request: %v", err))
 		return
 	}
 	defer resp.Body.Close()
+
+	// Stream Server-Sent Events straight through to the client, restoring PII
+	// incrementally. Buffering an SSE stream (as the non-streaming path below
+	// does) breaks streaming clients like Claude Code and hangs until the
+	// upstream timeout fires.
+	if wantStream && isEventStream(resp) {
+		log.Printf("[TransparentProxy] Streaming SSE response for %s", r.URL.Path)
+		restorer := newSSERestorer(processed.MaskedToOriginal)
+		if streamErr := streamSSEResponse(conn, resp, restorer); streamErr != nil {
+			log.Printf("[TransparentProxy] ❌ Failed to stream SSE response: %v", streamErr)
+		}
+		// Record the streamed response for audit: masked = the text the model
+		// actually returned (pre-restore), restored = what the client received.
+		maskedText := restorer.masked.String()
+		tp.handler.LogStreamedResponse(ctx, processed.TransactionID, maskedText, restorer.restore(maskedText))
+		log.Printf("[TransparentProxy] Streamed %s %s - Status: %d", r.Method, r.URL.Path, resp.StatusCode)
+		return
+	}
 
 	// Read response body
 	respBody, err := io.ReadAll(resp.Body)
