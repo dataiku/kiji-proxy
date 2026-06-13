@@ -468,14 +468,14 @@ func (tp *TransparentProxy) interceptHTTPOverTLS(conn net.Conn, r *http.Request,
 	// upstream timeout fires.
 	if wantStream && isEventStream(resp) {
 		log.Printf("[TransparentProxy] Streaming SSE response for %s", r.URL.Path)
-		restorer := newSSERestorer(processed.MaskedToOriginal)
-		if streamErr := streamSSEResponse(conn, resp, restorer); streamErr != nil {
+		codec := codecForProvider(provider, processed.MaskedToOriginal)
+		if streamErr := streamSSEResponse(conn, resp, codec); streamErr != nil {
 			log.Printf("[TransparentProxy] ❌ Failed to stream SSE response: %v", streamErr)
 		}
 		// Record the streamed response for audit: masked = the text the model
 		// actually returned (pre-restore), restored = what the client received.
-		maskedText := restorer.masked.String()
-		tp.handler.LogStreamedResponse(ctx, processed.TransactionID, maskedText, restorer.restore(maskedText))
+		maskedText := codec.maskedOutput()
+		tp.handler.LogStreamedResponse(ctx, processed.TransactionID, maskedText, codec.restore(maskedText))
 		log.Printf("[TransparentProxy] Streamed %s %s - Status: %d", r.Method, r.URL.Path, resp.StatusCode)
 		return
 	}

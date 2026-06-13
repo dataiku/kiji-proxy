@@ -490,8 +490,9 @@ func (h *Handler) ProcessResponseBody(ctx context.Context, body []byte, contentT
 // straight to the client), so this mirrors its response-logging half: a
 // response_masked row (the text the model actually returned, before PII
 // restoration) and a response_original row (the text delivered to the client,
-// after restoration), correlated by transactionID. Only assistant text is
-// captured; tool_use / tool_result blocks are not included.
+// after restoration), correlated by transactionID. Both assistant text and
+// tool-call argument JSON are captured (concatenated in the logged text);
+// tool_result blocks on the request side are not.
 func (h *Handler) LogStreamedResponse(ctx context.Context, transactionID, maskedText, restoredText string) {
 	if h.loggingDB == nil {
 		return
