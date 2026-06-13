@@ -5,6 +5,12 @@ import (
 	"encoding/json"
 )
 
+// Anthropic content_block_delta payload types.
+const (
+	deltaTypeText      = "text_delta"
+	deltaTypeInputJSON = "input_json_delta"
+)
+
 // anthropicCodec restores masked PII inside an Anthropic Messages-API SSE
 // stream. Placeholder (dummy) values can be split across consecutive
 // content_block_delta events, so it keeps a per-content-block carry buffer and
@@ -57,12 +63,12 @@ func (s *anthropicCodec) transformEvent(lines [][]byte) []byte {
 	}
 
 	switch {
-	case evt.Type == "content_block_delta" && (evt.Delta.Type == "text_delta" || evt.Delta.Type == "input_json_delta"):
+	case evt.Type == "content_block_delta" && (evt.Delta.Type == deltaTypeText || evt.Delta.Type == deltaTypeInputJSON):
 		// text_delta carries assistant text; input_json_delta carries a fragment
 		// of a tool call's JSON arguments. PII can hide in either, and can be
 		// split across consecutive deltas, so both go through the carry buffer.
 		raw := evt.Delta.Text
-		if evt.Delta.Type == "input_json_delta" {
+		if evt.Delta.Type == deltaTypeInputJSON {
 			raw = evt.Delta.PartialJSON
 		}
 		s.masked.WriteString(raw) // raw model output (text or tool args), for audit
@@ -92,19 +98,19 @@ func (s *anthropicCodec) transformEvent(lines [][]byte) []byte {
 
 // deltaField returns the JSON field that carries the payload for a delta type.
 func deltaField(deltaType string) string {
-	if deltaType == "input_json_delta" {
+	if deltaType == deltaTypeInputJSON {
 		return "partial_json"
 	}
-	return "text"
+	return jsonKeyText
 }
 
 // deltaDataLine builds the `data: {...}\n` line for a text_delta or
 // input_json_delta carrying the given (restored) payload.
 func deltaDataLine(index int, deltaType, payload string) []byte {
 	b, _ := json.Marshal(map[string]interface{}{
-		"type":  "content_block_delta",
-		"index": index,
-		"delta": map[string]interface{}{"type": deltaType, deltaField(deltaType): payload},
+		jsonKeyType: "content_block_delta",
+		"index":     index,
+		"delta":     map[string]interface{}{jsonKeyType: deltaType, deltaField(deltaType): payload},
 	})
 	out := append([]byte("data: "), b...)
 	return append(out, '\n')
@@ -114,7 +120,7 @@ func deltaDataLine(index int, deltaType, payload string) []byte {
 // blank line) used to flush a held-back tail. Defaults to a text delta.
 func deltaEvent(index int, deltaType, payload string) []byte {
 	if deltaType == "" {
-		deltaType = "text_delta"
+		deltaType = deltaTypeText
 	}
 	out := []byte("event: content_block_delta\n")
 	out = append(out, deltaDataLine(index, deltaType, payload)...)

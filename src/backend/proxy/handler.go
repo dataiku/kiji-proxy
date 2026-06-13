@@ -25,6 +25,12 @@ import (
 
 const paramLimit = "limit"
 
+// JSON field names reused across the response wrappers and the SSE codecs.
+const (
+	jsonKeyType = "type"
+	jsonKeyText = "text"
+)
+
 // Handler handles HTTP requests and proxies them to LLM provider
 type Handler struct {
 	client            *http.Client
@@ -259,7 +265,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				}
 
 				piiEntities = append(piiEntities, map[string]interface{}{
-					"text":        entity.Text,
+					jsonKeyText:   entity.Text,
 					"masked_text": maskedText,
 					"label":       entity.Label,
 					"confidence":  entity.Confidence,
@@ -505,7 +511,7 @@ func (h *Handler) LogStreamedResponse(ctx context.Context, transactionID, masked
 	wrap := func(text string) string {
 		b, err := json.Marshal(map[string]interface{}{
 			"streamed": true,
-			"content":  []map[string]interface{}{{"type": "text", "text": text}},
+			"content":  []map[string]interface{}{{jsonKeyType: jsonKeyText, jsonKeyText: text}},
 		})
 		if err != nil {
 			return text

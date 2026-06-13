@@ -37,7 +37,7 @@ func newOpenAICodec(mapping map[string]string) *openaiCodec {
 
 // doneFields are the fields a Responses `*.done` event uses to carry the full
 // value, by event kind: output text, tool-call arguments, and refusals.
-var doneFields = []string{"text", "arguments", "refusal"}
+var doneFields = []string{jsonKeyText, "arguments", "refusal"}
 
 func (c *openaiCodec) transformEvent(lines [][]byte) []byte {
 	dataIdx := -1
@@ -58,7 +58,7 @@ func (c *openaiCodec) transformEvent(lines [][]byte) []byte {
 	if err := json.Unmarshal(raw, &obj); err != nil {
 		return concatLines(lines) // non-JSON payload (e.g. "[DONE]"): pass through
 	}
-	typ, _ := obj["type"].(string)
+	typ, _ := obj[jsonKeyType].(string)
 	key := channelKey(obj)
 
 	switch {
@@ -100,7 +100,7 @@ func (c *openaiCodec) transformEvent(lines [][]byte) []byte {
 // as-is (the carry buffer stores post-restore text).
 func (c *openaiCodec) tailDeltaEvent(doneType string, obj map[string]interface{}, tail string) []byte {
 	deltaType := strings.TrimSuffix(doneType, ".done") + ".delta"
-	d := map[string]interface{}{"type": deltaType, "delta": tail}
+	d := map[string]interface{}{jsonKeyType: deltaType, "delta": tail}
 	for _, f := range []string{"item_id", "output_index", "content_index"} {
 		if v, ok := obj[f]; ok {
 			d[f] = v
