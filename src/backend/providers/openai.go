@@ -11,11 +11,16 @@ import (
 )
 
 const (
-	ProviderTypeOpenAI         ProviderType = "openai"
-	ProviderSubpathOpenAI      string       = "/v1/chat/completions"
-	ProviderSubpathOpenAIResp  string       = "/v1/responses"
-	ProviderAPIDomainOpenAI    string       = "api.openai.com"
-	ProviderNameOpenAI         string       = "OpenAI"
+	ProviderTypeOpenAI        ProviderType = "openai"
+	ProviderSubpathOpenAI     string       = "/v1/chat/completions"
+	ProviderSubpathOpenAIResp string       = "/v1/responses"
+	ProviderAPIDomainOpenAI   string       = "api.openai.com"
+	ProviderNameOpenAI        string       = "OpenAI"
+	// ProviderAPIDomainCodex is the host used by ChatGPT-login Codex (the OpenAI
+	// CLI). It hits chatgpt.com/backend-api/codex/responses with an OAuth bearer
+	// token instead of api.openai.com, so it must be routed to and intercepted by
+	// the OpenAI provider alongside the API-key host.
+	ProviderAPIDomainCodex string = "chatgpt.com"
 )
 
 // reasoningModelFamilies lists OpenAI model family prefixes that require the
@@ -548,6 +553,22 @@ func restoreResponsesAPIResponse(maskedResponse map[string]interface{}, maskedTo
 			if !ok {
 				continue
 			}
+
+			// function_call output items carry model-generated tool arguments as a
+			// JSON string, which can echo masked PII just like assistant text. Restore
+			// it here so buffered responses match the streaming codec's behavior.
+			if args, ok := itemMap["arguments"].(string); ok {
+				restoredArgs := restorePII(args, maskedToOriginal)
+				if restoredArgs != args && getLogResponses() {
+					log.Printf("PII restored in response tool-call arguments")
+					if getLogVerbose() {
+						log.Printf("Original tool-call arguments: %s", args)
+						log.Printf("Restored tool-call arguments: %s", restoredArgs)
+					}
+				}
+				itemMap["arguments"] = restoredArgs
+			}
+
 			contents, ok := itemMap["content"].([]interface{})
 			if !ok {
 				continue

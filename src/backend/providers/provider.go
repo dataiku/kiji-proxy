@@ -175,7 +175,8 @@ func (p *Providers) GetProviderFromHost(host string, logPrefix string) (*Provide
 	}
 
 	switch {
-	case p.OpenAIProvider != nil && providerHostMatches(host, p.OpenAIProvider.apiDomain):
+	case p.OpenAIProvider != nil && (providerHostMatches(host, p.OpenAIProvider.apiDomain) || host == ProviderAPIDomainCodex):
+		// chatgpt.com is the ChatGPT-login Codex host; route it to OpenAI too.
 		provider = p.OpenAIProvider
 	case p.AnthropicProvider != nil && providerHostMatches(host, p.AnthropicProvider.apiDomain):
 		provider = p.AnthropicProvider

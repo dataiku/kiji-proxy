@@ -6,11 +6,41 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/dataiku/kiji-proxy/src/backend/providers"
 )
+
+// sseCaptureDirEnv names a directory to mirror raw upstream SSE streams into,
+// one file per stream, for debugging provider event grammars (e.g. confirming
+// the real ChatGPT-login Codex Responses event names before trusting the codec).
+// Capture is off unless this env var is set to a writable directory.
+const sseCaptureDirEnv = "KIJI_SSE_CAPTURE_DIR"
+
+// newSSECapture opens a per-stream capture file when sseCaptureDirEnv is set,
+// or returns nil to disable capture. The returned writer receives the upstream
+// bytes byte-for-byte (pre-restore), so the captured file is the provider's raw
+// SSE as sent.
+func newSSECapture() io.WriteCloser {
+	dir := os.Getenv(sseCaptureDirEnv)
+	if dir == "" {
+		return nil
+	}
+	name := fmt.Sprintf("sse-%d.log", time.Now().UnixNano())
+	f, err := os.Create(filepath.Join(dir, name))
+	if err != nil {
+		log.Printf("[stream] SSE capture disabled, cannot create file in %s: %v", dir, err)
+		return nil
+	}
+	log.Printf("[stream] Capturing raw upstream SSE to %s", f.Name())
+	return f
+}
 
 // streamingClient is used for requests whose responses are streamed (SSE).
 // Unlike the shared handler client it has no overall timeout, so long-lived
@@ -41,19 +71,32 @@ func isEventStream(resp *http.Response) bool {
 		strings.ToLower(resp.Header.Get("Content-Type")), "text/event-stream")
 }
 
-// sseRestorer restores masked PII inside an SSE token stream. Placeholder
-// (dummy) values can be split across consecutive content_block_delta events, so
-// it keeps a per-content-block carry buffer and only emits text that is far
-// enough from the tail that any placeholder starting in it is guaranteed
-// complete. The held-back tail is flushed when the content block stops.
-type sseRestorer struct {
-	mapping map[string]string
-	keep    int             // bytes to hold back = longest dummy length - 1
-	carry   map[int]string  // un-emitted tail per content-block index
-	masked  strings.Builder // raw model text (pre-restore), accumulated for logging
+// streamCodec restores masked PII inside one provider's SSE token stream. The
+// engine below (streamSSEResponse) owns the transport-level framing and event
+// splitting; a codec only knows how to rewrite a single, complete SSE event for
+// its provider's grammar. transformEvent receives the raw lines of one event
+// (up to and including the blank terminator) and returns the bytes to write.
+type streamCodec interface {
+	transformEvent(lines [][]byte) []byte
+	// restore replaces every masked (dummy) value with its original. Exposed so
+	// the caller can restore the accumulated audit text after the stream ends.
+	restore(text string) string
+	// maskedOutput returns the raw model output (pre-restore) accumulated across
+	// the stream, for audit logging.
+	maskedOutput() string
 }
 
-func newSSERestorer(mapping map[string]string) *sseRestorer {
+// restoreCore holds the provider-agnostic restore state shared by every codec:
+// the dummy→original mapping, the hold-back length, and the pre-restore model
+// output accumulated for audit logging. Codecs embed it so they only implement
+// their own event grammar.
+type restoreCore struct {
+	mapping map[string]string
+	keep    int             // bytes to hold back = longest dummy length - 1
+	masked  strings.Builder // raw model output (pre-restore), accumulated for logging
+}
+
+func newRestoreCore(mapping map[string]string) restoreCore {
 	keep := 0
 	for masked := range mapping {
 		if len(masked) > keep {
@@ -63,17 +106,21 @@ func newSSERestorer(mapping map[string]string) *sseRestorer {
 	if keep > 0 {
 		keep--
 	}
-	return &sseRestorer{mapping: mapping, keep: keep, carry: map[int]string{}}
+	return restoreCore{mapping: mapping, keep: keep}
 }
 
 // restore replaces every masked (dummy) value with its original. Replacing
 // already-restored text is idempotent provided an original value does not
 // contain a dummy placeholder as a substring.
-func (s *sseRestorer) restore(text string) string {
-	for masked, original := range s.mapping {
+func (c *restoreCore) restore(text string) string {
+	for masked, original := range c.mapping {
 		text = strings.ReplaceAll(text, masked, original)
 	}
 	return text
+}
+
+func (c *restoreCore) maskedOutput() string {
+	return c.masked.String()
 }
 
 // splitSafe returns the prefix that is safe to emit now and the tail that must
@@ -85,86 +132,12 @@ func splitSafe(s string, keep int) (emit, hold string) {
 	return s[:len(s)-keep], s[len(s)-keep:]
 }
 
-// transformEvent rewrites a single, complete SSE event (the raw lines up to and
-// including the blank terminator). For a content_block_delta text delta it
-// restores PII and rewrites only the JSON on the data: line, leaving the
-// surrounding event:/blank framing intact so the event is always well formed —
-// even when the entire delta is held back (an empty text delta is emitted). Any
-// held-back tail is flushed as a synthetic delta immediately before the
-// matching content_block_stop. Every other event passes through byte-for-byte.
-func (s *sseRestorer) transformEvent(lines [][]byte) []byte {
-	dataIdx := -1
-	var evt struct {
-		Type  string `json:"type"`
-		Index int    `json:"index"`
-		Delta struct {
-			Type string `json:"type"`
-			Text string `json:"text"`
-		} `json:"delta"`
-	}
-	for i, ln := range lines {
-		t := bytes.TrimRight(ln, "\r\n")
-		if bytes.HasPrefix(t, []byte("data: ")) {
-			if json.Unmarshal(t[len("data: "):], &evt) == nil {
-				dataIdx = i
-			}
-			break
-		}
-	}
-	if dataIdx == -1 {
-		return concatLines(lines) // no recognisable data line: pass through
-	}
-
-	switch {
-	case evt.Type == "content_block_delta" && evt.Delta.Type == "text_delta":
-		s.masked.WriteString(evt.Delta.Text) // raw model text, for audit logging
-		buf := s.carry[evt.Index] + evt.Delta.Text
-		emit, hold := splitSafe(s.restore(buf), s.keep)
-		s.carry[evt.Index] = hold
-		// Rewrite only the data: line; keep the original event:/blank lines.
-		out := make([][]byte, len(lines))
-		copy(out, lines)
-		out[dataIdx] = textDeltaDataLine(evt.Index, emit)
-		return concatLines(out)
-
-	case evt.Type == "content_block_stop":
-		var out []byte
-		if tail := s.carry[evt.Index]; tail != "" {
-			out = append(out, textDeltaEvent(evt.Index, tail)...)
-			delete(s.carry, evt.Index)
-		}
-		return append(out, concatLines(lines)...)
-
-	default:
-		return concatLines(lines)
-	}
-}
-
 func concatLines(lines [][]byte) []byte {
 	var b []byte
 	for _, ln := range lines {
 		b = append(b, ln...)
 	}
 	return b
-}
-
-// textDeltaDataLine builds just the `data: {...}\n` line for a text delta.
-func textDeltaDataLine(index int, text string) []byte {
-	payload, _ := json.Marshal(map[string]interface{}{
-		"type":  "content_block_delta",
-		"index": index,
-		"delta": map[string]interface{}{"type": "text_delta", "text": text},
-	})
-	out := append([]byte("data: "), payload...)
-	return append(out, '\n')
-}
-
-// textDeltaEvent builds a complete content_block_delta SSE event, including its
-// trailing blank line, used to flush a held-back tail.
-func textDeltaEvent(index int, text string) []byte {
-	out := []byte("event: content_block_delta\n")
-	out = append(out, textDeltaDataLine(index, text)...)
-	return append(out, '\n')
 }
 
 // isBlankLine reports whether a raw line is an SSE event terminator.
@@ -176,8 +149,9 @@ func isBlankLine(line []byte) bool {
 // restoring masked PII incrementally and flushing after every event so the
 // client receives tokens as they arrive. Events are buffered only until their
 // blank-line terminator, never the whole body, and chunked transfer encoding is
-// used instead of Content-Length.
-func streamSSEResponse(conn net.Conn, resp *http.Response, restorer *sseRestorer) error {
+// used instead of Content-Length. The provider-specific rewriting is delegated
+// to codec.
+func streamSSEResponse(conn net.Conn, resp *http.Response, codec streamCodec) error {
 	bw := bufio.NewWriter(conn)
 
 	// Status line.
@@ -220,13 +194,18 @@ func streamSSEResponse(conn net.Conn, resp *http.Response, restorer *sseRestorer
 		return bw.Flush() // flush each event so the client streams in real time
 	}
 
-	reader := bufio.NewReader(resp.Body)
+	var src io.Reader = resp.Body
+	if cap := newSSECapture(); cap != nil {
+		defer cap.Close()
+		src = io.TeeReader(resp.Body, cap) // mirror raw upstream bytes for debugging
+	}
+	reader := bufio.NewReader(src)
 	var event [][]byte
 	flush := func() error {
 		if len(event) == 0 {
 			return nil
 		}
-		out := restorer.transformEvent(event)
+		out := codec.transformEvent(event)
 		event = event[:0]
 		return writeChunk(out)
 	}
@@ -257,4 +236,15 @@ func streamSSEResponse(conn net.Conn, resp *http.Response, restorer *sseRestorer
 		return err
 	}
 	return bw.Flush()
+}
+
+// codecForProvider selects the SSE codec matching the upstream provider's stream
+// grammar. OpenAI (incl. ChatGPT-login Codex on chatgpt.com) speaks the
+// Responses-API event shape; everything else uses the Anthropic grammar, which
+// is also the safe default.
+func codecForProvider(provider *providers.Provider, mapping map[string]string) streamCodec {
+	if provider != nil && (*provider).GetType() == providers.ProviderTypeOpenAI {
+		return newOpenAICodec(mapping)
+	}
+	return newAnthropicCodec(mapping)
 }
