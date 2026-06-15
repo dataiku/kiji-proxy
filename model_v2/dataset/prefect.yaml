@@ -1,0 +1,44 @@
+# prefect.yaml — Deployment configuration
+# Run: prefect deploy
+
+name: pii-dataset-pipeline
+prefect-version: "3.x"
+
+build: null
+push: null
+
+pull:
+  - prefect.deployments.steps.git_clone:
+      repository: "https://github.com/your-org/pii-pipeline"
+      branch: main
+
+deployments:
+
+  # ── Full pipeline (run all stages) ────────────────────────────────────────
+  - name: full-run
+    flow: pipeline_prefect:full_pipeline
+    parameters:
+      n_seeds: 1000
+      n_variants: 20
+      stage: all
+      poll_interval: 300
+    work_pool:
+      name: default-process-pool
+    schedules: []   # trigger manually
+
+  # ── Seeds only (stage 1) ──────────────────────────────────────────────────
+  - name: generate-seeds
+    flow: pipeline_prefect:generate_seeds_flow
+    parameters:
+      n: 1000
+    work_pool:
+      name: default-process-pool
+
+  # ── Augmentation only (stage 5 — resume after annotation) ────────────────
+  - name: augment-only
+    flow: pipeline_prefect:augmentation_flow
+    parameters:
+      annotations_path: annotations.jsonl
+      n_variants: 20
+    work_pool:
+      name: default-process-pool
