@@ -40,16 +40,27 @@ from metaflow import (
 )
 
 ##################################################################
-# Why not use the pyproject.toml dependencies?
-# Because the current Metaflow implementation only uses
-# the pyproject.toml dependencies in the top-level dependencies.
-# A short-term Metaflow limitation should not necessitate a change
-# to this project's pyproject.toml structure. For now, we leverage
-# Metaflow's robust environment building utilities as a stop gap.
-# In the future, we can obviate the need for @pypi if desirable.
-# TODO (Eddie): Update/remove this after feature support for
-#       python flow.py --environment=uv:extra=training run
-# is merged into the Metaflow codebase.
+# Why these package lists exist
+# (they duplicate the optional dependencies in pyproject.toml):
+#
+# When Metaflow runs a flow remotely with --environment=uv, it
+# bundles the whole project (pyproject.toml + uv.lock) and lets
+# uv install everything. There's no way to tell Metaflow "for
+# this specific step, only install the 'training' extra."
+#
+# Because we want different steps to install different subsets
+# of packages (training, quantization, signing), we declare each
+# step's packages here and pass them to @pypi(packages=...).
+#
+# What to do when Metaflow supports per-step extras:
+#   1. Delete every dict in this section.
+#   2. Replace each @pypi(packages=BASE_PACKAGES, ...) with the
+#      new syntax (e.g. @pypi(extra="training")).
+#
+# Verify the limitation in metaflow/plugins/uv/uv_environment.py
+# -- UVEnvironment runs `uv run --no-sync python` without any
+# --extra flag. No upstream issue tracks this feature yet; please
+# file one before starting the cleanup.
 ##################################################################
 BASE_PACKAGES = {
     "torch": ">=2.0.0",
