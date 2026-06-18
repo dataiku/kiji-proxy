@@ -79,7 +79,9 @@ body {
   min-height: 100vh;
   padding: 48px 24px;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
 }
 
 .card {
@@ -306,4 +308,137 @@ input[type="url"]:focus,
 
 .save-error {
   color: var(--err);
+}
+
+/* ---------- Label grid (PII types) ---------- */
+
+.label-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.label-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-family: var(--mono);
+  color: var(--text);
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-subtle);
+  user-select: none;
+}
+
+.label-item input[type="checkbox"] {
+  accent-color: var(--brand);
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.label-loading {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* ---------- Custom patterns ---------- */
+
+.pattern-form {
+  margin-bottom: 16px;
+}
+
+.pattern-form-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.pattern-form-row .input-mono {
+  flex: 1;
+  min-width: 120px;
+}
+
+.pattern-preview-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.pattern-preview-row .input-mono {
+  flex: 1;
+}
+
+.pattern-preview-result {
+  font-size: 12px;
+  font-family: var(--mono);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.pattern-error {
+  color: var(--err);
+  min-height: 1.2em;
+}
+
+.pattern-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-top: 0.5px solid var(--border);
+  padding-top: 16px;
+}
+
+.pattern-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--bg-subtle);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+
+.pattern-name {
+  font-family: var(--mono);
+  font-weight: 600;
+  color: var(--brand);
+  flex-shrink: 0;
+}
+
+.pattern-regex-val {
+  font-family: var(--mono);
+  color: var(--code-text);
+  flex: 1;
+  word-break: break-all;
+}
+
+.btn-danger {
+  padding: 5px 10px;
+  background: transparent;
+  color: var(--err);
+  border: 0.5px solid var(--err);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s ease;
+}
+
+.btn-danger:hover {
+  background: rgba(226, 75, 74, 0.1);
+}
+
+.pattern-row .input-mono {
+  padding: 5px 8px;
+  font-size: 12px;
+  flex: 1;
+  min-width: 80px;
 }
