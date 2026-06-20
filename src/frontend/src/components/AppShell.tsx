@@ -6,6 +6,7 @@ import DashboardView from "./dashboard/DashboardView";
 import SettingsView from "./settings/SettingsView";
 import ActivityView from "./activity/ActivityView";
 import MappingsView from "./mappings/MappingsView";
+import AboutView from "./about/AboutView";
 import PrivacyProxyUI from "./privacy-proxy-ui";
 
 /**
@@ -53,11 +54,13 @@ export default function AppShell() {
             onProvidersSaved={() => setSettingsReloadN((n) => n + 1)}
           />
         )}
+        {view === "about" && <AboutView />}
         {/* Kept mounted so Playground state persists across navigation */}
         <div hidden={view !== "playground"}>
           <PrivacyProxyUI
             embedded
             onRequestSettings={() => setView("settings")}
+            onRequestAbout={() => setView("about")}
             reloadSettingsSignal={settingsReloadN}
           />
         </div>

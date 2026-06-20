@@ -4,6 +4,7 @@ import {
   List,
   Database,
   Settings as SettingsIcon,
+  Info,
 } from "lucide-react";
 import logoImage from "../../../assets/kiji_proxy.svg";
 
@@ -12,7 +13,8 @@ export type ViewId =
   | "playground"
   | "activity"
   | "mappings"
-  | "settings";
+  | "settings"
+  | "about";
 
 interface SidebarProps {
   active: ViewId;
@@ -100,6 +102,12 @@ export default function Sidebar({
           onClick={() => onNavigate("settings")}
         >
           <SettingsIcon /> Settings
+        </button>
+        <button
+          className={`kiji-navitem${active === "about" ? " is-active" : ""}`}
+          onClick={() => onNavigate("about")}
+        >
+          <Info /> About Kiji
         </button>
       </nav>
 

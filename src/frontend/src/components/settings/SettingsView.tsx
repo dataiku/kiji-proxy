@@ -18,7 +18,7 @@ export default function SettingsView({ onProvidersSaved }: SettingsViewProps) {
   const openCACert = () => setIsCACertOpen(true);
 
   return (
-    <div className="w-full">
+    <div className="w-full max-w-3xl mx-auto">
       {/* Page header */}
       <div className="mb-6">
         <h1 className="text-[23px] font-semibold tracking-tight text-stone-900">

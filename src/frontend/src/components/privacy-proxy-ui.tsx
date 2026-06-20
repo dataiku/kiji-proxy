@@ -14,7 +14,6 @@ import {
 } from "lucide-react";
 import logoImage from "../../assets/kiji_proxy.svg";
 import kijiMascot from "../../assets/kiji_proxy.svg";
-import AboutModal from "./modals/AboutModal";
 import MisclassificationModal from "./modals/MisclassificationModal";
 import WelcomeModal from "./onboarding/WelcomeModal";
 import { useTour } from "../tour/useTour";
@@ -47,15 +46,21 @@ export interface PrivacyProxyUIProps {
    * not a modal here). Used by the native app menu's "Settings" command.
    */
   onRequestSettings?: () => void;
+  /**
+   * Lets the host navigate to its About surface (About is a shell view, not a
+   * modal here). Used by the native app menu's "About" command and the
+   * Playground menu.
+   */
+  onRequestAbout?: () => void;
 }
 
 export default function PrivacyProxyUI({
   embedded = false,
   reloadSettingsSignal,
   onRequestSettings,
+  onRequestAbout,
 }: PrivacyProxyUIProps = {}) {
   // UI toggle state (simple enough to stay in the component)
-  const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [showModelTooltip, setShowModelTooltip] = useState(false);
@@ -67,7 +72,7 @@ export default function PrivacyProxyUI({
   // Settings & provider state
   const settings = useElectronSettings({
     onSettingsOpen: () => onRequestSettings?.(),
-    onAboutOpen: () => setIsAboutOpen(true),
+    onAboutOpen: () => onRequestAbout?.(),
     onTourStart: () => startTour(),
   });
 
@@ -205,7 +210,7 @@ export default function PrivacyProxyUI({
                     </button>
                     <button
                       onClick={() => {
-                        setIsAboutOpen(true);
+                        onRequestAbout?.();
                         setIsMenuOpen(false);
                       }}
                       className="w-full text-left px-3 py-2.5 text-sm text-stone-700 hover:bg-brand-50 hover:text-brand-800 rounded-lg transition-colors flex items-center gap-2.5"
@@ -709,9 +714,6 @@ export default function PrivacyProxyUI({
         )}
       </div>
       )}
-
-      {/* About Modal */}
-      <AboutModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} />
 
       {/* Misclassification Modal */}
       <MisclassificationModal
