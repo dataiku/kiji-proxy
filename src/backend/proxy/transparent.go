@@ -133,6 +133,7 @@ func (tp *TransparentProxy) handleHTTPRequest(w http.ResponseWriter, r *http.Req
 // interceptHTTP intercepts and processes HTTP requests with PII masking
 // This method delegates to the shared Handler for PII processing to ensure consistency
 func (tp *TransparentProxy) interceptHTTP(w http.ResponseWriter, r *http.Request, targetHost string, provider *providers.Provider) {
+	start := time.Now()
 	log.Printf("[TransparentProxy] Intercepting HTTP request to %s", targetHost)
 
 	// Short-circuit CORS preflight: browsers fire OPTIONS before cross-origin
@@ -229,6 +230,10 @@ func (tp *TransparentProxy) interceptHTTP(w http.ResponseWriter, r *http.Request
 	}
 
 	log.Printf("[TransparentProxy] Processed %s %s - Status: %d", r.Method, r.URL.Path, resp.StatusCode)
+
+	// Count this intercepted request in the dashboard metrics (same as the API
+	// path). sourceFromRequest derives a best-effort client label from headers.
+	tp.handler.recordMetrics(provider, processed, sourceFromRequest(r), time.Since(start), resp.StatusCode)
 }
 
 // passthroughHTTP passes through HTTP requests without processing
@@ -397,6 +402,7 @@ func (tp *TransparentProxy) interceptCONNECT(w http.ResponseWriter, _ *http.Requ
 // interceptHTTPOverTLS handles HTTP requests over a TLS connection
 // This method delegates to the shared Handler for PII processing to ensure consistency
 func (tp *TransparentProxy) interceptHTTPOverTLS(conn net.Conn, r *http.Request, targetHost string, provider *providers.Provider) {
+	start := time.Now()
 	// Short-circuit CORS preflight before any PII processing or forwarding —
 	// upstream providers don't return browser-friendly CORS.
 	if r.Method == http.MethodOptions {
@@ -495,6 +501,9 @@ func (tp *TransparentProxy) interceptHTTPOverTLS(conn net.Conn, r *http.Request,
 	respWriter.Flush()
 
 	log.Printf("[TransparentProxy] Processed %s %s - Status: %d", r.Method, r.URL.Path, resp.StatusCode)
+
+	// Count this intercepted request in the dashboard metrics (same as the API path).
+	tp.handler.recordMetrics(provider, processed, sourceFromRequest(r), time.Since(start), resp.StatusCode)
 }
 
 // writeErrorResponse writes an HTTP error response over a raw connection

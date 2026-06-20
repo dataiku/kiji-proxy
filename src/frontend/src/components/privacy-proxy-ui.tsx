@@ -9,12 +9,13 @@ import {
   Flag,
   HelpCircle,
   Database,
+  ArrowRight,
+  Eye,
+  CornerDownLeft,
+  ShieldCheck,
 } from "lucide-react";
 import logoImage from "../../assets/kiji_proxy.svg";
 import kijiMascot from "../../assets/kiji_proxy.svg";
-import SettingsModal from "./modals/SettingsModal";
-import PIISettingsModal from "./modals/PIISettingsModal";
-import AdvancedSettingsModal from "./modals/AdvancedSettingsModal";
 import LoggingModal from "./modals/LoggingModal";
 import MappingsModal from "./modals/MappingsModal";
 import AboutModal from "./modals/AboutModal";
@@ -33,11 +34,40 @@ import {
 import type { ProviderType, LogEntry } from "../types/provider";
 import { PROVIDER_NAMES } from "../types/provider";
 
-export default function PrivacyProxyUI() {
+export interface PrivacyProxyUIProps {
+  /**
+   * When true, renders without its own page chrome (the centered header/menu and
+   * the fixed bottom status bar) so it can be hosted inside AppShell as the
+   * "Playground" view. Navigation and server status are provided by the shell.
+   */
+  embedded?: boolean;
+  /**
+   * Lets the host (e.g. the shell sidebar) open one of this component's modals.
+   * Bump `n` to re-trigger the same modal.
+   */
+  openModalSignal?: {
+    type: "mappings" | "logging";
+    n: number;
+  };
+  /**
+   * Bumped by the host after a settings change (e.g. a provider save) so the
+   * Playground re-reads its cached provider config.
+   */
+  reloadSettingsSignal?: number;
+  /**
+   * Lets the host navigate to its Settings surface (Settings is a shell view,
+   * not a modal here). Used by the native app menu's "Settings" command.
+   */
+  onRequestSettings?: () => void;
+}
+
+export default function PrivacyProxyUI({
+  embedded = false,
+  openModalSignal,
+  reloadSettingsSignal,
+  onRequestSettings,
+}: PrivacyProxyUIProps = {}) {
   // UI toggle state (simple enough to stay in the component)
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isPIISettingsOpen, setIsPIISettingsOpen] = useState(false);
-  const [isAdvancedSettingsOpen, setIsAdvancedSettingsOpen] = useState(false);
   const [isLoggingOpen, setIsLoggingOpen] = useState(false);
   const [isMappingsOpen, setIsMappingsOpen] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
@@ -49,12 +79,29 @@ export default function PrivacyProxyUI() {
   >("request");
   const menuRef = useRef<HTMLDivElement>(null);
 
+  // Allow the host shell to open modals (Settings / Mappings / Logging / About).
+  useEffect(() => {
+    if (!openModalSignal) return;
+    const openers = {
+      mappings: setIsMappingsOpen,
+      logging: setIsLoggingOpen,
+    } as const;
+    openers[openModalSignal.type]?.(true);
+  }, [openModalSignal]);
+
   // Settings & provider state
   const settings = useElectronSettings({
-    onSettingsOpen: () => setIsSettingsOpen(true),
+    onSettingsOpen: () => onRequestSettings?.(),
     onAboutOpen: () => setIsAboutOpen(true),
     onTourStart: () => startTour(),
   });
+
+  // The shell bumps reloadSettingsSignal after a provider save so the cached
+  // provider config (selector ✓ marks, active provider) stays fresh.
+  useEffect(() => {
+    if (reloadSettingsSignal) settings.loadSettings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reloadSettingsSignal]);
 
   // Product tour
   const { startTour, isTourActive, cancelTour } = useTour(
@@ -122,31 +169,36 @@ export default function PrivacyProxyUI() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4 md:p-8 pb-16">
+    <div
+      className={
+        embedded ? "relative" : "app-surface min-h-screen p-4 md:p-8 pb-20"
+      }
+    >
       {/* Yaak Mascot Loading Overlay */}
       {isProcessing && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center animate-fade-in">
-          <div className="flex flex-col items-center gap-4">
+        <div className="fixed inset-0 bg-brand-950/40 backdrop-blur-md z-50 flex items-center justify-center animate-fade-in">
+          <div className="flex flex-col items-center gap-5">
             <img
               src={kijiMascot}
-              alt="Yaak mascot"
-              className="w-32 h-32 animate-bounce-slow drop-shadow-2xl"
+              alt="Kiji mascot"
+              className="w-28 h-28 animate-bounce-slow drop-shadow-2xl"
             />
-            <div className="flex items-center gap-3 bg-white/90 px-6 py-3 rounded-full shadow-lg">
-              <div className="w-5 h-5 border-3 border-blue-600 border-t-transparent rounded-full animate-spin" />
-              <span className="text-lg font-medium text-slate-700">
-                Processing your data...
+            <div className="flex items-center gap-3 bg-white/95 px-6 py-3 rounded-full shadow-lift ring-1 ring-brand-900/5">
+              <div className="w-4 h-4 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
+              <span className="text-sm font-medium text-stone-700 tracking-tight">
+                Protecting your data…
               </span>
             </div>
           </div>
         </div>
       )}
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
+      <div className={embedded ? "" : "max-w-7xl mx-auto"}>
+        {/* Header — only when standalone; the shell provides nav + status */}
+        {!embedded && (
         <div
           className={`sticky top-0 z-40 transition-all duration-300 -mx-4 md:-mx-8 px-4 md:px-8 py-4 mb-8 ${
             isScrolled
-              ? "bg-white/80 backdrop-blur-md shadow-md py-2 border-b border-slate-200"
+              ? "glass shadow-soft py-2.5"
               : "bg-transparent"
           }`}
         >
@@ -159,21 +211,21 @@ export default function PrivacyProxyUI() {
                 <button
                   id="tour-menu-button"
                   onClick={() => setIsMenuOpen(!isMenuOpen)}
-                  className="p-2 text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
+                  className="p-2 text-stone-500 hover:text-brand-700 hover:bg-stone-100 rounded-lg transition-colors"
                   title="Menu"
                 >
                   <Menu className="w-6 h-6" />
                 </button>
                 {isMenuOpen && (
-                  <div className="absolute left-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-slate-200 z-50">
+                  <div className="absolute left-0 mt-2 w-52 bg-white rounded-xl shadow-lift ring-1 ring-brand-900/10 z-50 p-1.5 animate-rise-in">
                     <button
                       onClick={() => {
                         setIsMappingsOpen(true);
                         setIsMenuOpen(false);
                       }}
-                      className="w-full text-left px-4 py-3 text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2 first:rounded-t-lg"
+                      className="w-full text-left px-3 py-2.5 text-sm text-stone-700 hover:bg-brand-50 hover:text-brand-800 rounded-lg transition-colors flex items-center gap-2.5"
                     >
-                      <Database className="w-4 h-4" />
+                      <Database className="w-4 h-4 text-stone-400" />
                       Mappings
                     </button>
                     <button
@@ -181,19 +233,19 @@ export default function PrivacyProxyUI() {
                         setIsLoggingOpen(true);
                         setIsMenuOpen(false);
                       }}
-                      className="w-full text-left px-4 py-3 text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
+                      className="w-full text-left px-3 py-2.5 text-sm text-stone-700 hover:bg-brand-50 hover:text-brand-800 rounded-lg transition-colors flex items-center gap-2.5"
                     >
-                      <FileText className="w-4 h-4" />
+                      <FileText className="w-4 h-4 text-stone-400" />
                       Logging
                     </button>
                     <button
                       onClick={() => {
-                        setIsSettingsOpen(true);
+                        onRequestSettings?.();
                         setIsMenuOpen(false);
                       }}
-                      className="w-full text-left px-4 py-3 text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
+                      className="w-full text-left px-3 py-2.5 text-sm text-stone-700 hover:bg-brand-50 hover:text-brand-800 rounded-lg transition-colors flex items-center gap-2.5"
                     >
-                      <Settings className="w-4 h-4" />
+                      <Settings className="w-4 h-4 text-stone-400" />
                       Settings
                     </button>
                     <button
@@ -201,9 +253,9 @@ export default function PrivacyProxyUI() {
                         setIsAboutOpen(true);
                         setIsMenuOpen(false);
                       }}
-                      className="w-full text-left px-4 py-3 text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
+                      className="w-full text-left px-3 py-2.5 text-sm text-stone-700 hover:bg-brand-50 hover:text-brand-800 rounded-lg transition-colors flex items-center gap-2.5"
                     >
-                      <Info className="w-4 h-4" />
+                      <Info className="w-4 h-4 text-stone-400" />
                       About Kiji Privacy Proxy
                     </button>
                     <button
@@ -211,10 +263,10 @@ export default function PrivacyProxyUI() {
                         startTour();
                         setIsMenuOpen(false);
                       }}
-                      className="w-full text-left px-4 py-3 text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2 last:rounded-b-lg"
+                      className="w-full text-left px-3 py-2.5 text-sm text-stone-700 hover:bg-brand-50 hover:text-brand-800 rounded-lg transition-colors flex items-center gap-2.5"
                     >
-                      <HelpCircle className="w-4 h-4" />
-                      Start Tour
+                      <HelpCircle className="w-4 h-4 text-stone-400" />
+                      Start tour
                     </button>
                   </div>
                 )}
@@ -223,36 +275,47 @@ export default function PrivacyProxyUI() {
             <div
               id="tour-header"
               className={`flex flex-col items-center justify-center transition-all duration-300 ${
-                isScrolled ? "scale-90" : "scale-100"
+                isScrolled ? "scale-95" : "scale-100"
               }`}
             >
               <div className="flex items-center justify-center gap-3">
                 <img
                   src={logoImage}
-                  alt="Yaak Logo"
+                  alt="Kiji logo"
                   className={`transition-all duration-300 ${
                     isScrolled ? "w-8 h-8" : "w-12 h-12"
                   }`}
                 />
                 <h1
-                  className={`font-bold text-slate-800 transition-all duration-300 ${
-                    isScrolled ? "text-2xl" : "text-4xl"
+                  className={`font-semibold text-brand-900 tracking-tight transition-all duration-300 ${
+                    isScrolled ? "text-2xl" : "text-[2.5rem] leading-none"
                   }`}
                 >
-                  Kiji Privacy Proxy
+                  Kiji <span className="font-normal text-brand-700">Privacy Proxy</span>
                 </h1>
               </div>
               {!isScrolled && (
-                <p className="text-slate-600 text-lg mt-2 animate-fade-in">
-                  PII Detection and Masking Proxy
-                </p>
+                <div className="mt-3 flex flex-col items-center gap-3 animate-fade-in">
+                  <p className="text-stone-500 text-base tracking-tight">
+                    PII detection &amp; masking proxy
+                  </p>
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-50 text-brand-700 ring-1 ring-brand-200 px-3 py-1 font-medium">
+                      <span className="w-1.5 h-1.5 rounded-full bg-brand-500" />
+                      Local proxy
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white text-stone-500 ring-1 ring-stone-200 px-3 py-1 font-medium">
+                      On-device detection
+                    </span>
+                  </div>
+                </div>
               )}
             </div>
           </div>
 
           {/* Model Health Banner */}
           {serverHealth.status === "online" && !serverHealth.modelHealthy && (
-            <div className="mt-4 p-4 bg-red-50 border-2 border-red-200 rounded-lg inline-block max-w-2xl">
+            <div className="mt-5 p-4 bg-red-50 ring-1 ring-red-200 rounded-xl block mx-auto max-w-2xl text-left">
               <p className="text-sm text-red-900 flex items-center gap-2">
                 <AlertCircle className="w-5 h-5" />
                 <span className="font-semibold">Model is unhealthy</span>
@@ -263,10 +326,10 @@ export default function PrivacyProxyUI() {
                 </p>
               )}
               <p className="text-xs text-red-700 mt-2">
-                Please check model configuration in{" "}
+                Check the model configuration in{" "}
                 {isElectron ? (
                   <button
-                    onClick={() => setIsSettingsOpen(true)}
+                    onClick={() => onRequestSettings?.()}
                     className="underline font-semibold"
                   >
                     Settings
@@ -279,15 +342,15 @@ export default function PrivacyProxyUI() {
           )}
 
           {isElectron && !settings.apiKey && settings.activeProvider !== "custom" && (
-            <div className="mt-4 p-2 bg-amber-50 border border-amber-200 rounded-lg inline-block">
+            <div className="mt-5 px-3.5 py-2.5 bg-amber-50 ring-1 ring-amber-200 rounded-xl inline-block">
               <p className="text-xs text-amber-800 flex items-center gap-2">
-                <AlertCircle className="w-4 h-4" />
+                <AlertCircle className="w-4 h-4 shrink-0" />
                 <span>
                   {PROVIDER_NAMES[settings.activeProvider]} API key not
                   configured.{" "}
                 </span>
                 <button
-                  onClick={() => setIsSettingsOpen(true)}
+                  onClick={() => onRequestSettings?.()}
                   className="underline font-semibold"
                 >
                   Configure in Settings
@@ -296,17 +359,19 @@ export default function PrivacyProxyUI() {
             </div>
           )}
         </div>
+        )}
 
         {/* Input Section */}
         <div
           id="tour-input-section"
-          className="bg-white rounded-xl shadow-lg p-6 mb-6"
+          className="card p-6 md:p-7 mb-6 animate-rise-in"
         >
           <div className="flex items-center justify-between mb-4">
+            <span className="eyebrow text-stone-400">Your request</span>
             {isElectron && (
               <div className="flex items-center gap-2">
-                <label className="text-sm font-medium text-slate-600">
-                  Type your request to:
+                <label className="text-sm text-stone-500">
+                  Send to
                 </label>
                 <select
                   id="tour-provider-selector"
@@ -315,7 +380,7 @@ export default function PrivacyProxyUI() {
                     settings.switchProvider(e.target.value as ProviderType)
                   }
                   disabled={isProcessing}
-                  className="px-3 py-2 border-2 border-slate-200 rounded-lg focus:border-blue-500 focus:outline-none text-sm bg-white"
+                  className="px-3 py-2 border border-stone-200 rounded-lg focus:border-brand-500 focus:ring-2 focus:ring-brand-100 focus:outline-none text-sm bg-white font-medium text-stone-700 transition-shadow"
                 >
                   {(
                     [
@@ -340,11 +405,11 @@ export default function PrivacyProxyUI() {
           <textarea
             value={inputData}
             onChange={(e) => setInputData(e.target.value)}
-            placeholder="Enter your message with sensitive information...&#10;&#10;Example: Hi, my name is John Smith and my email is john.smith@email.com. My phone is 555-123-4567.&#10;&#10;This will be processed through the real PII detection and masking pipeline."
-            className={`w-full h-32 p-4 border-2 rounded-lg focus:outline-none resize-none font-mono text-sm placeholder:text-gray-400 ${
+            placeholder="Type a message that contains sensitive information…&#10;&#10;Example: Hi, my name is John Smith and my email is john.smith@email.com. My phone is 555-123-4567.&#10;&#10;Kiji detects and masks the PII before it ever leaves your machine."
+            className={`w-full h-36 p-4 border rounded-xl focus:outline-none resize-none font-mono text-sm leading-relaxed transition-shadow ${
               serverStatus === "offline"
                 ? "border-red-200 bg-red-50 cursor-not-allowed opacity-60"
-                : "border-slate-200 focus:border-blue-500"
+                : "border-stone-200 bg-stone-50/60 focus:bg-white focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
             }`}
             disabled={serverStatus === "offline"}
           />
@@ -355,7 +420,7 @@ export default function PrivacyProxyUI() {
               disabled={
                 !inputData.trim() || isProcessing || serverStatus === "offline"
               }
-              className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+              className="btn-brand flex items-center gap-2 px-6 py-3 text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed font-medium tracking-tight"
               title={
                 serverStatus === "offline" ? "Backend server is offline" : ""
               }
@@ -363,18 +428,18 @@ export default function PrivacyProxyUI() {
               {isProcessing ? (
                 <>
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Processing...
+                  Processing…
                 </>
               ) : (
                 <>
                   <Send className="w-5 h-5" />
-                  Process Data
+                  Process data
                 </>
               )}
             </button>
             <button
               onClick={handleReset}
-              className="px-6 py-3 border-2 border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors font-medium"
+              className="px-5 py-3 text-stone-500 rounded-xl hover:bg-stone-100 hover:text-stone-700 transition-colors font-medium"
             >
               Reset
             </button>
@@ -385,57 +450,55 @@ export default function PrivacyProxyUI() {
         {maskedInput && (
           <div className="space-y-6">
             {/* Combined Input and Output Diff */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              {/* Tabs */}
-              <div className="flex border-b border-slate-200 mb-4">
+            <div className="card p-6 md:p-7 animate-rise-in">
+              {/* Tabs — segmented control */}
+              <div className="inline-flex p-1 rounded-xl bg-stone-100 ring-1 ring-stone-200/70 mb-6">
                 <button
                   onClick={() => setActiveResultTab("request")}
-                  className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all ${
                     activeResultTab === "request"
-                      ? "border-amber-500 text-amber-700"
-                      : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+                      ? "bg-white text-brand-900 shadow-soft"
+                      : "text-stone-500 hover:text-stone-700"
                   }`}
                 >
-                  <AlertCircle className="w-4 h-4" />
+                  <Eye className="w-4 h-4" />
                   {isElectron
-                    ? `What was sent to ${
-                        PROVIDER_NAMES[displayedProvider]
-                      }`
-                    : "What was sent to the LLM"}
+                    ? `Sent to ${PROVIDER_NAMES[displayedProvider]}`
+                    : "Sent to the LLM"}
                 </button>
                 <button
                   onClick={() => setActiveResultTab("response")}
-                  className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all ${
                     activeResultTab === "response"
-                      ? "border-blue-500 text-blue-700"
-                      : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+                      ? "bg-white text-brand-900 shadow-soft"
+                      : "text-stone-500 hover:text-stone-700"
                   }`}
                 >
-                  <AlertCircle className="w-4 h-4" />
+                  <CornerDownLeft className="w-4 h-4" />
                   {isElectron
-                    ? `What ${PROVIDER_NAMES[displayedProvider]} returned`
-                    : "What the LLM returned"}
+                    ? `Returned by ${PROVIDER_NAMES[displayedProvider]}`
+                    : "Returned by the LLM"}
                 </button>
               </div>
 
               {/* Request Tab */}
               {activeResultTab === "request" && (
-                <div className="grid md:grid-cols-2 gap-4">
+                <div className="grid md:grid-cols-[1fr_auto_1fr] gap-4 md:gap-3 items-stretch">
                   <div className="flex flex-col">
-                    <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
+                    <div className="text-sm font-medium text-stone-600 mb-2 flex items-center gap-2">
                       <span>Request submitted</span>
-                      <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs rounded">
-                        PII Exposed
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-red-50 text-red-700 ring-1 ring-red-200 text-[11px] font-semibold">
+                        PII exposed
                       </span>
                     </div>
                     <div
-                      className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap flex-1"
+                      className="data-panel p-4 font-mono text-sm whitespace-pre-wrap flex-1"
                       dangerouslySetInnerHTML={{
                         __html: highlightedInputOriginalHTML,
                       }}
                     />
-                    <div className="flex justify-between items-center mt-2">
-                      <p className="text-sm font-semibold text-slate-700">
+                    <div className="flex justify-between items-center mt-2.5">
+                      <p className="text-sm font-semibold text-stone-700">
                         {detectedEntities.length} PII detected
                       </p>
                       <p
@@ -448,23 +511,31 @@ export default function PrivacyProxyUI() {
                       </p>
                     </div>
                   </div>
+
+                  {/* Flow connector */}
+                  <div className="hidden md:flex flex-col items-center justify-center gap-2 px-1">
+                    <div className="w-9 h-9 rounded-full bg-brand-50 ring-1 ring-brand-200 flex items-center justify-center text-brand-600">
+                      <ArrowRight className="w-4 h-4" />
+                    </div>
+                    <span className="eyebrow text-stone-400">masked</span>
+                  </div>
+
                   <div className="flex flex-col">
-                    <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
-                      <span>
-                        Request submitted with personal information removed
-                      </span>
-                      <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded">
-                        PII Protected
+                    <div className="text-sm font-medium text-stone-600 mb-2 flex items-center gap-2">
+                      <span>Personal information removed</span>
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-brand-50 text-brand-700 ring-1 ring-brand-200 text-[11px] font-semibold">
+                        <ShieldCheck className="w-3 h-3" />
+                        PII protected
                       </span>
                     </div>
                     <div
-                      className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap flex-1"
+                      className="data-panel p-4 font-mono text-sm whitespace-pre-wrap flex-1"
                       dangerouslySetInnerHTML={{
                         __html: highlightedInputMaskedHTML,
                       }}
                     />
-                    <div className="mt-2">
-                      <p className="text-sm font-semibold text-green-600">
+                    <div className="mt-2.5">
+                      <p className="text-sm font-semibold text-brand-700">
                         {responseDetectedEntities.length} fake PIIs received
                       </p>
                     </div>
@@ -474,41 +545,51 @@ export default function PrivacyProxyUI() {
 
               {/* Response Tab */}
               {activeResultTab === "response" && (
-                <div className="grid md:grid-cols-2 gap-4">
+                <div className="grid md:grid-cols-[1fr_auto_1fr] gap-4 md:gap-3 items-stretch">
                   <div className="flex flex-col">
-                    <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
+                    <div className="text-sm font-medium text-stone-600 mb-2 flex items-center gap-2">
                       <span>Response received</span>
-                      <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-stone-100 text-stone-600 ring-1 ring-stone-200 text-[11px] font-semibold">
                         From {PROVIDER_NAMES[displayedProvider]}
                       </span>
                     </div>
                     <div
-                      className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap flex-1"
+                      className="data-panel p-4 font-mono text-sm whitespace-pre-wrap flex-1"
                       dangerouslySetInnerHTML={{
                         __html: highlightedOutputMaskedHTML,
                       }}
                     />
-                    <div className="mt-2">
-                      <p className="text-sm font-semibold text-slate-700">
+                    <div className="mt-2.5">
+                      <p className="text-sm font-semibold text-stone-700">
                         {detectedEntities.length} fake PIIs received
                       </p>
                     </div>
                   </div>
+
+                  {/* Flow connector */}
+                  <div className="hidden md:flex flex-col items-center justify-center gap-2 px-1">
+                    <div className="w-9 h-9 rounded-full bg-brand-50 ring-1 ring-brand-200 flex items-center justify-center text-brand-600">
+                      <ArrowRight className="w-4 h-4" />
+                    </div>
+                    <span className="eyebrow text-stone-400">restored</span>
+                  </div>
+
                   <div className="flex flex-col">
-                    <div className="text-sm font-medium text-slate-600 mb-2 flex items-center gap-2">
-                      <span>Response with personal information restored</span>
-                      <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">
+                    <div className="text-sm font-medium text-stone-600 mb-2 flex items-center gap-2">
+                      <span>Personal information restored</span>
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-brand-50 text-brand-700 ring-1 ring-brand-200 text-[11px] font-semibold">
+                        <ShieldCheck className="w-3 h-3" />
                         Restored
                       </span>
                     </div>
                     <div
-                      className="bg-slate-50 rounded-lg p-4 font-mono text-sm border-2 border-slate-200 whitespace-pre-wrap flex-1"
+                      className="data-panel p-4 font-mono text-sm whitespace-pre-wrap flex-1"
                       dangerouslySetInnerHTML={{
                         __html: highlightedOutputFinalHTML,
                       }}
                     />
-                    <div className="mt-2">
-                      <p className="text-sm font-semibold text-green-600">
+                    <div className="mt-2.5">
+                      <p className="text-sm font-semibold text-brand-700">
                         {responseDetectedEntities.length} PII restored
                       </p>
                     </div>
@@ -517,7 +598,7 @@ export default function PrivacyProxyUI() {
               )}
 
               {/* Report Misclassification Button */}
-              <div className="mt-6 flex justify-end">
+              <div className="mt-6 pt-5 border-t border-stone-100 flex justify-end">
                 <button
                   onClick={() =>
                     misclassification.handleReportMisclassification(
@@ -527,38 +608,38 @@ export default function PrivacyProxyUI() {
                       modelSignature
                     )
                   }
-                  className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-colors font-medium"
+                  className="flex items-center gap-2 px-3.5 py-2 text-sm text-amber-700 hover:text-amber-800 hover:bg-amber-50 rounded-lg transition-colors font-medium ring-1 ring-amber-200"
                   title="Report incorrect PII classification"
                 >
                   <Flag className="w-4 h-4" />
-                  Report Misclassification
+                  Report misclassification
                 </button>
               </div>
             </div>
 
             {/* Transformation Summary */}
             {false && (
-              <div className="bg-gradient-to-r from-slate-50 to-slate-100 rounded-xl shadow-lg p-6">
-                <h3 className="text-lg font-semibold text-slate-800 mb-4">
+              <div className="bg-gradient-to-r from-stone-50 to-stone-100 rounded-xl shadow-lg p-6">
+                <h3 className="text-lg font-semibold text-stone-800 mb-4">
                   Transformation Summary
                 </h3>
                 <div className="grid md:grid-cols-3 gap-4">
                   <div className="bg-white rounded-lg p-4 border-l-4 border-amber-500">
-                    <div className="text-2xl font-bold text-slate-800">
+                    <div className="text-2xl font-bold text-stone-800">
                       {detectedEntities.length}
                     </div>
-                    <div className="text-sm text-slate-600">
+                    <div className="text-sm text-stone-600">
                       Entities Detected
                     </div>
                   </div>
-                  <div className="bg-white rounded-lg p-4 border-l-4 border-green-500">
-                    <div className="text-2xl font-bold text-slate-800">
+                  <div className="bg-white rounded-lg p-4 border-l-4 border-brand-500">
+                    <div className="text-2xl font-bold text-stone-800">
                       100%
                     </div>
-                    <div className="text-sm text-slate-600">PII Protected</div>
+                    <div className="text-sm text-stone-600">PII Protected</div>
                   </div>
-                  <div className="bg-white rounded-lg p-4 border-l-4 border-blue-500">
-                    <div className="text-2xl font-bold text-slate-800">
+                  <div className="bg-white rounded-lg p-4 border-l-4 border-brand-500">
+                    <div className="text-2xl font-bold text-stone-800">
                       {detectedEntities.length > 0
                         ? (
                             (detectedEntities.reduce(
@@ -571,7 +652,7 @@ export default function PrivacyProxyUI() {
                         : 0}
                       %
                     </div>
-                    <div className="text-sm text-slate-600">
+                    <div className="text-sm text-stone-600">
                       Avg. Confidence
                     </div>
                   </div>
@@ -601,34 +682,35 @@ export default function PrivacyProxyUI() {
         )}
 
         {/* Info Footer */}
-        <div className="mt-8 text-center text-sm text-slate-500">
+        <div className="mt-10 text-center text-sm text-stone-400">
           <p>
-            Kiji Privacy Proxy - Made by{" "}
+            Kiji Privacy Proxy · built by{" "}
             <a
               href="https://www.dataiku.com/company/dataiku-for-the-future/open-source/"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-blue-600 hover:text-blue-700 hover:underline"
+              className="text-brand-700 hover:text-brand-800 font-medium hover:underline underline-offset-2"
             >
               575 Lab
-            </a>{" "}
-            - Dataiku's Open Source Office
+            </a>
+            , Dataiku's Open Source Office
             {version && (
-              <span className="ml-2 text-xs text-slate-400">v{version}</span>
+              <span className="ml-2 text-xs text-stone-300">v{version}</span>
             )}
           </p>
         </div>
       </div>
 
-      {/* Status Bar */}
+      {/* Status Bar — only when standalone; the shell sidebar shows server status */}
+      {!embedded && (
       <div
         id="tour-status-bar"
-        className="fixed bottom-0 left-0 right-0 bg-slate-800 text-slate-200 px-4 py-2 flex items-center justify-between border-t border-slate-700"
+        className="fixed bottom-0 left-0 right-0 bg-brand-900 text-brand-100/90 px-4 py-2 flex items-center justify-between border-t border-brand-950/50"
       >
         <div className="flex items-center gap-2">
           <div
-            className={`w-3 h-3 rounded-full ${
-              serverStatus === "online" ? "bg-green-500" : "bg-red-500"
+            className={`w-2.5 h-2.5 rounded-full ${
+              serverStatus === "online" ? "bg-brand-400 shadow-[0_0_8px_rgba(93,193,166,0.7)]" : "bg-red-500"
             } ${serverStatus === "online" ? "animate-pulse" : ""}`}
             title={
               serverStatus === "online" ? "Server online" : "Server offline"
@@ -638,9 +720,9 @@ export default function PrivacyProxyUI() {
             {serverStatus === "online" ? (
               "Server online"
             ) : (
-              <span className="flex items-center gap-2">
-                Server offline - Please ensure the Go backend server is running
-                at localhost:{GO_SERVER_PORT}
+              <span className="flex items-center gap-2 text-red-200">
+                Server offline — start the Go backend at localhost:
+                {GO_SERVER_PORT}
               </span>
             )}
           </span>
@@ -654,46 +736,24 @@ export default function PrivacyProxyUI() {
               onMouseEnter={() => setShowModelTooltip(true)}
               onMouseLeave={() => setShowModelTooltip(false)}
             >
-              <span className="text-xs text-slate-400">Model:</span>
+              <span className="text-xs text-brand-300/80">Model</span>
               <code
-                className="text-xs font-mono text-slate-300 bg-slate-700/50 px-1 rounded"
+                className="text-xs font-mono text-brand-100 bg-brand-950/50 px-1.5 py-0.5 rounded"
                 aria-label={`Model signature ${modelSignature}`}
               >
                 {modelSignature}
               </code>
             </div>
             {showModelTooltip && (
-              <div className="absolute bottom-full right-0 mb-2 px-2 py-1 text-xs text-white bg-gray-900 border border-gray-700 rounded shadow-lg whitespace-nowrap z-50">
+              <div className="absolute bottom-full right-0 mb-2 px-2 py-1 text-xs text-white bg-brand-950 border border-brand-800 rounded shadow-lg whitespace-nowrap z-50">
                 Verified model signature
-                <div className="absolute top-full right-2 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+                <div className="absolute top-full right-2 border-l-4 border-r-4 border-t-4 border-transparent border-t-brand-950"></div>
               </div>
             )}
           </div>
         )}
       </div>
-
-      {/* Settings Modal */}
-      <SettingsModal
-        isOpen={isSettingsOpen}
-        onClose={() => {
-          setIsSettingsOpen(false);
-          settings.loadSettings();
-        }}
-        onOpenPIISettings={() => setIsPIISettingsOpen(true)}
-        onOpenAdvancedSettings={() => setIsAdvancedSettingsOpen(true)}
-      />
-
-      {/* PII Settings Modal */}
-      <PIISettingsModal
-        isOpen={isPIISettingsOpen}
-        onClose={() => setIsPIISettingsOpen(false)}
-      />
-
-      {/* Advanced Settings Modal */}
-      <AdvancedSettingsModal
-        isOpen={isAdvancedSettingsOpen}
-        onClose={() => setIsAdvancedSettingsOpen(false)}
-      />
+      )}
 
       {/* Logging Modal */}
       <LoggingModal

@@ -34,7 +34,7 @@ function SortableHeader({
 }: SortableHeaderProps) {
   const isActive = activeColumn === column;
   return (
-    <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700 border-b border-slate-200">
+    <th className="px-4 py-3 text-left text-sm font-semibold text-stone-700 border-b border-stone-200">
       <div className="flex items-center gap-2">
         <span>{label}</span>
         <span className="flex flex-col leading-none">
@@ -44,8 +44,8 @@ function SortableHeader({
             onClick={() => onSort(column, "asc")}
             className={`-mb-0.5 transition-colors ${
               isActive && activeOrder === "asc"
-                ? "text-blue-600"
-                : "text-slate-300 hover:text-slate-500"
+                ? "text-brand-600"
+                : "text-stone-300 hover:text-stone-500"
             }`}
           >
             <ChevronUp className="w-3 h-3" />
@@ -56,8 +56,8 @@ function SortableHeader({
             onClick={() => onSort(column, "desc")}
             className={`transition-colors ${
               isActive && activeOrder === "desc"
-                ? "text-blue-600"
-                : "text-slate-300 hover:text-slate-500"
+                ? "text-brand-600"
+                : "text-stone-300 hover:text-stone-500"
             }`}
           >
             <ChevronDown className="w-3 h-3" />
@@ -94,7 +94,7 @@ export default function MappingsModal({ isOpen, onClose }: MappingsModalProps) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-brand-950/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       {/* Clear Confirmation Dialog */}
       {showClearConfirm && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-60">
@@ -103,11 +103,11 @@ export default function MappingsModal({ isOpen, onClose }: MappingsModalProps) {
               <div className="p-2 bg-red-100 rounded-full">
                 <AlertTriangle className="w-6 h-6 text-red-600" />
               </div>
-              <h3 className="text-xl font-bold text-slate-800">
+              <h3 className="text-xl font-bold text-stone-800">
                 Clear All Mappings?
               </h3>
             </div>
-            <p className="text-slate-600 mb-6">
+            <p className="text-stone-600 mb-6">
               This will permanently delete all {total} PII mapping
               {total === 1 ? "" : "s"}. This action cannot be undone.
             </p>
@@ -115,7 +115,7 @@ export default function MappingsModal({ isOpen, onClose }: MappingsModalProps) {
               <button
                 onClick={() => setShowClearConfirm(false)}
                 disabled={isClearing}
-                className="px-4 py-2 border-2 border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors font-medium disabled:opacity-50"
+                className="px-4 py-2 border-2 border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 transition-colors font-medium disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -148,10 +148,10 @@ export default function MappingsModal({ isOpen, onClose }: MappingsModalProps) {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2">
-            <Database className="w-6 h-6 text-slate-700" />
-            <h2 className="text-2xl font-bold text-slate-800">PII Mappings</h2>
+            <Database className="w-6 h-6 text-stone-700" />
+            <h2 className="text-2xl font-bold text-stone-800">PII Mappings</h2>
             {total > 0 && (
-              <span className="ml-2 px-2 py-1 bg-slate-100 text-slate-600 text-sm rounded-full">
+              <span className="ml-2 px-2 py-1 bg-stone-100 text-stone-600 text-sm rounded-full">
                 {total} entries
               </span>
             )}
@@ -169,7 +169,7 @@ export default function MappingsModal({ isOpen, onClose }: MappingsModalProps) {
             )}
             <button
               onClick={onClose}
-              className="text-slate-500 hover:text-slate-700 transition-colors"
+              className="text-stone-500 hover:text-stone-700 transition-colors"
             >
               <X className="w-6 h-6" />
             </button>
@@ -195,17 +195,17 @@ export default function MappingsModal({ isOpen, onClose }: MappingsModalProps) {
         <div className="flex-1 overflow-auto scrollbar-always-visible">
           {isLoading && mappings.length === 0 ? (
             <div className="flex items-center justify-center py-12">
-              <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+              <div className="w-8 h-8 border-4 border-brand-600 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : mappings.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-slate-500">
+            <div className="flex flex-col items-center justify-center py-12 text-stone-500">
               <Database className="w-12 h-12 mb-4 opacity-50" />
               <p className="text-lg">No PII mappings found</p>
             </div>
           ) : (
             <div>
               <table className="border-collapse w-full">
-                <thead className="bg-slate-100 sticky top-0">
+                <thead className="bg-stone-100 sticky top-0">
                   <tr>
                     <SortableHeader
                       label="Entity Type"
@@ -235,7 +235,7 @@ export default function MappingsModal({ isOpen, onClose }: MappingsModalProps) {
                       activeOrder={sortOrder}
                       onSort={handleSort}
                     />
-                    <th className="px-4 py-3 text-right text-sm font-semibold text-slate-700 border-b border-slate-200 w-px">
+                    <th className="px-4 py-3 text-right text-sm font-semibold text-stone-700 border-b border-stone-200 w-px">
                       <span className="sr-only">Actions</span>
                     </th>
                   </tr>
@@ -244,20 +244,20 @@ export default function MappingsModal({ isOpen, onClose }: MappingsModalProps) {
                   {mappings.map((m) => (
                     <tr
                       key={m.id}
-                      className="group hover:bg-slate-50 transition-colors border-b border-slate-100"
+                      className="group hover:bg-stone-50 transition-colors border-b border-stone-100"
                     >
                       <td className="px-4 py-3 text-sm">
-                        <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs font-medium">
+                        <span className="px-2 py-1 bg-stone-100 text-stone-700 rounded text-xs font-medium">
                           {m.piiType}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-sm font-mono text-slate-700 break-all">
+                      <td className="px-4 py-3 text-sm font-mono text-stone-700 break-all">
                         {m.original}
                       </td>
-                      <td className="px-4 py-3 text-sm font-mono text-slate-700 break-all">
+                      <td className="px-4 py-3 text-sm font-mono text-stone-700 break-all">
                         {m.masked}
                       </td>
-                      <td className="px-4 py-3 text-sm text-slate-600 whitespace-nowrap">
+                      <td className="px-4 py-3 text-sm text-stone-600 whitespace-nowrap">
                         {formatTimestamp(m.createdAt)}
                       </td>
                       <td className="px-4 py-3 text-right whitespace-nowrap">
@@ -265,7 +265,7 @@ export default function MappingsModal({ isOpen, onClose }: MappingsModalProps) {
                           <div className="inline-flex w-5 h-5 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
                         ) : confirmingDeleteId === m.id ? (
                           <div className="inline-flex items-center gap-1">
-                            <span className="text-xs text-slate-500 mr-1">
+                            <span className="text-xs text-stone-500 mr-1">
                               Delete?
                             </span>
                             <button
@@ -283,7 +283,7 @@ export default function MappingsModal({ isOpen, onClose }: MappingsModalProps) {
                               type="button"
                               aria-label="Cancel delete"
                               onClick={() => setConfirmingDeleteId(null)}
-                              className="p-1 text-slate-500 hover:bg-slate-200 rounded transition-colors"
+                              className="p-1 text-stone-500 hover:bg-stone-200 rounded transition-colors"
                             >
                               <X className="w-4 h-4" />
                             </button>
@@ -294,7 +294,7 @@ export default function MappingsModal({ isOpen, onClose }: MappingsModalProps) {
                             aria-label="Delete mapping"
                             title="Delete mapping"
                             onClick={() => setConfirmingDeleteId(m.id)}
-                            className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+                            className="p-1 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -307,10 +307,10 @@ export default function MappingsModal({ isOpen, onClose }: MappingsModalProps) {
 
               {/* Load More Button */}
               {hasMore && !isLoading && (
-                <div className="flex justify-center py-4 border-t border-slate-200">
+                <div className="flex justify-center py-4 border-t border-stone-200">
                   <button
                     onClick={handleLoadMore}
-                    className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                    className="px-6 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors font-medium"
                   >
                     Load More Mappings
                   </button>
@@ -319,9 +319,9 @@ export default function MappingsModal({ isOpen, onClose }: MappingsModalProps) {
 
               {/* Loading More Indicator */}
               {isLoading && mappings.length > 0 && (
-                <div className="flex justify-center py-4 border-t border-slate-200">
-                  <div className="w-6 h-6 border-3 border-blue-600 border-t-transparent rounded-full animate-spin" />
-                  <span className="ml-3 text-sm text-slate-600">
+                <div className="flex justify-center py-4 border-t border-stone-200">
+                  <div className="w-6 h-6 border-3 border-brand-600 border-t-transparent rounded-full animate-spin" />
+                  <span className="ml-3 text-sm text-stone-600">
                     Loading more...
                   </span>
                 </div>
@@ -331,17 +331,17 @@ export default function MappingsModal({ isOpen, onClose }: MappingsModalProps) {
         </div>
 
         {/* Footer */}
-        <div className="mt-4 pt-4 border-t border-slate-200 flex items-center justify-between">
-          <p className="text-sm text-slate-500">
+        <div className="mt-4 pt-4 border-t border-stone-200 flex items-center justify-between">
+          <p className="text-sm text-stone-500">
             Showing {mappings.length} of {total} mapping
             {total === 1 ? "" : "s"}
             {hasMore && (
-              <span className="ml-2 text-slate-400">(more available)</span>
+              <span className="ml-2 text-stone-400">(more available)</span>
             )}
           </p>
           <button
             onClick={onClose}
-            className="px-6 py-2 border-2 border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors font-medium"
+            className="px-6 py-2 border-2 border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 transition-colors font-medium"
           >
             Close
           </button>

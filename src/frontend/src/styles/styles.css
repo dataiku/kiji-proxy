@@ -1,107 +1,304 @@
 @import "tailwindcss";
 
-/* Force placeholder text to be light grey */
-::placeholder {
-  color: #9ca3af !important;
-  opacity: 1 !important;
+/* ============================================================
+   Kiji Privacy Proxy — Design System
+   Brand derived from the Kiji mark:
+     forest  #06312e   teal  #5dc1a6   amber  #ecaa4f   cream #f5d4a6
+   Semantics: brand-teal = safe / protected, amber = attention / PII,
+   red = exposed / offline. Warm stone neutrals for calm precision.
+   ============================================================ */
+
+@theme {
+  /* Brand teal-green scale (the "safe / protected" hue) */
+  --color-brand-50:  #ecfaf4;
+  --color-brand-100: #d2f4e6;
+  --color-brand-200: #a8e8d0;
+  --color-brand-300: #72d4b4;
+  --color-brand-400: #5dc1a6;
+  --color-brand-500: #2fa583;
+  --color-brand-600: #1f8568;
+  --color-brand-700: #1a6b55;
+  --color-brand-800: #195545;
+  --color-brand-900: #06312e;
+  --color-brand-950: #04211f;
+
+  /* Display + body share a refined system stack; data uses a crisp mono.
+     No fragile web-font dependency so the desktop app renders identically
+     offline. Character comes from scale, tracking and the mono data view. */
+  --font-sans: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: "SF Mono", "JetBrains Mono", "Fira Code", ui-monospace,
+    "Cascadia Code", Menlo, Consolas, monospace;
+
+  /* Soft, layered elevation tuned to a light warm surface */
+  --shadow-soft: 0 1px 2px rgba(6, 49, 46, 0.04),
+    0 4px 12px rgba(6, 49, 46, 0.05);
+  --shadow-card: 0 1px 2px rgba(6, 49, 46, 0.05),
+    0 8px 24px -8px rgba(6, 49, 46, 0.10);
+  --shadow-lift: 0 2px 4px rgba(6, 49, 46, 0.06),
+    0 18px 40px -12px rgba(6, 49, 46, 0.20);
 }
 
-::-webkit-input-placeholder {
-  color: #9ca3af !important;
-  opacity: 1 !important;
+/* ------------------------------------------------------------
+   Base
+   ------------------------------------------------------------ */
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
-::-moz-placeholder {
-  color: #9ca3af !important;
-  opacity: 1 !important;
+body {
+  font-family: var(--font-sans);
+  font-feature-settings: "cv02", "cv03", "cv04", "ss01";
+  color: #1c1917; /* stone-900 */
 }
 
-:-ms-input-placeholder {
-  color: #9ca3af !important;
-  opacity: 1 !important;
+::selection {
+  background: var(--color-brand-200);
+  color: var(--color-brand-900);
 }
 
-/* Custom styles for better UI */
+/* Brand-tinted, accessible focus ring everywhere */
+:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Placeholders: quiet warm grey */
+::placeholder { color: #a8a29e !important; opacity: 1 !important; }              /* stone-400 */
+::-webkit-input-placeholder { color: #a8a29e !important; opacity: 1 !important; }
+::-moz-placeholder { color: #a8a29e !important; opacity: 1 !important; }
+:-ms-input-placeholder { color: #a8a29e !important; opacity: 1 !important; }
+
+/* ------------------------------------------------------------
+   Atmosphere — a calm, premium backdrop.
+   A near-white warm base lit by two faint brand-green glows.
+   ------------------------------------------------------------ */
+.app-surface {
+  background-color: #fbfbf9;
+  background-image:
+    radial-gradient(60rem 40rem at 12% -8%, rgba(93, 193, 166, 0.10), transparent 60%),
+    radial-gradient(48rem 36rem at 105% 8%, rgba(236, 170, 79, 0.08), transparent 55%),
+    radial-gradient(70rem 50rem at 50% 120%, rgba(6, 49, 46, 0.05), transparent 60%);
+  background-attachment: fixed;
+}
+
+/* ------------------------------------------------------------
+   Surfaces
+   ------------------------------------------------------------ */
+.card {
+  background: #ffffff;
+  border: 1px solid rgba(6, 49, 46, 0.07);
+  border-radius: 1rem;
+  box-shadow: var(--shadow-card);
+}
+
+.glass {
+  background: rgba(251, 251, 249, 0.72);
+  -webkit-backdrop-filter: saturate(180%) blur(14px);
+  backdrop-filter: saturate(180%) blur(14px);
+  border-bottom: 1px solid rgba(6, 49, 46, 0.07);
+}
+
+/* Monospace data panel used in the transformation view */
+.data-panel {
+  background: #fcfbf7;
+  border: 1px solid rgba(6, 49, 46, 0.08);
+  border-radius: 0.75rem;
+  line-height: 1.65;
+}
+
+/* Eyebrow / label treatment */
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-weight: 600;
+  font-size: 0.6875rem;
+}
+
+/* Primary action: brand gradient with a quiet lift on hover */
+.btn-brand {
+  background-image: linear-gradient(180deg, var(--color-brand-500), var(--color-brand-600));
+  box-shadow: 0 1px 2px rgba(6, 49, 46, 0.20),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  transition: transform 0.15s ease, box-shadow 0.2s ease, filter 0.2s ease;
+}
+.btn-brand:hover:not(:disabled) {
+  filter: brightness(1.04);
+  box-shadow: 0 6px 18px -6px rgba(31, 133, 104, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  transform: translateY(-1px);
+}
+.btn-brand:active:not(:disabled) { transform: translateY(0); }
+
+/* ------------------------------------------------------------
+   Motion (existing names preserved; new entrances added)
+   ------------------------------------------------------------ */
 @layer utilities {
-  .animate-spin {
-    animation: spin 1s linear infinite;
-  }
+  .animate-spin { animation: spin 1s linear infinite; }
 }
 
 @keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
 }
 
-/* Yaak mascot loading animation */
 @keyframes bounce {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-20px);
-  }
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-20px); }
 }
 
 @keyframes pulse {
-  0%, 100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-  50% {
-    transform: scale(1.05);
-    opacity: 0.9;
-  }
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%      { transform: scale(1.05); opacity: 0.9; }
 }
 
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
-.animate-bounce-slow {
-  animation: bounce 1.5s ease-in-out infinite;
+@keyframes riseIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
-.animate-pulse-slow {
-  animation: pulse 2s ease-in-out infinite;
+@keyframes flowDash {
+  to { stroke-dashoffset: -16; }
 }
 
-.animate-fade-in {
-  animation: fadeIn 0.3s ease-out forwards;
-}
+.animate-bounce-slow { animation: bounce 1.5s ease-in-out infinite; }
+.animate-pulse-slow  { animation: pulse 2s ease-in-out infinite; }
+.animate-fade-in     { animation: fadeIn 0.3s ease-out forwards; }
+.animate-rise-in     { animation: riseIn 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
 
-/* Always visible horizontal scrollbar for table */
+/* ------------------------------------------------------------
+   Scrollbars — slim, brand-tinted
+   ------------------------------------------------------------ */
 .scrollbar-always-visible {
-  scrollbar-width: thin; /* Firefox */
-  scrollbar-color: #cbd5e1 #f1f5f9; /* Firefox */
+  scrollbar-width: thin;
+  scrollbar-color: #b7d8cc #f1f0eb;
   overflow-x: auto;
 }
-
-/* Webkit browsers (Chrome, Safari, Edge, Electron) */
-.scrollbar-always-visible::-webkit-scrollbar {
-  height: 10px; /* Height of horizontal scrollbar */
-  width: 10px; /* Width of vertical scrollbar if any */
-}
-
+.scrollbar-always-visible::-webkit-scrollbar { height: 10px; width: 10px; }
 .scrollbar-always-visible::-webkit-scrollbar-track {
-  background: #f1f5f9; /* Light gray background */
-  border-radius: 4px;
+  background: #f1f0eb; border-radius: 8px;
 }
-
 .scrollbar-always-visible::-webkit-scrollbar-thumb {
-  background: #cbd5e1; /* Slate color for the thumb */
-  border-radius: 4px;
+  background: #b7d8cc; border-radius: 8px; border: 2px solid #f1f0eb;
+}
+.scrollbar-always-visible::-webkit-scrollbar-thumb:hover { background: #8fc7b3; }
+
+/* App-wide subtle scrollbar */
+*::-webkit-scrollbar { width: 11px; height: 11px; }
+*::-webkit-scrollbar-thumb {
+  background: rgba(6, 49, 46, 0.18);
+  border-radius: 8px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover { background: rgba(6, 49, 46, 0.30); background-clip: padding-box; }
+*::-webkit-scrollbar-track { background: transparent; }
+
+/* ------------------------------------------------------------
+   Respect reduced motion
+   ------------------------------------------------------------ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .btn-brand:hover:not(:disabled) { transform: none; }
 }
 
-.scrollbar-always-visible::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8; /* Darker on hover */
+/* ============================================================
+   Proxy dashboard shell (AppShell + Sidebar + DashboardView)
+   ============================================================ */
+.kiji-shell {
+  display: grid;
+  grid-template-columns: 248px 1fr;
+  grid-template-rows: minmax(0, 1fr);
+  height: 100vh;
+}
+
+.kiji-sidebar {
+  background: linear-gradient(180deg, var(--color-brand-900), var(--color-brand-950));
+  color: #cfe8de;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 16px;
+  position: relative;
+  overflow-y: auto;
+}
+.kiji-sidebar::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.kiji-navitem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 11px;
+  border: none;
+  border-radius: 10px;
+  background: none;
+  color: #a9cdc1;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.kiji-navitem svg { width: 18px; height: 18px; opacity: 0.85; }
+.kiji-navitem:hover { background: rgba(255, 255, 255, 0.05); color: #eafaf3; }
+.kiji-navitem.is-active {
+  background: rgba(93, 193, 166, 0.16);
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(138, 240, 208, 0.25);
+}
+.kiji-navitem.is-active svg { opacity: 1; color: var(--color-brand-400); }
+.kiji-navitem .cnt {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: #7fb3a3;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 1px 7px;
+  border-radius: 20px;
+}
+
+.kiji-main {
+  overflow: auto;
+  padding: 22px 30px 40px;
+  background-color: #fbfbf9;
+  background-image:
+    radial-gradient(50rem 32rem at 100% -5%, rgba(93, 193, 166, 0.07), transparent 60%),
+    radial-gradient(40rem 30rem at -5% 8%, rgba(236, 170, 79, 0.05), transparent 55%);
+}
+
+/* data-driven donut: pass the conic-gradient via inline style */
+.kiji-donut { border-radius: 50%; position: relative; flex-shrink: 0; }
+.kiji-donut::after {
+  content: "";
+  position: absolute;
+  inset: 20px;
+  background: #fff;
+  border-radius: 50%;
+}
+
+@media (max-width: 860px) {
+  .kiji-shell { grid-template-columns: 1fr; }
+  .kiji-sidebar { display: none; }
 }

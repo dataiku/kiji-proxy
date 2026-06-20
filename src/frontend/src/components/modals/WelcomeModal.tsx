@@ -2195,18 +2195,18 @@ export default function WelcomeModal({ isOpen, onClose }: WelcomeModalProps) {
   const isLastPane = currentPane === totalPanes - 1;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-brand-950/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full flex flex-col">
-        <div className="flex items-center justify-between p-6 border-b border-slate-200 flex-shrink-0">
+        <div className="flex items-center justify-between p-6 border-b border-stone-200 flex-shrink-0">
           <div className="flex items-center gap-3">
-            <Shield className="w-6 h-6 text-blue-600" />
-            <h2 className="text-xl font-semibold text-slate-800">
+            <Shield className="w-6 h-6 text-brand-600" />
+            <h2 className="text-xl font-semibold text-stone-800">
               Welcome to Kiji Privacy Proxy
             </h2>
           </div>
           <button
             onClick={handleClose}
-            className="p-1 text-slate-400 hover:text-slate-600 transition-colors"
+            className="p-1 text-stone-400 hover:text-stone-600 transition-colors"
             aria-label="Close"
           >
             <X className="w-5 h-5" />
@@ -2237,8 +2237,8 @@ export default function WelcomeModal({ isOpen, onClose }: WelcomeModalProps) {
                 onClick={() => setCurrentPane(index)}
                 className={`w-2 h-2 rounded-full transition-colors ${
                   index === currentPane
-                    ? "bg-blue-600"
-                    : "bg-slate-300 hover:bg-slate-400"
+                    ? "bg-brand-600"
+                    : "bg-stone-300 hover:bg-stone-400"
                 }`}
                 aria-label={`Go to page ${index + 1}`}
               />
@@ -2251,9 +2251,9 @@ export default function WelcomeModal({ isOpen, onClose }: WelcomeModalProps) {
                 type="checkbox"
                 checked={dontShowAgain}
                 onChange={(e) => setDontShowAgain(e.target.checked)}
-                className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                className="w-4 h-4 rounded border-stone-300 text-brand-600 focus:ring-brand-500 cursor-pointer"
               />
-              <span className="text-sm text-slate-600">
+              <span className="text-sm text-stone-600">
                 Don't show this again
               </span>
             </label>
@@ -2263,7 +2263,7 @@ export default function WelcomeModal({ isOpen, onClose }: WelcomeModalProps) {
             {!isFirstPane && (
               <button
                 onClick={() => setCurrentPane(currentPane - 1)}
-                className="flex-1 px-4 py-3 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors font-medium flex items-center justify-center gap-2"
+                className="flex-1 px-4 py-3 border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 transition-colors font-medium flex items-center justify-center gap-2"
               >
                 <ChevronLeft className="w-4 h-4" />
                 Back
@@ -2272,14 +2272,14 @@ export default function WelcomeModal({ isOpen, onClose }: WelcomeModalProps) {
             {isLastPane ? (
               <button
                 onClick={handleClose}
-                className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                className="flex-1 px-4 py-3 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors font-medium"
               >
                 Get Started
               </button>
             ) : (
               <button
                 onClick={() => setCurrentPane(currentPane + 1)}
-                className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center justify-center gap-2"
+                className="flex-1 px-4 py-3 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors font-medium flex items-center justify-center gap-2"
               >
                 Next
                 <ChevronRight className="w-4 h-4" />

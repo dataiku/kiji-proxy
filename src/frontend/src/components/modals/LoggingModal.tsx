@@ -34,15 +34,15 @@ function getDirectionIcon(direction: string) {
     direction === "request" ||
     direction === "In"
   ) {
-    return <ArrowDownCircle className="w-4 h-4 text-blue-600" />;
+    return <ArrowDownCircle className="w-4 h-4 text-brand-600" />;
   }
   if (direction === "request_masked") {
-    return <ArrowDownCircle className="w-4 h-4 text-purple-600" />;
+    return <ArrowDownCircle className="w-4 h-4 text-stone-600" />;
   }
   if (direction === "response_masked") {
     return <ArrowUpCircle className="w-4 h-4 text-orange-600" />;
   }
-  return <ArrowUpCircle className="w-4 h-4 text-green-600" />;
+  return <ArrowUpCircle className="w-4 h-4 text-brand-600" />;
 }
 
 export default function LoggingModal({
@@ -68,7 +68,7 @@ export default function LoggingModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-brand-950/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       {/* Clear Confirmation Dialog */}
       {showClearConfirm && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-60">
@@ -77,11 +77,11 @@ export default function LoggingModal({
               <div className="p-2 bg-red-100 rounded-full">
                 <AlertTriangle className="w-6 h-6 text-red-600" />
               </div>
-              <h3 className="text-xl font-bold text-slate-800">
+              <h3 className="text-xl font-bold text-stone-800">
                 Clear All Logs?
               </h3>
             </div>
-            <p className="text-slate-600 mb-6">
+            <p className="text-stone-600 mb-6">
               This will permanently delete all {total} log entries. This action
               cannot be undone.
             </p>
@@ -89,7 +89,7 @@ export default function LoggingModal({
               <button
                 onClick={() => setShowClearConfirm(false)}
                 disabled={isClearing}
-                className="px-4 py-2 border-2 border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors font-medium disabled:opacity-50"
+                className="px-4 py-2 border-2 border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 transition-colors font-medium disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -122,10 +122,10 @@ export default function LoggingModal({
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2">
-            <FileText className="w-6 h-6 text-slate-700" />
-            <h2 className="text-2xl font-bold text-slate-800">Logging</h2>
+            <FileText className="w-6 h-6 text-stone-700" />
+            <h2 className="text-2xl font-bold text-stone-800">Logging</h2>
             {total > 0 && (
-              <span className="ml-2 px-2 py-1 bg-slate-100 text-slate-600 text-sm rounded-full">
+              <span className="ml-2 px-2 py-1 bg-stone-100 text-stone-600 text-sm rounded-full">
                 {total} entries
               </span>
             )}
@@ -143,7 +143,7 @@ export default function LoggingModal({
             )}
             <button
               onClick={onClose}
-              className="text-slate-500 hover:text-slate-700 transition-colors"
+              className="text-stone-500 hover:text-stone-700 transition-colors"
             >
               <X className="w-6 h-6" />
             </button>
@@ -153,15 +153,15 @@ export default function LoggingModal({
         {/* Toggle Slider */}
         <div className="mb-4 flex items-center gap-4">
           <div className="flex items-center gap-3">
-            <MessageSquare className="w-4 h-4 text-slate-600" />
-            <span className="text-sm font-medium text-slate-700">
+            <MessageSquare className="w-4 h-4 text-stone-600" />
+            <span className="text-sm font-medium text-stone-700">
               Messages Only
             </span>
           </div>
           <button
             onClick={() => setShowFullJson(!showFullJson)}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-              showFullJson ? "bg-blue-600" : "bg-slate-300"
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 ${
+              showFullJson ? "bg-brand-600" : "bg-stone-300"
             }`}
             role="switch"
             aria-checked={showFullJson}
@@ -173,12 +173,12 @@ export default function LoggingModal({
             />
           </button>
           <div className="flex items-center gap-3">
-            <span className="text-sm font-medium text-slate-700">
+            <span className="text-sm font-medium text-stone-700">
               Full JSON
             </span>
-            <Code className="w-4 h-4 text-slate-600" />
+            <Code className="w-4 h-4 text-stone-600" />
           </div>
-          <span className="text-sm text-slate-500 ml-2">
+          <span className="text-sm text-stone-500 ml-2">
             {showFullJson
               ? "Showing complete request/response"
               : "Showing message content only"}
@@ -204,37 +204,37 @@ export default function LoggingModal({
         <div className="flex-1 overflow-auto scrollbar-always-visible">
           {isLoading && logs.length === 0 ? (
             <div className="flex items-center justify-center py-12">
-              <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+              <div className="w-8 h-8 border-4 border-brand-600 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : logs.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-slate-500">
+            <div className="flex flex-col items-center justify-center py-12 text-stone-500">
               <FileText className="w-12 h-12 mb-4 opacity-50" />
               <p className="text-lg">No log entries found</p>
             </div>
           ) : (
             <div>
               <table className="border-collapse" style={{ minWidth: "1200px" }}>
-                <thead className="bg-slate-100 sticky top-0">
+                <thead className="bg-stone-100 sticky top-0">
                   <tr>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700 border-b border-slate-200">
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-stone-700 border-b border-stone-200">
                       Direction
                     </th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700 border-b border-slate-200">
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-stone-700 border-b border-stone-200">
                       Model
                     </th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700 border-b border-slate-200">
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-stone-700 border-b border-stone-200">
                       Message
                     </th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700 border-b border-slate-200">
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-stone-700 border-b border-stone-200">
                       Detected PII
                     </th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700 border-b border-slate-200">
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-stone-700 border-b border-stone-200">
                       Blocked
                     </th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700 border-b border-slate-200">
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-stone-700 border-b border-stone-200">
                       Time Stamp
                     </th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700 border-b border-slate-200">
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-stone-700 border-b border-stone-200">
                       <Flag className="w-4 h-4" />
                     </th>
                   </tr>
@@ -243,7 +243,7 @@ export default function LoggingModal({
                   {logs.map((log) => (
                     <tr
                       key={log.id}
-                      className={`hover:opacity-90 transition-colors border-b border-slate-100 ${getRowBackground(
+                      className={`hover:opacity-90 transition-colors border-b border-stone-100 ${getRowBackground(
                         log.direction
                       )}`}
                     >
@@ -255,19 +255,19 @@ export default function LoggingModal({
                           </span>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-sm text-slate-600">
+                      <td className="px-4 py-3 text-sm text-stone-600">
                         {log.model ? (
-                          <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs font-medium">
+                          <span className="px-2 py-1 bg-stone-100 text-stone-700 rounded text-xs font-medium">
                             {log.model}
                           </span>
                         ) : (
-                          <span className="text-slate-400">-</span>
+                          <span className="text-stone-400">-</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-sm text-slate-700">
+                      <td className="px-4 py-3 text-sm text-stone-700">
                         <div className="relative">
                           {log.messages && log.messages.length > 0 && (
-                            <div className="absolute -top-1 -right-1 px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full font-medium">
+                            <div className="absolute -top-1 -right-1 px-2 py-0.5 bg-brand-100 text-brand-700 text-xs rounded-full font-medium">
                               {log.messages.length} message
                               {log.messages.length !== 1 ? "s" : ""}
                             </div>
@@ -275,10 +275,10 @@ export default function LoggingModal({
                           <pre
                             className={`font-mono text-xs whitespace-pre-wrap break-words ${
                               showFullJson && isJson(log.message)
-                                ? "bg-slate-50 p-2 rounded border border-slate-200"
+                                ? "bg-stone-50 p-2 rounded border border-stone-200"
                                 : (log.messages && log.messages.length > 0) ||
                                   isJson(log.message)
-                                ? "p-2 rounded bg-gradient-to-br from-blue-50 to-slate-50 border border-blue-100"
+                                ? "p-2 rounded bg-gradient-to-br from-brand-50 to-stone-50 border border-brand-100"
                                 : ""
                             }`}
                           >
@@ -286,7 +286,7 @@ export default function LoggingModal({
                           </pre>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-sm text-slate-700">
+                      <td className="px-4 py-3 text-sm text-stone-700">
                         {log.detectedPII}
                       </td>
                       <td className="px-4 py-3 text-sm">
@@ -294,13 +294,13 @@ export default function LoggingModal({
                           className={`px-2 py-1 rounded text-xs font-medium ${
                             log.blocked
                               ? "bg-red-100 text-red-700"
-                              : "bg-green-100 text-green-700"
+                              : "bg-brand-100 text-brand-700"
                           }`}
                         >
                           {log.blocked ? "Yes" : "No"}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-sm text-slate-600">
+                      <td className="px-4 py-3 text-sm text-stone-600">
                         {formatTimestamp(log.timestamp)}
                       </td>
                       <td className="px-4 py-3 text-sm">
@@ -314,7 +314,7 @@ export default function LoggingModal({
                                 disabled={!hasPII}
                                 className={`flex items-center gap-1 px-2 py-1 rounded transition-colors ${
                                   !hasPII
-                                    ? "text-slate-300 cursor-not-allowed"
+                                    ? "text-stone-300 cursor-not-allowed"
                                     : "text-amber-600 hover:text-amber-700 hover:bg-amber-50"
                                 }`}
                                 title={
@@ -336,10 +336,10 @@ export default function LoggingModal({
 
               {/* Load More Button */}
               {hasMore && !isLoading && (
-                <div className="flex justify-center py-4 border-t border-slate-200">
+                <div className="flex justify-center py-4 border-t border-stone-200">
                   <button
                     onClick={handleLoadMore}
-                    className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                    className="px-6 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors font-medium"
                   >
                     Load More Logs
                   </button>
@@ -348,9 +348,9 @@ export default function LoggingModal({
 
               {/* Loading More Indicator */}
               {isLoading && logs.length > 0 && (
-                <div className="flex justify-center py-4 border-t border-slate-200">
-                  <div className="w-6 h-6 border-3 border-blue-600 border-t-transparent rounded-full animate-spin" />
-                  <span className="ml-3 text-sm text-slate-600">
+                <div className="flex justify-center py-4 border-t border-stone-200">
+                  <div className="w-6 h-6 border-3 border-brand-600 border-t-transparent rounded-full animate-spin" />
+                  <span className="ml-3 text-sm text-stone-600">
                     Loading more...
                   </span>
                 </div>
@@ -360,13 +360,13 @@ export default function LoggingModal({
         </div>
 
         {/* Footer */}
-        <div className="mt-4 pt-4 border-t border-slate-200 flex items-center justify-between">
+        <div className="mt-4 pt-4 border-t border-stone-200 flex items-center justify-between">
           <div className="flex flex-col gap-1">
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-stone-500">
               Showing {logs.length} of {total} log{" "}
               {total === 1 ? "entry" : "entries"}
               {hasMore && (
-                <span className="ml-2 text-slate-400">(more available)</span>
+                <span className="ml-2 text-stone-400">(more available)</span>
               )}
             </p>
             {total > MAX_PAGE_SIZE && (
@@ -379,7 +379,7 @@ export default function LoggingModal({
           </div>
           <button
             onClick={onClose}
-            className="px-6 py-2 border-2 border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors font-medium"
+            className="px-6 py-2 border-2 border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 transition-colors font-medium"
           >
             Close
           </button>

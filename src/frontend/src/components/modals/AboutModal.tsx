@@ -34,19 +34,19 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-brand-950/40 backdrop-blur-sm flex items-center justify-center z-50">
       <div className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 relative">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-slate-200">
+        <div className="flex items-center justify-between p-6 border-b border-stone-200">
           <div className="flex items-center gap-3">
-            <Info className="w-6 h-6 text-blue-600" />
-            <h2 className="text-xl font-semibold text-slate-800">
+            <Info className="w-6 h-6 text-brand-600" />
+            <h2 className="text-xl font-semibold text-stone-800">
               About Kiji Privacy Proxy™
             </h2>
           </div>
           <button
             onClick={onClose}
-            className="p-1 text-slate-400 hover:text-slate-600 transition-colors"
+            className="p-1 text-stone-400 hover:text-stone-600 transition-colors"
             aria-label="Close"
           >
             <X className="w-5 h-5" />
@@ -58,28 +58,28 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
           {/* Logo and Name */}
           <div className="flex flex-col items-center text-center">
             <img src={logoImage} alt="Kiji Logo" className="w-20 h-20 mb-4" />
-            <h3 className="text-2xl font-bold text-slate-800">
+            <h3 className="text-2xl font-bold text-stone-800">
               Kiji Privacy Proxy™
             </h3>
-            <p className="text-slate-600 mt-2">
+            <p className="text-stone-600 mt-2">
               PII Detection and Masking Proxy
             </p>
           </div>
 
           {/* Version Information */}
-          <div className="bg-slate-50 rounded-lg p-4">
+          <div className="bg-stone-50 rounded-lg p-4">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-slate-600">
+              <span className="text-sm font-medium text-stone-600">
                 Version:
               </span>
-              <span className="text-sm font-mono font-semibold text-slate-800">
+              <span className="text-sm font-mono font-semibold text-stone-800">
                 {version}
               </span>
             </div>
           </div>
 
           {/* Description */}
-          <div className="text-sm text-slate-600 space-y-2">
+          <div className="text-sm text-stone-600 space-y-2">
             <p>
               Kiji Privacy Proxy™ automatically detects and masks personally
               identifiable information (PII) in your API requests, ensuring data
@@ -93,7 +93,7 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
               href="https://github.com/dataiku/kiji-proxy/"
               target="_blank"
               rel="noopener noreferrer"
-              className="block text-sm text-blue-600 hover:text-blue-700 hover:underline"
+              className="block text-sm text-brand-600 hover:text-brand-700 hover:underline"
             >
               View on GitHub →
             </a>
@@ -101,7 +101,7 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
               href="https://github.com/dataiku/kiji-proxy/blob/main/docs/README.md"
               target="_blank"
               rel="noopener noreferrer"
-              className="block text-sm text-blue-600 hover:text-blue-700 hover:underline"
+              className="block text-sm text-brand-600 hover:text-brand-700 hover:underline"
             >
               Documentation →
             </a>
@@ -109,7 +109,7 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
               href="https://chromewebstore.google.com/detail/kiji-privacy-proxy-extens/knnjemahdeioghdgcpeikepmlajfihin"
               target="_blank"
               rel="noopener noreferrer"
-              className="block text-sm text-blue-600 hover:text-blue-700 hover:underline"
+              className="block text-sm text-brand-600 hover:text-brand-700 hover:underline"
             >
               Kiji Chrome Extension →
             </a>
@@ -117,7 +117,7 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
               href="https://github.com/dataiku/kiji-proxy/issues/new?template=10_bug_report.yml"
               target="_blank"
               rel="noopener noreferrer"
-              className="block text-sm text-blue-600 hover:text-blue-700 hover:underline"
+              className="block text-sm text-brand-600 hover:text-brand-700 hover:underline"
             >
               File a Bug Report →
             </a>
@@ -125,13 +125,13 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
               href="https://github.com/dataiku/kiji-proxy/discussions/new/choose"
               target="_blank"
               rel="noopener noreferrer"
-              className="block text-sm text-blue-600 hover:text-blue-700 hover:underline"
+              className="block text-sm text-brand-600 hover:text-brand-700 hover:underline"
             >
               Request a Feature →
             </a>
             <a
               href="mailto:opensource@dataiku.com?subject=[Kiji Privacy Proxy User]"
-              className="block text-sm text-blue-600 hover:text-blue-700 hover:underline"
+              className="block text-sm text-brand-600 hover:text-brand-700 hover:underline"
             >
               Email us →
             </a>
@@ -139,15 +139,15 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
               href="https://github.com/dataiku/kiji-proxy/blob/main/LICENSE"
               target="_blank"
               rel="noopener noreferrer"
-              className="block text-sm text-blue-600 hover:text-blue-700 hover:underline"
+              className="block text-sm text-brand-600 hover:text-brand-700 hover:underline"
             >
               Apache 2.0 License →
             </a>
           </div>
 
           {/* No Support Obligations */}
-          <div className="text-sm text-slate-600 space-y-2">
-            <h4 className="font-semibold text-slate-800">
+          <div className="text-sm text-stone-600 space-y-2">
+            <h4 className="font-semibold text-stone-800">
               No Support Obligations
             </h4>
             <p>
@@ -158,14 +158,14 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
           </div>
 
           {/* Copyright */}
-          <div className="pt-4 border-t border-slate-200 text-center">
-            <p className="text-xs text-slate-500">
+          <div className="pt-4 border-t border-stone-200 text-center">
+            <p className="text-xs text-stone-500">
               © {new Date().getFullYear()} -{" "}
               <a
                 href="https://www.dataiku.com/company/dataiku-for-the-future/open-source/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-600 hover:text-blue-700 hover:underline"
+                className="text-brand-600 hover:text-brand-700 hover:underline"
               >
                 575 Lab
               </a>{" "}
@@ -177,10 +177,10 @@ export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
         </div>
 
         {/* Footer */}
-        <div className="p-4 bg-slate-50 rounded-b-xl">
+        <div className="p-4 bg-stone-50 rounded-b-xl">
           <button
             onClick={onClose}
-            className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+            className="w-full px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors font-medium"
           >
             Close
           </button>

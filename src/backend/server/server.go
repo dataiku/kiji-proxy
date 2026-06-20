@@ -247,6 +247,11 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/pii/entities", s.handlePIIEntities)
 	mux.HandleFunc("/api/pii/regexes", s.handlePIIRegexes)
 
+	// Dashboard API (see docs/dashboard-api.md)
+	mux.HandleFunc("/v1/dashboard", s.dashboardHandler)
+	mux.HandleFunc("/v1/dashboard/timeseries", s.dashboardTimeseriesHandler)
+	mux.HandleFunc("/v1/dashboard/activity", s.dashboardActivityHandler)
+
 	// Add provider endpoints
 	mux.Handle(providers.ProviderSubpathOpenAI, s.handler) // same as Mistral
 	mux.Handle(providers.ProviderSubpathAnthropic, s.handler)
@@ -465,7 +470,7 @@ func (s *Server) corsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, DELETE")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-OpenAI-API-Key")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-OpenAI-API-Key, X-Kiji-Source")
 	w.Header().Set("Access-Control-Max-Age", "3600")
 }
 
