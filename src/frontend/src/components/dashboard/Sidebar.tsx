@@ -7,13 +7,16 @@ import {
 } from "lucide-react";
 import logoImage from "../../../assets/kiji_proxy.svg";
 
-export type ViewId = "dashboard" | "playground" | "settings";
-export type ModalId = "logging" | "mappings";
+export type ViewId =
+  | "dashboard"
+  | "playground"
+  | "activity"
+  | "mappings"
+  | "settings";
 
 interface SidebarProps {
   active: ViewId;
   onNavigate: (view: ViewId) => void;
-  onOpenModal: (modal: ModalId) => void;
   server: {
     status: "online" | "degraded" | "offline";
     version: string | null;
@@ -42,7 +45,6 @@ const STATUS = {
 export default function Sidebar({
   active,
   onNavigate,
-  onOpenModal,
   server,
   counts,
 }: SidebarProps) {
@@ -73,13 +75,19 @@ export default function Sidebar({
         >
           <Wand2 /> Playground <span className="cnt">mask</span>
         </button>
-        <button className="kiji-navitem" onClick={() => onOpenModal("logging")}>
+        <button
+          className={`kiji-navitem${active === "activity" ? " is-active" : ""}`}
+          onClick={() => onNavigate("activity")}
+        >
           <List /> Activity
           {counts?.activity != null && (
             <span className="cnt">{counts.activity}</span>
           )}
         </button>
-        <button className="kiji-navitem" onClick={() => onOpenModal("mappings")}>
+        <button
+          className={`kiji-navitem${active === "mappings" ? " is-active" : ""}`}
+          onClick={() => onNavigate("mappings")}
+        >
           <Database /> Mappings
           {counts?.mappings && <span className="cnt">{counts.mappings}</span>}
         </button>

@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { isElectron } from "../utils/providerHelpers";
 import { useServerHealth } from "../hooks/useServerHealth";
-import Sidebar, { ViewId, ModalId } from "./dashboard/Sidebar";
+import Sidebar, { ViewId } from "./dashboard/Sidebar";
 import DashboardView from "./dashboard/DashboardView";
 import SettingsView from "./settings/SettingsView";
+import ActivityView from "./activity/ActivityView";
+import MappingsView from "./mappings/MappingsView";
 import PrivacyProxyUI from "./privacy-proxy-ui";
 
 /**
@@ -11,16 +13,13 @@ import PrivacyProxyUI from "./privacy-proxy-ui";
  *
  * The deep-forest sidebar is the always-on server (persistent nav + live
  * status); the light area is the workspace. The Dashboard is home; the original
- * masking tool lives under the "Playground" view; Settings is its own
- * (SettingsView) page. Activity / Mappings reuse the existing modals (rendered
- * by PrivacyProxyUI) and are triggered via a signal so we don't duplicate their
- * state here.
+ * masking tool lives under the "Playground" view; Settings, Activity, and
+ * Mappings are each their own workspace view. Only the Playground is kept
+ * mounted (so its in-progress state survives navigation); the other views mount
+ * on demand and load their data fresh.
  */
 export default function AppShell() {
   const [view, setView] = useState<ViewId>("dashboard");
-  const [modalSignal, setModalSignal] = useState<
-    { type: "mappings" | "logging"; n: number } | undefined
-  >(undefined);
   // Bumped after a successful provider save so the Playground re-reads its
   // cached provider config (the selector ✓ marks, active provider, etc.).
   const [settingsReloadN, setSettingsReloadN] = useState(0);
@@ -40,31 +39,25 @@ export default function AppShell() {
     port: 8080,
   } as const;
 
-  const openModal = (modal: ModalId) => {
-    setView("playground");
-    setModalSignal({ type: modal, n: Date.now() });
-  };
-
   return (
     <div className="kiji-shell">
-      <Sidebar
-        active={view}
-        onNavigate={setView}
-        onOpenModal={openModal}
-        server={server}
-      />
+      <Sidebar active={view} onNavigate={setView} server={server} />
       <main className="kiji-main">
         {view === "dashboard" && <DashboardView />}
+        {view === "activity" && (
+          <ActivityView modelSignature={modelSignature} />
+        )}
+        {view === "mappings" && <MappingsView />}
         {view === "settings" && (
           <SettingsView
             onProvidersSaved={() => setSettingsReloadN((n) => n + 1)}
           />
         )}
-        {/* Kept mounted so Playground state and modals persist across nav */}
+        {/* Kept mounted so Playground state persists across navigation */}
         <div hidden={view !== "playground"}>
           <PrivacyProxyUI
             embedded
-            openModalSignal={modalSignal}
+            onRequestSettings={() => setView("settings")}
             reloadSettingsSignal={settingsReloadN}
           />
         </div>

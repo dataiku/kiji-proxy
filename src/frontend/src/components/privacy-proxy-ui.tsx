@@ -3,12 +3,10 @@ import {
   Send,
   AlertCircle,
   Settings,
-  FileText,
   Info,
   Menu,
   Flag,
   HelpCircle,
-  Database,
   ArrowRight,
   Eye,
   CornerDownLeft,
@@ -16,8 +14,6 @@ import {
 } from "lucide-react";
 import logoImage from "../../assets/kiji_proxy.svg";
 import kijiMascot from "../../assets/kiji_proxy.svg";
-import LoggingModal from "./modals/LoggingModal";
-import MappingsModal from "./modals/MappingsModal";
 import AboutModal from "./modals/AboutModal";
 import MisclassificationModal from "./modals/MisclassificationModal";
 import WelcomeModal from "./modals/WelcomeModal";
@@ -31,7 +27,7 @@ import {
   GO_SERVER_PORT,
   isElectron,
 } from "../utils/providerHelpers";
-import type { ProviderType, LogEntry } from "../types/provider";
+import type { ProviderType } from "../types/provider";
 import { PROVIDER_NAMES } from "../types/provider";
 
 export interface PrivacyProxyUIProps {
@@ -41,14 +37,6 @@ export interface PrivacyProxyUIProps {
    * "Playground" view. Navigation and server status are provided by the shell.
    */
   embedded?: boolean;
-  /**
-   * Lets the host (e.g. the shell sidebar) open one of this component's modals.
-   * Bump `n` to re-trigger the same modal.
-   */
-  openModalSignal?: {
-    type: "mappings" | "logging";
-    n: number;
-  };
   /**
    * Bumped by the host after a settings change (e.g. a provider save) so the
    * Playground re-reads its cached provider config.
@@ -63,13 +51,10 @@ export interface PrivacyProxyUIProps {
 
 export default function PrivacyProxyUI({
   embedded = false,
-  openModalSignal,
   reloadSettingsSignal,
   onRequestSettings,
 }: PrivacyProxyUIProps = {}) {
   // UI toggle state (simple enough to stay in the component)
-  const [isLoggingOpen, setIsLoggingOpen] = useState(false);
-  const [isMappingsOpen, setIsMappingsOpen] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
@@ -78,16 +63,6 @@ export default function PrivacyProxyUI({
     "request" | "response"
   >("request");
   const menuRef = useRef<HTMLDivElement>(null);
-
-  // Allow the host shell to open modals (Settings / Mappings / Logging / About).
-  useEffect(() => {
-    if (!openModalSignal) return;
-    const openers = {
-      mappings: setIsMappingsOpen,
-      logging: setIsLoggingOpen,
-    } as const;
-    openers[openModalSignal.type]?.(true);
-  }, [openModalSignal]);
 
   // Settings & provider state
   const settings = useElectronSettings({
@@ -218,26 +193,6 @@ export default function PrivacyProxyUI({
                 </button>
                 {isMenuOpen && (
                   <div className="absolute left-0 mt-2 w-52 bg-white rounded-xl shadow-lift ring-1 ring-brand-900/10 z-50 p-1.5 animate-rise-in">
-                    <button
-                      onClick={() => {
-                        setIsMappingsOpen(true);
-                        setIsMenuOpen(false);
-                      }}
-                      className="w-full text-left px-3 py-2.5 text-sm text-stone-700 hover:bg-brand-50 hover:text-brand-800 rounded-lg transition-colors flex items-center gap-2.5"
-                    >
-                      <Database className="w-4 h-4 text-stone-400" />
-                      Mappings
-                    </button>
-                    <button
-                      onClick={() => {
-                        setIsLoggingOpen(true);
-                        setIsMenuOpen(false);
-                      }}
-                      className="w-full text-left px-3 py-2.5 text-sm text-stone-700 hover:bg-brand-50 hover:text-brand-800 rounded-lg transition-colors flex items-center gap-2.5"
-                    >
-                      <FileText className="w-4 h-4 text-stone-400" />
-                      Logging
-                    </button>
                     <button
                       onClick={() => {
                         onRequestSettings?.();
@@ -754,21 +709,6 @@ export default function PrivacyProxyUI({
         )}
       </div>
       )}
-
-      {/* Logging Modal */}
-      <LoggingModal
-        isOpen={isLoggingOpen}
-        onClose={() => setIsLoggingOpen(false)}
-        onReportMisclassification={(logEntry: LogEntry) =>
-          misclassification.handleReportFromLog(logEntry, modelSignature)
-        }
-      />
-
-      {/* Mappings Modal */}
-      <MappingsModal
-        isOpen={isMappingsOpen}
-        onClose={() => setIsMappingsOpen(false)}
-      />
 
       {/* About Modal */}
       <AboutModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} />
