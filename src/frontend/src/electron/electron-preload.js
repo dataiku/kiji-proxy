@@ -124,6 +124,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
     return await ipcRenderer.invoke("set-welcome-dismissed", dismissed);
   },
 
+  // Get admin flag
+  getAdmin: async () => {
+    return await ipcRenderer.invoke("get-admin");
+  },
+
+  // Set admin flag
+  setAdmin: async (admin) => {
+    return await ipcRenderer.invoke("set-admin", admin);
+  },
+
   // Listen for tour menu command
   onTourOpen: (callback) => {
     ipcRenderer.on("open-tour", callback);

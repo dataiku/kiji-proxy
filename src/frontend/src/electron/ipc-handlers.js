@@ -427,6 +427,8 @@ const registerIpcHandlers = ({
     booleanField
   );
 
+  defineConfigField("admin", "get-admin", "set-admin", booleanField);
+
   // ---- Model directory management ----
 
   ipcMain.handle("select-model-directory", async () => {

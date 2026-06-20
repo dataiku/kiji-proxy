@@ -62,6 +62,11 @@ interface ElectronAPI {
   setWelcomeDismissed: (
     dismissed: boolean
   ) => Promise<{ success: boolean; error?: string }>;
+  // Admin flag
+  getAdmin: () => Promise<boolean>;
+  setAdmin: (
+    admin: boolean
+  ) => Promise<{ success: boolean; error?: string }>;
   // Tour completed flag
   getTourCompleted: () => Promise<boolean>;
   setTourCompleted: (

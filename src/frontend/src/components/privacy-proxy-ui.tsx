@@ -16,7 +16,7 @@ import logoImage from "../../assets/kiji_proxy.svg";
 import kijiMascot from "../../assets/kiji_proxy.svg";
 import AboutModal from "./modals/AboutModal";
 import MisclassificationModal from "./modals/MisclassificationModal";
-import WelcomeModal from "./modals/WelcomeModal";
+import WelcomeModal from "./onboarding/WelcomeModal";
 import { useTour } from "../tour/useTour";
 import { useServerHealth } from "../hooks/useServerHealth";
 import { useElectronSettings } from "../hooks/useElectronSettings";
