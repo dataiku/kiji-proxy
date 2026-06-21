@@ -29,18 +29,27 @@ export default function SettingsView({ onProvidersSaved }: SettingsViewProps) {
         </p>
       </div>
 
-      {!isElectron ? (
-        <div className="card p-6 text-sm text-stone-600">
-          Settings are only available in the desktop app.
-        </div>
-      ) : (
-        <div className="space-y-4 animate-rise-in">
-          <ProvidersSection onSaved={onProvidersSaved} />
-          <PIISection />
-          <AdvancedSection onOpenCACert={openCACert} />
-          <CertificatesSection onOpenCACert={openCACert} />
-        </div>
-      )}
+      <div className="space-y-4 animate-rise-in">
+        {/* PII detection is configurable everywhere (talks to the backend over
+            HTTP). The remaining sections rely on the desktop app's native
+            integration — provider keys come from env vars on a server, the model
+            directory uses a native picker, and certificate install is OS-level —
+            so they are only shown in the desktop app. */}
+        {isElectron && <ProvidersSection onSaved={onProvidersSaved} />}
+        <PIISection />
+        {isElectron ? (
+          <>
+            <AdvancedSection onOpenCACert={openCACert} />
+            <CertificatesSection onOpenCACert={openCACert} />
+          </>
+        ) : (
+          <div className="card p-6 text-sm text-stone-600">
+            Provider keys, model directory, and certificate installation are
+            configured via environment variables and the desktop app on server
+            deployments.
+          </div>
+        )}
+      </div>
 
       {/* Shared CA certificate setup wizard */}
       <CACertSetupModal

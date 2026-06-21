@@ -9,7 +9,6 @@ import {
   Check,
 } from "lucide-react";
 import type { MappingSortColumn, SortOrder } from "../../types/provider";
-import { isElectron } from "../../utils/providerHelpers";
 import { useMappings } from "../../hooks/useMappings";
 import { formatTimestamp } from "../../utils/logFormatters";
 
@@ -176,12 +175,7 @@ export default function MappingsView() {
         </div>
       </div>
 
-      {!isElectron ? (
-        <div className="card p-6 text-sm text-stone-600">
-          Mappings are only available in the desktop app.
-        </div>
-      ) : (
-        <div className="animate-rise-in">
+      <div className="animate-rise-in">
           {/* Error display */}
           {error && (
             <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
@@ -347,7 +341,6 @@ export default function MappingsView() {
             </p>
           )}
         </div>
-      )}
     </div>
   );
 }

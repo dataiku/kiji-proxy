@@ -595,6 +595,31 @@ StandardError=journal
 WantedBy=multi-user.target
 ```
 
+### Protecting the UI (HTTP Basic Auth)
+
+On a server the web UI exposes the dashboard, PII **mappings**, logs, and settings,
+so you usually want it admin-only. Set a username and password and the proxy guards
+the UI and admin API with HTTP Basic Auth:
+
+```bash
+# add to /etc/kiji-proxy.env
+KIJI_BASIC_AUTH_USERNAME=admin
+KIJI_BASIC_AUTH_PASSWORD=change-me
+# KIJI_BASIC_AUTH_ENABLED=false   # kill switch: force auth off even if creds are set
+```
+
+- **Auth turns on automatically** once **both** `KIJI_BASIC_AUTH_USERNAME` and
+  `KIJI_BASIC_AUTH_PASSWORD` are set. With neither set (the default) the UI is
+  unprotected, so the desktop build and existing setups are unaffected.
+- **Protected** (require credentials): the UI (`/`) and the admin/data endpoints
+  `/api/mappings`, `/api/dashboard`, `/api/logs`, `/api/stats`, `/api/model/*`,
+  `/api/proxy/*`.
+- **Always open** (never challenged): the LLM proxy routes `/v1/*` and `/v1beta/*`
+  (so API clients with their own keys keep working), all `/api/pii/*` endpoints, and
+  `/api/health` / `/api/version` (for load-balancer probes).
+- Set `KIJI_BASIC_AUTH_ENABLED=false` to disable auth even when credentials are
+  present (only the literal `true` keeps it on).
+
 ### Docker Deployment
 
 ```dockerfile

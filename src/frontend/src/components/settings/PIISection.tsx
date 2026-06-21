@@ -7,7 +7,7 @@ import {
   Plus,
   Minus,
 } from "lucide-react";
-import { isElectron } from "../../utils/providerHelpers";
+import { apiUrl, isElectron } from "../../utils/providerHelpers";
 
 // Friendly display names for the model's raw entity labels. Unknown labels
 // (e.g. from a custom model) fall back to a capitalized form.
@@ -72,31 +72,33 @@ export default function PIISection() {
   const [regexesSaved, setRegexesSaved] = useState(false);
   const [regexError, setRegexError] = useState<string | null>(null);
 
+  // PII settings are read from / written to the backend over HTTP so this works
+  // both in the desktop app and in the browser-served server build. apiUrl()
+  // targets localhost:8080 under Electron and a relative path in web mode.
   const loadEntityConfidence = async () => {
-    if (!window.electronAPI) return;
-
     try {
-      const confidence = await window.electronAPI.getEntityConfidence();
-      setEntityConfidence(confidence);
+      const res = await fetch(apiUrl("/api/pii/confidence", isElectron));
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (typeof data.confidence === "number") {
+        setEntityConfidence(data.confidence);
+      }
     } catch (error) {
       console.error("Error loading entity confidence:", error);
     }
   };
 
   const loadEntities = async () => {
-    if (!window.electronAPI) return;
-
     try {
-      const [info, savedDisabled] = await Promise.all([
-        window.electronAPI.getAvailableEntities(),
-        window.electronAPI.getDisabledEntities(),
-      ]);
-      const available = info?.available ?? [];
+      const res = await fetch(apiUrl("/api/pii/entities", isElectron));
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const available: string[] = data.available ?? [];
       setAvailableEntities(available);
       // The stored value is the exclusion list (types left unmasked). A checkbox
       // is checked when its type is NOT excluded, so the default (nothing
       // excluded) shows everything checked => mask everything.
-      const disabled = new Set(savedDisabled ?? []);
+      const disabled = new Set<string>(data.disabled ?? []);
       setEnabledEntities(new Set(available.filter((e) => !disabled.has(e))));
     } catch (error) {
       console.error("Error loading entities:", error);
@@ -104,11 +106,11 @@ export default function PIISection() {
   };
 
   const loadRegexes = async () => {
-    if (!window.electronAPI) return;
-
     try {
-      const info = await window.electronAPI.getCustomRegexes();
-      setCustomRegexes(info?.regexes ?? []);
+      const res = await fetch(apiUrl("/api/pii/regexes", isElectron));
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setCustomRegexes(data.regexes ?? []);
       setSelectedRegexIndex(null);
     } catch (error) {
       console.error("Error loading custom regexes:", error);
@@ -116,21 +118,22 @@ export default function PIISection() {
   };
 
   useEffect(() => {
-    if (isElectron) {
-      /* eslint-disable react-hooks/set-state-in-effect */
-      loadEntityConfidence();
-      loadEntities();
-      loadRegexes();
-      /* eslint-enable react-hooks/set-state-in-effect */
-    }
+    /* eslint-disable react-hooks/set-state-in-effect */
+    loadEntityConfidence();
+    loadEntities();
+    loadRegexes();
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, []);
 
   const handleSetEntityConfidence = async (confidence: number) => {
-    if (!window.electronAPI) return;
-
     setEntityConfidence(confidence);
     try {
-      await window.electronAPI.setEntityConfidence(confidence);
+      const res = await fetch(apiUrl("/api/pii/confidence", isElectron), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confidence }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setConfidenceSaved(true);
       setTimeout(() => setConfidenceSaved(false), 2000);
     } catch (error) {
@@ -139,14 +142,17 @@ export default function PIISection() {
   };
 
   const persistEnabledEntities = async (next: Set<string>) => {
-    if (!window.electronAPI) return;
-
     setEnabledEntities(next);
     // Persist the inverse — the exclusion list of types to leave unmasked — so an
     // empty selection means "mask everything" and never leaks PII by accident.
     const disabled = availableEntities.filter((label) => !next.has(label));
     try {
-      await window.electronAPI.setDisabledEntities(disabled);
+      const res = await fetch(apiUrl("/api/pii/entities", isElectron), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ disabled }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setEntitiesSaved(true);
       setTimeout(() => setEntitiesSaved(false), 2000);
     } catch (error) {
@@ -172,8 +178,6 @@ export default function PIISection() {
   const persistRegexes = async (
     rows: Array<{ name: string; pattern: string }>
   ) => {
-    if (!window.electronAPI) return;
-
     // Only send complete rows; a freshly added blank row stays in the editor
     // until the user fills both fields in. The name is used as the entity type,
     // so both name and pattern are required.
@@ -183,8 +187,12 @@ export default function PIISection() {
 
     setRegexError(null);
     try {
-      const result = await window.electronAPI.setCustomRegexes(complete);
-      if (result?.success === false) {
+      const res = await fetch(apiUrl("/api/pii/regexes", isElectron), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ regexes: complete }),
+      });
+      if (!res.ok) {
         // The backend rejects invalid patterns with a 400; surface a friendly
         // hint rather than the low-level transport error.
         setRegexError(
