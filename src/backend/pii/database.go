@@ -562,7 +562,9 @@ type MetricsSeedRow struct {
 // MetricsSeedRows returns up to limit most-recent proxied requests (the
 // "request_masked" log rows) projected for metrics seeding. The original PII in
 // detected_pii is intentionally discarded; only the type label and confidence
-// of each entity are read out.
+// of each entity are read out. Latency is not reconstructed here: the log rows
+// don't record masking time, so seeded requests carry no latency (the live proxy
+// path measures and records the added overhead going forward).
 func (s *SQLitePIIMappingDB) MetricsSeedRows(ctx context.Context, limit int) ([]MetricsSeedRow, error) {
 	query := `
 	SELECT timestamp, model, detected_pii

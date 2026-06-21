@@ -34,7 +34,7 @@ type RequestSample struct {
 	Types       []string  // PII entity labels that were masked in this request
 	Confidences []float64 // per-entity detection confidence (0..1)
 	LeakedCount int       // entities deliberately left unmasked (e.g. disabled types)
-	LatencyMS   int       // total proxy overhead for the request
+	LatencyMS   int       // added overhead: request masking + response restoration (not the upstream round trip)
 	StatusCode  int       // upstream HTTP status
 	Preview     string    // already-masked, safe-to-display descriptor (never raw PII)
 	At          time.Time // completion time; zero means "now"

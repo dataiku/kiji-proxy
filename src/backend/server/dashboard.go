@@ -134,26 +134,26 @@ type highlightsBlock struct {
 
 // --- label maps (UI-friendly names; aggregation stays on raw labels) ---
 
-var piiTypeLabels = map[string]string{
-	"PERSON":        "Names",
-	"EMAIL":         "Emails",
-	"EMAIL_ADDRESS": "Emails",
-	"PHONE":         "Phone numbers",
-	"PHONE_NUMBER":  "Phone numbers",
-	"ADDRESS":       "Addresses",
-	"LOCATION":      "Locations",
-	"CREDIT_CARD":   "Credit cards",
-	"SSN":           "SSNs",
-	"ORG":           "Organizations",
-	"ORGANIZATION":  "Organizations",
-}
+// var piiTypeLabels = map[string]string{
+// 	"PERSON":        "Names",
+// 	"EMAIL":         "Emails",
+// 	"EMAIL_ADDRESS": "Emails",
+// 	"PHONE":         "Phone numbers",
+// 	"PHONE_NUMBER":  "Phone numbers",
+// 	"ADDRESS":       "Addresses",
+// 	"LOCATION":      "Locations",
+// 	"CREDIT_CARD":   "Credit cards",
+// 	"SSN":           "SSNs",
+// 	"ORG":           "Organizations",
+// 	"ORGANIZATION":  "Organizations",
+// }
 
-func piiLabel(t string) string {
-	if l, ok := piiTypeLabels[t]; ok {
-		return l
-	}
-	return titleish(t)
-}
+// func piiLabel(t string) string {
+// 	if l, ok := piiTypeLabels[t]; ok {
+// 		return l
+// 	}
+// 	return titleish(t)
+// }
 
 var providerLabels = map[string]string{
 	"openai":    "OpenAI",
@@ -294,10 +294,11 @@ func (s *Server) buildDashboard(rangeStr string, dur time.Duration) dashboardRes
 		status = "degraded"
 	}
 	resp.Server = serverBlock{
-		Status:  status,
-		Version: s.version,
-		Port:    s.dashboardPort(),
-		Model:   modelBlock{Signature: sig, Hash: hash, Healthy: healthy},
+		Status:        status,
+		UptimeSeconds: s.uptimeSeconds(),
+		Version:       s.version,
+		Port:          s.dashboardPort(),
+		Model:         modelBlock{Signature: sig, Hash: hash, Healthy: healthy},
 	}
 
 	mc := s.handler.Metrics()
@@ -313,7 +314,6 @@ func (s *Server) buildDashboard(rangeStr string, dur time.Duration) dashboardRes
 		return resp
 	}
 
-	resp.Server.UptimeSeconds = int64(mc.Uptime().Seconds())
 	snap := mc.Snapshot(dur, now)
 
 	// KPIs
@@ -326,11 +326,11 @@ func (s *Server) buildDashboard(rangeStr string, dur time.Duration) dashboardRes
 		DeltaWindow: snap.DeltaWindow, Spark: spark,
 	}
 	resp.KPIs.RequestsProxied = kpiRequests{Total: snap.Requests, Today: snap.RequestsToday}
-	rate := 1.0
-	if denom := snap.PIIMasked + snap.Leaked; denom > 0 {
-		rate = round2(float64(snap.PIIMasked) / float64(denom))
-	}
-	resp.KPIs.PIILeaked = kpiLeaked{Total: snap.Leaked, MaskedRate: rate}
+	// rate := 1.0
+	// if denom := snap.PIIMasked + snap.Leaked; denom > 0 {
+	// 	rate = round2(float64(snap.PIIMasked) / float64(denom))
+	// }
+	// resp.KPIs.PIILeaked = kpiLeaked{Total: snap.Leaked, MaskedRate: rate}
 	resp.KPIs.LatencyMS = kpiLatency{AvgAdded: snap.LatencyAvg, P95Added: snap.LatencyP95}
 	resp.KPIs.DetectionConfidence = kpiConfidence{Avg: round2(snap.ConfidenceAvg)}
 
@@ -349,7 +349,7 @@ func (s *Server) buildDashboard(rangeStr string, dur time.Duration) dashboardRes
 			share = round2(float64(t.Count) / float64(snap.CompositionTotal))
 		}
 		comp.ByType = append(comp.ByType, compEntry{
-			Type: t.Type, Label: piiLabel(t.Type), Count: t.Count, Share: share,
+			Type: t.Type, Label: t.Type, Count: t.Count, Share: share,
 		})
 	}
 	resp.Composition = comp

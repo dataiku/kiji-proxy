@@ -25,7 +25,7 @@ export default function AppShell() {
   // cached provider config (the selector ✓ marks, active provider, etc.).
   const [settingsReloadN, setSettingsReloadN] = useState(0);
 
-  const { serverStatus, serverHealth, modelSignature, version } =
+  const { serverStatus, serverHealth, modelSignature, version, uptimeSeconds } =
     useServerHealth(isElectron);
 
   const server = {
@@ -38,13 +38,16 @@ export default function AppShell() {
     version,
     model: modelSignature,
     port: 8080,
+    uptimeSeconds: uptimeSeconds ?? undefined,
   } as const;
 
   return (
     <div className="kiji-shell">
       <Sidebar active={view} onNavigate={setView} server={server} />
       <main className="kiji-main">
-        {view === "dashboard" && <DashboardView />}
+        {view === "dashboard" && (
+          <DashboardView onShowActivity={() => setView("activity")} />
+        )}
         {view === "activity" && (
           <ActivityView modelSignature={modelSignature} />
         )}

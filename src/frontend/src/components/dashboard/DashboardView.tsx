@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Shield, TrendingUp, Send } from "lucide-react";
+import { Shield, TrendingUp, Send, ArrowRight } from "lucide-react";
 import { isElectron } from "../../utils/providerHelpers";
 import { useDashboardData } from "../../hooks/useDashboardData";
 import type {
@@ -17,6 +17,10 @@ const RANGES: { id: DashboardRange; label: string }[] = [
 ];
 
 const SEGMENT_COLORS = ["#1f8568", "#5dc1a6", "#ecaa4f", "#195545", "#d6d3d1"];
+
+// The dashboard feed is a glance, not a log — show only the latest few and send
+// users to the Activity tab for the full, paginated history.
+const RECENT_LIMIT = 5;
 
 function fmt(n: number): string {
   return n.toLocaleString("en-US");
@@ -201,7 +205,11 @@ function FeedRow({ item }: { item: RecentIntercept }) {
 
 /* ---- the view ---- */
 
-export default function DashboardView() {
+export default function DashboardView({
+  onShowActivity,
+}: {
+  onShowActivity?: () => void;
+}) {
   const [range, setRange] = useState<DashboardRange>("30d");
   const { data, loading, error } = useDashboardData(range, isElectron);
 
@@ -447,7 +455,7 @@ export default function DashboardView() {
                 <span className="text-xs text-stone-400 font-medium">live</span>
               </h3>
               <div className="flex flex-col mt-2">
-                {data.recent.map((item) => (
+                {data.recent.slice(0, RECENT_LIMIT).map((item) => (
                   <FeedRow key={item.id} item={item} />
                 ))}
                 {data.recent.length === 0 && (
@@ -459,6 +467,16 @@ export default function DashboardView() {
                   </div>
                 )}
               </div>
+              {data.recent.length > 0 && onShowActivity && (
+                <button
+                  type="button"
+                  onClick={onShowActivity}
+                  className="mt-3 w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-brand-700 hover:text-brand-800"
+                >
+                  View all activity
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
           </div>
         </>

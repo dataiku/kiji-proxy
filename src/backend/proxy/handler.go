@@ -209,7 +209,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to process request", http.StatusInternalServerError)
 		return
 	}
-	log.Printf("[Timing] Request PII processing: %v", time.Since(processStart))
+	requestMaskTime := time.Since(processStart)
+	log.Printf("[Timing] Request PII processing: %v", requestMaskTime)
 
 	// Create and send proxy request with redacted body
 	proxyStart := time.Now()
@@ -235,7 +236,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Process response through shared PII pipeline
 	responseProcessStart := time.Now()
 	modifiedBody := h.ProcessResponseBody(r.Context(), respBody, resp.Header.Get("Content-Type"), processed.MaskedToOriginal, processed.TransactionID, provider)
-	log.Printf("[Timing] Response PII restoration: %v", time.Since(responseProcessStart))
+	responseRestoreTime := time.Since(responseProcessStart)
+	log.Printf("[Timing] Response PII restoration: %v", responseRestoreTime)
 
 	// If details are requested, enhance response with PII metadata
 	if includeDetails && resp.StatusCode == http.StatusOK {
@@ -344,10 +346,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[Timing] TOTAL ServeHTTP duration: %v", totalTime)
 	log.Printf("Proxied %s %s - Status: %d", r.Method, r.URL.Path, resp.StatusCode)
 
-	// Record dashboard metrics. Privacy-safe by construction: only entity
-	// labels, confidences, and an already-masked preview leave this scope —
-	// never the original PII text.
-	h.recordMetrics(provider, processed, sourceFromRequest(r), totalTime, resp.StatusCode)
+	// Record dashboard metrics. The recorded latency is the proxy's *added*
+	// overhead — masking the request plus restoring the response — not the full
+	// round trip, which is dominated by the upstream LLM call and would swamp it.
+	// Privacy-safe by construction: only entity labels, confidences, and an
+	// already-masked preview leave this scope — never the original PII text.
+	h.recordMetrics(provider, processed, sourceFromRequest(r), requestMaskTime+responseRestoreTime, resp.StatusCode)
 }
 
 // recordMetrics folds a processed-and-forwarded request into the in-memory
@@ -424,7 +428,9 @@ type metricsSeedSource interface {
 // seedMetricsFromLogs replays persisted request logs into the in-memory metrics
 // collector so the dashboard reflects history (and survives restarts) instead of
 // starting from zero each boot. Best-effort and privacy-safe: only entity types,
-// confidences, and timestamps are used — never original PII.
+// confidences, and timestamps are used — never original PII. Latency is left
+// unknown for seeded rows (the logs don't capture masking time); the live proxy
+// path records the added overhead for requests served after startup.
 func (h *Handler) seedMetricsFromLogs() {
 	if h.metrics == nil {
 		return

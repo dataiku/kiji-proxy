@@ -80,8 +80,15 @@ type Server struct {
 	modelFS                 fs.FS
 	rateLimiter             *RateLimiter
 	version                 string
+	startedAt               time.Time // process start; basis for the reported uptime
 	transparentProxyEnabled bool
 	transparentProxyMu      sync.RWMutex
+}
+
+// uptimeSeconds reports how long the server has been running, as a whole-second
+// delta between now and the recorded start time.
+func (s *Server) uptimeSeconds() int64 {
+	return int64(time.Since(s.startedAt).Seconds())
 }
 
 // NewServer creates a new server instance
@@ -122,6 +129,7 @@ func NewServer(cfg *config.Config, version string) (*Server, error) {
 		systemProxyManager:      systemProxyManager,
 		rateLimiter:             rateLimiter,
 		version:                 version,
+		startedAt:               time.Now(),
 		transparentProxyEnabled: cfg.Proxy.TransparentEnabled,
 	}
 
@@ -171,6 +179,7 @@ func NewServerWithEmbedded(cfg *config.Config, uiFS, modelFS fs.FS, version stri
 		modelFS:                 modelFS,
 		rateLimiter:             rateLimiter,
 		version:                 version,
+		startedAt:               time.Now(),
 		transparentProxyEnabled: cfg.Proxy.TransparentEnabled,
 	}
 
@@ -420,9 +429,10 @@ func (s *Server) healthCheck(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response := map[string]interface{}{
-		"status":        status,
-		"service":       "Kiji Privacy Proxy Service",
-		"model_healthy": modelHealthy,
+		"status":         status,
+		"service":        "Kiji Privacy Proxy Service",
+		"model_healthy":  modelHealthy,
+		"uptime_seconds": s.uptimeSeconds(),
 	}
 
 	if !modelHealthy {
