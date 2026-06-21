@@ -418,72 +418,6 @@ func truncatePreview(s string, n int) string {
 	return strings.TrimSpace(s[:n]) + "…"
 }
 
-// metricsSeedSource is implemented by logging stores that can replay past
-// requests for dashboard seeding. It's optional: if the store doesn't implement
-// it, seeding is simply skipped.
-type metricsSeedSource interface {
-	MetricsSeedRows(ctx context.Context, limit int) ([]piiServices.MetricsSeedRow, error)
-}
-
-// seedMetricsFromLogs replays persisted request logs into the in-memory metrics
-// collector so the dashboard reflects history (and survives restarts) instead of
-// starting from zero each boot. Best-effort and privacy-safe: only entity types,
-// confidences, and timestamps are used — never original PII. Latency is left
-// unknown for seeded rows (the logs don't capture masking time); the live proxy
-// path records the added overhead for requests served after startup.
-func (h *Handler) seedMetricsFromLogs() {
-	if h.metrics == nil {
-		return
-	}
-	src, ok := h.loggingDB.(metricsSeedSource)
-	if !ok {
-		return // logging store doesn't support seeding
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-
-	rows, err := src.MetricsSeedRows(ctx, piiServices.DefaultMaxLogEntries)
-	if err != nil {
-		log.Printf("[Metrics] ⚠️  Failed to seed metrics from logs: %v", err)
-		return
-	}
-
-	// Rows come newest-first; replay oldest→newest so ordering-sensitive
-	// aggregates (recent feed, per-minute peak) end up chronological.
-	for i := len(rows) - 1; i >= 0; i-- {
-		row := rows[i]
-		h.metrics.RecordRequest(metrics.RequestSample{
-			Provider:    providerFromModel(row.Model),
-			Types:       row.Types,
-			Confidences: row.Confidences,
-			LatencyMS:   0, // unknown for historical requests; excluded from latency stats
-			At:          row.Timestamp,
-		})
-	}
-	log.Printf("[Metrics] Seeded dashboard metrics from %d logged requests", len(rows))
-}
-
-// providerFromModel makes a best-effort provider guess from a logged model name
-// (the logs don't store the provider explicitly). Returns "" when unknown, in
-// which case the request still counts but isn't attributed to a provider.
-func providerFromModel(model string) string {
-	m := strings.ToLower(model)
-	switch {
-	case strings.Contains(m, "claude"):
-		return "anthropic"
-	case strings.Contains(m, "gemini"):
-		return "gemini"
-	case strings.Contains(m, "mistral"), strings.Contains(m, "mixtral"):
-		return "mistral"
-	case strings.Contains(m, "gpt"), strings.Contains(m, "davinci"),
-		strings.HasPrefix(m, "o1"), strings.HasPrefix(m, "o3"), strings.HasPrefix(m, "o4"):
-		return "openai"
-	default:
-		return ""
-	}
-}
-
 // readRequestBody reads the request body
 func (h *Handler) readRequestBody(r *http.Request) ([]byte, error) {
 	body, err := io.ReadAll(r.Body)
@@ -962,11 +896,6 @@ func NewHandler(cfg *config.Config) (*Handler, error) {
 		piiMapping:        piiMapping,
 		metrics:           metrics.New(),
 	}
-
-	// Backfill dashboard metrics from persisted logs so the dashboard reflects
-	// history and survives restarts. Runs in the background to avoid delaying
-	// startup; the collector is concurrency-safe.
-	go h.seedMetricsFromLogs()
 
 	return h, nil
 }
