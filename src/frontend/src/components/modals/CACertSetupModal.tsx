@@ -68,19 +68,21 @@ export default function CACertSetupModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-brand-950/40 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-fade-in">
+      <div className="bg-white rounded-2xl shadow-lift ring-1 ring-brand-900/10 max-w-2xl w-full max-h-[90vh] overflow-y-auto animate-rise-in">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-slate-200">
+        <div className="flex items-center justify-between p-6 border-b border-stone-100">
           <div className="flex items-center gap-3">
-            <ShieldCheck className="w-6 h-6 text-green-600" />
-            <h2 className="text-xl font-semibold text-slate-800">
+            <div className="w-9 h-9 rounded-xl bg-brand-50 ring-1 ring-brand-100 flex items-center justify-center text-brand-600 shrink-0">
+              <ShieldCheck className="w-5 h-5" />
+            </div>
+            <h2 className="text-lg font-semibold text-brand-900 tracking-tight">
               CA Certificate Setup Required
             </h2>
           </div>
           <button
             onClick={onClose}
-            className="p-1 text-slate-400 hover:text-slate-600 transition-colors"
+            className="p-1.5 text-stone-400 hover:text-stone-600 hover:bg-stone-100 rounded-lg transition-colors"
             aria-label="Close"
           >
             <X className="w-5 h-5" />
@@ -90,8 +92,8 @@ export default function CACertSetupModal({
         {/* Content */}
         <div className="p-6 space-y-6">
           {/* Introduction */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <p className="text-sm text-blue-900">
+          <div className="bg-brand-50 ring-1 ring-brand-200 rounded-xl p-4">
+            <p className="text-sm text-brand-900">
               To intercept and analyze HTTPS traffic, Kiji Privacy Proxy uses a
               self-signed Certificate Authority (CA). You must trust this
               certificate on your system and/or browsers.
@@ -103,7 +105,7 @@ export default function CACertSetupModal({
             <div>
               <button
                 onClick={handleRevealCert}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-sm font-medium transition-colors border border-slate-300"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-stone-600 bg-white ring-1 ring-stone-200 hover:bg-stone-50 hover:text-stone-800 transition-colors"
               >
                 <FolderOpen className="w-4 h-4" />
                 {window.electronAPI?.platform === "darwin"
@@ -117,32 +119,28 @@ export default function CACertSetupModal({
           )}
 
           {/* Tabs */}
-          <div className="flex gap-2 border-b border-slate-200">
+          <div className="inline-flex p-1 rounded-xl bg-stone-100 ring-1 ring-stone-200/70">
             <button
               onClick={() => setCurrentTab("system")}
-              className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all ${
                 currentTab === "system"
-                  ? "border-blue-600 text-blue-600"
-                  : "border-transparent text-slate-600 hover:text-slate-800"
+                  ? "bg-white text-brand-900 shadow-soft"
+                  : "text-stone-500 hover:text-stone-700"
               }`}
             >
-              <div className="flex items-center gap-2">
-                <Terminal className="w-4 h-4" />
-                System-Wide Trust
-              </div>
+              <Terminal className="w-4 h-4" />
+              System-Wide Trust
             </button>
             <button
               onClick={() => setCurrentTab("browsers")}
-              className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all ${
                 currentTab === "browsers"
-                  ? "border-blue-600 text-blue-600"
-                  : "border-transparent text-slate-600 hover:text-slate-800"
+                  ? "bg-white text-brand-900 shadow-soft"
+                  : "text-stone-500 hover:text-stone-700"
               }`}
             >
-              <div className="flex items-center gap-2">
-                <Globe className="w-4 h-4" />
-                Browser-Specific
-              </div>
+              <Globe className="w-4 h-4" />
+              Browser-Specific
             </button>
           </div>
 
@@ -150,13 +148,13 @@ export default function CACertSetupModal({
           {currentTab === "system" && (
             <div className="space-y-4">
               <div>
-                <h3 className="text-sm font-semibold text-slate-700 mb-2">
+                <h3 className="text-sm font-semibold text-stone-700 mb-2">
                   Option 1: Command Line (Recommended)
                 </h3>
-                <div className="relative bg-slate-900 rounded-lg p-4 text-sm font-mono text-slate-100 overflow-x-auto">
+                <div className="relative bg-brand-950 rounded-xl p-4 text-sm font-mono text-stone-100 overflow-x-auto">
                   <button
                     onClick={handleCopyCommand}
-                    className="absolute top-2 right-2 inline-flex items-center gap-1 px-2 py-1 text-xs text-slate-300 hover:text-white hover:bg-slate-700 rounded transition-colors"
+                    className="absolute top-2 right-2 inline-flex items-center gap-1 px-2 py-1 text-xs text-stone-300 hover:text-white hover:bg-stone-700 rounded transition-colors"
                     aria-label={
                       commandCopied
                         ? "Command copied to clipboard"
@@ -166,7 +164,7 @@ export default function CACertSetupModal({
                   >
                     {commandCopied ? (
                       <>
-                        <Check className="w-3.5 h-3.5 text-green-400" />
+                        <Check className="w-3.5 h-3.5 text-brand-400" />
                         <span>Copied</span>
                       </>
                     ) : (
@@ -180,31 +178,31 @@ export default function CACertSetupModal({
                     <code>{certInstallCommand}</code>
                   </pre>
                 </div>
-                <p className="text-xs text-slate-600 mt-2">
+                <p className="text-xs text-stone-600 mt-2">
                   This command requires administrator privileges and will
                   install the certificate system-wide.
                 </p>
               </div>
 
               <div>
-                <h3 className="text-sm font-semibold text-slate-700 mb-2">
+                <h3 className="text-sm font-semibold text-stone-700 mb-2">
                   Option 2: Keychain Access GUI
                 </h3>
-                <ol className="space-y-2 text-sm text-slate-700">
+                <ol className="space-y-2 text-sm text-stone-700">
                   <li className="flex gap-2">
-                    <span className="font-semibold text-blue-600 min-w-[20px]">
+                    <span className="font-semibold text-brand-600 min-w-[20px]">
                       1.
                     </span>
                     <span>
                       Double-click the certificate file:{" "}
-                      <code className="bg-slate-100 px-1.5 py-0.5 rounded text-xs">
+                      <code className="bg-stone-100 px-1.5 py-0.5 rounded text-xs">
                         ~/Library/Application Support/Kiji Privacy
                         Proxy/certs/ca.crt
                       </code>
                     </span>
                   </li>
                   <li className="flex gap-2">
-                    <span className="font-semibold text-blue-600 min-w-[20px]">
+                    <span className="font-semibold text-brand-600 min-w-[20px]">
                       2.
                     </span>
                     <span>
@@ -213,7 +211,7 @@ export default function CACertSetupModal({
                     </span>
                   </li>
                   <li className="flex gap-2">
-                    <span className="font-semibold text-blue-600 min-w-[20px]">
+                    <span className="font-semibold text-brand-600 min-w-[20px]">
                       3.
                     </span>
                     <span>
@@ -222,7 +220,7 @@ export default function CACertSetupModal({
                     </span>
                   </li>
                   <li className="flex gap-2">
-                    <span className="font-semibold text-blue-600 min-w-[20px]">
+                    <span className="font-semibold text-brand-600 min-w-[20px]">
                       4.
                     </span>
                     <span>
@@ -231,7 +229,7 @@ export default function CACertSetupModal({
                     </span>
                   </li>
                   <li className="flex gap-2">
-                    <span className="font-semibold text-blue-600 min-w-[20px]">
+                    <span className="font-semibold text-brand-600 min-w-[20px]">
                       5.
                     </span>
                     <span>
@@ -240,25 +238,25 @@ export default function CACertSetupModal({
                     </span>
                   </li>
                   <li className="flex gap-2">
-                    <span className="font-semibold text-blue-600 min-w-[20px]">
+                    <span className="font-semibold text-brand-600 min-w-[20px]">
                       6.
                     </span>
                     <span>
                       Set <strong>"When using this certificate"</strong> to{" "}
-                      <strong className="text-green-600">"Always Trust"</strong>
+                      <strong className="text-brand-600">"Always Trust"</strong>
                     </span>
                   </li>
                   <li className="flex gap-2">
-                    <span className="font-semibold text-blue-600 min-w-[20px]">
+                    <span className="font-semibold text-brand-600 min-w-[20px]">
                       7.
                     </span>
                     <span>
                       Set <strong>"Secure Sockets Layer (SSL)"</strong> to{" "}
-                      <strong className="text-green-600">"Always Trust"</strong>
+                      <strong className="text-brand-600">"Always Trust"</strong>
                     </span>
                   </li>
                   <li className="flex gap-2">
-                    <span className="font-semibold text-blue-600 min-w-[20px]">
+                    <span className="font-semibold text-brand-600 min-w-[20px]">
                       8.
                     </span>
                     <span>
@@ -267,7 +265,7 @@ export default function CACertSetupModal({
                     </span>
                   </li>
                   <li className="flex gap-2">
-                    <span className="font-semibold text-blue-600 min-w-[20px]">
+                    <span className="font-semibold text-brand-600 min-w-[20px]">
                       9.
                     </span>
                     <span>
@@ -280,7 +278,7 @@ export default function CACertSetupModal({
                 </ol>
               </div>
 
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+              <div className="bg-amber-50 ring-1 ring-amber-200 rounded-xl p-4">
                 <p className="text-xs text-amber-900">
                   <strong>Important:</strong> You must restart your browser
                   after trusting the certificate. System-wide trust works for
@@ -289,7 +287,7 @@ export default function CACertSetupModal({
                 </p>
               </div>
 
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <div className="bg-red-50 ring-1 ring-red-200 rounded-xl p-4">
                 <p className="text-xs text-red-900">
                   <strong>⚠️ Common Issue:</strong> If the certificate shows
                   "Number of trust settings: 0" in terminal, it means you
@@ -305,12 +303,12 @@ export default function CACertSetupModal({
           {currentTab === "browsers" && (
             <div className="space-y-4">
               <div>
-                <h3 className="text-sm font-semibold text-slate-700 mb-3">
+                <h3 className="text-sm font-semibold text-stone-700 mb-3">
                   Firefox
                 </h3>
-                <ol className="space-y-2 text-sm text-slate-700">
+                <ol className="space-y-2 text-sm text-stone-700">
                   <li className="flex gap-2">
-                    <span className="font-semibold text-blue-600 min-w-[20px]">
+                    <span className="font-semibold text-brand-600 min-w-[20px]">
                       1.
                     </span>
                     <span>
@@ -318,7 +316,7 @@ export default function CACertSetupModal({
                     </span>
                   </li>
                   <li className="flex gap-2">
-                    <span className="font-semibold text-blue-600 min-w-[20px]">
+                    <span className="font-semibold text-brand-600 min-w-[20px]">
                       2.
                     </span>
                     <span>
@@ -326,7 +324,7 @@ export default function CACertSetupModal({
                     </span>
                   </li>
                   <li className="flex gap-2">
-                    <span className="font-semibold text-blue-600 min-w-[20px]">
+                    <span className="font-semibold text-brand-600 min-w-[20px]">
                       3.
                     </span>
                     <span>
@@ -334,19 +332,19 @@ export default function CACertSetupModal({
                     </span>
                   </li>
                   <li className="flex gap-2">
-                    <span className="font-semibold text-blue-600 min-w-[20px]">
+                    <span className="font-semibold text-brand-600 min-w-[20px]">
                       4.
                     </span>
                     <span>
                       Select{" "}
-                      <code className="bg-slate-100 px-1.5 py-0.5 rounded text-xs">
+                      <code className="bg-stone-100 px-1.5 py-0.5 rounded text-xs">
                         ~/Library/Application Support/Kiji Privacy
                         Proxy/certs/ca.crt
                       </code>
                     </span>
                   </li>
                   <li className="flex gap-2">
-                    <span className="font-semibold text-blue-600 min-w-[20px]">
+                    <span className="font-semibold text-brand-600 min-w-[20px]">
                       5.
                     </span>
                     <span>
@@ -356,13 +354,13 @@ export default function CACertSetupModal({
                 </ol>
               </div>
 
-              <div className="border-t border-slate-200 pt-4">
-                <h3 className="text-sm font-semibold text-slate-700 mb-3">
+              <div className="border-t border-stone-200 pt-4">
+                <h3 className="text-sm font-semibold text-stone-700 mb-3">
                   Chrome/Chromium
                 </h3>
-                <ol className="space-y-2 text-sm text-slate-700">
+                <ol className="space-y-2 text-sm text-stone-700">
                   <li className="flex gap-2">
-                    <span className="font-semibold text-blue-600 min-w-[20px]">
+                    <span className="font-semibold text-brand-600 min-w-[20px]">
                       1.
                     </span>
                     <span>
@@ -371,7 +369,7 @@ export default function CACertSetupModal({
                     </span>
                   </li>
                   <li className="flex gap-2">
-                    <span className="font-semibold text-blue-600 min-w-[20px]">
+                    <span className="font-semibold text-brand-600 min-w-[20px]">
                       2.
                     </span>
                     <span>
@@ -379,12 +377,12 @@ export default function CACertSetupModal({
                     </span>
                   </li>
                   <li className="flex gap-2">
-                    <span className="font-semibold text-blue-600 min-w-[20px]">
+                    <span className="font-semibold text-brand-600 min-w-[20px]">
                       3.
                     </span>
                     <span>
                       <strong>Import</strong> CA certificate (
-                      <code className="bg-slate-100 px-1.5 py-0.5 rounded text-xs">
+                      <code className="bg-stone-100 px-1.5 py-0.5 rounded text-xs">
                         ~/Library/Application Support/Kiji Privacy
                         Proxy/certs/ca.crt
                       </code>
@@ -394,8 +392,8 @@ export default function CACertSetupModal({
                 </ol>
               </div>
 
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p className="text-xs text-blue-900">
+              <div className="bg-brand-50 ring-1 ring-brand-200 rounded-xl p-4">
+                <p className="text-xs text-brand-900">
                   <strong>Tip:</strong> Chrome on macOS typically uses the
                   system keychain, so system-wide trust (see other tab) should
                   be sufficient.
@@ -410,7 +408,7 @@ export default function CACertSetupModal({
               href="https://github.com/dataiku/kiji-private/blob/main/docs/01-getting-started.md#installing-ca-certificate-required-for-https"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 hover:underline"
+              className="inline-flex items-center gap-2 text-sm text-brand-600 hover:text-brand-700 hover:underline"
             >
               <ExternalLink className="w-4 h-4" />
               View full documentation
@@ -426,9 +424,9 @@ export default function CACertSetupModal({
               type="checkbox"
               checked={dontShowAgain}
               onChange={(e) => setDontShowAgain(e.target.checked)}
-              className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+              className="w-4 h-4 rounded border-stone-300 text-brand-600 focus:ring-brand-500 cursor-pointer"
             />
-            <span className="text-sm text-slate-600">
+            <span className="text-sm text-stone-600">
               Don't show this message again
             </span>
           </label>
@@ -436,7 +434,7 @@ export default function CACertSetupModal({
           {/* Action button */}
           <button
             onClick={handleConfirm}
-            className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+            className="btn-brand w-full px-4 py-3 text-white rounded-xl font-medium tracking-tight"
           >
             I Understand
           </button>

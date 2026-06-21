@@ -1,7 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import "./src/styles/styles.css";
-import PrivacyProxyUI from "./src/components/privacy-proxy-ui.tsx";
+import AppShell from "./src/components/AppShell.tsx";
 import ErrorBoundary from "./src/components/ErrorBoundary.tsx";
 import TourProvider from "./src/tour/TourProvider.tsx";
 import * as Sentry from "@sentry/electron/renderer";
@@ -17,7 +17,7 @@ const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(
   <ErrorBoundary>
     <TourProvider>
-      <PrivacyProxyUI />
+      <AppShell />
     </TourProvider>
   </ErrorBoundary>
 );

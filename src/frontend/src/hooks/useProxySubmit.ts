@@ -95,7 +95,7 @@ export function useProxySubmit({
       highlightEntitiesByToken(
         truncateForHighlighting(maskedInput),
         detectedEntities,
-        "bg-green-200 text-green-900 font-bold"
+        "bg-amber-200 text-amber-900 font-bold"
       ),
     [maskedInput, detectedEntities]
   );
@@ -105,7 +105,7 @@ export function useProxySubmit({
       highlightEntitiesByToken(
         truncateForHighlighting(maskedOutput),
         detectedEntities,
-        "bg-purple-200 text-purple-900 font-bold"
+        "bg-amber-200 text-amber-900 font-bold"
       ),
     [maskedOutput, detectedEntities]
   );
@@ -115,7 +115,7 @@ export function useProxySubmit({
       highlightEntitiesByOriginal(
         truncateForHighlighting(finalOutput),
         detectedEntities,
-        "bg-blue-200 text-blue-900 font-bold"
+        "bg-brand-200 text-brand-900 font-bold"
       ),
     [finalOutput, detectedEntities]
   );
@@ -164,6 +164,10 @@ export function useProxySubmit({
       if (isElectron && apiKey) {
         headers = buildHeaders(activeProvider, apiKey);
       }
+
+      // Identify the originating app for the dashboard activity feed. Set after
+      // buildHeaders so it survives whichever header-construction branch ran.
+      headers["X-Kiji-Source"] = "Kiji Playground";
 
       const response = await fetch(apiUrl, {
         method: "POST",

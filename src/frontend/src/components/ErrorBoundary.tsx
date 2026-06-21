@@ -87,11 +87,11 @@ class ErrorBoundary extends Component<Props, State> {
               )}
 
               {this.state.errorInfo && (
-                <details className="bg-slate-50 border border-slate-200 rounded-lg p-4">
-                  <summary className="text-sm font-semibold text-slate-900 cursor-pointer hover:text-slate-700">
+                <details className="bg-stone-50 border border-stone-200 rounded-lg p-4">
+                  <summary className="text-sm font-semibold text-stone-900 cursor-pointer hover:text-stone-700">
                     Stack Trace (click to expand)
                   </summary>
-                  <pre className="mt-3 text-xs text-slate-700 font-mono overflow-x-auto whitespace-pre-wrap">
+                  <pre className="mt-3 text-xs text-stone-700 font-mono overflow-x-auto whitespace-pre-wrap">
                     {this.state.errorInfo.componentStack}
                   </pre>
                 </details>
@@ -101,25 +101,25 @@ class ErrorBoundary extends Component<Props, State> {
               <div className="flex gap-3 pt-4">
                 <button
                   onClick={this.handleReset}
-                  className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                  className="flex items-center gap-2 px-6 py-3 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors font-medium"
                 >
                   <RefreshCw className="w-5 h-5" />
                   Try Again
                 </button>
                 <button
                   onClick={this.handleReload}
-                  className="px-6 py-3 border-2 border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors font-medium"
+                  className="px-6 py-3 border-2 border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 transition-colors font-medium"
                 >
                   Reload Application
                 </button>
               </div>
 
               {/* Help Text */}
-              <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <h3 className="text-sm font-semibold text-blue-900 mb-2">
+              <div className="mt-6 p-4 bg-brand-50 border border-brand-200 rounded-lg">
+                <h3 className="text-sm font-semibold text-brand-900 mb-2">
                   What can you do?
                 </h3>
-                <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
+                <ul className="text-sm text-brand-800 space-y-1 list-disc list-inside">
                   <li>Click "Try Again" to reset the component</li>
                   <li>Click "Reload Application" to refresh the entire app</li>
                   <li>

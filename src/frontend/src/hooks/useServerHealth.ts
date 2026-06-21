@@ -17,6 +17,7 @@ export function useServerHealth(isElectron: boolean) {
   });
   const [modelSignature, setModelSignature] = useState<string | null>(null);
   const [version, setVersion] = useState<string | null>(null);
+  const [uptimeSeconds, setUptimeSeconds] = useState<number | null>(null);
 
   useEffect(() => {
     const checkServerStatus = async () => {
@@ -39,12 +40,18 @@ export function useServerHealth(isElectron: boolean) {
             modelHealthy: data.model_healthy !== false,
             modelError: data.model_error,
           });
+          setUptimeSeconds(
+            typeof data.uptime_seconds === "number"
+              ? data.uptime_seconds
+              : null
+          );
         } else {
           setServerStatus("offline");
           setServerHealth({
             status: "offline",
             modelHealthy: false,
           });
+          setUptimeSeconds(null);
         }
       } catch (_error) {
         setServerStatus("offline");
@@ -52,6 +59,7 @@ export function useServerHealth(isElectron: boolean) {
           status: "offline",
           modelHealthy: false,
         });
+        setUptimeSeconds(null);
       }
     };
 
@@ -93,5 +101,5 @@ export function useServerHealth(isElectron: boolean) {
     return () => clearInterval(interval);
   }, [isElectron]);
 
-  return { serverStatus, serverHealth, modelSignature, version };
+  return { serverStatus, serverHealth, modelSignature, version, uptimeSeconds };
 }

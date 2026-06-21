@@ -155,12 +155,14 @@ func (tp *TransparentProxy) interceptHTTP(w http.ResponseWriter, r *http.Request
 
 	// Process request through shared handler pipeline (PII detection, masking, logging)
 	ctx := r.Context()
+	maskStart := time.Now()
 	processed, err := tp.handler.ProcessRequestBody(ctx, body, provider)
 	if err != nil {
 		log.Printf("[TransparentProxy] ❌ Failed to process request: %v", err)
 		http.Error(w, "Failed to process request", http.StatusInternalServerError)
 		return
 	}
+	requestMaskTime := time.Since(maskStart)
 
 	// Build target URL - always use HTTPS for intercepted requests
 	// Modern APIs like OpenAI, Anthropic, etc. only accept HTTPS
@@ -206,7 +208,9 @@ func (tp *TransparentProxy) interceptHTTP(w http.ResponseWriter, r *http.Request
 	}
 
 	// Process response through shared handler pipeline (PII restoration, logging)
+	restoreStart := time.Now()
 	modifiedBody := tp.handler.ProcessResponseBody(ctx, respBody, resp.Header.Get("Content-Type"), processed.MaskedToOriginal, processed.TransactionID, provider)
+	responseRestoreTime := time.Since(restoreStart)
 
 	// Copy response headers
 	for key, values := range resp.Header {
@@ -229,6 +233,12 @@ func (tp *TransparentProxy) interceptHTTP(w http.ResponseWriter, r *http.Request
 	}
 
 	log.Printf("[TransparentProxy] Processed %s %s - Status: %d", r.Method, r.URL.Path, resp.StatusCode)
+
+	// Count this intercepted request in the dashboard metrics (same as the API
+	// path). The recorded latency is the proxy's added overhead — masking the
+	// request plus restoring the response — not the full round trip.
+	// sourceFromRequest derives a best-effort client label from headers.
+	tp.handler.recordMetrics(provider, processed, sourceFromRequest(r), requestMaskTime+responseRestoreTime, resp.StatusCode)
 }
 
 // passthroughHTTP passes through HTTP requests without processing
@@ -417,12 +427,14 @@ func (tp *TransparentProxy) interceptHTTPOverTLS(conn net.Conn, r *http.Request,
 
 	// Process request through shared handler pipeline (PII detection, masking, logging)
 	ctx := r.Context()
+	maskStart := time.Now()
 	processed, err := tp.handler.ProcessRequestBody(ctx, body, provider)
 	if err != nil {
 		log.Printf("[TransparentProxy] ❌ Failed to process request: %v", err)
 		tp.writeErrorResponse(conn, http.StatusInternalServerError, "Failed to process request")
 		return
 	}
+	requestMaskTime := time.Since(maskStart)
 
 	// Build target URL - always HTTPS for TLS intercepted requests
 	targetURL := tp.buildTargetURL(r, targetHost, "https")
@@ -464,7 +476,9 @@ func (tp *TransparentProxy) interceptHTTPOverTLS(conn net.Conn, r *http.Request,
 	}
 
 	// Process response through shared handler pipeline (PII restoration, logging)
+	restoreStart := time.Now()
 	modifiedBody := tp.handler.ProcessResponseBody(ctx, respBody, resp.Header.Get("Content-Type"), processed.MaskedToOriginal, processed.TransactionID, provider)
+	responseRestoreTime := time.Since(restoreStart)
 
 	// Create new response with modified body
 	newResp := &http.Response{
@@ -495,6 +509,11 @@ func (tp *TransparentProxy) interceptHTTPOverTLS(conn net.Conn, r *http.Request,
 	respWriter.Flush()
 
 	log.Printf("[TransparentProxy] Processed %s %s - Status: %d", r.Method, r.URL.Path, resp.StatusCode)
+
+	// Count this intercepted request in the dashboard metrics (same as the API
+	// path). The recorded latency is the proxy's added overhead — masking the
+	// request plus restoring the response — not the full round trip.
+	tp.handler.recordMetrics(provider, processed, sourceFromRequest(r), requestMaskTime+responseRestoreTime, resp.StatusCode)
 }
 
 // writeErrorResponse writes an HTTP error response over a raw connection

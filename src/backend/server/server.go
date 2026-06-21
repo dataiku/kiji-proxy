@@ -80,8 +80,15 @@ type Server struct {
 	modelFS                 fs.FS
 	rateLimiter             *RateLimiter
 	version                 string
+	startedAt               time.Time // process start; basis for the reported uptime
 	transparentProxyEnabled bool
 	transparentProxyMu      sync.RWMutex
+}
+
+// uptimeSeconds reports how long the server has been running, as a whole-second
+// delta between now and the recorded start time.
+func (s *Server) uptimeSeconds() int64 {
+	return int64(time.Since(s.startedAt).Seconds())
 }
 
 // NewServer creates a new server instance
@@ -122,6 +129,7 @@ func NewServer(cfg *config.Config, version string) (*Server, error) {
 		systemProxyManager:      systemProxyManager,
 		rateLimiter:             rateLimiter,
 		version:                 version,
+		startedAt:               time.Now(),
 		transparentProxyEnabled: cfg.Proxy.TransparentEnabled,
 	}
 
@@ -171,6 +179,7 @@ func NewServerWithEmbedded(cfg *config.Config, uiFS, modelFS fs.FS, version stri
 		modelFS:                 modelFS,
 		rateLimiter:             rateLimiter,
 		version:                 version,
+		startedAt:               time.Now(),
 		transparentProxyEnabled: cfg.Proxy.TransparentEnabled,
 	}
 
@@ -246,6 +255,11 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/pii/confidence", s.handlePIIConfidence)
 	mux.HandleFunc("/api/pii/entities", s.handlePIIEntities)
 	mux.HandleFunc("/api/pii/regexes", s.handlePIIRegexes)
+
+	// Dashboard API (see docs/dashboard-api.md)
+	mux.HandleFunc("/v1/dashboard", s.dashboardHandler)
+	mux.HandleFunc("/v1/dashboard/timeseries", s.dashboardTimeseriesHandler)
+	mux.HandleFunc("/v1/dashboard/activity", s.dashboardActivityHandler)
 
 	// Add provider endpoints
 	mux.Handle(providers.ProviderSubpathOpenAI, s.handler) // same as Mistral
@@ -415,9 +429,10 @@ func (s *Server) healthCheck(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response := map[string]interface{}{
-		"status":        status,
-		"service":       "Kiji Privacy Proxy Service",
-		"model_healthy": modelHealthy,
+		"status":         status,
+		"service":        "Kiji Privacy Proxy Service",
+		"model_healthy":  modelHealthy,
+		"uptime_seconds": s.uptimeSeconds(),
 	}
 
 	if !modelHealthy {
@@ -465,7 +480,7 @@ func (s *Server) corsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, DELETE")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-OpenAI-API-Key")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-OpenAI-API-Key, X-Kiji-Source")
 	w.Header().Set("Access-Control-Max-Age", "3600")
 }
 
