@@ -25,6 +25,13 @@ import (
 // the API server runs with a 15s WriteTimeout, which would sever a long-lived
 // stream. The frontend already falls back to polling these GET endpoints.
 
+const (
+	// metricPIIMasked is the default (and PII) timeseries metric id.
+	metricPIIMasked = "pii_masked"
+	// bucketDay is the only timeseries bucket granularity currently served.
+	bucketDay = "day"
+)
+
 // --- response shapes (json tags mirror docs/dashboard-api.md) ---
 
 type dashboardResponse struct {
@@ -134,27 +141,6 @@ type highlightsBlock struct {
 
 // --- label maps (UI-friendly names; aggregation stays on raw labels) ---
 
-// var piiTypeLabels = map[string]string{
-// 	"PERSON":        "Names",
-// 	"EMAIL":         "Emails",
-// 	"EMAIL_ADDRESS": "Emails",
-// 	"PHONE":         "Phone numbers",
-// 	"PHONE_NUMBER":  "Phone numbers",
-// 	"ADDRESS":       "Addresses",
-// 	"LOCATION":      "Locations",
-// 	"CREDIT_CARD":   "Credit cards",
-// 	"SSN":           "SSNs",
-// 	"ORG":           "Organizations",
-// 	"ORGANIZATION":  "Organizations",
-// }
-
-// func piiLabel(t string) string {
-// 	if l, ok := piiTypeLabels[t]; ok {
-// 		return l
-// 	}
-// 	return titleish(t)
-// }
-
 var providerLabels = map[string]string{
 	"openai":    "OpenAI",
 	"anthropic": "Anthropic",
@@ -168,14 +154,6 @@ func providerLabel(p string) string {
 		return l
 	}
 	return p
-}
-
-func titleish(s string) string {
-	s = strings.ToLower(strings.ReplaceAll(s, "_", " "))
-	if s == "" {
-		return "Other"
-	}
-	return strings.ToUpper(s[:1]) + s[1:]
 }
 
 func round2(f float64) float64 { return float64(int(f*100+0.5)) / 100 }
@@ -203,9 +181,9 @@ func (s *Server) dashboardTimeseriesHandler(w http.ResponseWriter, r *http.Reque
 	q := r.URL.Query()
 	metric := q.Get("metric")
 	if metric == "" {
-		metric = "pii_masked"
+		metric = metricPIIMasked
 	}
-	if metric != "pii_masked" && metric != "requests" {
+	if metric != metricPIIMasked && metric != "requests" {
 		s.writeProblem(w, http.StatusBadRequest, "invalid-metric", "Invalid metric",
 			"metric must be one of: pii_masked, requests")
 		return
@@ -225,7 +203,7 @@ func (s *Server) dashboardTimeseriesHandler(w http.ResponseWriter, r *http.Reque
 	s.writeJSONNoStore(w, map[string]interface{}{
 		"metric": metric,
 		"range":  rangeStr,
-		"bucket": "day",
+		"bucket": bucketDay,
 		"unit":   "count",
 		"points": points,
 	})
@@ -307,7 +285,7 @@ func (s *Server) buildDashboard(rangeStr string, dur time.Duration) dashboardRes
 		resp.KPIs.PIIProtected.DeltaWindow = "7d"
 		resp.KPIs.PIIProtected.Spark = []int64{}
 		resp.KPIs.PIILeaked.MaskedRate = 1.0
-		resp.Timeseries = timeseriesBlock{Metric: "pii_masked", Bucket: "day", Points: []tsPoint{}}
+		resp.Timeseries = timeseriesBlock{Metric: metricPIIMasked, Bucket: bucketDay, Points: []tsPoint{}}
 		resp.Composition = compositionBlock{ByType: []compEntry{}}
 		resp.ByProvider = []providerBlock{}
 		resp.Recent = []interceptBlock{}
@@ -339,7 +317,7 @@ func (s *Server) buildDashboard(rangeStr string, dur time.Duration) dashboardRes
 	for _, p := range snap.Timeseries {
 		pts = append(pts, tsPoint{T: p.Date, V: p.Value})
 	}
-	resp.Timeseries = timeseriesBlock{Metric: "pii_masked", Bucket: "day", Points: pts}
+	resp.Timeseries = timeseriesBlock{Metric: metricPIIMasked, Bucket: bucketDay, Points: pts}
 
 	// composition
 	comp := compositionBlock{Total: snap.CompositionTotal, ByType: make([]compEntry, 0, len(snap.Composition))}

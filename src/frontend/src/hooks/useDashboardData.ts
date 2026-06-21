@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { apiUrl } from "../utils/providerHelpers";
 import type { DashboardResponse, DashboardRange } from "../types/dashboard";
 
@@ -25,13 +25,24 @@ export function useDashboardData(
   const [data, setData] = useState<DashboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [reloadN, setReloadN] = useState(0);
+  const [prevRange, setPrevRange] = useState(range);
 
-  const load = useCallback(
-    async (signal?: AbortSignal) => {
+  // Re-show the loading state when the range changes. Done during render (React's
+  // "adjust state on prop change" pattern) so background polls — which don't
+  // change `range` — refresh silently without flashing a skeleton.
+  if (range !== prevRange) {
+    setPrevRange(range);
+    setLoading(true);
+  }
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const load = async () => {
       try {
         const res = await fetch(
           apiUrl(`/v1/dashboard?range=${range}`, isElectron),
-          { signal }
+          { signal: controller.signal }
         );
         if (!res.ok) {
           throw new Error(`Dashboard request failed (${res.status})`);
@@ -45,20 +56,14 @@ export function useDashboardData(
       } finally {
         setLoading(false);
       }
-    },
-    [range, isElectron]
-  );
-
-  useEffect(() => {
-    const controller = new AbortController();
-    setLoading(true);
-    load(controller.signal);
-    const id = pollMs ? window.setInterval(() => load(), pollMs) : undefined;
+    };
+    load();
+    const id = pollMs ? window.setInterval(load, pollMs) : undefined;
     return () => {
       controller.abort();
       if (id) window.clearInterval(id);
     };
-  }, [load, pollMs]);
+  }, [range, isElectron, pollMs, reloadN]);
 
-  return { data, loading, error, reload: () => load() };
+  return { data, loading, error, reload: () => setReloadN((n) => n + 1) };
 }
