@@ -1,5 +1,5 @@
 // Package metrics provides an in-memory, concurrency-safe aggregator for the
-// data shown on the Kiji proxy dashboard (GET /v1/dashboard).
+// data shown on the Kiji proxy dashboard (GET /api/dashboard).
 //
 // It is deliberately decoupled from the proxy/pii packages: callers record a
 // RequestSample at the end of each proxied request, and the dashboard HTTP
@@ -350,7 +350,8 @@ func (c *Collector) Snapshot(rangeDur time.Duration, now time.Time) Snapshot {
 }
 
 // Series returns a per-day timeseries for a metric ("pii_masked" or "requests")
-// scoped to rangeDur (0 ⇒ all retained history). Backs GET /v1/dashboard/timeseries.
+// scoped to rangeDur (0 ⇒ all retained history). General-purpose helper; the
+// /api/dashboard aggregate embeds its own per-day series via Snapshot.
 func (c *Collector) Series(metric string, rangeDur time.Duration, now time.Time) []DayPoint {
 	if now.IsZero() {
 		now = time.Now()
@@ -388,8 +389,8 @@ func (c *Collector) Series(metric string, rangeDur time.Duration, now time.Time)
 }
 
 // RecentPage returns up to limit intercepts (newest first) starting at offset,
-// plus whether more remain. Backs GET /v1/dashboard/activity over the in-memory
-// ring (full history lives in the /logs database).
+// plus whether more remain. Cursor-style pagination over the in-memory ring
+// (full history lives in the /logs database).
 func (c *Collector) RecentPage(offset, limit int) (items []Intercept, hasMore bool) {
 	if limit <= 0 {
 		limit = 25

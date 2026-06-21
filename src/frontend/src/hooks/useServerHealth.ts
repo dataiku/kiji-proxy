@@ -25,7 +25,7 @@ export function useServerHealth(isElectron: boolean) {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 2000);
 
-        const response = await fetch(apiUrl("/health", isElectron), {
+        const response = await fetch(apiUrl("/api/health", isElectron), {
           method: "GET",
           signal: controller.signal,
         });
@@ -80,7 +80,7 @@ export function useServerHealth(isElectron: boolean) {
 
     const loadVersion = async () => {
       try {
-        const response = await fetch(apiUrl("/version", isElectron));
+        const response = await fetch(apiUrl("/api/version", isElectron));
         if (response.ok) {
           const data = await response.json();
           if (data.version) {

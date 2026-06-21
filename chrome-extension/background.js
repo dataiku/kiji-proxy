@@ -122,7 +122,7 @@ function checkHealth() {
 
 async function runHealthCheck() {
   try {
-    const response = await fetch(`${backendUrl}/health`, {
+    const response = await fetch(`${backendUrl}/api/health`, {
       method: "GET",
       signal: AbortSignal.timeout(5000),
     });
