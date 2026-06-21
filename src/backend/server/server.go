@@ -281,9 +281,10 @@ func (s *Server) Start() error {
 	// Serve UI files with cache-busting headers. Gated by config.ServeUI
 	// (KIJI_SERVE_UI=false) so the Linux build can run API-only/headless; when
 	// disabled, no "/" handler is registered and the UI paths return 404.
-	if !s.config.ServeUI {
+	switch {
+	case !s.config.ServeUI:
 		log.Println("[DEBUG] UI serving disabled (KIJI_SERVE_UI=false); not registering \"/\" handler")
-	} else if s.uiFS != nil {
+	case s.uiFS != nil:
 		log.Println("[DEBUG] Using embedded UI filesystem")
 
 		// List root contents of embedded FS
@@ -324,7 +325,7 @@ func (s *Server) Start() error {
 			uiFS := http.FileServer(http.FS(subFS))
 			mux.Handle("/", s.noCacheMiddleware(uiFS))
 		}
-	} else {
+	default:
 		log.Println("[DEBUG] Using filesystem UI path:", s.config.UIPath)
 		// Use file system
 		uiFS := http.FileServer(http.Dir(s.config.UIPath))
