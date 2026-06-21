@@ -177,7 +177,53 @@ cp -r model/quantized src/backend/model/
 echo "✅ Model files copied to backend"
 
 echo ""
-echo "📦 Step 4: Building Go binary for Linux..."
+echo "📦 Step 4: Building frontend web UI for embedding..."
+echo "----------------------------------------------------"
+
+# Build the React web bundle and stage it where Go's //go:embed can reach it.
+# We use the plain web build (npm run build), not build:electron — the Linux UI
+# is served in a browser, where window.electronAPI is undefined, so the frontend
+# runs in same-origin "web" mode automatically. Mirrors src/scripts/build_dmg.sh.
+(
+    cd src/frontend
+
+    # Install dependencies (reuse node_modules cache when it's newer than the lockfile)
+    if [ -d "node_modules" ] && [ "package-lock.json" -ot "node_modules" ]; then
+        echo "✅ Frontend dependencies up to date (using cache)"
+    elif [ -f "package-lock.json" ]; then
+        echo "Installing frontend dependencies with npm ci..."
+        npm ci --prefer-offline
+    else
+        echo "Installing frontend dependencies with npm install..."
+        npm install --prefer-offline
+    fi
+
+    echo "Building frontend web bundle..."
+    npm run build
+)
+
+echo "✅ Frontend web bundle built"
+
+# Copy frontend/dist into src/backend/frontend/dist/ so //go:embed can read it
+# (Go embed cannot use ../ paths). Same staging the DMG build does.
+if [ -d "src/frontend/dist" ]; then
+    mkdir -p src/backend/frontend/dist
+    if command -v rsync >/dev/null 2>&1; then
+        rsync -a --delete src/frontend/dist/ src/backend/frontend/dist/
+        echo "✅ Frontend files synced to src/backend/frontend/dist/ for embedding (rsync)"
+    else
+        rm -rf src/backend/frontend/dist
+        mkdir -p src/backend/frontend/dist
+        cp -r src/frontend/dist/* src/backend/frontend/dist/
+        echo "✅ Frontend files copied to src/backend/frontend/dist/ for embedding"
+    fi
+else
+    echo "❌ Frontend dist directory not found: src/frontend/dist"
+    exit 1
+fi
+
+echo ""
+echo "📦 Step 5: Building Go binary for Linux..."
 echo "------------------------------------------"
 
 # Set CGO flags for Linux build
@@ -206,7 +252,7 @@ if [ ! -f "${BUILD_DIR}/${BINARY_NAME}" ]; then
 fi
 
 echo ""
-echo "📦 Step 5: Packaging release archive..."
+echo "📦 Step 6: Packaging release archive..."
 echo "---------------------------------------"
 
 PACKAGE_NAME="kiji-privacy-proxy-${VERSION}-linux-amd64"
@@ -236,7 +282,9 @@ Dataiku's Kiji Privacy Proxy - Linux Standalone Binary
 ============================================
 
 This is a standalone version of Kiji Privacy Proxy for Linux.
-It includes the Go backend API with embedded ML model (no web UI).
+It includes the Go backend API and the web UI, both with an embedded ML model.
+The web UI is served at http://localhost:8080 — open it in any browser.
+Set KIJI_SERVE_UI=false to run API-only (headless), with no UI on "/".
 
 Installation:
 -------------
@@ -257,6 +305,7 @@ You can configure the proxy using environment variables or a config.json file:
 
 Environment Variables:
   PROXY_PORT=8080                    # Proxy server port
+  KIJI_SERVE_UI=false                # Disable the web UI (API-only/headless)
   OPENAI_API_KEY=your-key-here       # OpenAI API key
   OPENAI_BASE_URL=https://...        # OpenAI base URL
   LOG_REQUESTS=true                  # Log requests
@@ -290,32 +339,35 @@ Note: The ML model is embedded in the binary, so no additional model files
 need to be present beyond the binary and the ONNX Runtime library.
 
 Web UI:
-This is a backend API server only. There is no web UI included.
-For a web interface, use the macOS DMG build or connect your own frontend
-to the API endpoints at http://localhost:8080
+The web UI is embedded in the binary and served at http://localhost:8080.
+Start the proxy, then open that URL in a browser. To run without the UI
+(API-only/headless), set KIJI_SERVE_UI=false.
 
 Usage:
 ------
 
-1. Start the proxy API server:
+1. Start the proxy server:
    ./bin/kiji-proxy
 
    The server will start on http://localhost:8080 (by default)
 
-2. Test the API:
+2. Open the web UI:
+   Visit http://localhost:8080 in your browser
+
+4. Test the API:
    curl http://localhost:8080/health
    curl http://localhost:8080/version
 
-3. Configure your application to use the proxy:
+5. Configure your application to use the proxy:
    Set HTTP_PROXY=http://localhost:8080
 
-4. Use the API endpoints:
+6. Use the API endpoints:
    - Health check: GET /health
    - Version info: GET /version
    - Proxy requests through the server for PII detection
 
-Note: This is a backend API server only. There is no web UI.
-For a graphical interface, use the macOS DMG build.
+Note: The web UI is served at http://localhost:8080 by default.
+Set KIJI_SERVE_UI=false to run the proxy as an API-only server.
 
 For more information, visit: https://github.com/dataiku/kiji-proxy
 
@@ -349,6 +401,8 @@ DynamicUser=yes
 StateDirectory=kiji-proxy
 Environment="LD_LIBRARY_PATH=/opt/kiji-privacy-proxy/lib"
 Environment="KIJI_DATA_PATH=/var/lib/kiji-proxy"
+# Uncomment to run API-only (do not serve the web UI on http://localhost:8080):
+# Environment="KIJI_SERVE_UI=false"
 ExecStart=/opt/kiji-privacy-proxy/bin/kiji-proxy
 Restart=on-failure
 RestartSec=5s

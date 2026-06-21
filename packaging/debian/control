@@ -18,6 +18,7 @@ Description: Privacy-preserving proxy for LLM API calls
  The package ships the Go API server with an embedded ML entity
  detection model and the bundled ONNX Runtime shared library.
  .
- This is the standalone server build (no desktop UI). Configuration
- is via environment variables or a config.json file; see the README
- for details.
+ The embedded web UI is served at http://localhost:8080; open it in a
+ browser. Set KIJI_SERVE_UI=false to run as an API-only (headless)
+ server. Configuration is via environment variables or a config.json
+ file; see the README for details.

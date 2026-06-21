@@ -100,7 +100,10 @@ type Config struct {
 	ModelVariant       string // "trained" (full precision) or "quantized" (INT8). Used to derive ONNXModelDirectory when it isn't set.
 	ONNXModelDirectory string // Explicit override; takes precedence over ModelVariant.
 	UIPath             string
-	Proxy              ProxyConfig `json:"Proxy"`
+	// ServeUI controls whether the embedded web UI is served on "/". Defaults to
+	// true; set the KIJI_SERVE_UI=false env var for an API-only (headless) server.
+	ServeUI bool        `json:"serve_ui"`
+	Proxy   ProxyConfig `json:"Proxy"`
 	// Detectors selects which PII detectors run, in order. Recognized values are
 	// "onnx" and "regex" (see DetectorType* constants). Defaults to both.
 	Detectors []string `json:"detectors"`
@@ -291,6 +294,7 @@ func DefaultConfig() *Config {
 		ModelVariant:       ModelVariantTrained,
 		ONNXModelDirectory: "",
 		UIPath:             "./src/frontend/dist",
+		ServeUI:            true,
 		Database: DatabaseConfig{
 			Path:         dbPath,
 			CleanupHours: 24,

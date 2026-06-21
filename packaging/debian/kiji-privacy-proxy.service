@@ -8,6 +8,8 @@ DynamicUser=yes
 StateDirectory=kiji-proxy
 Environment="LD_LIBRARY_PATH=/opt/kiji-privacy-proxy/lib"
 Environment="KIJI_DATA_PATH=/var/lib/kiji-proxy"
+# Uncomment to run API-only (do not serve the web UI on http://localhost:8080):
+# Environment="KIJI_SERVE_UI=false"
 ExecStart=/opt/kiji-privacy-proxy/bin/kiji-proxy
 Restart=on-failure
 RestartSec=5s
