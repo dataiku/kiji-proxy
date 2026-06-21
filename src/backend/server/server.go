@@ -1,6 +1,8 @@
 package server
 
 import (
+	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/json"
 	"fmt"
 	"io/fs"
@@ -9,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -328,10 +331,17 @@ func (s *Server) Start() error {
 		mux.Handle("/", s.noCacheMiddleware(uiFS))
 	}
 
+	// Optionally guard the UI + /api/* admin endpoints with HTTP Basic Auth. When
+	// inactive the mux is used as-is, so behavior is unchanged for the desktop build.
+	var rootHandler http.Handler = mux
+	if s.config.BasicAuth.Active() {
+		rootHandler = s.basicAuthMiddleware(mux)
+	}
+
 	// Create server with timeout configuration
 	server := &http.Server{
 		Addr:         s.config.ProxyPort,
-		Handler:      mux,
+		Handler:      rootHandler,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
@@ -379,6 +389,14 @@ func (s *Server) startTransparentProxy() {
 		// CONNECT requests go to transparent proxy
 		if r.Method == http.MethodConnect {
 			s.transparentProxy.ServeHTTP(w, r)
+			return
+		}
+
+		// Guard admin/data endpoints with Basic Auth when enabled. CONNECT (above)
+		// and the proxy pass-through (default case below) stay open, so only the
+		// explicitly-listed admin paths are challenged.
+		if s.config.BasicAuth.Active() && isTransparentAdminProtectedPath(r.URL.Path) && !s.validBasicAuth(r) {
+			writeBasicAuthChallenge(w)
 			return
 		}
 
@@ -1055,6 +1073,83 @@ func (s *Server) StartWithErrorHandling() {
 	if err := s.Start(); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
+}
+
+// basicAuthPublicPrefixes and basicAuthPublicExact list the request paths that
+// stay reachable WITHOUT Basic Auth even when it is enabled: the LLM proxy routes
+// (they carry their own provider API keys), all /api/pii/* endpoints (used by the
+// Chrome extension / API clients), and the lightweight health/version probes used
+// by load balancers (including their deprecated bare aliases).
+var basicAuthPublicPrefixes = []string{"/v1/", "/v1beta/", "/api/pii/"}
+var basicAuthPublicExact = map[string]bool{
+	"/api/health": true, "/api/version": true, "/health": true, "/version": true,
+}
+
+// isBasicAuthPublicPath reports whether p is exempt from Basic Auth.
+func isBasicAuthPublicPath(p string) bool {
+	if basicAuthPublicExact[p] {
+		return true
+	}
+	for _, prefix := range basicAuthPublicPrefixes {
+		if strings.HasPrefix(p, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// isTransparentAdminProtectedPath reports whether p is an admin/data endpoint
+// served by the transparent proxy that must require Basic Auth. It is the set of
+// admin cases in startTransparentProxy's router minus the always-open
+// health/version probes and the /api/pii/* endpoints (handled via the default
+// pass-through and isBasicAuthPublicPath on the main server).
+func isTransparentAdminProtectedPath(p string) bool {
+	switch p {
+	case "/api/logs", "/logs",
+		"/api/mappings", "/mappings",
+		"/api/stats", "/stats",
+		"/api/model/security",
+		"/api/proxy/ca-cert":
+		return true
+	}
+	return false
+}
+
+// validBasicAuth compares the request's Basic Auth credentials against the
+// configured ones in constant time (sha256 first so differing lengths don't leak
+// via timing).
+func (s *Server) validBasicAuth(r *http.Request) bool {
+	user, pass, ok := r.BasicAuth()
+	if !ok {
+		return false
+	}
+	wantUser := sha256.Sum256([]byte(s.config.BasicAuth.Username))
+	wantPass := sha256.Sum256([]byte(s.config.BasicAuth.Password))
+	gotUser := sha256.Sum256([]byte(user))
+	gotPass := sha256.Sum256([]byte(pass))
+	return subtle.ConstantTimeCompare(gotUser[:], wantUser[:]) == 1 &&
+		subtle.ConstantTimeCompare(gotPass[:], wantPass[:]) == 1
+}
+
+// writeBasicAuthChallenge sends a 401 with a WWW-Authenticate header so browsers
+// prompt for credentials.
+func writeBasicAuthChallenge(w http.ResponseWriter) {
+	w.Header().Set("WWW-Authenticate", `Basic realm="Kiji Privacy Proxy", charset="UTF-8"`)
+	http.Error(w, "Unauthorized", http.StatusUnauthorized)
+}
+
+// basicAuthMiddleware guards every request EXCEPT the public proxy/health/pii
+// paths (default-deny). It wraps the main mux, whose only non-admin routes are the
+// provider proxy subpaths, so the UI ("/") and the /api/* admin endpoints end up
+// protected.
+func (s *Server) basicAuthMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if isBasicAuthPublicPath(r.URL.Path) || s.validBasicAuth(r) {
+			next.ServeHTTP(w, r)
+			return
+		}
+		writeBasicAuthChallenge(w)
+	})
 }
 
 // noCacheMiddleware adds headers to prevent caching and logs requests

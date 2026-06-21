@@ -236,6 +236,33 @@ func loadApplicationConfig(cfg *config.Config) {
 		cfg.ServeUI = serveUI == TRUE
 	}
 
+	// HTTP Basic Auth for the admin UI + /api/* admin endpoints (server deploys).
+	// Opt-in: auth turns on once a username AND password are set. KIJI_BASIC_AUTH_ENABLED
+	// is a kill switch (set it to anything other than "true" to force auth off).
+	if v := os.Getenv("KIJI_BASIC_AUTH_ENABLED"); v != "" {
+		cfg.BasicAuth.Enabled = v == TRUE
+	}
+	if v := os.Getenv("KIJI_BASIC_AUTH_USERNAME"); v != "" {
+		cfg.BasicAuth.Username = v
+	}
+	if v := os.Getenv("KIJI_BASIC_AUTH_PASSWORD"); v != "" {
+		cfg.BasicAuth.Password = v
+	}
+	// Always report the Basic Auth status at startup so operators get feedback
+	// (e.g. a typo'd env var name shows up as "disabled"). Credentials are never
+	// printed — only whether they are set and their length, to help catch a stray
+	// space/newline without exposing the secret.
+	switch {
+	case cfg.BasicAuth.Active():
+		log.Printf("HTTP Basic Auth ENABLED for UI and /api/* admin endpoints (username set: yes [%d chars], password set: yes [%d chars])",
+			len(cfg.BasicAuth.Username), len(cfg.BasicAuth.Password))
+	case !cfg.BasicAuth.Enabled:
+		log.Printf("HTTP Basic Auth disabled (KIJI_BASIC_AUTH_ENABLED is not \"true\")")
+	default:
+		log.Printf("HTTP Basic Auth NOT active — username set: %t, password set: %t. Set BOTH KIJI_BASIC_AUTH_USERNAME and KIJI_BASIC_AUTH_PASSWORD to enable",
+			cfg.BasicAuth.Username != "", cfg.BasicAuth.Password != "")
+	}
+
 	// Override OpenAI provider config with environment variables
 	if openAIURL := os.Getenv("OPENAI_BASE_URL"); openAIURL != "" {
 		cfg.Providers.OpenAIProviderConfig.APIDomain = openAIURL

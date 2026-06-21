@@ -102,8 +102,11 @@ type Config struct {
 	UIPath             string
 	// ServeUI controls whether the embedded web UI is served on "/". Defaults to
 	// true; set the KIJI_SERVE_UI=false env var for an API-only (headless) server.
-	ServeUI bool        `json:"serve_ui"`
-	Proxy   ProxyConfig `json:"Proxy"`
+	ServeUI bool `json:"serve_ui"`
+	// BasicAuth optionally guards the admin UI and /api/* admin endpoints with HTTP
+	// Basic Auth (server/Linux deployments). See BasicAuthConfig and KIJI_BASIC_AUTH_*.
+	BasicAuth BasicAuthConfig `json:"basic_auth"`
+	Proxy     ProxyConfig     `json:"Proxy"`
 	// Detectors selects which PII detectors run, in order. Recognized values are
 	// "onnx" and "regex" (see DetectorType* constants). Defaults to both.
 	Detectors []string `json:"detectors"`
@@ -115,6 +118,22 @@ type Config struct {
 	// UNMASKED. Empty/nil means "mask everything" (fail closed). Persisted via
 	// pii_settings.json and reapplied at startup (see PIISettings).
 	DisabledEntities []string `json:"disabled_entities"`
+}
+
+// BasicAuthConfig optionally guards the admin UI and /api/* admin endpoints with
+// HTTP Basic Auth (intended for the Linux/server deployment). It is Active only
+// when Enabled is true AND both Username and Password are non-empty. The LLM proxy
+// routes, the /api/pii/* endpoints, and the health/version probes are never
+// guarded. Populated from the KIJI_BASIC_AUTH_* environment variables.
+type BasicAuthConfig struct {
+	Enabled  bool   `json:"enabled"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+// Active reports whether HTTP Basic Auth should be enforced.
+func (b BasicAuthConfig) Active() bool {
+	return b.Enabled && b.Username != "" && b.Password != ""
 }
 
 // ModelVariantTrained is the full-precision model variant.
@@ -295,6 +314,9 @@ func DefaultConfig() *Config {
 		ONNXModelDirectory: "",
 		UIPath:             "./src/frontend/dist",
 		ServeUI:            true,
+		// Enabled defaults true so that simply setting a username + password turns
+		// Basic Auth on; empty credentials keep it off (Active() == false).
+		BasicAuth: BasicAuthConfig{Enabled: true},
 		Database: DatabaseConfig{
 			Path:         dbPath,
 			CleanupHours: 24,

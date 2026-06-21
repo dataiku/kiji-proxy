@@ -9,7 +9,6 @@ import {
   Trash2,
   AlertTriangle,
 } from "lucide-react";
-import { isElectron } from "../../utils/providerHelpers";
 import { useLogs } from "../../hooks/useLogs";
 import { useMisclassificationReport } from "../../hooks/useMisclassificationReport";
 import MisclassificationModal from "../modals/MisclassificationModal";
@@ -153,12 +152,7 @@ export default function ActivityView({ modelSignature }: ActivityViewProps) {
         </div>
       </div>
 
-      {!isElectron ? (
-        <div className="card p-6 text-sm text-stone-600">
-          Activity logs are only available in the desktop app.
-        </div>
-      ) : (
-        <div className="animate-rise-in">
+      <div className="animate-rise-in">
           {/* Messages-only / Full JSON toggle */}
           <div className="mb-4 flex items-center gap-4">
             <div className="flex items-center gap-3">
@@ -395,7 +389,6 @@ export default function ActivityView({ modelSignature }: ActivityViewProps) {
             </div>
           )}
         </div>
-      )}
 
       {/* Misclassification report modal */}
       <MisclassificationModal
