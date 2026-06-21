@@ -39,11 +39,11 @@ type Handler struct {
 	loggingDB         piiServices.LoggingDB    // Database or in-memory storage for logging
 	mappingDB         piiServices.PIIMappingDB // Same instance as loggingDB, for mapping operations
 	piiMapping        *piiServices.PIIMapping  // Cache+DB wrapper; used for cache-consistent clear/delete
-	metrics           *metrics.Collector       // In-memory dashboard aggregates (GET /v1/dashboard)
+	metrics           *metrics.Collector       // In-memory dashboard aggregates (GET /api/dashboard)
 }
 
 // Metrics returns the dashboard metrics collector (may be non-nil for the
-// lifetime of the handler). Used by the server's /v1/dashboard endpoints.
+// lifetime of the handler). Used by the server's /api/dashboard endpoint.
 func (h *Handler) Metrics() *metrics.Collector {
 	return h.metrics
 }

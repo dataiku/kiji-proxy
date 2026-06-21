@@ -70,7 +70,7 @@ export default function AboutView() {
   useEffect(() => {
     const loadVersion = async () => {
       try {
-        const response = await fetch(`${GO_SERVER_ADDRESS}/version`);
+        const response = await fetch(`${GO_SERVER_ADDRESS}/api/version`);
         if (response.ok) {
           const data = await response.json();
           setVersion(data.version || "Unknown");

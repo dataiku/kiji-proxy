@@ -241,11 +241,22 @@ func (s *Server) Start() error {
 
 	// Add admin endpoints (e.g. health check, logs, certs, etc.)
 	mux := http.NewServeMux()
+	mux.HandleFunc("/api/health", s.healthCheck)
+	mux.HandleFunc("/api/version", s.versionHandler)
+	mux.HandleFunc("/api/logs", s.logsHandler)
+	mux.HandleFunc("/api/mappings", s.mappingsHandler)
+	mux.HandleFunc("/api/stats", s.statsHandler)
+
+	// Deprecated: bare admin paths, kept only for backwards compatibility with
+	// already-installed Chrome extensions and older clients that predate the
+	// /api/* convention. All first-party callers now use the /api/* routes
+	// above. TODO: remove these aliases once existing extensions have migrated.
 	mux.HandleFunc("/health", s.healthCheck)
 	mux.HandleFunc("/version", s.versionHandler)
 	mux.HandleFunc("/logs", s.logsHandler)
 	mux.HandleFunc("/mappings", s.mappingsHandler)
 	mux.HandleFunc("/stats", s.statsHandler)
+
 	mux.HandleFunc("/api/model/security", s.handleModelSecurity)
 	mux.HandleFunc("/api/model/reload", s.handleModelReload)
 	mux.HandleFunc("/api/model/info", s.handleModelInfo)
@@ -256,10 +267,8 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/pii/entities", s.handlePIIEntities)
 	mux.HandleFunc("/api/pii/regexes", s.handlePIIRegexes)
 
-	// Dashboard API (see docs/dashboard-api.md)
-	mux.HandleFunc("/v1/dashboard", s.dashboardHandler)
-	mux.HandleFunc("/v1/dashboard/timeseries", s.dashboardTimeseriesHandler)
-	mux.HandleFunc("/v1/dashboard/activity", s.dashboardActivityHandler)
+	// Dashboard API
+	mux.HandleFunc("/api/dashboard", s.dashboardHandler)
 
 	// Add provider endpoints
 	mux.Handle(providers.ProviderSubpathOpenAI, s.handler) // same as Mistral
@@ -373,17 +382,18 @@ func (s *Server) startTransparentProxy() {
 			return
 		}
 
-		// Route API endpoints
+		// Route API endpoints. Bare paths are deprecated aliases kept for
+		// backwards compatibility; see the main mux registration above.
 		switch r.URL.Path {
-		case "/logs":
+		case "/api/logs", "/logs":
 			s.logsHandler(w, r)
-		case "/health":
+		case "/api/health", "/health":
 			s.healthCheck(w, r)
-		case "/version":
+		case "/api/version", "/version":
 			s.versionHandler(w, r)
-		case "/mappings":
+		case "/api/mappings", "/mappings":
 			s.mappingsHandler(w, r)
-		case "/stats":
+		case "/api/stats", "/stats":
 			s.statsHandler(w, r)
 		case "/api/model/security":
 			s.handleModelSecurity(w, r)

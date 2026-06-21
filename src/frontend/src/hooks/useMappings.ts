@@ -33,7 +33,7 @@ export function useMappings(isOpen: boolean) {
       try {
         const offset = pageNum * PAGE_SIZE;
         const url = `${apiUrl(
-          "/mappings",
+          "/api/mappings",
           isElectron
         )}?limit=${PAGE_SIZE}&offset=${offset}&sort=${column}&order=${order}`;
 
@@ -117,12 +117,12 @@ export function useMappings(isOpen: boolean) {
     loadMappings(0, sortColumn, sortOrder);
   }, [loadMappings, sortColumn, sortOrder]);
 
-  // Delete every mapping (DELETE /mappings with no id).
+  // Delete every mapping (DELETE /api/mappings with no id).
   const handleClearAll = useCallback(async () => {
     setIsClearing(true);
     setError(null);
     try {
-      const response = await fetch(apiUrl("/mappings", isElectron), {
+      const response = await fetch(apiUrl("/api/mappings", isElectron), {
         method: "DELETE",
       });
       if (!response.ok) {
@@ -148,7 +148,7 @@ export function useMappings(isOpen: boolean) {
     setError(null);
     try {
       const response = await fetch(
-        `${apiUrl("/mappings", isElectron)}?id=${encodeURIComponent(id)}`,
+        `${apiUrl("/api/mappings", isElectron)}?id=${encodeURIComponent(id)}`,
         { method: "DELETE" }
       );
       if (!response.ok) {

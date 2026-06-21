@@ -10,12 +10,12 @@ interface UseDashboardData {
 }
 
 /**
- * Fetches `GET /v1/dashboard` and refreshes on an interval.
+ * Fetches `GET /api/dashboard` and refreshes on an interval.
  *
  * Mirrors the conventions of the other server hooks (useServerHealth, useLogs):
  * it relies on `apiUrl()` so it works in both Electron (direct to the Go server)
- * and web (proxied) modes. Polling acts as the fallback for the SSE
- * `/v1/dashboard/stream` endpoint described in the API spec.
+ * and web (proxied) modes. The aggregate response embeds the timeseries and
+ * recent-activity data, so a single polled endpoint is all the UI needs.
  */
 export function useDashboardData(
   range: DashboardRange,
@@ -41,7 +41,7 @@ export function useDashboardData(
     const load = async () => {
       try {
         const res = await fetch(
-          apiUrl(`/v1/dashboard?range=${range}`, isElectron),
+          apiUrl(`/api/dashboard?range=${range}`, isElectron),
           { signal: controller.signal }
         );
         if (!res.ok) {

@@ -1,6 +1,5 @@
 /**
- * Types for the Kiji proxy dashboard API (`GET /v1/dashboard`).
- * See docs/dashboard-api.md for the full contract.
+ * Types for the Kiji proxy dashboard API (`GET /api/dashboard`).
  */
 
 export type DashboardRange = "24h" | "7d" | "30d" | "90d" | "all";

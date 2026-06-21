@@ -26,7 +26,7 @@ export function useLogs(isOpen: boolean) {
       }
       try {
         const offset = pageNum * PAGE_SIZE;
-        const logsUrl = `${apiUrl("/logs", isElectron)}?limit=${PAGE_SIZE}&offset=${offset}`;
+        const logsUrl = `${apiUrl("/api/logs", isElectron)}?limit=${PAGE_SIZE}&offset=${offset}`;
 
         const response = await fetch(logsUrl);
 
@@ -151,7 +151,7 @@ export function useLogs(isOpen: boolean) {
     setError(null);
 
     try {
-      const response = await fetch(apiUrl("/logs", isElectron), {
+      const response = await fetch(apiUrl("/api/logs", isElectron), {
         method: "DELETE",
       });
 

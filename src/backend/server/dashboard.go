@@ -1,7 +1,6 @@
 package server
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -13,17 +12,14 @@ import (
 	"time"
 )
 
-// This file implements the dashboard API documented in docs/dashboard-api.md:
+// This file implements the dashboard API:
 //
-//	GET /v1/dashboard            aggregate overview payload
-//	GET /v1/dashboard/timeseries a single metric bucketed per day
-//	GET /v1/dashboard/activity   cursor-paginated recent intercepts
+//	GET /api/dashboard   aggregate overview payload
 //
 // All data comes from the in-memory metrics collector on the proxy handler
 // (s.handler.Metrics()), combined with model/health/version/uptime here. The
-// SSE /v1/dashboard/stream endpoint from the spec is intentionally NOT wired:
-// the API server runs with a 15s WriteTimeout, which would sever a long-lived
-// stream. The frontend already falls back to polling these GET endpoints.
+// timeseries and recent-activity data the UI needs is embedded in this single
+// aggregate response, so no separate sub-endpoints are exposed.
 
 const (
 	// metricPIIMasked is the default (and PII) timeseries metric id.
@@ -160,7 +156,7 @@ func round2(f float64) float64 { return float64(int(f*100+0.5)) / 100 }
 
 // --- handlers ---
 
-// dashboardHandler serves GET /v1/dashboard.
+// dashboardHandler serves GET /api/dashboard.
 func (s *Server) dashboardHandler(w http.ResponseWriter, r *http.Request) {
 	if !s.dashboardPreamble(w, r) {
 		return
@@ -171,91 +167,6 @@ func (s *Server) dashboardHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.writeJSONNoStore(w, s.buildDashboard(rangeStr, dur))
-}
-
-// dashboardTimeseriesHandler serves GET /v1/dashboard/timeseries.
-func (s *Server) dashboardTimeseriesHandler(w http.ResponseWriter, r *http.Request) {
-	if !s.dashboardPreamble(w, r) {
-		return
-	}
-	q := r.URL.Query()
-	metric := q.Get("metric")
-	if metric == "" {
-		metric = metricPIIMasked
-	}
-	if metric != metricPIIMasked && metric != "requests" {
-		s.writeProblem(w, http.StatusBadRequest, "invalid-metric", "Invalid metric",
-			"metric must be one of: pii_masked, requests")
-		return
-	}
-	rangeStr, dur, err := parseDashboardRange(q.Get("range"))
-	if err != nil {
-		s.writeProblem(w, http.StatusBadRequest, "invalid-range", "Invalid range", err.Error())
-		return
-	}
-
-	points := []tsPoint{}
-	if mc := s.handler.Metrics(); mc != nil {
-		for _, p := range mc.Series(metric, dur, time.Now()) {
-			points = append(points, tsPoint{T: p.Date, V: p.Value})
-		}
-	}
-	s.writeJSONNoStore(w, map[string]interface{}{
-		"metric": metric,
-		"range":  rangeStr,
-		"bucket": bucketDay,
-		"unit":   "count",
-		"points": points,
-	})
-}
-
-// dashboardActivityHandler serves GET /v1/dashboard/activity (cursor paginated).
-func (s *Server) dashboardActivityHandler(w http.ResponseWriter, r *http.Request) {
-	if !s.dashboardPreamble(w, r) {
-		return
-	}
-	q := r.URL.Query()
-
-	limit := 25
-	if v, err := strconv.Atoi(q.Get("limit")); err == nil && v > 0 {
-		if v > 100 {
-			v = 100
-		}
-		limit = v
-	}
-
-	offset := 0
-	if c := q.Get("cursor"); c != "" {
-		if dec, err := base64.StdEncoding.DecodeString(c); err == nil {
-			if o, err := strconv.Atoi(string(dec)); err == nil && o >= 0 {
-				offset = o
-			}
-		}
-	}
-
-	items := []interceptBlock{}
-	hasMore := false
-	if mc := s.handler.Metrics(); mc != nil {
-		page, more := mc.RecentPage(offset, limit)
-		hasMore = more
-		for _, it := range page {
-			items = append(items, interceptBlock{
-				ID: it.ID, TS: it.TS.UTC().Format(time.RFC3339), Source: it.Source,
-				Provider: it.Provider, PIICount: it.PIICount,
-				Types: orEmpty(it.Types), Preview: previewPtr(it.Preview),
-			})
-		}
-	}
-
-	var nextCursor interface{}
-	if hasMore {
-		nextCursor = base64.StdEncoding.EncodeToString([]byte(strconv.Itoa(offset + len(items))))
-	}
-	s.writeJSONNoStore(w, map[string]interface{}{
-		"items":       items,
-		"next_cursor": nextCursor,
-		"has_more":    hasMore,
-	})
 }
 
 // buildDashboard assembles the aggregate payload from the collector + server state.

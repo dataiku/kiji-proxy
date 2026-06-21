@@ -419,7 +419,7 @@ const restartGoBinary = async () => {
 // Wait for the Go backend to be ready by polling the health endpoint
 const waitForBackend = async (maxRetries = 30, retryInterval = 500) => {
   const { net } = require("electron");
-  const healthUrl = "http://localhost:8080/health";
+  const healthUrl = "http://localhost:8080/api/health";
 
   console.log("[DEBUG] Waiting for backend to be ready...");
 
