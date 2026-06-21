@@ -24,11 +24,12 @@ Kiji Privacy Proxy can be built for two platforms with different deployment mode
 - **User Interface:** Desktop application with web UI
 
 ### Linux (Standalone Binary)
-- **Format:** API server binary (no UI)
+- **Format:** Self-contained server binary with embedded web UI
 - **Package:** Tarball (`*.tar.gz`, ~150-200MB) and Debian package
   (`*.deb`, Debian/Ubuntu) with binary and libraries
-- **Components:** Go backend + ML model + libraries
-- **User Interface:** HTTP API only (no web UI)
+- **Components:** Go backend + embedded web UI + ML model + libraries
+- **User Interface:** Web UI served at http://localhost:8080 (browser; no Electron).
+  Set `KIJI_SERVE_UI=false` to run API-only (headless).
 
 Both builds include:
 - Go backend (proxy server + PII detection)
@@ -112,11 +113,12 @@ ls -lh model/quantized/model_quantized.onnx  # Should be ~63MB
 ├─────────────────────────────────────────┤
 │  bin/kiji-proxy                          │
 │    ├── Backend API Server               │
+│    ├── Embedded Web UI                  │
 │    ├── Embedded ML Model                │
 │    ├── Embedded Tokenizers              │
 │    ├── Proxy Server                     │
 │    └── PII Detection Engine            │
-│    (NO WEB UI - API only)               │
+│    (Web UI on :8080)                    │
 │                                          │
 │  lib/libonnxruntime.so.1.24.2           │
 │                                          │
@@ -322,13 +324,21 @@ cd ..
 **3. Prepare Embedded Files:**
 
 ```bash
+# Build the web UI (plain web build, not :electron) and stage it for embedding.
+# Go //go:embed cannot reach ../, so the assets must live under src/backend/.
+(cd src/frontend && npm ci && npm run build)
+rm -rf src/backend/frontend/dist
+mkdir -p src/backend/frontend/dist
+cp -r src/frontend/dist/* src/backend/frontend/dist/
+
 # Copy model files (ONNX model + all tokenizer files)
 rm -rf src/backend/model/quantized
 mkdir -p src/backend/model
 cp -r model/quantized src/backend/model/
 ```
 
-**Note:** No frontend build for Linux - it's API-only!
+**Note:** The Linux binary embeds and serves the web UI at http://localhost:8080.
+Set `KIJI_SERVE_UI=false` to run API-only (headless).
 
 **4. Build Go Binary:**
 

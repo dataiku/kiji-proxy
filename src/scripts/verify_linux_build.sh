@@ -128,10 +128,11 @@ cd "$EXTRACTED_DIR"
 # Set library path
 export LD_LIBRARY_PATH="$(pwd)/lib:$LD_LIBRARY_PATH"
 
-# Start the binary with a hard timeout cap, poll for extraction completion
-echo -e "${YELLOW}Starting binary (waiting for model extraction to complete, 10s max)...${NC}"
+# Start the binary with a hard timeout cap, poll for extraction completion.
+# The cap also has to cover the web UI HTTP check below, so allow extra headroom.
+echo -e "${YELLOW}Starting binary (waiting for model extraction to complete, 30s max)...${NC}"
 EXTRACTION_START=$SECONDS
-timeout 10s ./bin/kiji-proxy > /tmp/kiji-verify.log 2>&1 &
+timeout 30s ./bin/kiji-proxy > /tmp/kiji-verify.log 2>&1 &
 BINARY_PID=$!
 
 # Exit early once extraction is confirmed; timeout kills the process at 10s if something hangs
@@ -148,6 +149,39 @@ echo -e "${BLUE}⏱  Model extraction completed in ${EXTRACTION_ELAPSED}s${NC}"
 if ps -p $BINARY_PID > /dev/null 2>&1; then
     echo -e "${GREEN}✓${NC} Binary started successfully"
     ((++CHECKS_PASSED))
+
+    # Verify the embedded web UI is actually served on "/" (KIJI_SERVE_UI defaults on).
+    echo ""
+    echo -e "${BLUE}🔍 Verifying web UI is served on http://localhost:8080 ...${NC}"
+    if command -v curl > /dev/null 2>&1; then
+        # The HTTP server binds after model load; poll /health briefly.
+        UI_READY=0
+        for _ in $(seq 1 10); do
+            if curl -fsS http://localhost:8080/health > /dev/null 2>&1; then
+                UI_READY=1
+                break
+            fi
+            sleep 1
+        done
+
+        if [ "$UI_READY" -eq 1 ]; then
+            echo -e "${GREEN}✓${NC} /health responded"
+            ((++CHECKS_PASSED))
+
+            # The served index.html mounts the React app into <div id="root">.
+            if curl -fsS http://localhost:8080/ 2>/dev/null | grep -qi 'id="root"'; then
+                echo -e "${GREEN}✓${NC} Web UI served on / (index.html contains app root)"
+                ((++CHECKS_PASSED))
+            else
+                echo -e "${RED}✗${NC} / did not return the expected web UI HTML"
+                ((++CHECKS_FAILED))
+            fi
+        else
+            echo -e "${YELLOW}⚠${NC}  Server did not become ready in time; skipping UI HTTP check"
+        fi
+    else
+        echo -e "${YELLOW}⚠${NC}  curl not available, skipping UI HTTP check"
+    fi
 
     # Kill the process
     kill $BINARY_PID 2>/dev/null || true

@@ -266,8 +266,12 @@ func (s *Server) Start() error {
 	mux.Handle(providers.ProviderSubpathAnthropic, s.handler)
 	mux.Handle(providers.ProviderSubpathGemini+"/{path...}", s.handler)
 
-	// Serve UI files with cache-busting headers
-	if s.uiFS != nil {
+	// Serve UI files with cache-busting headers. Gated by config.ServeUI
+	// (KIJI_SERVE_UI=false) so the Linux build can run API-only/headless; when
+	// disabled, no "/" handler is registered and the UI paths return 404.
+	if !s.config.ServeUI {
+		log.Println("[DEBUG] UI serving disabled (KIJI_SERVE_UI=false); not registering \"/\" handler")
+	} else if s.uiFS != nil {
 		log.Println("[DEBUG] Using embedded UI filesystem")
 
 		// List root contents of embedded FS

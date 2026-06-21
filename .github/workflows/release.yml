@@ -121,7 +121,7 @@ jobs:
 
           ### Downloads
           - **macOS**: DMG installer (Apple Silicon and Intel) - Desktop app with UI
-          - **Linux**: Standalone binary archive (amd64) - API server only (no UI)
+          - **Linux**: Standalone binary archive (amd64) - serves the web UI at http://localhost:8080
           - **Linux (.deb)**: Debian/Ubuntu package (amd64) with systemd unit
           - **Chrome Extension**: Browser extension for PII detection in web forms
 
@@ -158,7 +158,7 @@ jobs:
 
           ### Linux Installation
 
-          **Note:** Linux build is API-only (no desktop UI). Access via HTTP endpoints.
+          **Note:** The Linux build serves the embedded web UI at http://localhost:8080 — open it in a browser. Set `KIJI_SERVE_UI=false` to run API-only (headless).
 
           **Quick Start:**
           ```bash
