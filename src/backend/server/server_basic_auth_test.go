@@ -1,8 +1,10 @@
 package server
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/dataiku/kiji-proxy/src/backend/config"
@@ -23,6 +25,7 @@ func TestIsBasicAuthPublicPath(t *testing.T) {
 		{"/api/pii/confidence", true},
 		{"/api/health", true},
 		{"/api/version", true},
+		{"/api/auth/status", true},
 		{"/health", true},
 		{"/version", true},
 		// Protected: UI and admin/data endpoints.
@@ -93,6 +96,7 @@ func TestBasicAuthMiddleware(t *testing.T) {
 		{name: "public path no creds", path: "/v1/chat/completions", wantStatus: http.StatusOK},
 		{name: "pii path no creds", path: "/api/pii/check", wantStatus: http.StatusOK},
 		{name: "health no creds", path: "/api/health", wantStatus: http.StatusOK},
+		{name: "auth status no creds", path: "/api/auth/status", wantStatus: http.StatusOK},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -109,6 +113,47 @@ func TestBasicAuthMiddleware(t *testing.T) {
 			gotChal := rec.Header().Get("WWW-Authenticate") != ""
 			if gotChal != tt.wantChal {
 				t.Errorf("WWW-Authenticate present = %v, want %v", gotChal, tt.wantChal)
+			}
+		})
+	}
+}
+
+func TestAuthStatusHandler(t *testing.T) {
+	const user, pass = "admin", "secret"
+	tests := []struct {
+		name string
+		cfg  config.BasicAuthConfig
+		want bool
+	}{
+		{name: "active when enabled with both creds", cfg: config.BasicAuthConfig{Enabled: true, Username: user, Password: pass}, want: true},
+		{name: "inactive when disabled", cfg: config.BasicAuthConfig{Enabled: false, Username: user, Password: pass}, want: false},
+		{name: "inactive when password missing", cfg: config.BasicAuthConfig{Enabled: true, Username: user}, want: false},
+		{name: "inactive when username missing", cfg: config.BasicAuthConfig{Enabled: true, Password: pass}, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &Server{config: &config.Config{BasicAuth: tt.cfg}}
+			req := httptest.NewRequest(http.MethodGet, "/api/auth/status", nil)
+			rec := httptest.NewRecorder()
+			s.authStatusHandler(rec, req)
+
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+			}
+
+			var body struct {
+				BasicAuthActive bool `json:"basicAuthActive"`
+			}
+			if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+				t.Fatalf("decode body %q: %v", rec.Body.String(), err)
+			}
+			if body.BasicAuthActive != tt.want {
+				t.Errorf("basicAuthActive = %v, want %v", body.BasicAuthActive, tt.want)
+			}
+
+			// The endpoint must expose only the boolean, never the credentials.
+			if raw := rec.Body.String(); strings.Contains(raw, user) || strings.Contains(raw, pass) {
+				t.Errorf("response leaked credentials: %q", raw)
 			}
 		})
 	}

@@ -333,6 +333,37 @@ go-backend-dev: ## Run Go backend in development mode
 	@echo "$(BLUE)Running Go backend in development mode...$(NC)"
 	CGO_LDFLAGS="$(CGO_LDFLAGS)" go run ./src/backend -config ./src/backend/config/config.development.json
 
+ui-watch: ## Rebuild src/frontend/dist on every source change (pair with 'make go-backend-dev')
+	@echo "$(BLUE)Watching frontend; rebuilding src/frontend/dist on change (Ctrl+C to stop)...$(NC)"
+	@cd src/frontend && npm run watch
+
+serve-ui-dev: ## Serve the web UI at :8080 with live rebuilds (webpack --watch + Go backend)
+	@echo "$(BLUE)Starting dev website (webpack --watch + Go backend on http://localhost:8080)...$(NC)"
+	@WATCH_PID=""; \
+	trap 'if [ -n "$$WATCH_PID" ]; then kill $$WATCH_PID 2>/dev/null || true; fi' EXIT INT TERM; \
+	echo "$(BLUE)Starting webpack watch (logs: /tmp/kiji-ui-watch.log)...$(NC)"; \
+	rm -f /tmp/kiji-ui-watch.log; \
+	( cd src/frontend && npm run watch ) > /tmp/kiji-ui-watch.log 2>&1 & \
+	WATCH_PID=$$!; \
+	echo "$(YELLOW)Waiting for first build of src/frontend/dist...$(NC)"; \
+	for i in $$(seq 1 90); do \
+		if grep -q "compiled" /tmp/kiji-ui-watch.log 2>/dev/null; then \
+			echo "$(GREEN)✅ Frontend built (pid $$WATCH_PID), watching for changes$(NC)"; \
+			break; \
+		fi; \
+		if ! kill -0 $$WATCH_PID 2>/dev/null; then \
+			echo "$(YELLOW)⚠️  Webpack watch exited early — see /tmp/kiji-ui-watch.log$(NC)"; \
+			exit 1; \
+		fi; \
+		if [ $$i -eq 90 ]; then \
+			echo "$(YELLOW)⚠️  No build after 90s — see /tmp/kiji-ui-watch.log$(NC)"; \
+			exit 1; \
+		fi; \
+		sleep 1; \
+	done; \
+	echo "$(BLUE)Starting Go backend (serves http://localhost:8080)...$(NC)"; \
+	CGO_LDFLAGS="$(CGO_LDFLAGS)" go run ./src/backend -config ./src/backend/config/config.development.json
+
 
 ##@ Build
 

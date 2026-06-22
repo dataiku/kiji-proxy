@@ -17,7 +17,7 @@ export type ViewId =
   | "about";
 
 interface SidebarProps {
-  active: ViewId;
+  active: ViewId | null;
   onNavigate: (view: ViewId) => void;
   server: {
     status: "online" | "degraded" | "offline";

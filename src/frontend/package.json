@@ -9,6 +9,7 @@
     "build": "webpack --config config/webpack.config.js --mode production",
     "build:electron": "ELECTRON=true webpack --config config/webpack.config.js --mode production",
     "dev": "webpack serve --config config/webpack.config.js --mode development --host 0.0.0.0",
+    "watch": "webpack --config config/webpack.config.js --mode development --watch",
     "start": "node server.js",
     "electron": "npm run build:electron && electron .",
     "electron:dev": "NODE_ENV=development electron .",

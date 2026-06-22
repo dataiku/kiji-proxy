@@ -246,6 +246,7 @@ func (s *Server) Start() error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/health", s.healthCheck)
 	mux.HandleFunc("/api/version", s.versionHandler)
+	mux.HandleFunc("/api/auth/status", s.authStatusHandler)
 	mux.HandleFunc("/api/logs", s.logsHandler)
 	mux.HandleFunc("/api/mappings", s.mappingsHandler)
 	mux.HandleFunc("/api/stats", s.statsHandler)
@@ -496,6 +497,28 @@ func (s *Server) versionHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		log.Printf("Failed to write version response: %v", err)
+	}
+}
+
+// authStatusHandler reports whether HTTP Basic Auth is configured (a username
+// and password are set and enabled). The web UI uses this as its admin signal:
+// whoever set the credentials and can load the gated UI is the admin. It exposes
+// ONLY this boolean — never the username/password — and stays reachable without
+// Basic Auth (see basicAuthPublicExact) so the UI can query it before/without
+// authenticating.
+func (s *Server) authStatusHandler(w http.ResponseWriter, r *http.Request) {
+	// Add CORS headers
+	s.corsHandler(w, r)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	response := map[string]bool{
+		"basicAuthActive": s.config.BasicAuth.Active(),
+	}
+
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		log.Printf("Failed to write auth status response: %v", err)
 	}
 }
 
@@ -1084,6 +1107,7 @@ func (s *Server) StartWithErrorHandling() {
 var basicAuthPublicPrefixes = []string{"/v1/", "/v1beta/", "/api/pii/"}
 var basicAuthPublicExact = map[string]bool{
 	"/api/health": true, "/api/version": true, "/health": true, "/version": true,
+	"/api/auth/status": true,
 }
 
 // isBasicAuthPublicPath reports whether p is exempt from Basic Auth.

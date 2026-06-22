@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { isElectron } from "../utils/providerHelpers";
+import { useEffect, useState } from "react";
+import { apiUrl, isElectron } from "../utils/providerHelpers";
 import { useServerHealth } from "../hooks/useServerHealth";
 import Sidebar, { ViewId } from "./dashboard/Sidebar";
 import DashboardView from "./dashboard/DashboardView";
@@ -13,14 +13,51 @@ import PrivacyProxyUI from "./privacy-proxy-ui";
  * Top-level shell for the proxy app.
  *
  * The deep-forest sidebar is the always-on server (persistent nav + live
- * status); the light area is the workspace. The Dashboard is home; the original
- * masking tool lives under the "Playground" view; Settings, Activity, and
- * Mappings are each their own workspace view. Only the Playground is kept
- * mounted (so its in-progress state survives navigation); the other views mount
- * on demand and load their data fresh.
+ * status); the light area is the workspace. The launch screen depends on the
+ * role chosen during onboarding: admins land on the Dashboard, everyone else on
+ * the Playground (the original masking tool). Settings, Activity, and Mappings
+ * are each their own workspace view. Only the Playground is kept mounted (so its
+ * in-progress state survives navigation); the other views mount on demand and
+ * load their data fresh.
  */
 export default function AppShell() {
-  const [view, setView] = useState<ViewId>("dashboard");
+  // The launch screen is role-dependent. `admin` is read async over IPC, so the
+  // view starts unresolved (null) and the workspace stays empty until the role
+  // arrives — this avoids briefly flashing the wrong screen on first paint.
+  const [view, setView] = useState<ViewId | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const resolveInitialView = async () => {
+      let isAdmin = false;
+      if (isElectron && window.electronAPI) {
+        // Desktop: the role chosen during onboarding.
+        try {
+          isAdmin = await window.electronAPI.getAdmin();
+        } catch (error) {
+          console.error("Failed to read admin preference:", error);
+        }
+      } else {
+        // Web: a configured username + password (HTTP Basic Auth) is the admin
+        // signal — whoever set the credentials and can load the gated UI is the
+        // admin. /api/auth/status exposes only this boolean, never the secrets.
+        try {
+          const res = await fetch(apiUrl("/api/auth/status", isElectron));
+          if (res.ok) {
+            const data = await res.json();
+            isAdmin = data.basicAuthActive === true;
+          }
+        } catch (error) {
+          console.error("Failed to read auth status:", error);
+        }
+      }
+      if (!cancelled) setView(isAdmin ? "dashboard" : "playground");
+    };
+    resolveInitialView();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   // Bumped after a successful provider save so the Playground re-reads its
   // cached provider config (the selector ✓ marks, active provider, etc.).
   const [settingsReloadN, setSettingsReloadN] = useState(0);
