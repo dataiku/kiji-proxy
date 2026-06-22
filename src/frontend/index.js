@@ -3,7 +3,6 @@ import ReactDOM from "react-dom/client";
 import "./src/styles/styles.css";
 import AppShell from "./src/components/AppShell.tsx";
 import ErrorBoundary from "./src/components/ErrorBoundary.tsx";
-import TourProvider from "./src/tour/TourProvider.tsx";
 import * as Sentry from "@sentry/electron/renderer";
 
 // Initialize Sentry for renderer process
@@ -16,8 +15,6 @@ Sentry.init({
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(
   <ErrorBoundary>
-    <TourProvider>
-      <AppShell />
-    </TourProvider>
+    <AppShell />
   </ErrorBoundary>
 );

@@ -6,7 +6,6 @@ import {
   Info,
   Menu,
   Flag,
-  HelpCircle,
   ArrowRight,
   Eye,
   CornerDownLeft,
@@ -16,7 +15,6 @@ import logoImage from "../../assets/kiji_proxy.svg";
 import kijiMascot from "../../assets/kiji_proxy.svg";
 import MisclassificationModal from "./modals/MisclassificationModal";
 import WelcomeModal from "./onboarding/WelcomeModal";
-import { useTour } from "../tour/useTour";
 import { useServerHealth } from "../hooks/useServerHealth";
 import { useElectronSettings } from "../hooks/useElectronSettings";
 import { useMisclassificationReport } from "../hooks/useMisclassificationReport";
@@ -73,7 +71,6 @@ export default function PrivacyProxyUI({
   const settings = useElectronSettings({
     onSettingsOpen: () => onRequestSettings?.(),
     onAboutOpen: () => onRequestAbout?.(),
-    onTourStart: () => startTour(),
   });
 
   // The shell bumps reloadSettingsSignal after a provider save so the cached
@@ -82,11 +79,6 @@ export default function PrivacyProxyUI({
     if (reloadSettingsSignal) settings.loadSettings();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reloadSettingsSignal]);
-
-  // Product tour
-  const { startTour, isTourActive, cancelTour } = useTour(
-    settings.welcomeModalJustClosed
-  );
 
   // Server health polling
   const { serverStatus, serverHealth, modelSignature, version } =
@@ -113,8 +105,6 @@ export default function PrivacyProxyUI({
     providersConfig: settings.providersConfig,
     apiKey: settings.apiKey,
     isElectron,
-    isTourActive,
-    cancelTour,
   });
 
   // Misclassification reporting
@@ -189,7 +179,6 @@ export default function PrivacyProxyUI({
                 ref={menuRef}
               >
                 <button
-                  id="tour-menu-button"
                   onClick={() => setIsMenuOpen(!isMenuOpen)}
                   className="p-2 text-stone-500 hover:text-brand-700 hover:bg-stone-100 rounded-lg transition-colors"
                   title="Menu"
@@ -218,22 +207,11 @@ export default function PrivacyProxyUI({
                       <Info className="w-4 h-4 text-stone-400" />
                       About Kiji Privacy Proxy
                     </button>
-                    <button
-                      onClick={() => {
-                        startTour();
-                        setIsMenuOpen(false);
-                      }}
-                      className="w-full text-left px-3 py-2.5 text-sm text-stone-700 hover:bg-brand-50 hover:text-brand-800 rounded-lg transition-colors flex items-center gap-2.5"
-                    >
-                      <HelpCircle className="w-4 h-4 text-stone-400" />
-                      Start tour
-                    </button>
                   </div>
                 )}
               </div>
             )}
             <div
-              id="tour-header"
               className={`flex flex-col items-center justify-center transition-all duration-300 ${
                 isScrolled ? "scale-95" : "scale-100"
               }`}
@@ -322,16 +300,12 @@ export default function PrivacyProxyUI({
         )}
 
         {/* Input Section */}
-        <div
-          id="tour-input-section"
-          className="card p-6 md:p-7 mb-6 animate-rise-in"
-        >
+        <div className="card p-6 md:p-7 mb-6 animate-rise-in">
           <div className="flex items-center justify-between mb-4">
             <span className="eyebrow text-stone-400">Your request</span>
             <div className="flex items-center gap-2">
               <label className="text-sm text-stone-500">Send to</label>
               <select
-                id="tour-provider-selector"
                 value={settings.activeProvider}
                 onChange={(e) =>
                   settings.switchProvider(e.target.value as ProviderType)
@@ -371,7 +345,6 @@ export default function PrivacyProxyUI({
           />
           <div className="flex gap-3 mt-4 items-center">
             <button
-              id="tour-process-button"
               onClick={handleSubmit}
               disabled={
                 !inputData.trim() || isProcessing || serverStatus === "offline"
@@ -659,10 +632,7 @@ export default function PrivacyProxyUI({
 
       {/* Status Bar — only when standalone; the shell sidebar shows server status */}
       {!embedded && (
-      <div
-        id="tour-status-bar"
-        className="fixed bottom-0 left-0 right-0 bg-brand-900 text-brand-100/90 px-4 py-2 flex items-center justify-between border-t border-brand-950/50"
-      >
+      <div className="fixed bottom-0 left-0 right-0 bg-brand-900 text-brand-100/90 px-4 py-2 flex items-center justify-between border-t border-brand-950/50">
         <div className="flex items-center gap-2">
           <div
             className={`w-2.5 h-2.5 rounded-full ${

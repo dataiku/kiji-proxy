@@ -5,7 +5,6 @@ import { isElectron } from "../utils/providerHelpers";
 interface ModalCallbacks {
   onSettingsOpen: () => void;
   onAboutOpen: () => void;
-  onTourStart: () => void;
 }
 
 export function useElectronSettings(callbacks: ModalCallbacks) {
@@ -22,10 +21,6 @@ export function useElectronSettings(callbacks: ModalCallbacks) {
   });
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [isWelcomeOpen, setIsWelcomeOpen] = useState(false);
-  // In web mode, skip welcome modal persistence — start as if already closed
-  const [welcomeModalJustClosed, setWelcomeModalJustClosed] = useState(
-    !isElectron
-  );
 
   // Keep callbacks in a ref so IPC listeners always call the latest version
   const callbacksRef = useRef(callbacks);
@@ -70,8 +65,6 @@ export function useElectronSettings(callbacks: ModalCallbacks) {
           setTimeout(() => {
             setIsWelcomeOpen(true);
           }, 500);
-        } else {
-          setWelcomeModalJustClosed(true);
         }
       });
 
@@ -87,21 +80,12 @@ export function useElectronSettings(callbacks: ModalCallbacks) {
         });
       }
 
-      if (window.electronAPI.onTourOpen) {
-        window.electronAPI.onTourOpen(() => {
-          callbacksRef.current.onTourStart();
-        });
-      }
-
       return () => {
         if (window.electronAPI?.removeSettingsListener) {
           window.electronAPI.removeSettingsListener();
         }
         if (window.electronAPI?.removeAboutListener) {
           window.electronAPI.removeAboutListener();
-        }
-        if (window.electronAPI?.removeTourListener) {
-          window.electronAPI.removeTourListener();
         }
       };
     }
@@ -111,7 +95,6 @@ export function useElectronSettings(callbacks: ModalCallbacks) {
 
   const closeWelcome = useCallback(() => {
     setIsWelcomeOpen(false);
-    setWelcomeModalJustClosed(true);
   }, []);
 
   return {
@@ -119,7 +102,6 @@ export function useElectronSettings(callbacks: ModalCallbacks) {
     providersConfig,
     apiKey,
     isWelcomeOpen,
-    welcomeModalJustClosed,
     loadSettings,
     switchProvider,
     closeWelcome,

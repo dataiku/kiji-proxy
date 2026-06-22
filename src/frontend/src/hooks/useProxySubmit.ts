@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback } from "react";
 import type {
   ProviderType,
   DetectedEntity,
@@ -40,8 +40,6 @@ interface UseProxySubmitOptions {
   };
   apiKey: string | null;
   isElectron: boolean;
-  isTourActive: () => boolean;
-  cancelTour: () => void;
 }
 
 export function useProxySubmit({
@@ -49,8 +47,6 @@ export function useProxySubmit({
   providersConfig,
   apiKey,
   isElectron,
-  isTourActive,
-  cancelTour,
 }: UseProxySubmitOptions) {
   const [inputData, setInputData] = useState("");
   const [maskedInput, setMaskedInput] = useState("");
@@ -63,13 +59,6 @@ export function useProxySubmit({
   const [detectedEntities, setDetectedEntities] = useState<DetectedEntity[]>(
     []
   );
-
-  // Cancel tour if processing starts
-  useEffect(() => {
-    if (isProcessing && isTourActive()) {
-      cancelTour();
-    }
-  }, [isProcessing, isTourActive, cancelTour]);
 
   const averageConfidence = useMemo(() => {
     if (detectedEntities.length === 0) return 0;
