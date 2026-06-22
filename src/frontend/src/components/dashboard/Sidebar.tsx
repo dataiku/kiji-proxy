@@ -6,7 +6,7 @@ import {
   Settings as SettingsIcon,
   Info,
 } from "lucide-react";
-import logoImage from "../../../assets/kiji_proxy.svg";
+import logoImage from "../../../assets/kiji-dark.svg";
 
 export type ViewId =
   | "dashboard"
