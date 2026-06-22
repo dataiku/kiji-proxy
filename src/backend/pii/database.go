@@ -549,6 +549,78 @@ func (s *SQLitePIIMappingDB) GetLogs(ctx context.Context, limit int, offset int)
 	return logs, nil
 }
 
+// MetricsSeedRow is a privacy-safe projection of a logged request, used to seed
+// the dashboard metrics collector at startup. It carries entity *types* and
+// confidences only — never the original PII text or the message body.
+type MetricsSeedRow struct {
+	Timestamp   time.Time
+	Model       string
+	Types       []string
+	Confidences []float64
+}
+
+// MetricsSeedRows returns up to limit most-recent proxied requests (the
+// "request_masked" log rows) projected for metrics seeding. The original PII in
+// detected_pii is intentionally discarded; only the type label and confidence
+// of each entity are read out. Latency is not reconstructed here: the log rows
+// don't record masking time, so seeded requests carry no latency (the live proxy
+// path measures and records the added overhead going forward).
+func (s *SQLitePIIMappingDB) MetricsSeedRows(ctx context.Context, limit int) ([]MetricsSeedRow, error) {
+	query := `
+	SELECT timestamp, model, detected_pii
+	FROM logs
+	WHERE direction = 'request_masked'
+	ORDER BY timestamp DESC
+	LIMIT ?
+	`
+
+	rows, err := s.db.QueryContext(ctx, query, limit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query metrics seed rows: %w", err)
+	}
+	defer rows.Close()
+
+	var out []MetricsSeedRow
+	for rows.Next() {
+		var timestamp string
+		var model sql.NullString
+		var detectedPIIJSON string
+
+		if err := rows.Scan(&timestamp, &model, &detectedPIIJSON); err != nil {
+			return nil, fmt.Errorf("failed to scan metrics seed row: %w", err)
+		}
+
+		var detected []LogEntry
+		if len(detectedPIIJSON) > 0 {
+			if err := json.Unmarshal([]byte(detectedPIIJSON), &detected); err != nil {
+				// Skip a malformed row rather than failing the whole seed.
+				continue
+			}
+		}
+
+		types := make([]string, 0, len(detected))
+		confs := make([]float64, 0, len(detected))
+		for _, e := range detected {
+			types = append(types, e.PIIType)
+			confs = append(confs, e.Confidence)
+		}
+
+		parsedTime, _ := time.Parse("2006-01-02 15:04:05", timestamp)
+
+		row := MetricsSeedRow{Timestamp: parsedTime, Types: types, Confidences: confs}
+		if model.Valid {
+			row.Model = model.String
+		}
+		out = append(out, row)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating metrics seed rows: %w", err)
+	}
+
+	return out, nil
+}
+
 // formatDetectedPII formats the detected PII array as a readable string
 func formatDetectedPII(entries []LogEntry) string {
 	if len(entries) == 0 {

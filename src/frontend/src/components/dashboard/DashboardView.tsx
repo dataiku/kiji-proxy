@@ -276,7 +276,7 @@ export default function DashboardView({
       {data && (
         <>
           {/* KPI cards */}
-          <div className="grid grid-cols-[1.4fr_1fr_1fr_1fr] gap-4 mb-4">
+          <div className="grid grid-cols-[1.4fr_1fr_1fr] gap-4 mb-4">
             <div className="card p-5">
               <div className="flex justify-between items-end">
                 <div>
@@ -307,19 +307,6 @@ export default function DashboardView({
               </div>
               <div className="text-xs text-stone-500 mt-2.5">
                 {fmt(data.kpis.requests_proxied.today)} today
-              </div>
-            </div>
-
-            <div className="card p-5">
-              <div className="text-[11px] font-semibold tracking-[0.13em] uppercase text-stone-400">
-                PII leaked
-              </div>
-              <div className="font-mono text-[34px] font-semibold text-brand-700 mt-2 leading-none">
-                {fmt(data.kpis.pii_leaked.total)}
-              </div>
-              <div className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-semibold text-brand-700 bg-brand-50 border border-brand-200 px-2.5 py-1 rounded-full mt-2.5">
-                <Shield className="w-3.5 h-3.5" />
-                {Math.round(data.kpis.pii_leaked.masked_rate * 100)}% masked
               </div>
             </div>
 
