@@ -880,3 +880,60 @@ func TestInsertLog_EntitiesRoundTrip(t *testing.T) {
 		t.Errorf("expected confidence 0.88, got %f", entries[0].Confidence)
 	}
 }
+
+// --- DashboardWindowRows tests ---
+
+func TestDashboardWindowRows_FiltersAndProjects(t *testing.T) {
+	db := newTestDB(t)
+	ctx := context.Background()
+
+	entities := []detectors.Entity{
+		{Text: "John Doe", Label: "PERSON", Confidence: 0.95},
+		{Text: "john@test.com", Label: "EMAIL", Confidence: 0.99},
+	}
+	// Only request_masked rows feed the dashboard; the others must be ignored.
+	if err := db.InsertLog(ctx, "masked request", "request_masked", entities, false); err != nil {
+		t.Fatalf("InsertLog masked failed: %v", err)
+	}
+	if err := db.InsertLog(ctx, "original request", "request_original", entities, false); err != nil {
+		t.Fatalf("InsertLog original failed: %v", err)
+	}
+	if err := db.InsertLog(ctx, "masked response", "response_masked", nil, false); err != nil {
+		t.Fatalf("InsertLog response failed: %v", err)
+	}
+
+	rows, err := db.DashboardWindowRows(ctx, time.Time{})
+	if err != nil {
+		t.Fatalf("DashboardWindowRows failed: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("expected 1 request_masked row, got %d", len(rows))
+	}
+	got := rows[0].Types
+	if len(got) != 2 || got[0] != "PERSON" || got[1] != "EMAIL" {
+		t.Errorf("expected types [PERSON EMAIL], got %v", got)
+	}
+}
+
+func TestDashboardWindowRows_SinceBound(t *testing.T) {
+	db := newTestDB(t)
+	ctx := context.Background()
+
+	if err := db.InsertLog(ctx, "masked", "request_masked",
+		[]detectors.Entity{{Text: "x", Label: "PERSON", Confidence: 0.9}}, false); err != nil {
+		t.Fatalf("InsertLog failed: %v", err)
+	}
+
+	// A bound in the past keeps the row; a bound in the future excludes it.
+	if rows, err := db.DashboardWindowRows(ctx, time.Now().Add(-time.Hour)); err != nil {
+		t.Fatalf("DashboardWindowRows(past) failed: %v", err)
+	} else if len(rows) != 1 {
+		t.Errorf("expected 1 row for a past bound, got %d", len(rows))
+	}
+
+	if rows, err := db.DashboardWindowRows(ctx, time.Now().Add(time.Hour)); err != nil {
+		t.Fatalf("DashboardWindowRows(future) failed: %v", err)
+	} else if len(rows) != 0 {
+		t.Errorf("expected 0 rows for a future bound, got %d", len(rows))
+	}
+}

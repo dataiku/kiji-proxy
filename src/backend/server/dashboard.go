@@ -33,6 +33,13 @@ const (
 	// window instead of collapsing to one or two points.
 	bucketDay  = "day"
 	bucketHour = "hour"
+
+	// Range ids accepted by ?range= and echoed back in the response.
+	range24h = "24h"
+	range7d  = "7d"
+	range30d = "30d"
+	range90d = "90d"
+	rangeAll = "all"
 )
 
 // --- response shapes (json tags mirror docs/dashboard-api.md) ---
@@ -326,7 +333,7 @@ func (s *Server) dashboardFromSQLite(rangeStr string, dur time.Duration, now tim
 
 	// For "all", the window opens at the earliest logged request (rows are
 	// ascending). Guarantee at least two day buckets so the chart can draw a line.
-	if rangeStr == "all" {
+	if rangeStr == rangeAll {
 		start = floorDay(now)
 		if len(rows) > 0 {
 			start = floorDay(rows[0].Timestamp)
@@ -349,11 +356,11 @@ func (s *Server) dashboardFromSQLite(rangeStr string, dur time.Duration, now tim
 // every other range uses daily buckets. For "all" the start is a placeholder
 // (recomputed from the earliest row) and the query bound is zero (full history).
 func dashboardWindow(rangeStr string, dur time.Duration, now time.Time) (bucketID string, start, querySince time.Time) {
-	if rangeStr == "24h" {
+	if rangeStr == range24h {
 		start = floorHour(now).Add(-23 * time.Hour)
 		return bucketHour, start, start
 	}
-	if rangeStr == "all" || dur <= 0 {
+	if rangeStr == rangeAll || dur <= 0 {
 		return bucketDay, floorDay(now), time.Time{}
 	}
 	days := int(dur / (24 * time.Hour))
@@ -474,16 +481,16 @@ func (s *Server) writeProblem(w http.ResponseWriter, status int, slug, title, de
 
 func parseDashboardRange(s string) (string, time.Duration, error) {
 	switch s {
-	case "", "30d":
-		return "30d", 30 * 24 * time.Hour, nil
-	case "24h":
-		return "24h", 24 * time.Hour, nil
-	case "7d":
-		return "7d", 7 * 24 * time.Hour, nil
-	case "90d":
-		return "90d", 90 * 24 * time.Hour, nil
-	case "all":
-		return "all", 0, nil
+	case "", range30d:
+		return range30d, 30 * 24 * time.Hour, nil
+	case range24h:
+		return range24h, 24 * time.Hour, nil
+	case range7d:
+		return range7d, 7 * 24 * time.Hour, nil
+	case range90d:
+		return range90d, 90 * 24 * time.Hour, nil
+	case rangeAll:
+		return rangeAll, 0, nil
 	default:
 		return "", 0, fmt.Errorf("range must be one of: 24h, 7d, 30d, 90d, all")
 	}
