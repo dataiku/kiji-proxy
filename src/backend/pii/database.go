@@ -566,20 +566,60 @@ type MetricsSeedRow struct {
 // don't record masking time, so seeded requests carry no latency (the live proxy
 // path measures and records the added overhead going forward).
 func (s *SQLitePIIMappingDB) MetricsSeedRows(ctx context.Context, limit int) ([]MetricsSeedRow, error) {
-	query := `
+	rows, err := s.db.QueryContext(ctx, `
 	SELECT timestamp, model, detected_pii
 	FROM logs
 	WHERE direction = 'request_masked'
 	ORDER BY timestamp DESC
 	LIMIT ?
-	`
-
-	rows, err := s.db.QueryContext(ctx, query, limit)
+	`, limit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query metrics seed rows: %w", err)
 	}
 	defer rows.Close()
 
+	return scanMetricsSeedRows(rows)
+}
+
+// DashboardWindowRows returns the privacy-safe projection of every proxied
+// ("request_masked") request at or after `since`, ordered oldest first. A zero
+// `since` returns the full history. Unlike MetricsSeedRows it is unbounded and
+// ascending, so the dashboard can bucket it into a dense per-day (or per-hour)
+// timeseries and a composition breakdown computed directly from SQLite rather
+// than from the in-memory collector.
+func (s *SQLitePIIMappingDB) DashboardWindowRows(ctx context.Context, since time.Time) ([]MetricsSeedRow, error) {
+	const base = `
+	SELECT timestamp, model, detected_pii
+	FROM logs
+	WHERE direction = 'request_masked'`
+
+	var (
+		rows *sql.Rows
+		err  error
+	)
+	if since.IsZero() {
+		rows, err = s.db.QueryContext(ctx, base+`
+	ORDER BY timestamp ASC`)
+	} else {
+		// Stored timestamps use SQLite datetime('now') (UTC "YYYY-MM-DD HH:MM:SS");
+		// compare against the same fixed-width format so the string compare is
+		// chronological.
+		rows, err = s.db.QueryContext(ctx, base+`
+	AND timestamp >= ?
+	ORDER BY timestamp ASC`, since.UTC().Format("2006-01-02 15:04:05"))
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to query dashboard window rows: %w", err)
+	}
+	defer rows.Close()
+
+	return scanMetricsSeedRows(rows)
+}
+
+// scanMetricsSeedRows scans rows of (timestamp, model, detected_pii) into the
+// privacy-safe MetricsSeedRow projection. The original PII text in detected_pii
+// is intentionally discarded; only entity types and confidences are read out.
+func scanMetricsSeedRows(rows *sql.Rows) ([]MetricsSeedRow, error) {
 	var out []MetricsSeedRow
 	for rows.Next() {
 		var timestamp string
@@ -593,7 +633,7 @@ func (s *SQLitePIIMappingDB) MetricsSeedRows(ctx context.Context, limit int) ([]
 		var detected []LogEntry
 		if len(detectedPIIJSON) > 0 {
 			if err := json.Unmarshal([]byte(detectedPIIJSON), &detected); err != nil {
-				// Skip a malformed row rather than failing the whole seed.
+				// Skip a malformed row rather than failing the whole query.
 				continue
 			}
 		}

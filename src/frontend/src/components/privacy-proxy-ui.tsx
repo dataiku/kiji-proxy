@@ -328,39 +328,35 @@ export default function PrivacyProxyUI({
         >
           <div className="flex items-center justify-between mb-4">
             <span className="eyebrow text-stone-400">Your request</span>
-            {isElectron && (
-              <div className="flex items-center gap-2">
-                <label className="text-sm text-stone-500">
-                  Send to
-                </label>
-                <select
-                  id="tour-provider-selector"
-                  value={settings.activeProvider}
-                  onChange={(e) =>
-                    settings.switchProvider(e.target.value as ProviderType)
-                  }
-                  disabled={isProcessing}
-                  className="px-3 py-2 border border-stone-200 rounded-lg focus:border-brand-500 focus:ring-2 focus:ring-brand-100 focus:outline-none text-sm bg-white font-medium text-stone-700 transition-shadow"
-                >
-                  {(
-                    [
-                      "openai",
-                      "anthropic",
-                      "gemini",
-                      "mistral",
-                      "custom",
-                    ] as ProviderType[]
-                  ).map((provider) => (
-                    <option key={provider} value={provider}>
-                      {PROVIDER_NAMES[provider]}
-                      {settings.providersConfig.providers[provider]?.hasApiKey
-                        ? " ✓"
-                        : ""}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-stone-500">Send to</label>
+              <select
+                id="tour-provider-selector"
+                value={settings.activeProvider}
+                onChange={(e) =>
+                  settings.switchProvider(e.target.value as ProviderType)
+                }
+                disabled={isProcessing}
+                className="px-3 py-2 border border-stone-200 rounded-lg focus:border-brand-500 focus:ring-2 focus:ring-brand-100 focus:outline-none text-sm bg-white font-medium text-stone-700 transition-shadow"
+              >
+                {(
+                  [
+                    "openai",
+                    "anthropic",
+                    "gemini",
+                    "mistral",
+                    "custom",
+                  ] as ProviderType[]
+                ).map((provider) => (
+                  <option key={provider} value={provider}>
+                    {PROVIDER_NAMES[provider]}
+                    {settings.providersConfig.providers[provider]?.hasApiKey
+                      ? " ✓"
+                      : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
           <textarea
             value={inputData}

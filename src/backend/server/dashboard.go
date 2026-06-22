@@ -1,15 +1,19 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	piiServices "github.com/dataiku/kiji-proxy/src/backend/pii"
 )
 
 // This file implements the dashboard API:
@@ -24,8 +28,11 @@ import (
 const (
 	// metricPIIMasked is the default (and PII) timeseries metric id.
 	metricPIIMasked = "pii_masked"
-	// bucketDay is the only timeseries bucket granularity currently served.
-	bucketDay = "day"
+	// bucketDay and bucketHour are the timeseries bucket granularities: daily for
+	// multi-day ranges, hourly for the 24h range so the chart still spans the
+	// window instead of collapsing to one or two points.
+	bucketDay  = "day"
+	bucketHour = "hour"
 )
 
 // --- response shapes (json tags mirror docs/dashboard-api.md) ---
@@ -190,14 +197,27 @@ func (s *Server) buildDashboard(rangeStr string, dur time.Duration) dashboardRes
 		Model:         modelBlock{Signature: sig, Hash: hash, Healthy: healthy},
 	}
 
+	// The "PII masked over time" timeseries and "what we masked" composition are
+	// computed directly from the SQLite request log: the timeseries is dense
+	// (every bucket in the range, zero-filled) so the chart spans the whole
+	// window even when activity lands on a single day. haveSQL is false only when
+	// the store can't supply rows, in which case we fall back to the in-memory
+	// aggregates below.
+	tsBlock, compBlock, haveSQL := s.dashboardFromSQLite(rangeStr, dur, now)
+
 	mc := s.handler.Metrics()
 	if mc == nil {
 		// Day-one / metrics-unavailable contract: valid empty payload.
 		resp.KPIs.PIIProtected.DeltaWindow = "7d"
 		resp.KPIs.PIIProtected.Spark = []int64{}
 		resp.KPIs.PIILeaked.MaskedRate = 1.0
-		resp.Timeseries = timeseriesBlock{Metric: metricPIIMasked, Bucket: bucketDay, Points: []tsPoint{}}
-		resp.Composition = compositionBlock{ByType: []compEntry{}}
+		if haveSQL {
+			resp.Timeseries = tsBlock
+			resp.Composition = compBlock
+		} else {
+			resp.Timeseries = timeseriesBlock{Metric: metricPIIMasked, Bucket: bucketDay, Points: []tsPoint{}}
+			resp.Composition = compositionBlock{ByType: []compEntry{}}
+		}
 		resp.ByProvider = []providerBlock{}
 		resp.Recent = []interceptBlock{}
 		return resp
@@ -223,25 +243,29 @@ func (s *Server) buildDashboard(rangeStr string, dur time.Duration) dashboardRes
 	resp.KPIs.LatencyMS = kpiLatency{AvgAdded: snap.LatencyAvg, P95Added: snap.LatencyP95}
 	resp.KPIs.DetectionConfidence = kpiConfidence{Avg: round2(snap.ConfidenceAvg)}
 
-	// timeseries
-	pts := make([]tsPoint, 0, len(snap.Timeseries))
-	for _, p := range snap.Timeseries {
-		pts = append(pts, tsPoint{T: p.Date, V: p.Value})
-	}
-	resp.Timeseries = timeseriesBlock{Metric: metricPIIMasked, Bucket: bucketDay, Points: pts}
-
-	// composition
-	comp := compositionBlock{Total: snap.CompositionTotal, ByType: make([]compEntry, 0, len(snap.Composition))}
-	for _, t := range snap.Composition {
-		share := 0.0
-		if snap.CompositionTotal > 0 {
-			share = round2(float64(t.Count) / float64(snap.CompositionTotal))
+	// timeseries + composition (SQLite-backed; in-memory snapshot is the fallback)
+	if haveSQL {
+		resp.Timeseries = tsBlock
+		resp.Composition = compBlock
+	} else {
+		pts := make([]tsPoint, 0, len(snap.Timeseries))
+		for _, p := range snap.Timeseries {
+			pts = append(pts, tsPoint{T: p.Date, V: p.Value})
 		}
-		comp.ByType = append(comp.ByType, compEntry{
-			Type: t.Type, Label: t.Type, Count: t.Count, Share: share,
-		})
+		resp.Timeseries = timeseriesBlock{Metric: metricPIIMasked, Bucket: bucketDay, Points: pts}
+
+		comp := compositionBlock{Total: snap.CompositionTotal, ByType: make([]compEntry, 0, len(snap.Composition))}
+		for _, t := range snap.Composition {
+			share := 0.0
+			if snap.CompositionTotal > 0 {
+				share = round2(float64(t.Count) / float64(snap.CompositionTotal))
+			}
+			comp.ByType = append(comp.ByType, compEntry{
+				Type: t.Type, Label: t.Type, Count: t.Count, Share: share,
+			})
+		}
+		resp.Composition = comp
 	}
-	resp.Composition = comp
 
 	// by_provider (share relative to the leading provider)
 	var top int64
@@ -275,6 +299,137 @@ func (s *Server) buildDashboard(rangeStr string, dur time.Duration) dashboardRes
 		BusiestSource: snap.BusiestSource,
 	}
 	return resp
+}
+
+// --- SQLite-backed timeseries + composition ---
+
+// dashboardFromSQLite computes the "PII masked over time" timeseries and the
+// "what we masked" composition for the selected range directly from the SQLite
+// request log. The timeseries is dense — every bucket in the window is emitted,
+// zero-filled on quiet buckets — so the chart spans the whole range even when
+// all activity falls on a single day. Returns ok=false when the store can't
+// supply rows, so the caller falls back to the in-memory collector.
+func (s *Server) dashboardFromSQLite(rangeStr string, dur time.Duration, now time.Time) (timeseriesBlock, compositionBlock, bool) {
+	bucketID, start, querySince := dashboardWindow(rangeStr, dur, now)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	rows, err := s.handler.DashboardWindowRows(ctx, querySince)
+	if err != nil {
+		log.Printf("[Dashboard] ⚠️  SQLite aggregation failed, falling back to in-memory: %v", err)
+		return timeseriesBlock{}, compositionBlock{}, false
+	}
+	if rows == nil {
+		// Logging store doesn't support SQLite aggregation.
+		return timeseriesBlock{}, compositionBlock{}, false
+	}
+
+	// For "all", the window opens at the earliest logged request (rows are
+	// ascending). Guarantee at least two day buckets so the chart can draw a line.
+	if rangeStr == "all" {
+		start = floorDay(now)
+		if len(rows) > 0 {
+			start = floorDay(rows[0].Timestamp)
+		}
+		if !start.Before(floorDay(now)) {
+			start = floorDay(now).AddDate(0, 0, -1)
+		}
+	}
+
+	ts := timeseriesBlock{
+		Metric: metricPIIMasked,
+		Bucket: bucketID,
+		Points: buildDenseTimeseries(rows, bucketID, start, now),
+	}
+	return ts, buildComposition(rows), true
+}
+
+// dashboardWindow returns the bucket granularity, the (UTC) start of the first
+// bucket, and the query lower bound for a range. "24h" uses 24 hourly buckets;
+// every other range uses daily buckets. For "all" the start is a placeholder
+// (recomputed from the earliest row) and the query bound is zero (full history).
+func dashboardWindow(rangeStr string, dur time.Duration, now time.Time) (bucketID string, start, querySince time.Time) {
+	if rangeStr == "24h" {
+		start = floorHour(now).Add(-23 * time.Hour)
+		return bucketHour, start, start
+	}
+	if rangeStr == "all" || dur <= 0 {
+		return bucketDay, floorDay(now), time.Time{}
+	}
+	days := int(dur / (24 * time.Hour))
+	if days < 2 {
+		days = 2
+	}
+	start = floorDay(now).AddDate(0, 0, -(days - 1))
+	return bucketDay, start, start
+}
+
+// buildDenseTimeseries buckets each request's PII-entity count into its day (or
+// hour) and emits one point per bucket from start through now, zero-filled.
+func buildDenseTimeseries(rows []piiServices.MetricsSeedRow, bucketID string, start, now time.Time) []tsPoint {
+	floor := floorDay
+	step := func(t time.Time) time.Time { return t.AddDate(0, 0, 1) }
+	label := func(t time.Time) string { return t.Format("2006-01-02") }
+	if bucketID == bucketHour {
+		floor = floorHour
+		step = func(t time.Time) time.Time { return t.Add(time.Hour) }
+		label = func(t time.Time) string { return t.Format("2006-01-02T15:00") }
+	}
+
+	counts := make(map[string]int64)
+	for _, r := range rows {
+		counts[label(floor(r.Timestamp))] += int64(len(r.Types))
+	}
+
+	points := make([]tsPoint, 0)
+	for b, end := floor(start), floor(now); !b.After(end); b = step(b) {
+		key := label(b)
+		points = append(points, tsPoint{T: key, V: counts[key]})
+	}
+	return points
+}
+
+// buildComposition tallies masked entities by type across the window rows,
+// ordered largest first (ties broken by type name for stable output).
+func buildComposition(rows []piiServices.MetricsSeedRow) compositionBlock {
+	counts := make(map[string]int64)
+	var total int64
+	for _, r := range rows {
+		for _, t := range r.Types {
+			counts[t]++
+			total++
+		}
+	}
+
+	entries := make([]compEntry, 0, len(counts))
+	for t, n := range counts {
+		share := 0.0
+		if total > 0 {
+			share = round2(float64(n) / float64(total))
+		}
+		entries = append(entries, compEntry{Type: t, Label: t, Count: n, Share: share})
+	}
+	sort.Slice(entries, func(i, j int) bool {
+		if entries[i].Count != entries[j].Count {
+			return entries[i].Count > entries[j].Count
+		}
+		return entries[i].Type < entries[j].Type
+	})
+
+	return compositionBlock{Total: total, ByType: entries}
+}
+
+// floorDay and floorHour truncate a timestamp to the start of its UTC day/hour.
+// Stored log timestamps are UTC, so bucketing in UTC keeps storage, aggregation,
+// and the dashboard's RFC3339 output consistent.
+func floorDay(t time.Time) time.Time {
+	t = t.UTC()
+	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
+}
+
+func floorHour(t time.Time) time.Time {
+	t = t.UTC()
+	return time.Date(t.Year(), t.Month(), t.Day(), t.Hour(), 0, 0, 0, time.UTC)
 }
 
 // --- small helpers ---

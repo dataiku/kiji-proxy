@@ -464,6 +464,28 @@ func (h *Handler) seedMetricsFromLogs() {
 	log.Printf("[Metrics] Seeded dashboard metrics from %d logged requests", len(rows))
 }
 
+// dashboardWindowSource is implemented by logging stores that can return the
+// per-request projections the dashboard aggregates directly from SQLite. It's
+// optional: stores that don't implement it fall back to the in-memory collector.
+type dashboardWindowSource interface {
+	DashboardWindowRows(ctx context.Context, since time.Time) ([]piiServices.MetricsSeedRow, error)
+}
+
+// DashboardWindowRows returns proxied-request projections at or after `since`
+// (a zero `since` returns all history) for SQLite-backed dashboard aggregation.
+// Returns nil, nil when no logging store is configured or it doesn't support the
+// query, so the dashboard handler can fall back to the in-memory collector.
+func (h *Handler) DashboardWindowRows(ctx context.Context, since time.Time) ([]piiServices.MetricsSeedRow, error) {
+	if h.loggingDB == nil {
+		return nil, nil
+	}
+	src, ok := h.loggingDB.(dashboardWindowSource)
+	if !ok {
+		return nil, nil
+	}
+	return src.DashboardWindowRows(ctx, since)
+}
+
 // providerFromModel makes a best-effort provider guess from a logged model name
 // (the logs don't store the provider explicitly). Returns "" when unknown, in
 // which case the request still counts but isn't attributed to a provider.

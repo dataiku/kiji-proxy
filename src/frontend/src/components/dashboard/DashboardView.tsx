@@ -325,7 +325,7 @@ export default function DashboardView({
           </div>
 
           {/* chart + donut */}
-          <div className="grid grid-cols-[1.55fr_1fr] gap-4 mb-4 items-start">
+          <div className="grid grid-cols-[1.55fr_1fr] gap-4 mb-4 items-stretch">
             <div className="card p-5">
               <h3 className="text-sm font-bold flex items-center justify-between">
                 PII masked over time
@@ -350,23 +350,25 @@ export default function DashboardView({
               </div>
             </div>
 
-            <div className="card p-5">
+            <div className="card p-5 flex flex-col">
               <h3 className="text-sm font-bold flex items-center justify-between">
                 What we masked
                 <span className="text-xs text-stone-400 font-medium">
                   this period
                 </span>
               </h3>
-              {data.composition.by_type.length > 0 ? (
-                <Donut
-                  total={data.composition.total}
-                  byType={data.composition.by_type}
-                />
-              ) : (
-                <div className="h-[138px] flex items-center justify-center text-sm text-stone-400">
-                  Nothing masked yet.
-                </div>
-              )}
+              <div className="flex-1 flex flex-col justify-center">
+                {data.composition.by_type.length > 0 ? (
+                  <Donut
+                    total={data.composition.total}
+                    byType={data.composition.by_type}
+                  />
+                ) : (
+                  <div className="h-[138px] flex items-center justify-center text-sm text-stone-400">
+                    Nothing masked yet.
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
