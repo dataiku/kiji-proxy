@@ -70,11 +70,19 @@ jobs:
     name: Check PR scope
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout PR
+      # No `ref:` here: this job runs under pull_request_target with the base
+      # repo's GITHUB_TOKEN, so it must check out the trusted base branch
+      # (the default ref) rather than fork-controlled code. The PR head is
+      # fetched as data only below, never checked out or executed.
+      - name: Checkout base (trusted)
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
+
+      - name: Fetch PR head
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: git fetch origin "$HEAD_SHA"
 
       - name: Classify changed files
         id: classify
