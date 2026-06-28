@@ -59,6 +59,11 @@ updates:
     labels:
       - "dependencies"
       - "javascript"
+    # Group all root dependency updates into a single PR
+    groups:
+      root-dependencies:
+        patterns:
+          - "*"
 
   # Go modules
   - package-ecosystem: "gomod"
