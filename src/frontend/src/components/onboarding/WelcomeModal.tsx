@@ -17,6 +17,12 @@ interface WelcomeModalProps {
   onClose: () => void;
 }
 
+// Broadcast on the window when onboarding picks the admin role. AppShell renders
+// this modal indirectly (via the Playground) and resolves the launch view once on
+// mount, so it can't observe `setAdmin` through props — it listens for this event
+// instead and navigates admins to the Dashboard without waiting for a restart.
+export const ADMIN_ROLE_CHOSEN_EVENT = "kiji:admin-role-chosen";
+
 const promises = [
   {
     icon: Lock,
@@ -58,6 +64,8 @@ export default function WelcomeModal({ isOpen, onClose }: WelcomeModalProps) {
     if (isElectron && window.electronAPI) {
       try {
         await window.electronAPI.setAdmin(true);
+        // Let AppShell re-resolve the launch view now that the role is known.
+        window.dispatchEvent(new Event(ADMIN_ROLE_CHOSEN_EVENT));
       } catch (error) {
         console.error("Failed to save admin preference:", error);
       }
