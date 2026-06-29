@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/dataiku/kiji-proxy/src/backend/config"
 	piiServices "github.com/dataiku/kiji-proxy/src/backend/pii"
@@ -1083,4 +1084,55 @@ func TestHandler_EntityTypeAccessors(t *testing.T) {
 	if len(disabled) != 0 {
 		t.Errorf("expected no disabled entities by default, got %v", disabled)
 	}
+}
+
+func TestTruncatePreview(t *testing.T) {
+	t.Run("ascii under limit is unchanged", func(t *testing.T) {
+		s := "ClaudeDesktop"
+		if got := truncatePreview(s, 40); got != s {
+			t.Errorf("truncatePreview(%q, 40) = %q, want %q", s, got, s)
+		}
+	})
+
+	t.Run("ascii over limit is truncated with ellipsis", func(t *testing.T) {
+		s := strings.Repeat("a", 50)
+		got := truncatePreview(s, 40)
+		if !strings.HasSuffix(got, "…") {
+			t.Errorf("expected ellipsis suffix, got %q", got)
+		}
+		// Result body (sans ellipsis) must stay within the byte budget.
+		if body := strings.TrimSuffix(got, "…"); len(body) > 40 {
+			t.Errorf("truncated body exceeds 40 bytes: %d", len(body))
+		}
+		if !utf8.ValidString(got) {
+			t.Errorf("result is not valid UTF-8: %q", got)
+		}
+	})
+
+	t.Run("multibyte cut mid-rune stays valid UTF-8", func(t *testing.T) {
+		// Each emoji is 4 bytes; a byte budget of 10 lands mid-rune.
+		s := "😀😀😀😀😀😀"
+		got := truncatePreview(s, 10)
+		if !utf8.ValidString(got) {
+			t.Errorf("result is not valid UTF-8: %q", got)
+		}
+		if !strings.HasSuffix(got, "…") {
+			t.Errorf("expected ellipsis suffix, got %q", got)
+		}
+		if body := strings.TrimSuffix(got, "…"); len(body) > 10 {
+			t.Errorf("truncated body exceeds 10 bytes: %d", len(body))
+		}
+	})
+
+	t.Run("cjk cut mid-rune stays valid UTF-8", func(t *testing.T) {
+		// Each character is 3 bytes; a byte budget of 8 lands mid-rune.
+		s := "你好世界你好"
+		got := truncatePreview(s, 8)
+		if !utf8.ValidString(got) {
+			t.Errorf("result is not valid UTF-8: %q", got)
+		}
+		if body := strings.TrimSuffix(got, "…"); len(body) > 8 {
+			t.Errorf("truncated body exceeds 8 bytes: %d", len(body))
+		}
+	})
 }
