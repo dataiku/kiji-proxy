@@ -52,7 +52,7 @@ jobs:
           git config --global --get-all safe.directory
 
       - name: Setup Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: go.mod
 
@@ -62,7 +62,7 @@ jobs:
           toolchain: stable
 
       - name: Cache LFS objects
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: .git/lfs
           key: lfs-${{ runner.os }}-almalinux9-${{ hashFiles('.gitattributes') }}
@@ -74,7 +74,7 @@ jobs:
         uses: ./.github/actions/extract-tokenizers-version
 
       - name: Cache Go modules
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: |
             ~/go/pkg/mod
@@ -84,13 +84,13 @@ jobs:
             ${{ runner.os }}-almalinux9-go-
 
       - name: Cache tokenizers library
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: build/tokenizers/libtokenizers.a
           key: ${{ runner.os }}-almalinux9-tokenizers-v${{ steps.deps.outputs.version }}-prebuilt-v1
 
       - name: Cache ONNX Runtime library
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: |
             build/libonnxruntime.so.1.24.2
