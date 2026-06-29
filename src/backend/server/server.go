@@ -10,9 +10,11 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/dataiku/kiji-proxy/src/backend/config"
@@ -415,6 +417,8 @@ func (s *Server) startTransparentProxy() {
 			s.mappingsHandler(w, r)
 		case "/api/stats", "/stats":
 			s.statsHandler(w, r)
+		case "/api/dashboard":
+			s.dashboardHandler(w, r)
 		case "/api/model/security":
 			s.handleModelSecurity(w, r)
 		case "/api/proxy/ca-cert":
@@ -641,9 +645,16 @@ func (s *Server) statsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleModelSecurity(w http.ResponseWriter, r *http.Request) {
-	// Read model manifest from whichever variant is currently active.
-	manifestPath := filepath.Join(s.config.ResolveModelDirectory(), "model_manifest.json")
-	data, err := os.ReadFile(manifestPath) // #nosec G304 — path derived from validated config
+	// Read the manifest from the directory the model manager actually loaded (it
+	// tracks hot reloads), falling back to the configured directory if the manager
+	// hasn't reported one. Reading the static config path here would report the
+	// original model's manifest after a reload pointed at a different directory.
+	modelDir := s.config.ResolveModelDirectory()
+	if dir, ok := s.handler.GetModelInfo()["directory"].(string); ok && dir != "" {
+		modelDir = dir
+	}
+	manifestPath := filepath.Join(modelDir, "model_manifest.json")
+	data, err := os.ReadFile(manifestPath) // #nosec G304 — path derived from validated config/model manager
 
 	if err != nil {
 		http.Error(w, "Model manifest not found", http.StatusNotFound)
@@ -656,8 +667,15 @@ func (s *Server) handleModelSecurity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Extract hashes.sha256 defensively: a manifest without a "hashes" object (or
+	// without a string sha256) must not panic the handler.
+	var sha256 interface{}
+	if hashes, ok := manifest["hashes"].(map[string]interface{}); ok {
+		sha256 = hashes["sha256"]
+	}
+
 	response := map[string]interface{}{
-		"hash":     manifest["hashes"].(map[string]interface{})["sha256"],
+		"hash":     sha256,
 		"manifest": manifest,
 	}
 
@@ -1092,8 +1110,26 @@ func (s *Server) handleModelInfo(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// StartWithErrorHandling starts the server with proper error handling
+// StartWithErrorHandling starts the server with proper error handling.
+//
+// Start blocks in ListenAndServe, so a process-level SIGTERM/SIGINT would
+// otherwise kill the proxy without ever running Close(). That matters on macOS:
+// Start() enables the system auto-proxy (PAC at localhost:9090) and only
+// Close() tears it back down, so an abrupt exit leaves the machine pointed at a
+// dead PAC server. Install a signal handler that runs the same cleanup as Close
+// before exiting.
 func (s *Server) StartWithErrorHandling() {
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
+	go func() {
+		sig := <-sigCh
+		log.Printf("Received signal %v, shutting down and restoring system proxy...", sig)
+		if err := s.Close(); err != nil {
+			log.Printf("Warning: Error during shutdown cleanup: %v", err)
+		}
+		os.Exit(0)
+	}()
+
 	if err := s.Start(); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
@@ -1133,6 +1169,7 @@ func isTransparentAdminProtectedPath(p string) bool {
 	case "/api/logs", "/logs",
 		"/api/mappings", "/mappings",
 		"/api/stats", "/stats",
+		"/api/dashboard",
 		"/api/model/security",
 		"/api/proxy/ca-cert":
 		return true
