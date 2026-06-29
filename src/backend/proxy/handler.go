@@ -64,6 +64,16 @@ func (h *Handler) IsModelHealthy() bool {
 	return h.modelManager.IsHealthy()
 }
 
+// ModelIdentity returns the signature and short hash of the currently-loaded PII
+// model. It returns the default signature with an empty hash when no model
+// manager is configured.
+func (h *Handler) ModelIdentity() (signature, hash string) {
+	if h.modelManager == nil {
+		return "onnx-pii", ""
+	}
+	return h.modelManager.GetModelIdentity()
+}
+
 // GetModelError returns the last model error (if any)
 func (h *Handler) GetModelError() error {
 	if h.modelManager == nil {

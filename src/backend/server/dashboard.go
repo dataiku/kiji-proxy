@@ -6,11 +6,10 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	piiServices "github.com/dataiku/kiji-proxy/src/backend/pii"
@@ -40,6 +39,13 @@ const (
 	range30d = "30d"
 	range90d = "90d"
 	rangeAll = "all"
+
+	// maxDenseBuckets caps how many zero-filled buckets buildDenseTimeseries will
+	// emit. It guards the "all" range against a corrupt/zero log timestamp (e.g.
+	// year 0001) turning the per-bucket loop into hundreds of thousands of
+	// iterations. ~5.5 years of daily buckets is far more history than the proxy
+	// realistically retains, so legitimate ranges are never clamped.
+	maxDenseBuckets = 2000
 )
 
 // --- response shapes (json tags mirror docs/dashboard-api.md) ---
@@ -242,11 +248,15 @@ func (s *Server) buildDashboard(rangeStr string, dur time.Duration) dashboardRes
 		DeltaWindow: snap.DeltaWindow, Spark: spark,
 	}
 	resp.KPIs.RequestsProxied = kpiRequests{Total: snap.Requests, Today: snap.RequestsToday}
-	// rate := 1.0
-	// if denom := snap.PIIMasked + snap.Leaked; denom > 0 {
-	// 	rate = round2(float64(snap.PIIMasked) / float64(denom))
-	// }
-	// resp.KPIs.PIILeaked = kpiLeaked{Total: snap.Leaked, MaskedRate: rate}
+	// masked_rate = masked / (masked + leaked). With nothing leaked the rate is
+	// 1.0 ("everything detected was masked"), which keeps this branch consistent
+	// with the day-one / metrics-unavailable branch above (Total 0, MaskedRate
+	// 1.0) instead of reporting a misleading 0.
+	rate := 1.0
+	if denom := snap.PIIMasked + snap.Leaked; denom > 0 {
+		rate = round2(float64(snap.PIIMasked) / float64(denom))
+	}
+	resp.KPIs.PIILeaked = kpiLeaked{Total: snap.Leaked, MaskedRate: rate}
 	resp.KPIs.LatencyMS = kpiLatency{AvgAdded: snap.LatencyAvg, P95Added: snap.LatencyP95}
 	resp.KPIs.DetectionConfidence = kpiConfidence{Avg: round2(snap.ConfidenceAvg)}
 
@@ -317,6 +327,14 @@ func (s *Server) buildDashboard(rangeStr string, dur time.Duration) dashboardRes
 // all activity falls on a single day. Returns ok=false when the store can't
 // supply rows, so the caller falls back to the in-memory collector.
 func (s *Server) dashboardFromSQLite(rangeStr string, dur time.Duration, now time.Time) (timeseriesBlock, compositionBlock, bool) {
+	// Serve a recent computation from the per-range cache: DashboardWindowRows
+	// full-scans the logs table, and the UI polls every ~10s, so a few seconds of
+	// caching collapses bursty/duplicate polls onto a single scan at the cost of a
+	// little staleness on an activity dashboard.
+	if ts, comp, ok := dashboardWindowCacheGet(rangeStr, now); ok {
+		return ts, comp, true
+	}
+
 	bucketID, start, querySince := dashboardWindow(rangeStr, dur, now)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -348,7 +366,49 @@ func (s *Server) dashboardFromSQLite(rangeStr string, dur time.Duration, now tim
 		Bucket: bucketID,
 		Points: buildDenseTimeseries(rows, bucketID, start, now),
 	}
-	return ts, buildComposition(rows), true
+	comp := buildComposition(rows)
+	dashboardWindowCachePut(rangeStr, now, ts, comp)
+	return ts, comp, true
+}
+
+// dashboardWindowCacheTTL bounds how long a computed SQLite-backed timeseries +
+// composition is reused across polls. Kept short so the dashboard stays close to
+// live while still absorbing the duplicate/bursty polls the UI generates.
+const dashboardWindowCacheTTL = 5 * time.Second
+
+type dashboardWindowCacheEntry struct {
+	expires time.Time
+	ts      timeseriesBlock
+	comp    compositionBlock
+}
+
+// Process-global cache keyed by range id. The proxy runs a single Server per
+// process, so a package-level cache is sufficient and avoids widening the Server
+// struct. Only successful computations are cached (failures fall back to the
+// in-memory collector and are retried next poll).
+var (
+	dashboardWindowCacheMu sync.Mutex
+	dashboardWindowCache   = map[string]dashboardWindowCacheEntry{}
+)
+
+func dashboardWindowCacheGet(rangeStr string, now time.Time) (timeseriesBlock, compositionBlock, bool) {
+	dashboardWindowCacheMu.Lock()
+	defer dashboardWindowCacheMu.Unlock()
+	e, ok := dashboardWindowCache[rangeStr]
+	if !ok || now.After(e.expires) {
+		return timeseriesBlock{}, compositionBlock{}, false
+	}
+	return e.ts, e.comp, true
+}
+
+func dashboardWindowCachePut(rangeStr string, now time.Time, ts timeseriesBlock, comp compositionBlock) {
+	dashboardWindowCacheMu.Lock()
+	defer dashboardWindowCacheMu.Unlock()
+	dashboardWindowCache[rangeStr] = dashboardWindowCacheEntry{
+		expires: now.Add(dashboardWindowCacheTTL),
+		ts:      ts,
+		comp:    comp,
+	}
 }
 
 // dashboardWindow returns the bucket granularity, the (UTC) start of the first
@@ -376,11 +436,25 @@ func dashboardWindow(rangeStr string, dur time.Duration, now time.Time) (bucketI
 func buildDenseTimeseries(rows []piiServices.MetricsSeedRow, bucketID string, start, now time.Time) []tsPoint {
 	floor := floorDay
 	step := func(t time.Time) time.Time { return t.AddDate(0, 0, 1) }
+	back := func(t time.Time) time.Time { return t.AddDate(0, 0, -1) }
 	label := func(t time.Time) string { return t.Format("2006-01-02") }
 	if bucketID == bucketHour {
 		floor = floorHour
 		step = func(t time.Time) time.Time { return t.Add(time.Hour) }
+		back = func(t time.Time) time.Time { return t.Add(-time.Hour) }
 		label = func(t time.Time) string { return t.Format("2006-01-02T15:00") }
+	}
+
+	// Defensive clamp: a corrupt/zero start (e.g. year 0001 from an unparseable
+	// log timestamp) would otherwise loop one bucket/step for millennia and
+	// exhaust memory. Cap the window to the most recent maxDenseBuckets buckets
+	// ending at now, dropping the unreachable older tail.
+	earliest := floor(now)
+	for i := 0; i < maxDenseBuckets-1; i++ {
+		earliest = back(earliest)
+	}
+	if start.Before(earliest) {
+		start = earliest
 	}
 
 	counts := make(map[string]int64)
@@ -496,31 +570,13 @@ func parseDashboardRange(s string) (string, time.Duration, error) {
 	}
 }
 
-// dashboardModelInfo returns a best-effort model signature, short hash, and health.
+// dashboardModelInfo returns a best-effort model signature, short hash, and
+// health. All three come from the model manager (the source of truth for what's
+// actually loaded), so the signature/hash track hot reloads and the dashboard
+// never reads the manifest from disk on the poll path.
 func (s *Server) dashboardModelInfo() (signature, hash string, healthy bool) {
 	healthy = s.handler.IsModelHealthy()
-	signature = "onnx-pii"
-
-	manifestPath := filepath.Join(s.config.ResolveModelDirectory(), "model_manifest.json")
-	data, err := os.ReadFile(manifestPath) // #nosec G304 — path derived from validated config
-	if err != nil {
-		return signature, "", healthy
-	}
-	var manifest map[string]interface{}
-	if err := json.Unmarshal(data, &manifest); err != nil {
-		return signature, "", healthy
-	}
-	for _, k := range []string{"model", "name", "version"} {
-		if v, ok := manifest[k].(string); ok && v != "" {
-			signature = v
-			break
-		}
-	}
-	if hashes, ok := manifest["hashes"].(map[string]interface{}); ok {
-		if sha, ok := hashes["sha256"].(string); ok && len(sha) >= 7 {
-			hash = sha[:7]
-		}
-	}
+	signature, hash = s.handler.ModelIdentity()
 	return signature, hash, healthy
 }
 
