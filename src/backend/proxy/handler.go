@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 
@@ -425,7 +426,13 @@ func truncatePreview(s string, n int) string {
 	if len(s) <= n {
 		return s
 	}
-	return strings.TrimSpace(s[:n]) + "…"
+	// Slice at a rune boundary so multibyte (emoji/CJK) text isn't split into
+	// invalid UTF-8. Back off from n bytes until we land on a valid boundary.
+	cut := n
+	for cut > 0 && !utf8.RuneStart(s[cut]) {
+		cut--
+	}
+	return strings.TrimSpace(s[:cut]) + "…"
 }
 
 // metricsSeedSource is implemented by logging stores that can replay past
