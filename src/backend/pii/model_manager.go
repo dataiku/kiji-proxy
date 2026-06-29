@@ -2,6 +2,7 @@ package pii
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -31,6 +32,12 @@ type ModelManager struct {
 	isHealthy                 bool
 	lastError                 error
 	entityConfidenceThreshold float64
+	// modelSignature and modelHash identify the currently-loaded model. They are
+	// parsed from model_manifest.json at load time (see ReloadModel), keyed to the
+	// directory actually loaded, so callers like the dashboard report model
+	// identity without re-reading the file and the values track hot reloads.
+	modelSignature string
+	modelHash      string
 }
 
 // ModelConfig holds paths to required model files
@@ -148,12 +155,19 @@ func (mm *ModelManager) ReloadModel(newDirectory string) error {
 		return fmt.Errorf("model validation failed: %w", err)
 	}
 
+	// Parse the model's identity (signature + short hash) from its manifest now,
+	// outside the swap lock, sourced from the directory actually being loaded so a
+	// reload to a different directory is reflected in GetInfo/GetModelIdentity.
+	signature, hash := readModelIdentity(newDirectory)
+
 	// Step 4: Apply stored confidence threshold and swap detectors atomically
 	mm.mu.Lock()
 	newDetector.SetEntityConfidenceThreshold(mm.entityConfidenceThreshold)
 	oldDetector := mm.currentDetector
 	mm.currentDetector = newDetector
 	mm.modelDirectory = newDirectory
+	mm.modelSignature = signature
+	mm.modelHash = hash
 	mm.isHealthy = true
 	mm.lastError = nil
 	mm.mu.Unlock()
@@ -228,6 +242,8 @@ func (mm *ModelManager) GetInfo() map[string]interface{} {
 
 	info := map[string]interface{}{
 		"directory":    mm.modelDirectory,
+		"signature":    mm.modelSignature,
+		"hash":         mm.modelHash,
 		"healthy":      mm.isHealthy,
 		"confidence":   mm.entityConfidenceThreshold,
 		"onnx_enabled": mm.onnxEnabled,
@@ -241,6 +257,42 @@ func (mm *ModelManager) GetInfo() map[string]interface{} {
 	}
 
 	return info
+}
+
+// GetModelIdentity returns the signature and short hash of the currently-loaded
+// model, parsed from its manifest at load time (and refreshed on every reload).
+func (mm *ModelManager) GetModelIdentity() (signature, hash string) {
+	mm.mu.RLock()
+	defer mm.mu.RUnlock()
+	return mm.modelSignature, mm.modelHash
+}
+
+// readModelIdentity parses the model signature and short hash from
+// model_manifest.json in dir. It returns the default signature ("onnx-pii") and
+// an empty hash when the manifest is missing or unparseable — the manifest is
+// best-effort metadata and not required for the model to run.
+func readModelIdentity(dir string) (signature, hash string) {
+	signature = "onnx-pii"
+	data, err := os.ReadFile(filepath.Join(dir, "model_manifest.json")) // #nosec G304 — dir is validated before load
+	if err != nil {
+		return signature, ""
+	}
+	var manifest map[string]interface{}
+	if err := json.Unmarshal(data, &manifest); err != nil {
+		return signature, ""
+	}
+	for _, k := range []string{"model", "name", "version"} {
+		if v, ok := manifest[k].(string); ok && v != "" {
+			signature = v
+			break
+		}
+	}
+	if hashes, ok := manifest["hashes"].(map[string]interface{}); ok {
+		if sha, ok := hashes["sha256"].(string); ok && len(sha) >= 7 {
+			hash = sha[:7]
+		}
+	}
+	return signature, hash
 }
 
 // validateDirectory checks that the directory exists and contains all required files

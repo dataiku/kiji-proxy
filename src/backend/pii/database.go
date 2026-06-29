@@ -367,8 +367,13 @@ func (s *SQLitePIIMappingDB) GetMappings(ctx context.Context, limit int, offset 
 		}
 
 		// Parse created_at into time.Time so it serializes as RFC3339 for the
-		// frontend (matching how GetLogs returns timestamps).
-		parsedCreated, _ := time.Parse("2006-01-02 15:04:05", createdAt)
+		// frontend (matching how GetLogs returns timestamps). On failure log it
+		// (rather than silently swallowing) and keep the row with the zero time so
+		// the paginated mappings view doesn't drop entries.
+		parsedCreated, err := time.Parse("2006-01-02 15:04:05", createdAt)
+		if err != nil {
+			log.Printf("[SQLiteDB] ⚠️  Mapping row %d has unparseable created_at %q: %v", id, createdAt, err)
+		}
 
 		mappings = append(mappings, map[string]interface{}{
 			"id":                     id,
@@ -512,8 +517,13 @@ func (s *SQLitePIIMappingDB) GetLogs(ctx context.Context, limit int, offset int)
 
 		detectedPIIStr := formatDetectedPII(detectedPII)
 
-		// Parse timestamp
-		parsedTime, _ := time.Parse("2006-01-02 15:04:05", timestamp)
+		// Parse timestamp. On failure log it (rather than silently swallowing) and
+		// fall through with the zero time so the row still shows in the paginated
+		// /logs view instead of being dropped.
+		parsedTime, err := time.Parse("2006-01-02 15:04:05", timestamp)
+		if err != nil {
+			log.Printf("[SQLiteDB] ⚠️  Log row %d has unparseable timestamp %q: %v", id, timestamp, err)
+		}
 
 		logEntry := map[string]interface{}{
 			"id":           id,
@@ -645,7 +655,15 @@ func scanMetricsSeedRows(rows *sql.Rows) ([]MetricsSeedRow, error) {
 			confs = append(confs, e.Confidence)
 		}
 
-		parsedTime, _ := time.Parse("2006-01-02 15:04:05", timestamp)
+		parsedTime, err := time.Parse("2006-01-02 15:04:05", timestamp)
+		if err != nil {
+			// Skip a row with an unparseable timestamp rather than letting it
+			// default to the zero time (year 0001). A zero-time row would otherwise
+			// anchor the dashboard's "all"-range window at year 0001 and blow up its
+			// dense per-day bucket loop.
+			log.Printf("[SQLiteDB] ⚠️  Skipping metrics seed row with unparseable timestamp %q: %v", timestamp, err)
+			continue
+		}
 
 		row := MetricsSeedRow{Timestamp: parsedTime, Types: types, Confidences: confs}
 		if model.Valid {
