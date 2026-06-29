@@ -8,6 +8,7 @@ import ActivityView from "./activity/ActivityView";
 import MappingsView from "./mappings/MappingsView";
 import AboutView from "./about/AboutView";
 import PrivacyProxyUI from "./privacy-proxy-ui";
+import { ADMIN_ROLE_CHOSEN_EVENT } from "./onboarding/WelcomeModal";
 
 /**
  * Top-level shell for the proxy app.
@@ -56,6 +57,18 @@ export default function AppShell() {
     resolveInitialView();
     return () => {
       cancelled = true;
+    };
+  }, []);
+
+  // The initial view is resolved once on mount, but onboarding can choose the
+  // admin role afterwards (WelcomeModal lives under the Playground). When that
+  // happens, send the new admin straight to the Dashboard for this session
+  // instead of waiting for a restart to re-read the flag.
+  useEffect(() => {
+    const handleAdminChosen = () => setView("dashboard");
+    window.addEventListener(ADMIN_ROLE_CHOSEN_EVENT, handleAdminChosen);
+    return () => {
+      window.removeEventListener(ADMIN_ROLE_CHOSEN_EVENT, handleAdminChosen);
     };
   }, []);
   // Bumped after a successful provider save so the Playground re-reads its
