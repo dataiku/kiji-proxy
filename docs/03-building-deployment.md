@@ -33,7 +33,7 @@ Kiji Privacy Proxy can be built for two platforms with different deployment mode
 
 Both builds include:
 - Go backend (proxy server + PII detection)
-- Embedded ML model (`model_quantized.onnx`)
+- Embedded ML model (`model/quantized/model.onnx`)
 - Embedded tokenizer files (complete set)
 - ONNX Runtime library
 - Static tokenizers library
@@ -73,7 +73,7 @@ go env CGO_ENABLED  # Should be 1
 
 # Pull model files
 git lfs pull
-ls -lh model/quantized/model_quantized.onnx  # Should be ~63MB
+ls -lh model/quantized/model.onnx  # Should be a real model file, not a small LFS pointer
 ```
 
 ## Build Architecture
@@ -475,8 +475,8 @@ cd kiji-privacy-proxy-*-linux-amd64
 ./run.sh
 
 # Test endpoints
-curl http://localhost:8080/health
-curl http://localhost:8080/version
+curl http://localhost:8080/api/health
+curl http://localhost:8080/api/version
 ```
 
 ## Build Optimizations
@@ -500,8 +500,8 @@ go build -ldflags="-s -w" -o kiji-proxy ./src/backend
 
 The build uses a quantized model for smaller size:
 
-- **Original:** `model.onnx` (249MB)
-- **Quantized:** `model_quantized.onnx` (63MB)
+- **Original:** `model/trained/model.onnx` (249MB)
+- **Quantized:** `model/quantized/model.onnx` (63MB)
 - **Savings:** 186MB (75% reduction)
 
 ### DMG Compression
@@ -568,7 +568,7 @@ sudo systemctl start kiji-proxy
 ```bash
 sudo systemctl status kiji-proxy
 sudo journalctl -u kiji-proxy -f
-curl http://localhost:8080/health
+curl http://localhost:8080/api/health
 ```
 
 ### Systemd Service Configuration
@@ -674,8 +674,8 @@ open "/Applications/Kiji Privacy Proxy.app"
 
 ```bash
 # Check size
-ls -lh model/quantized/model_quantized.onnx
-# Should be ~63MB, not a few hundred bytes
+ls -lh model/quantized/model.onnx
+# Should be a real model file, not a few hundred bytes (an unfetched LFS pointer)
 
 # Solution: Pull LFS files
 git lfs pull
@@ -795,7 +795,7 @@ sudo ldconfig
 | libonnxruntime (macOS) | 26MB | Dynamic library |
 | libonnxruntime (Linux) | 24MB | Shared library |
 | libtokenizers.a | 15MB | Static (in binary) |
-| model_quantized.onnx | 63MB | ML model |
+| model/quantized/model.onnx | 63MB | ML model |
 | Frontend dist | 2-5MB | React bundle |
 | **Total DMG** | **~400MB** | macOS package |
 | **Total Tarball** | **~150-200MB** | Linux package |
