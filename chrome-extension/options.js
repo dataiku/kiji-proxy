@@ -200,6 +200,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
   saveLabelBtn.addEventListener("click", async () => {
     const checkboxes = labelGrid.querySelectorAll("input[type=checkbox]");
+    // No checkboxes means the grid never loaded (still loading or backend
+    // unreachable). Saving an empty `disabled` set would re-enable every type
+    // the user had previously turned off, silently wiping their config.
+    if (checkboxes.length === 0) {
+      showLabelStatus("No entity types loaded — start the proxy first.", true);
+      return;
+    }
     const disabled = Array.from(checkboxes)
       .filter((cb) => !cb.checked)
       .map((cb) => cb.value);
@@ -321,30 +328,31 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     patternList.innerHTML = "";
-    regexes.forEach((p, idx) => {
+    regexes.forEach((p) => {
       const row = document.createElement("div");
       row.className = "pattern-row";
       row.innerHTML = `
         <span class="pattern-name">${escHtml(p.name)}</span>
         <code class="pattern-regex-val">${escHtml(p.pattern)}</code>
-        <button class="btn-danger" data-action="delete" data-idx="${idx}">Remove</button>
+        <button class="btn-danger" data-action="delete">Remove</button>
       `;
+      // Capture the pattern object, not its index: a concurrent delete can
+      // re-render and shift indices, so an index captured here would point at
+      // the wrong (or a missing) entry by the time this handler runs.
+      row
+        .querySelector("[data-action=delete]")
+        .addEventListener("click", async () => {
+          const prev = regexes;
+          regexes = regexes.filter((r) => r !== p);
+          try {
+            await savePatterns();
+          } catch (e) {
+            regexes = prev;
+            renderPatterns();
+            alert(`Failed to delete pattern: ${e.message}`);
+          }
+        });
       patternList.appendChild(row);
-    });
-
-    patternList.querySelectorAll("[data-action=delete]").forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        const idx = Number(btn.dataset.idx);
-        const removed = regexes[idx];
-        regexes = regexes.filter((_, i) => i !== idx);
-        try {
-          await savePatterns();
-        } catch (e) {
-          regexes.splice(idx, 0, removed);
-          renderPatterns();
-          alert(`Failed to delete pattern: ${e.message}`);
-        }
-      });
     });
   }
 
