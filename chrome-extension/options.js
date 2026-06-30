@@ -250,14 +250,28 @@ document.addEventListener("DOMContentLoaded", () => {
 
   let regexes = [];
 
+  // The backend compiles patterns with Go's regexp (RE2), which—unlike the JS
+  // RegExp used for the live preview—rejects lookaround and backreferences. We
+  // flag them here so a pattern that previews fine doesn't fail (or silently
+  // never match) once saved.
+  function re2Incompatibility(value) {
+    if (/\(\?<?[=!]/.test(value)) {
+      return "Lookahead/lookbehind is not supported by the backend regex engine.";
+    }
+    if (/\\[1-9]/.test(value)) {
+      return "Backreferences are not supported by the backend regex engine.";
+    }
+    return null;
+  }
+
   function validateRegex(value) {
     if (!value) return null;
     try {
       new RegExp(value);
-      return null;
     } catch (e) {
       return e.message;
     }
+    return re2Incompatibility(value);
   }
 
   function updatePreview() {
