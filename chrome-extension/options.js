@@ -361,6 +361,17 @@ document.addEventListener("DOMContentLoaded", () => {
     const name = patternName.value.trim().toUpperCase();
     const pattern = patternRegex.value.trim();
 
+    // `required` only blocks an empty field, not whitespace; a blank trimmed
+    // name would create an unnamed entity type.
+    if (!name) {
+      patternRegexError.textContent = "Name is required.";
+      return;
+    }
+    if (regexes.some((r) => r.name === name)) {
+      patternRegexError.textContent = `A pattern named ${name} already exists.`;
+      return;
+    }
+
     const error = validateRegex(pattern);
     if (error) {
       patternRegexError.textContent = error;
