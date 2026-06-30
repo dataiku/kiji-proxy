@@ -164,6 +164,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const disabledSet = new Set(disabled);
 
+    // Preserve any unsaved toggles the user already made: this runs again after
+    // every pattern add/remove (to surface new custom names), and rebuilding
+    // from the backend's saved state would otherwise discard pending edits.
+    const prevChecked = {};
+    for (const cb of labelGrid.querySelectorAll("input[type=checkbox]")) {
+      prevChecked[cb.value] = cb.checked;
+    }
+
     labelGrid.innerHTML = "";
     for (const label of available) {
       const item = document.createElement("label");
@@ -171,7 +179,8 @@ document.addEventListener("DOMContentLoaded", () => {
       const cb = document.createElement("input");
       cb.type = "checkbox";
       cb.value = label;
-      cb.checked = !disabledSet.has(label);
+      cb.checked =
+        label in prevChecked ? prevChecked[label] : !disabledSet.has(label);
       item.appendChild(cb);
       item.appendChild(document.createTextNode(label));
       labelGrid.appendChild(item);
@@ -307,8 +316,11 @@ document.addEventListener("DOMContentLoaded", () => {
       body: JSON.stringify({ regexes }),
     });
     if (!resp.ok) throw new Error((await resp.text()).slice(0, 200));
-    const data = await resp.json();
-    regexes = data.regexes || regexes;
+    // The server persisted the set once it returned 2xx; don't let a malformed
+    // (non-JSON) body throw past here, or the caller's catch would roll back a
+    // change the backend already kept, desyncing the UI.
+    const data = await resp.json().catch(() => null);
+    regexes = (data && data.regexes) || regexes;
     renderPatterns();
     loadLabels();
   }
