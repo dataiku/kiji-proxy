@@ -68,7 +68,7 @@ jobs:
 
       - name: Cache tokenizers library
         id: cache-tokenizers
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: build/tokenizers/libtokenizers.a
           key: ${{ runner.os }}-tokenizers-v1.26.0-prebuilt-v1

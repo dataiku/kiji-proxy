@@ -75,7 +75,7 @@ jobs:
         uses: ./.github/actions/extract-tokenizers-version
 
       - name: Cache LFS objects
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: .git/lfs
           key: lfs-${{ runner.os }}-${{ hashFiles('.gitattributes') }}
@@ -83,13 +83,13 @@ jobs:
             lfs-${{ runner.os }}-
 
       - name: Cache tokenizers library
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: build/tokenizers/libtokenizers.a
           key: ${{ runner.os }}-tokenizers-v${{ steps.deps.outputs.version }}-prebuilt-v1
 
       - name: Cache ONNX Runtime library
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: build/libonnxruntime.*.dylib
           key: ${{ runner.os }}-onnx-1.24.2
