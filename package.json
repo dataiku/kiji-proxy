@@ -43,8 +43,5 @@
   "engines": {
     "node": ">=18.0.0",
     "npm": ">=9.0.0"
-  },
-  "dependencies": {
-    "shepherd.js": "^15.2.2"
   }
 }
