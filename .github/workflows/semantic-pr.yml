@@ -78,11 +78,27 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
+          persist-credentials: false
 
-      - name: Fetch PR head
+      - name: Fetch PR head (data only)
         env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: git fetch origin "$HEAD_SHA"
+        run: |
+          set -euo pipefail
+          # Fetch the advertised PR head ref as data only. This does not check
+          # out or execute fork-controlled code, preserving the checkout@v7
+          # pull_request_target pwn-request protection.
+          git fetch --no-tags --no-recurse-submodules origin \
+            "refs/pull/${PR_NUMBER}/head"
+          fetched_sha="$(git rev-parse FETCH_HEAD)"
+          # Ensure the ref still points at the SHA from the event payload, so we
+          # classify exactly the reviewed head and never whatever a fork may
+          # have pushed after the workflow was triggered.
+          if [ "$fetched_sha" != "$HEAD_SHA" ]; then
+            echo "::error::PR head ref ($fetched_sha) does not match event head.sha ($HEAD_SHA)."
+            exit 1
+          fi
 
       - name: Classify changed files
         id: classify
