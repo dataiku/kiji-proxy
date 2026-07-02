@@ -489,6 +489,10 @@ func (tp *TransparentProxy) interceptHTTPOverTLS(conn net.Conn, r *http.Request,
 		maskedText := codec.maskedOutput()
 		tp.handler.LogStreamedResponse(ctx, processed.TransactionID, maskedText, codec.restore(maskedText))
 		log.Printf("[TransparentProxy] Streamed %s %s - Status: %d", r.Method, r.URL.Path, resp.StatusCode)
+		// Count streamed requests in the dashboard metrics too. Response
+		// restoration is interleaved with the upstream stream here, so the
+		// recorded overhead is the request-masking time only.
+		tp.handler.recordMetrics(provider, processed, sourceFromRequest(r), requestMaskTime, resp.StatusCode)
 		return
 	}
 

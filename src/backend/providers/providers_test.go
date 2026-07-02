@@ -1511,6 +1511,7 @@ func TestProviders_GetProviderFromHost(t *testing.T) {
 	}{
 		{"OpenAI host", "api.openai.com", "OpenAI", false},
 		{"OpenAI host with port", "api.openai.com:443", "OpenAI", false},
+		{"Codex (ChatGPT-login) host routes to OpenAI", "chatgpt.com", "OpenAI", false},
 		{"Anthropic host", "api.anthropic.com", "Anthropic", false},
 		{"Gemini host", "generativelanguage.googleapis.com", "Gemini", false},
 		{"Mistral host", "api.mistral.ai", "Mistral", false},

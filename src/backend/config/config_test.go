@@ -354,6 +354,28 @@ func stringContains(s, substr string) bool {
 	return strings.Contains(s, substr)
 }
 
+// chatgpt.com is the ChatGPT-login Codex host; it must be intercepted whenever
+// the OpenAI provider is configured, and only then.
+func TestGetInterceptDomains_CodexHost(t *testing.T) {
+	pc := DefaultConfig().Providers
+	found := false
+	for _, d := range pc.GetInterceptDomains() {
+		if d == "chatgpt.com" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("GetInterceptDomains() = %v, want it to include chatgpt.com when OpenAI is configured", pc.GetInterceptDomains())
+	}
+
+	pc.OpenAIProviderConfig.APIDomain = ""
+	for _, d := range pc.GetInterceptDomains() {
+		if d == "chatgpt.com" {
+			t.Error("chatgpt.com intercepted even though OpenAI provider is disabled")
+		}
+	}
+}
+
 func TestDefaultConfig_Detectors(t *testing.T) {
 	cfg := DefaultConfig()
 	want := []string{DetectorTypeONNX, DetectorTypeRegex}
