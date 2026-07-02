@@ -1,5 +1,13 @@
 # kiji-privacy-proxy
 
+## 1.4.0
+
+### Minor Changes
+
+- 2dddbd3: - Reworked the desktop UI and made the UI available in the Linux standalone version.
+  - Bumped Electron to ^42.4.0 to fix binary extraction on Node 24.
+  - `make electron-dev` now verifies and announces dev-server reuse.
+
 ## 1.3.1
 
 ### Patch Changes
