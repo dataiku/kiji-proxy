@@ -354,3 +354,81 @@ func TestStreamSSEResponse_EndToEnd(t *testing.T) {
 		t.Errorf("terminal event missing:\n%s", text)
 	}
 }
+
+// The Codex backend streams SSE with no Content-Type header; sniffing the body
+// start must classify it as SSE, while JSON bodies without a header stay
+// non-SSE, and a declared non-SSE Content-Type is believed without sniffing.
+func TestResponseLooksLikeSSE(t *testing.T) {
+	mk := func(contentType, body string) *http.Response {
+		h := http.Header{}
+		if contentType != "" {
+			h.Set("Content-Type", contentType)
+		}
+		return &http.Response{Header: h, Body: io.NopCloser(strings.NewReader(body))}
+	}
+
+	tests := []struct {
+		name        string
+		resp        *http.Response
+		want        bool
+		wantBodyRaw string // body readable after the sniff, byte-for-byte
+	}{
+		{"declared SSE", mk("text/event-stream; charset=utf-8", "event: x\n\n"), true, "event: x\n\n"},
+		{"declared JSON not sniffed", mk("application/json", "data: looks like SSE"), false, "data: looks like SSE"},
+		{"no content-type, SSE event body", mk("", "event: response.created\ndata: {}\n\n"), true, "event: response.created\ndata: {}\n\n"},
+		{"no content-type, SSE data body", mk("", "data: {}\n\n"), true, "data: {}\n\n"},
+		{"no content-type, JSON body", mk("", `{"ok":true}`), false, `{"ok":true}`},
+		{"no content-type, empty body", mk("", ""), false, ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := responseLooksLikeSSE(tt.resp); got != tt.want {
+				t.Errorf("responseLooksLikeSSE() = %v, want %v", got, tt.want)
+			}
+			body, err := io.ReadAll(tt.resp.Body)
+			if err != nil {
+				t.Fatalf("body unreadable after sniff: %v", err)
+			}
+			if string(body) != tt.wantBodyRaw {
+				t.Errorf("body after sniff = %q, want %q (peeked bytes lost?)", body, tt.wantBodyRaw)
+			}
+		})
+	}
+}
+
+// Codex (and other Responses-API clients) render their final message from the
+// nested payload copies — content_part.done's part.text, output_item.done's
+// item.content[].text, and response.completed's response.output[].content[].
+// text — so those must be restored too, not only the flat .delta/.done fields.
+func TestOpenAICodec_RestoresNestedDonePayloads(t *testing.T) {
+	events := []string{
+		"event: response.content_part.done\n" +
+			`data: {"type":"response.content_part.done","output_index":0,"content_index":0,"part":{"type":"output_text","text":"Hi Miguel,"}}` + "\n\n",
+		"event: response.output_item.done\n" +
+			`data: {"type":"response.output_item.done","output_index":0,"item":{"type":"message","id":"msg_MiguelX","content":[{"type":"output_text","text":"Hi Miguel,"}]}}` + "\n\n",
+		"event: response.completed\n" +
+			`data: {"type":"response.completed","response":{"id":"resp_1","output":[{"type":"message","content":[{"type":"output_text","text":"Hi Miguel,"}]}]}}` + "\n\n",
+	}
+
+	for _, raw := range events {
+		codec := newOpenAICodec(map[string]string{"Miguel": "David"})
+		out := string(codec.transformEvent(sseLines(raw)))
+		if !strings.Contains(out, "Hi David,") {
+			t.Errorf("nested text not restored in %q: %s", raw[:40], out)
+		}
+		if strings.Contains(out, "Hi Miguel,") {
+			t.Errorf("dummy leaked in %q: %s", raw[:40], out)
+		}
+	}
+
+	// Opaque strings (ids) that contain a dummy as a substring must NOT be
+	// rewritten.
+	codec := newOpenAICodec(map[string]string{"Miguel": "David"})
+	out := string(codec.transformEvent(sseLines(
+		"event: response.output_item.done\n" +
+			`data: {"type":"response.output_item.done","output_index":0,"item":{"id":"msg_MiguelX","content":[]}}` + "\n\n")))
+	if !strings.Contains(out, "msg_MiguelX") {
+		t.Errorf("opaque id was rewritten: %s", out)
+	}
+}

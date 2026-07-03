@@ -21,6 +21,11 @@ const (
 	// token instead of api.openai.com, so it must be routed to and intercepted by
 	// the OpenAI provider alongside the API-key host.
 	ProviderAPIDomainCodex string = "chatgpt.com"
+	// ProviderSubpathCodexResponses is the completions endpoint ChatGPT-login
+	// Codex posts to on chatgpt.com. It is the only chatgpt.com path that should
+	// be intercepted/masked — everything else on that host (the streaming MCP
+	// transport, model refresh, telemetry) must be passed through verbatim.
+	ProviderSubpathCodexResponses string = "/backend-api/codex/responses"
 )
 
 // reasoningModelFamilies lists OpenAI model family prefixes that require the

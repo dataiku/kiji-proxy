@@ -73,7 +73,7 @@ func (c *openaiCodec) transformEvent(lines [][]byte) []byte {
 		obj["delta"] = emit
 		return rewriteDataLine(lines, dataIdx, obj)
 
-	case strings.HasSuffix(typ, ".done"):
+	case strings.HasSuffix(typ, ".done"), strings.HasSuffix(typ, ".completed"):
 		var out []byte
 		// Flush any held-back delta tail as a synthetic delta so incremental
 		// renderers see the complete text before the terminating .done event.
@@ -81,17 +81,43 @@ func (c *openaiCodec) transformEvent(lines [][]byte) []byte {
 			delete(c.carry, key)
 			out = append(out, c.tailDeltaEvent(typ, obj, tail)...)
 		}
-		// Restore the full value the .done event repeats. (Not added to the audit
+		// Restore the full values the event repeats, including nested copies:
+		// content_part.done nests part.text, output_item.done nests
+		// item.content[].text, and response.completed nests the whole response
+		// with output[].content[].text — clients (e.g. Codex) render their final
+		// message from these, not from the deltas. (Not added to the audit
 		// accumulator: the deltas above already captured this text.)
-		for _, field := range doneFields {
-			if full, ok := obj[field].(string); ok {
-				obj[field] = c.restore(full)
-			}
-		}
+		restoreTextFields(obj, c.restore)
 		return append(out, rewriteDataLine(lines, dataIdx, obj)...)
 
 	default:
 		return concatLines(lines)
+	}
+}
+
+// restoreTextFields recursively restores PII in every string value held by a
+// known text-carrying field (doneFields) anywhere in the event payload. Only
+// those fields are rewritten — ids, signatures, and other opaque strings that
+// could contain a dummy value as a substring pass through untouched.
+func restoreTextFields(v interface{}, restore func(string) string) {
+	switch t := v.(type) {
+	case map[string]interface{}:
+		for k, val := range t {
+			if s, ok := val.(string); ok {
+				for _, field := range doneFields {
+					if k == field {
+						t[k] = restore(s)
+						break
+					}
+				}
+				continue
+			}
+			restoreTextFields(val, restore)
+		}
+	case []interface{}:
+		for _, item := range t {
+			restoreTextFields(item, restore)
+		}
 	}
 }
 

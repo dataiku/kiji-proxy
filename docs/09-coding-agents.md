@@ -14,7 +14,7 @@ Hosts the proxy intercepts for coding agents:
 |-------|---------|-------|
 | Claude Code | `api.anthropic.com` | |
 | Codex (API key) | `api.openai.com` | `/v1/responses` and `/v1/chat/completions` |
-| Codex (ChatGPT login) | `chatgpt.com` | `/backend-api/codex/responses` |
+| Codex (ChatGPT login) | `chatgpt.com` | Only `/backend-api/codex/responses` is masked; other paths (MCP, model list, telemetry) pass through verbatim. Requires forcing SSE — see [below](#chatgpt-login-codex-force-sse-websockets-cannot-be-masked) |
 
 For **any** agent, two things must be true:
 
@@ -100,19 +100,68 @@ This means if you already export `NODE_EXTRA_CA_CERTS` globally for Claude Code,
 - **API-key Codex** (`OPENAI_API_KEY` set) talks to `api.openai.com`. Your API key is forwarded untouched.
 - **ChatGPT-login Codex** (signed in with `codex login`) talks to `chatgpt.com/backend-api/codex/responses` with an OAuth bearer token. The proxy leaves the `Authorization` header untouched and only masks/restores content, so your session keeps working.
 
-Both are intercepted with the same setup above; no extra configuration is needed to switch between them.
+Both use the environment variables above, but ChatGPT-login Codex needs **one extra piece of configuration** — see the next section.
 
-## A shared snippet for both agents
+### ChatGPT-login Codex: force SSE (WebSockets cannot be masked)
 
-Drop this in your shell profile (`~/.zshrc` / `~/.bashrc`) to cover both agents at once on macOS:
+Recent Codex versions stream completions over a **WebSocket** by default when signed in with ChatGPT. The prompt then travels inside WebSocket frames, which the proxy cannot inspect or mask — so the proxy **rejects protocol upgrades on masked endpoints** (fail-closed; you'll see Codex print `ERROR: Reconnecting... n/5` and the proxy log `Rejecting "websocket" upgrade on intercepted path`).
+
+The fix is to steer Codex back to SSE. Its built-in `openai` provider cannot be overridden, so define a custom provider that points at the same ChatGPT backend with WebSockets disabled. Add to `~/.codex/config.toml`:
+
+```toml
+model_provider = "kiji"
+
+[model_providers.kiji]
+name = "Kiji"
+base_url = "https://chatgpt.com/backend-api/codex"
+wire_api = "responses"
+requires_openai_auth = true
+supports_websockets = false
+```
+
+Your ChatGPT login keeps working (`requires_openai_auth = true` reuses the existing OAuth session). For a one-off run without touching `config.toml`:
+
+```bash
+codex exec \
+  -c 'model_provider="kiji"' \
+  -c 'model_providers.kiji={ name = "Kiji", base_url = "https://chatgpt.com/backend-api/codex", wire_api = "responses", requires_openai_auth = true, supports_websockets = false }' \
+  "your prompt"
+```
+
+The proxy/CA environment variables must still be set **in the same shell that runs `codex`** — the provider config alone does not route traffic through the proxy:
+
+| Variable | Value | Why |
+|----------|-------|-----|
+| `HTTP_PROXY` | `http://127.0.0.1:8081` | Routes Codex's HTTP traffic through the proxy |
+| `HTTPS_PROXY` | `http://127.0.0.1:8081` | Routes Codex's HTTPS traffic (the completions call) through the proxy |
+| `CODEX_CA_CERTIFICATE` | path to `ca.crt` (see [Prerequisites](#prerequisites)) | Makes Codex trust the proxy's MITM certificate |
+
+> **Warning — bypass is silent.** If the proxy variables are missing, Codex talks to `chatgpt.com` directly: everything works and looks identical, but nothing is masked. Verify interception after setup (see [Verifying interception](#verifying-interception)) — a correct-looking reply with an **empty request log** means your prompt went out unmasked.
+
+Only the completions path (`/backend-api/codex/responses`) is masked. Codex's other `chatgpt.com` traffic — its MCP transport, model list, telemetry — is passed through the proxy verbatim so the CLI works normally; none of it carries your prompt.
+
+## The environment variables at a glance
+
+Four variables cover both agents. Set them in the shell that runs the agent (or persist them in your shell profile — `~/.zshrc`, `~/.bashrc`, or `~/.config/fish/config.fish`):
+
+| Variable | Value | Needed by | Why |
+|----------|-------|-----------|-----|
+| `HTTP_PROXY` | `http://127.0.0.1:8081` | both | Routes the agent's HTTP traffic through the proxy |
+| `HTTPS_PROXY` | `http://127.0.0.1:8081` | both | Routes the agent's HTTPS traffic (the actual API calls) through the proxy |
+| `NODE_EXTRA_CA_CERTS` | path to `ca.crt` | Claude Code | Node.js reads extra trusted CAs from this variable; without it Claude Code rejects the proxy's MITM certificate. (Codex also honors it, but only as a fallback.) |
+| `CODEX_CA_CERTIFICATE` | path to `ca.crt` | Codex | Codex's native CA variable for its rustls TLS stack |
+
+Example for a bash/zsh profile on macOS:
 
 ```bash
 KIJI_CA="$HOME/Library/Application Support/Kiji Privacy Proxy/certs/ca.crt"
 export HTTP_PROXY=http://127.0.0.1:8081
 export HTTPS_PROXY=http://127.0.0.1:8081
-export NODE_EXTRA_CA_CERTS="$KIJI_CA"   # Claude Code (and Codex fallback)
-export CODEX_CA_CERTIFICATE="$KIJI_CA"  # Codex (explicit)
+export NODE_EXTRA_CA_CERTS="$KIJI_CA"   # Claude Code
+export CODEX_CA_CERTIFICATE="$KIJI_CA"  # Codex
 ```
+
+If you only use one agent, you only need its CA variable (plus the two proxy variables). Note that with these set globally, any tool honoring `HTTP(S)_PROXY` fails when the proxy isn't running — unset them (or comment them out) if you stop Kiji.
 
 ## What gets masked and restored
 
@@ -146,6 +195,10 @@ Every interception is recorded in the proxy's request log (visible in the deskto
 **Traffic isn't being intercepted (no log entries)**
 - *Cause:* the agent isn't using the proxy.
 - *Fix:* ensure `HTTP_PROXY` and `HTTPS_PROXY` are exported in the **same shell/process** that runs the agent. Check that `NO_PROXY`/`no_proxy` doesn't list `openai.com`, `chatgpt.com`, or `anthropic.com`. Confirm the proxy is listening on the port you set.
+
+**Codex prints `ERROR: Reconnecting... n/5` and the turn never completes**
+- *Cause:* Codex is trying to stream the completion over a WebSocket, which the proxy rejects because WebSocket frames cannot be masked. The proxy log shows `Rejecting "websocket" upgrade on intercepted path`.
+- *Fix:* force SSE with the custom provider config — see [ChatGPT-login Codex: force SSE](#chatgpt-login-codex-force-sse-websockets-cannot-be-masked).
 
 **ChatGPT-login Codex still fails after setup**
 - *Cause:* the proxy build doesn't intercept `chatgpt.com`, or the CA isn't trusted on that host.

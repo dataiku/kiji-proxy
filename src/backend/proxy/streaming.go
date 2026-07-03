@@ -71,6 +71,43 @@ func isEventStream(resp *http.Response) bool {
 		strings.ToLower(resp.Header.Get("Content-Type")), "text/event-stream")
 }
 
+// responseLooksLikeSSE reports whether the response is an SSE stream, sniffing
+// the body when the Content-Type header is absent: the ChatGPT-login Codex
+// backend (chatgpt.com/backend-api/codex/responses) streams SSE with no
+// Content-Type at all. Sniffing may wrap resp.Body to preserve the peeked
+// bytes, so callers must keep using resp.Body afterwards (not a saved copy).
+func responseLooksLikeSSE(resp *http.Response) bool {
+	if isEventStream(resp) {
+		return true
+	}
+	if resp.Header.Get("Content-Type") != "" {
+		return false // upstream declared something else; believe it
+	}
+
+	br := bufio.NewReader(resp.Body)
+	body := resp.Body
+	resp.Body = &sniffedBody{Reader: br, Closer: body}
+
+	// Peek the first field name of the body. An SSE stream starts with an
+	// "event:"/"data:"/"id:"/"retry:" field or a ":" comment. Peek blocks only
+	// until the first bytes arrive, which for a stream is the first event.
+	peek, _ := br.Peek(len("event:"))
+	s := string(peek)
+	for _, prefix := range []string{"event:", "data:", "id:", "retry:", ":"} {
+		if strings.HasPrefix(s, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// sniffedBody re-joins a buffered reader (holding peeked bytes) with the
+// original body's Closer.
+type sniffedBody struct {
+	io.Reader
+	io.Closer
+}
+
 // streamCodec restores masked PII inside one provider's SSE token stream. The
 // engine below (streamSSEResponse) owns the transport-level framing and event
 // splitting; a codec only knows how to rewrite a single, complete SSE event for

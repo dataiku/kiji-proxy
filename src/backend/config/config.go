@@ -358,6 +358,19 @@ func (pc ProvidersConfig) GetInterceptDomains() []string {
 	return domains
 }
 
+// GetInterceptPathPrefixes returns, per intercept host, the path prefixes that
+// should be intercepted/masked. Hosts absent from the map intercept all paths.
+// chatgpt.com serves far more than the Codex completions endpoint (a streaming
+// MCP transport, model refresh, telemetry); only the completions path is
+// masked — the rest is passed through verbatim so Codex startup isn't broken.
+func (pc ProvidersConfig) GetInterceptPathPrefixes() map[string][]string {
+	prefixes := map[string][]string{}
+	if pc.OpenAIProviderConfig.APIDomain != "" {
+		prefixes[providers.ProviderAPIDomainCodex] = []string{providers.ProviderSubpathCodexResponses}
+	}
+	return prefixes
+}
+
 func interceptDomain(apiDomain string) string {
 	if apiDomain == "" {
 		return ""

@@ -206,7 +206,7 @@ Route terminal coding agents through the proxy so PII in prompts, code, and tool
 ### Coding Agents
 - [Claude Code Setup](09-coding-agents.md#claude-code)
 - [Codex Setup](09-coding-agents.md#codex)
-- [Shared Shell Snippet](09-coding-agents.md#a-shared-snippet-for-both-agents)
+- [Environment Variables](09-coding-agents.md#the-environment-variables-at-a-glance)
 - [Troubleshooting](09-coding-agents.md#troubleshooting)
 
 ## Document Status
