@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dataiku/kiji-proxy/src/backend/processor"
 	"github.com/dataiku/kiji-proxy/src/backend/providers"
 )
 
@@ -124,13 +125,13 @@ type streamCodec interface {
 }
 
 // restoreCore holds the provider-agnostic restore state shared by every codec:
-// the dummy→original mapping, the hold-back length, and the pre-restore model
+// the dummy→original replacer, the hold-back length, and the pre-restore model
 // output accumulated for audit logging. Codecs embed it so they only implement
 // their own event grammar.
 type restoreCore struct {
-	mapping map[string]string
-	keep    int             // bytes to hold back = longest dummy length - 1
-	masked  strings.Builder // raw model output (pre-restore), accumulated for logging
+	replacer *strings.Replacer
+	keep     int             // bytes to hold back = longest dummy length - 1
+	masked   strings.Builder // raw model output (pre-restore), accumulated for logging
 }
 
 func newRestoreCore(mapping map[string]string) restoreCore {
@@ -143,17 +144,15 @@ func newRestoreCore(mapping map[string]string) restoreCore {
 	if keep > 0 {
 		keep--
 	}
-	return restoreCore{mapping: mapping, keep: keep}
+	return restoreCore{replacer: processor.BuildRestorer(mapping), keep: keep}
 }
 
-// restore replaces every masked (dummy) value with its original. Replacing
-// already-restored text is idempotent provided an original value does not
-// contain a dummy placeholder as a substring.
+// restore replaces every masked (dummy) value with its original in a single
+// pass. See processor.BuildRestorer for why this must not be a sequence of
+// ReplaceAll calls (chained substitution corrupts restoration when a dummy
+// coincides with another mapping's original).
 func (c *restoreCore) restore(text string) string {
-	for masked, original := range c.mapping {
-		text = strings.ReplaceAll(text, masked, original)
-	}
-	return text
+	return c.replacer.Replace(text)
 }
 
 func (c *restoreCore) maskedOutput() string {

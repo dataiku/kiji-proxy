@@ -60,6 +60,23 @@ func TestRestoreCore(t *testing.T) {
 	}
 }
 
+// A generated dummy can coincide with a real original from another mapping
+// ("Priya"→"Nicole" alongside "Claude"→"Priya"). Restoration must be a single
+// pass: the model's "Nicole" restores to "Priya" and must NOT then chain
+// through the "Priya"→"Claude" mapping. Regression for the sequential
+// ReplaceAll bug that corrupted restored PII.
+func TestRestoreCore_NoChainedSubstitution(t *testing.T) {
+	core := newRestoreCore(map[string]string{
+		"Nicole": "Priya",  // Priya was masked to the dummy Nicole
+		"Priya":  "Claude", // Claude was masked to the dummy Priya
+	})
+	got := core.restore("Hi Nicole, regards Priya.")
+	want := "Hi Priya, regards Claude."
+	if got != want {
+		t.Errorf("restore = %q, want %q", got, want)
+	}
+}
+
 // --- helpers ---
 
 // event turns raw SSE text into the line slices transformEvent receives.
