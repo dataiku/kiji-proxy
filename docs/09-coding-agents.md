@@ -33,6 +33,8 @@ For **any** agent, two things must be true:
 
 Throughout this chapter the proxy endpoint is `http://127.0.0.1:8081` (the transparent proxy port). Adjust if you changed `proxy_port`.
 
+> **Why `http://` and not `https://`?** The scheme in `HTTP_PROXY` / `HTTPS_PROXY` describes how the agent reaches the *proxy*, not the traffic being proxied. `HTTPS_PROXY=http://127.0.0.1:8081` means "for HTTPS destinations, use the proxy reachable over plain HTTP at `127.0.0.1:8081`". The agent still reaches the proxy by opening an `HTTP CONNECT` tunnel (an unencrypted control message), and the proxy then TLS-terminates the tunnel with its own CA. This is not a security downgrade: the `http://` hop is **loopback only** — it never leaves your machine, so there is no wire to intercept, and traffic from the proxy onward to the provider is full TLS. Using `https://127.0.0.1:8081` would fail, because the listener speaks plain HTTP on that port (this is the standard convention for local proxies such as mitmproxy, Charles, and Burp). Note that TLS interception is deliberate here — the proxy decrypts requests in order to mask PII, so the security boundary that matters is your local machine and user account, not the proxy scheme.
+
 ## Claude Code
 
 Claude Code is a Node.js application, so it uses the standard Node proxy and CA variables.
