@@ -55,6 +55,7 @@ type ProvidersConfig struct {
 	AnthropicProviderConfig ProviderConfig         `json:"anthropic_provider_config"`
 	GeminiProviderConfig    ProviderConfig         `json:"gemini_provider_config"`
 	MistralProviderConfig   ProviderConfig         `json:"mistral_provider_config"`
+	MiniMaxProviderConfig   ProviderConfig         `json:"minimax_provider_config"`
 	CustomProviderConfig    ProviderConfig         `json:"custom_provider_config"`
 }
 
@@ -184,6 +185,9 @@ func (c *Config) ValidateConfig() error {
 	if err := validateProviderConfig(c.Providers.MistralProviderConfig, "Mistral"); err != nil {
 		errs = append(errs, err.Error())
 	}
+	if err := validateProviderConfig(c.Providers.MiniMaxProviderConfig, "MiniMax"); err != nil {
+		errs = append(errs, err.Error())
+	}
 	if err := validateProviderConfig(c.Providers.CustomProviderConfig, "Custom"); err != nil {
 		errs = append(errs, err.Error())
 	}
@@ -287,6 +291,10 @@ func DefaultConfig() *Config {
 		APIDomain:         providers.ProviderAPIDomainMistral,
 		AdditionalHeaders: map[string]string{},
 	}
+	defaultMiniMaxProviderConfig := ProviderConfig{
+		APIDomain:         providers.ProviderAPIDomainMiniMax,
+		AdditionalHeaders: map[string]string{},
+	}
 	defaultCustomProviderConfig := ProviderConfig{
 		APIDomain:         providers.ProviderAPIDomainCustom,
 		AdditionalHeaders: map[string]string{},
@@ -305,6 +313,7 @@ func DefaultConfig() *Config {
 			AnthropicProviderConfig: defaultAnthropicProviderConfig,
 			GeminiProviderConfig:    defaultGeminiProviderConfig,
 			MistralProviderConfig:   defaultMistralProviderConfig,
+			MiniMaxProviderConfig:   defaultMiniMaxProviderConfig,
 			CustomProviderConfig:    defaultCustomProviderConfig,
 		},
 		ProxyPort:          DefaultForwardProxyPort,
@@ -348,6 +357,7 @@ func (pc ProvidersConfig) GetInterceptDomains() []string {
 		interceptDomain(pc.OpenAIProviderConfig.APIDomain),
 		interceptDomain(pc.GeminiProviderConfig.APIDomain),
 		interceptDomain(pc.MistralProviderConfig.APIDomain),
+		interceptDomain(pc.MiniMaxProviderConfig.APIDomain),
 		interceptDomain(pc.CustomProviderConfig.APIDomain),
 	}
 }

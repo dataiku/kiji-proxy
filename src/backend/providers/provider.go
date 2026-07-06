@@ -78,6 +78,7 @@ type Providers struct {
 	AnthropicProvider *AnthropicProvider
 	GeminiProvider    *GeminiProvider
 	MistralProvider   *MistralProvider
+	MiniMaxProvider   *MiniMaxProvider
 	CustomProvider    *CustomProvider
 }
 
@@ -118,6 +119,8 @@ func (p *Providers) GetProviderFromPath(host string, path string, body *[]byte, 
 				provider = p.GeminiProvider
 			case ProviderTypeMistral:
 				provider = p.MistralProvider
+			case ProviderTypeMiniMax:
+				provider = p.MiniMaxProvider
 			case ProviderTypeCustom:
 				provider = p.CustomProvider
 			default:
@@ -183,6 +186,8 @@ func (p *Providers) GetProviderFromHost(host string, logPrefix string) (*Provide
 		provider = p.GeminiProvider
 	case p.MistralProvider != nil && providerHostMatches(host, p.MistralProvider.apiDomain):
 		provider = p.MistralProvider
+	case p.MiniMaxProvider != nil && providerHostMatches(host, p.MiniMaxProvider.apiDomain):
+		provider = p.MiniMaxProvider
 	case p.CustomProvider != nil && providerHostMatches(host, p.CustomProvider.apiDomain):
 		provider = p.CustomProvider
 	default:

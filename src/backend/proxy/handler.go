@@ -515,6 +515,8 @@ func providerFromModel(model string) string {
 		return "gemini"
 	case strings.Contains(m, "mistral"), strings.Contains(m, "mixtral"):
 		return "mistral"
+	case strings.Contains(m, "abab"), strings.Contains(m, "minimax"):
+		return "minimax"
 	case strings.Contains(m, "gpt"), strings.Contains(m, "davinci"),
 		strings.HasPrefix(m, "o1"), strings.HasPrefix(m, "o3"), strings.HasPrefix(m, "o4"):
 		return "openai"
@@ -920,6 +922,11 @@ func NewHandler(cfg *config.Config) (*Handler, error) {
 		cfg.Providers.MistralProviderConfig.APIKey,
 		cfg.Providers.MistralProviderConfig.AdditionalHeaders,
 	)
+	miniMaxProvider := providers.NewMiniMaxProvider(
+		cfg.Providers.MiniMaxProviderConfig.APIDomain,
+		cfg.Providers.MiniMaxProviderConfig.APIKey,
+		cfg.Providers.MiniMaxProviderConfig.AdditionalHeaders,
+	)
 	customProvider := providers.NewCustomProvider(
 		cfg.Providers.CustomProviderConfig.APIDomain,
 		cfg.Providers.CustomProviderConfig.APIKey,
@@ -939,6 +946,7 @@ func NewHandler(cfg *config.Config) (*Handler, error) {
 		AnthropicProvider: anthropicProvider,
 		GeminiProvider:    geminiProvider,
 		MistralProvider:   mistralProvider,
+		MiniMaxProvider:   miniMaxProvider,
 		CustomProvider:    customProvider,
 	}
 

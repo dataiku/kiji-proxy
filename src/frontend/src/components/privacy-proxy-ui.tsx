@@ -319,6 +319,7 @@ export default function PrivacyProxyUI({
                     "anthropic",
                     "gemini",
                     "mistral",
+                    "minimax",
                     "custom",
                   ] as ProviderType[]
                 ).map((provider) => (
