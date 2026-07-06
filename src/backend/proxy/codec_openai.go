@@ -84,7 +84,7 @@ func (c *openaiCodec) transformEvent(lines [][]byte) []byte {
 
 	switch {
 	case strings.HasSuffix(typ, ".delta"):
-		delta, ok := obj["delta"].(string)
+		delta, ok := obj[jsonKeyDelta].(string)
 		if !ok {
 			return concatLines(lines) // non-text delta (e.g. audio): pass through
 		}
@@ -94,7 +94,7 @@ func (c *openaiCodec) transformEvent(lines [][]byte) []byte {
 		// once and never rescanned, so restoration cannot chain across deltas.
 		emit, hold := c.streamRestore(c.carry[key]+delta, argumentsChannel(typ))
 		c.carry[key] = hold
-		obj["delta"] = emit
+		obj[jsonKeyDelta] = emit
 		return rewriteDataLine(lines, dataIdx, obj)
 
 	case strings.HasSuffix(typ, ".done"), strings.HasSuffix(typ, ".completed"):
@@ -135,13 +135,13 @@ func (c *openaiCodec) transformChatChunk(obj map[string]interface{}) bool {
 		}
 		idx, _ := chm["index"].(float64)
 		key := fmt.Sprintf("chat:%d", int(idx))
-		delta, _ := chm["delta"].(map[string]interface{})
+		delta, _ := chm[jsonKeyDelta].(map[string]interface{})
 		if delta != nil {
-			if content, ok := delta["content"].(string); ok && content != "" {
+			if content, ok := delta[jsonKeyContent].(string); ok && content != "" {
 				c.masked.WriteString(content)
 				emit, hold := c.streamRestore(c.carry[key]+content, false)
 				c.carry[key] = hold
-				delta["content"] = emit
+				delta[jsonKeyContent] = emit
 				changed = true
 			}
 			if tcs, ok := delta["tool_calls"].([]interface{}); ok {
@@ -173,10 +173,10 @@ func (c *openaiCodec) transformChatChunk(obj map[string]interface{}) bool {
 				delete(c.carry, key)
 				if delta == nil {
 					delta = map[string]interface{}{}
-					chm["delta"] = delta
+					chm[jsonKeyDelta] = delta
 				}
-				s, _ := delta["content"].(string)
-				delta["content"] = s + c.flushCarry(tail, false)
+				s, _ := delta[jsonKeyContent].(string)
+				delta[jsonKeyContent] = s + c.flushCarry(tail, false)
 				changed = true
 			}
 		}
@@ -196,7 +196,7 @@ func (c *openaiCodec) flushTail() []byte {
 		kind := c.kind[key]
 		restored := c.flushCarry(tail, argumentsChannel(kind))
 		if kind != "" {
-			d := map[string]interface{}{jsonKeyType: kind, "delta": restored}
+			d := map[string]interface{}{jsonKeyType: kind, jsonKeyDelta: restored}
 			b, _ := json.Marshal(d)
 			out = append(out, []byte("event: "+kind+"\n")...)
 			out = append(out, append(append([]byte("data: "), b...), '\n')...)
@@ -213,8 +213,8 @@ func (c *openaiCodec) flushTail() []byte {
 		chunk := map[string]interface{}{
 			"object": "chat.completion.chunk",
 			"choices": []interface{}{map[string]interface{}{
-				"index": idx,
-				"delta": map[string]interface{}{"content": restored},
+				"index":      idx,
+				jsonKeyDelta: map[string]interface{}{jsonKeyContent: restored},
 			}},
 		}
 		b, _ := json.Marshal(chunk)
@@ -267,7 +267,7 @@ func (c *openaiCodec) tailDeltaEvent(doneType, key string, obj map[string]interf
 	if deltaType == "" {
 		deltaType = strings.TrimSuffix(doneType, ".done") + ".delta"
 	}
-	d := map[string]interface{}{jsonKeyType: deltaType, "delta": tail}
+	d := map[string]interface{}{jsonKeyType: deltaType, jsonKeyDelta: tail}
 	for _, f := range []string{"item_id", "output_index", "content_index"} {
 		if v, ok := obj[f]; ok {
 			d[f] = v

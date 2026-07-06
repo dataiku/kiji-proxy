@@ -29,8 +29,10 @@ const paramLimit = "limit"
 
 // JSON field names reused across the response wrappers and the SSE codecs.
 const (
-	jsonKeyType = "type"
-	jsonKeyText = "text"
+	jsonKeyType    = "type"
+	jsonKeyText    = "text"
+	jsonKeyDelta   = "delta"
+	jsonKeyContent = "content"
 )
 
 // Handler handles HTTP requests and proxies them to LLM provider
@@ -593,7 +595,7 @@ func (h *Handler) MaskPIIInTextWithLogging(ctx context.Context, text, site strin
 func wrapPIICheckMessage(text, site, transactionID string) string {
 	envelope := map[string]any{
 		"messages": []map[string]string{
-			{"role": "user", "content": text},
+			{"role": "user", jsonKeyContent: text},
 		},
 		"_transaction_id": transactionID,
 	}
@@ -696,8 +698,8 @@ func (h *Handler) LogStreamedResponse(ctx context.Context, transactionID, masked
 	// transaction ID can be attached and the log UI can parse it consistently.
 	wrap := func(text string) string {
 		b, err := json.Marshal(map[string]interface{}{
-			"streamed": true,
-			"content":  []map[string]interface{}{{jsonKeyType: jsonKeyText, jsonKeyText: text}},
+			"streamed":     true,
+			jsonKeyContent: []map[string]interface{}{{jsonKeyType: jsonKeyText, jsonKeyText: text}},
 		})
 		if err != nil {
 			return text

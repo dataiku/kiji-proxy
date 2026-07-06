@@ -130,9 +130,9 @@ func deltaField(deltaType string) string {
 // input_json_delta carrying the given (restored) payload.
 func deltaDataLine(index int, deltaType, payload string) []byte {
 	b, _ := json.Marshal(map[string]interface{}{
-		jsonKeyType: "content_block_delta",
-		"index":     index,
-		"delta":     map[string]interface{}{jsonKeyType: deltaType, deltaField(deltaType): payload},
+		jsonKeyType:  "content_block_delta",
+		"index":      index,
+		jsonKeyDelta: map[string]interface{}{jsonKeyType: deltaType, deltaField(deltaType): payload},
 	})
 	out := append([]byte("data: "), b...)
 	return append(out, '\n')
