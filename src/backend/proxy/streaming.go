@@ -11,8 +11,10 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/dataiku/kiji-proxy/src/backend/processor"
 	"github.com/dataiku/kiji-proxy/src/backend/providers"
@@ -116,6 +118,11 @@ type sniffedBody struct {
 // (up to and including the blank terminator) and returns the bytes to write.
 type streamCodec interface {
 	transformEvent(lines [][]byte) []byte
+	// flushTail emits any text still held in carry buffers as synthetic delta
+	// events. Called when the upstream stream ends (EOF) so a stream that never
+	// sent its terminating .done/content_block_stop doesn't silently truncate
+	// the client's output.
+	flushTail() []byte
 	// restore replaces every masked (dummy) value with its original. Exposed so
 	// the caller can restore the accumulated audit text after the stream ends.
 	restore(text string) string
@@ -125,26 +132,61 @@ type streamCodec interface {
 }
 
 // restoreCore holds the provider-agnostic restore state shared by every codec:
-// the dummy→original replacer, the hold-back length, and the pre-restore model
-// output accumulated for audit logging. Codecs embed it so they only implement
-// their own event grammar.
+// the dummy→original mapping (plus a JSON-escaped variant for tool-argument
+// fragments), the hold-back length, and the pre-restore model output
+// accumulated for audit logging. Codecs embed it so they only implement their
+// own event grammar.
 type restoreCore struct {
-	replacer *strings.Replacer
-	keep     int             // bytes to hold back = longest dummy length - 1
-	masked   strings.Builder // raw model output (pre-restore), accumulated for logging
+	keys         []string          // dummy values, longest-first
+	vals         map[string]string // dummy → original
+	jsonVals     map[string]string // dummy → original, JSON-string-escaped
+	replacer     *strings.Replacer // single-pass plain restorer (audit / final flush)
+	jsonReplacer *strings.Replacer // single-pass restorer with JSON-escaped originals
+	keep         int               // longest dummy length - 1 (max possible hold-back)
+	masked       strings.Builder   // raw model output (pre-restore), accumulated for logging
+}
+
+// jsonEscapeString returns s escaped as JSON string content (without the
+// surrounding quotes), for splicing into a fragment of a JSON document.
+func jsonEscapeString(s string) string {
+	b, err := json.Marshal(s)
+	if err != nil {
+		return s
+	}
+	return string(b[1 : len(b)-1])
 }
 
 func newRestoreCore(mapping map[string]string) restoreCore {
 	keep := 0
-	for masked := range mapping {
+	keys := make([]string, 0, len(mapping))
+	vals := make(map[string]string, len(mapping))
+	jsonVals := make(map[string]string, len(mapping))
+	jsonMapping := make(map[string]string, len(mapping))
+	for masked, original := range mapping {
+		if masked == "" {
+			continue
+		}
 		if len(masked) > keep {
 			keep = len(masked)
 		}
+		keys = append(keys, masked)
+		vals[masked] = original
+		esc := jsonEscapeString(original)
+		jsonVals[masked] = esc
+		jsonMapping[masked] = esc
 	}
 	if keep > 0 {
 		keep--
 	}
-	return restoreCore{replacer: processor.BuildRestorer(mapping), keep: keep}
+	sort.Slice(keys, func(i, j int) bool { return len(keys[i]) > len(keys[j]) })
+	return restoreCore{
+		keys:         keys,
+		vals:         vals,
+		jsonVals:     jsonVals,
+		replacer:     processor.BuildRestorer(mapping),
+		jsonReplacer: processor.BuildRestorer(jsonMapping),
+		keep:         keep,
+	}
 }
 
 // restore replaces every masked (dummy) value with its original in a single
@@ -153,6 +195,76 @@ func newRestoreCore(mapping map[string]string) restoreCore {
 // coincides with another mapping's original).
 func (c *restoreCore) restore(text string) string {
 	return c.replacer.Replace(text)
+}
+
+// restoreJSON is restore for text that is a fragment (or whole) of a JSON
+// string value, e.g. tool-call arguments: originals are JSON-escaped so a
+// restored quote or backslash cannot break the JSON the client reassembles.
+func (c *restoreCore) restoreJSON(text string) string {
+	return c.jsonReplacer.Replace(text)
+}
+
+// streamRestore restores dummies in buf — the raw (pre-restore) text
+// accumulated for one channel — in a single left-to-right pass, returning the
+// restored text that is safe to emit now and the RAW tail that must be held
+// back and re-fed on the next delta.
+//
+// Holding back raw text (not restored text) is what preserves the single-pass
+// guarantee across deltas: restored originals are emitted immediately and never
+// rescanned, so an original that coincides with another mapping's dummy cannot
+// be substituted a second time. The hold is also minimal — only a suffix that
+// is a proper prefix of some dummy (a placeholder possibly still arriving) or
+// an incomplete trailing UTF-8 rune is withheld, and text is only ever split on
+// rune boundaries so multi-byte characters are never corrupted.
+func (c *restoreCore) streamRestore(buf string, jsonCtx bool) (emit, hold string) {
+	vals := c.vals
+	if jsonCtx {
+		vals = c.jsonVals
+	}
+	var out strings.Builder
+	i := 0
+	for i < len(buf) {
+		rest := buf[i:]
+		// A dummy may be arriving split across deltas: if everything that
+		// remains is a proper prefix of some dummy, hold it raw.
+		for _, k := range c.keys {
+			if len(rest) < len(k) && strings.HasPrefix(k, rest) {
+				return out.String(), rest
+			}
+		}
+		// Complete dummy at this position: emit its original (longest wins).
+		matched := false
+		for _, k := range c.keys {
+			if strings.HasPrefix(rest, k) {
+				out.WriteString(vals[k])
+				i += len(k)
+				matched = true
+				break
+			}
+		}
+		if matched {
+			continue
+		}
+		// No match: emit one rune. An incomplete trailing rune (a multi-byte
+		// character split across deltas) is held back, never emitted truncated.
+		r, size := utf8.DecodeRuneInString(rest)
+		if r == utf8.RuneError && size == 1 && !utf8.FullRuneInString(rest) {
+			return out.String(), rest
+		}
+		out.WriteString(rest[:size])
+		i += size
+	}
+	return out.String(), ""
+}
+
+// flushCarry restores a raw held-back tail in full — used when its channel
+// terminates (content_block_stop / *.done / stream EOF) and no more input can
+// complete a partial placeholder.
+func (c *restoreCore) flushCarry(raw string, jsonCtx bool) string {
+	if jsonCtx {
+		return c.jsonReplacer.Replace(raw)
+	}
+	return c.replacer.Replace(raw)
 }
 
 func (c *restoreCore) maskedOutput() string {
@@ -260,6 +372,14 @@ func streamSSEResponse(conn net.Conn, resp *http.Response, codec streamCodec) er
 			if err == io.EOF {
 				if ferr := flush(); ferr != nil { // trailing event w/o blank line
 					return ferr
+				}
+				// The upstream ended without terminating every channel (no
+				// .done / content_block_stop): flush any held-back carry tails
+				// so the client's output is not silently truncated.
+				if tail := codec.flushTail(); len(tail) > 0 {
+					if werr := writeChunk(tail); werr != nil {
+						return werr
+					}
 				}
 				break
 			}
