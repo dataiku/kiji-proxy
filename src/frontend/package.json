@@ -28,9 +28,12 @@
     "electron-updater": "^6.8.9",
     "express": "^5.2.1",
     "http-proxy-middleware": "^3.0.5",
+    "i18next": "^26.3.4",
+    "i18next-browser-languagedetector": "^8.2.1",
     "lucide-react": "^1.7.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "react-i18next": "^17.0.8"
   },
   "devDependencies": {
     "@babel/core": "^7.29.7",

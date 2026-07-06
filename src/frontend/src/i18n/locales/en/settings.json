@@ -1,0 +1,152 @@
+{
+  "title": "Settings",
+  "subtitle": "Providers, PII detection, and advanced proxy configuration.",
+  "serverNote": "Provider keys, model directory, and certificate installation are configured via environment variables and the desktop app on server deployments.",
+  "providers": {
+    "title": "Providers",
+    "subtitle": "API keys and model IDs for each AI provider.",
+    "customName": "Custom Provider",
+    "status": {
+      "configured": "Configured",
+      "keyOptional": "Key optional",
+      "notSet": "Not set"
+    },
+    "apiKeyLabel": "{{provider}} API Key",
+    "apiKeyOptionalSuffix": " (optional)",
+    "lockTitle": "Lock API key",
+    "unlockTitle": "Unlock to edit",
+    "clearKey": "Clear my key",
+    "apiKeyPlaceholder": {
+      "update": "Enter new API key to update",
+      "locked": "API key is configured (unlock to edit)",
+      "optional": "Optional {{provider}} API key ({{example}})",
+      "enter": "Enter your {{provider}} API key ({{example}})"
+    },
+    "howToGetKey": "How to get your {{provider}} API key?",
+    "modelIdLabel": "Model ID",
+    "modelDefault": "Default: {{model}}",
+    "customModelHelp": "Use the exact model ID expected by your provider.",
+    "customEndpointLabel": "Custom Endpoint URL",
+    "customEndpointHelp": "Your custom provider must support an OpenAI-compliant chat completions API.",
+    "endpointOverrideHelp": "Override to use a custom endpoint.",
+    "keychainNote": "Your API keys are stored securely using system keychain encryption.",
+    "saving": "Saving…",
+    "save": "Save providers",
+    "messages": {
+      "loadFailed": "Failed to load settings",
+      "saveApiKeyFailed": "Failed to save {{provider}} API key",
+      "saveModelFailed": "Failed to save {{provider}} model",
+      "saveEndpointFailed": "Failed to save {{provider}} endpoint URL",
+      "restarting": "Saved. Restarting backend…",
+      "restartFailed": "Settings saved, but backend restart failed. Restart the app to apply.",
+      "savedApplied": "Settings saved and applied!",
+      "saveFailed": "Failed to save settings",
+      "keyCleared": "{{provider}} API key cleared",
+      "clearKeyFailed": "Failed to clear API key"
+    }
+  },
+  "pii": {
+    "title": "PII Detection",
+    "subtitle": "Tune how aggressively data is detected and what gets masked.",
+    "saved": "Saved",
+    "sensitivity": {
+      "label": "Detection sensitivity",
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High",
+      "help": "Controls how aggressively PII is detected. High catches more potential PII but may have false positives. Low is more precise but may miss some PII."
+    },
+    "entities": {
+      "label": "Entities to mask",
+      "selectAll": "Select all",
+      "deselectAll": "Deselect all",
+      "none": "No entity types available. Load a healthy PII model to configure masking.",
+      "help": "Unchecked types are left unmasked and sent to the AI provider as-is."
+    },
+    "regex": {
+      "label": "Custom regex patterns",
+      "nameColumn": "Name",
+      "patternColumn": "Pattern",
+      "none": "No custom patterns. Use the + button below to add one.",
+      "addTitle": "Add pattern",
+      "removeTitle": "Remove selected pattern",
+      "help": "Each pattern's name is used as the detected PII type. Patterns use RE2 (Go) syntax and are matched against request content.",
+      "saveFailedInvalid": "Failed to save patterns. Check that each name and pattern is a valid RE2 expression.",
+      "saveFailed": "Failed to save patterns."
+    },
+    "entityLabels": {
+      "SURNAME": "Surname",
+      "FIRSTNAME": "First Name",
+      "BUILDINGNUM": "Building Number",
+      "DATEOFBIRTH": "Date of Birth",
+      "EMAIL": "Email",
+      "PHONENUMBER": "Phone Number",
+      "CITY": "City",
+      "URL": "URL",
+      "COMPANYNAME": "Company Name",
+      "STATE": "State",
+      "ZIP": "ZIP Code",
+      "STREET": "Street",
+      "COUNTRY": "Country",
+      "SSN": "SSN",
+      "DRIVERLICENSENUM": "Driver License Number",
+      "PASSPORTID": "Passport ID",
+      "NATIONALID": "National ID",
+      "IDCARDNUM": "ID Card Number",
+      "TAXNUM": "Tax Number",
+      "LICENSEPLATENUM": "License Plate Number",
+      "PASSWORD": "Password",
+      "IBAN": "IBAN",
+      "AGE": "Age",
+      "SECURITYTOKEN": "Security Token",
+      "CREDITCARDNUMBER": "Credit Card Number",
+      "USERNAME": "Username"
+    }
+  },
+  "advanced": {
+    "title": "Advanced",
+    "subtitle": "System-wide interception and custom PII models.",
+    "transparentProxy": {
+      "label": "Transparent Proxy",
+      "help": "Intercept HTTPS traffic system-wide for automatic PII protection.",
+      "experimentalLabel": "Experimental:",
+      "experimentalHelp": "This feature requires CA certificate installation and may affect system network settings."
+    },
+    "model": {
+      "label": "Load Custom Kiji PII Model",
+      "statusHealthy": "Healthy",
+      "statusUnhealthy": "Unhealthy",
+      "statusLine": "Status: {{status}}",
+      "currentLine": "Current: {{directory}}",
+      "errorLine": "Error: {{error}}",
+      "pathPlaceholder": "/path/to/model/directory",
+      "browse": "Browse",
+      "browseTitle": "Browse for folder",
+      "requirements": "Directory must contain: model.onnx, tokenizer.json, label_mappings.json",
+      "reloading": "Reloading…",
+      "reload": "Reload Model",
+      "messages": {
+        "saveDirFailed": "Failed to save model directory",
+        "reloadSuccess": "Model saved and reloaded successfully!",
+        "reloadFailed": "Failed to reload model",
+        "unknownError": "Unknown error",
+        "folderSelectorFailed": "Failed to open folder selector"
+      }
+    }
+  },
+  "certificates": {
+    "title": "Certificates",
+    "subtitle": "Trust Kiji's root certificate to intercept HTTPS traffic.",
+    "setup": {
+      "title": "Set up CA certificate",
+      "help": "Step-by-step instructions to trust the certificate system-wide or per browser."
+    },
+    "revealFinder": "Reveal CA cert in Finder",
+    "revealExplorer": "Show CA cert in Explorer",
+    "revealHelp": "Open the folder containing the proxy's root certificate.",
+    "messages": {
+      "revealDesktopOnly": "Reveal in Finder is only available in the desktop app.",
+      "openFolderFailed": "Failed to open the certificate folder."
+    }
+  }
+}

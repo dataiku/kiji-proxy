@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { isElectron } from "../../utils/providerHelpers";
 import ProvidersSection from "./ProvidersSection";
 import PIISection from "./PIISection";
@@ -13,6 +14,7 @@ interface SettingsViewProps {
 }
 
 export default function SettingsView({ onProvidersSaved }: SettingsViewProps) {
+  const { t } = useTranslation("settings");
   // A single CA cert wizard, shared by the Advanced and Certificates sections.
   const [isCACertOpen, setIsCACertOpen] = useState(false);
   const openCACert = () => setIsCACertOpen(true);
@@ -22,11 +24,9 @@ export default function SettingsView({ onProvidersSaved }: SettingsViewProps) {
       {/* Page header */}
       <div className="mb-6">
         <h1 className="text-[23px] font-semibold tracking-tight text-stone-900">
-          Settings
+          {t("title")}
         </h1>
-        <p className="text-stone-500 text-[13px] mt-0.5">
-          Providers, PII detection, and advanced proxy configuration.
-        </p>
+        <p className="text-stone-500 text-[13px] mt-0.5">{t("subtitle")}</p>
       </div>
 
       <div className="space-y-4 animate-rise-in">
@@ -44,9 +44,7 @@ export default function SettingsView({ onProvidersSaved }: SettingsViewProps) {
           </>
         ) : (
           <div className="card p-6 text-sm text-stone-600">
-            Provider keys, model directory, and certificate installation are
-            configured via environment variables and the desktop app on server
-            deployments.
+            {t("serverNote")}
           </div>
         )}
       </div>

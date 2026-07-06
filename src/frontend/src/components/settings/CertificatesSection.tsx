@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ShieldCheck, FolderOpen, ChevronRight } from "lucide-react";
 import { isElectron } from "../../utils/providerHelpers";
 
@@ -10,24 +11,25 @@ interface CertificatesSectionProps {
 export default function CertificatesSection({
   onOpenCACert,
 }: CertificatesSectionProps) {
+  const { t } = useTranslation("settings");
   const [error, setError] = useState<string | null>(null);
 
   const handleRevealCert = async () => {
     setError(null);
     if (!isElectron || !window.electronAPI) {
-      setError("Reveal in Finder is only available in the desktop app.");
+      setError(t("certificates.messages.revealDesktopOnly"));
       return;
     }
     const result = await window.electronAPI.revealCACert();
     if (!result.success) {
-      setError(result.error || "Failed to open the certificate folder.");
+      setError(result.error || t("certificates.messages.openFolderFailed"));
     }
   };
 
   const revealLabel =
     isElectron && window.electronAPI?.platform === "darwin"
-      ? "Reveal CA cert in Finder"
-      : "Show CA cert in Explorer";
+      ? t("certificates.revealFinder")
+      : t("certificates.revealExplorer");
 
   return (
     <section className="card p-6 md:p-7">
@@ -38,10 +40,10 @@ export default function CertificatesSection({
         </div>
         <div>
           <h2 className="text-base font-semibold text-brand-900 tracking-tight">
-            Certificates
+            {t("certificates.title")}
           </h2>
           <p className="text-[13px] text-stone-500">
-            Trust Kiji's root certificate to intercept HTTPS traffic.
+            {t("certificates.subtitle")}
           </p>
         </div>
       </div>
@@ -57,10 +59,11 @@ export default function CertificatesSection({
               <ShieldCheck className="w-5 h-5" />
             </div>
             <div>
-              <p className="font-medium text-stone-700">Set up CA certificate</p>
+              <p className="font-medium text-stone-700">
+                {t("certificates.setup.title")}
+              </p>
               <p className="text-xs text-stone-500">
-                Step-by-step instructions to trust the certificate system-wide
-                or per browser.
+                {t("certificates.setup.help")}
               </p>
             </div>
           </div>
@@ -80,7 +83,7 @@ export default function CertificatesSection({
               <div>
                 <p className="font-medium text-stone-700">{revealLabel}</p>
                 <p className="text-xs text-stone-500">
-                  Open the folder containing the proxy's root certificate.
+                  {t("certificates.revealHelp")}
                 </p>
               </div>
             </div>

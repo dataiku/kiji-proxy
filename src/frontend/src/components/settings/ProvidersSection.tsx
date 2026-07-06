@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { isElectron } from "../../utils/providerHelpers";
 import type { ProvidersConfig, ProviderType } from "../../types/provider";
 import {
@@ -86,6 +87,14 @@ interface ProvidersSectionProps {
 }
 
 export default function ProvidersSection({ onSaved }: ProvidersSectionProps) {
+  const { t } = useTranslation("settings");
+  // Brand names (OpenAI, Anthropic, …) are not translated; only the custom
+  // provider has a localized display name.
+  const displayName = (provider: ProviderType): string =>
+    provider === "custom"
+      ? t("providers.customName")
+      : PROVIDER_INFO[provider].name;
+
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<{
@@ -192,7 +201,7 @@ export default function ProvidersSection({ onSaved }: ProvidersSectionProps) {
       });
     } catch (error) {
       console.error("Error loading settings:", error);
-      setMessage({ type: "error", text: "Failed to load settings" });
+      setMessage({ type: "error", text: t("providers.messages.loadFailed") });
     } finally {
       setIsLoading(false);
     }
@@ -225,7 +234,9 @@ export default function ProvidersSection({ onSaved }: ProvidersSectionProps) {
               type: "error",
               text:
                 keyResult.error ||
-                `Failed to save ${PROVIDER_INFO[provider].name} API key`,
+                t("providers.messages.saveApiKeyFailed", {
+                  provider: displayName(provider),
+                }),
             });
             setIsSaving(false);
             return;
@@ -242,7 +253,9 @@ export default function ProvidersSection({ onSaved }: ProvidersSectionProps) {
             type: "error",
             text:
               modelResult.error ||
-              `Failed to save ${PROVIDER_INFO[provider].name} model`,
+              t("providers.messages.saveModelFailed", {
+                provider: displayName(provider),
+              }),
           });
           setIsSaving(false);
           return;
@@ -260,7 +273,9 @@ export default function ProvidersSection({ onSaved }: ProvidersSectionProps) {
               type: "error",
               text:
                 baseUrlResult.error ||
-                `Failed to save ${PROVIDER_INFO[provider].name} endpoint URL`,
+                t("providers.messages.saveEndpointFailed", {
+                  provider: displayName(provider),
+                }),
             });
             setIsSaving(false);
             return;
@@ -283,24 +298,25 @@ export default function ProvidersSection({ onSaved }: ProvidersSectionProps) {
 
       // Restart the backend so the new API keys / endpoint URLs take effect.
       // Without this, the Go process keeps using whatever env vars it spawned with.
-      setMessage({ type: "success", text: "Saved. Restarting backend…" });
+      setMessage({ type: "success", text: t("providers.messages.restarting") });
       const restartResult = await window.electronAPI.restartBackend();
       if (!restartResult.success) {
         setMessage({
           type: "error",
-          text:
-            restartResult.error ||
-            "Settings saved, but backend restart failed. Restart the app to apply.",
+          text: restartResult.error || t("providers.messages.restartFailed"),
         });
         setIsSaving(false);
         return;
       }
 
-      setMessage({ type: "success", text: "Settings saved and applied!" });
+      setMessage({
+        type: "success",
+        text: t("providers.messages.savedApplied"),
+      });
       onSaved?.();
     } catch (error) {
       console.error("Error saving settings:", error);
-      setMessage({ type: "error", text: "Failed to save settings" });
+      setMessage({ type: "error", text: t("providers.messages.saveFailed") });
     } finally {
       setIsSaving(false);
     }
@@ -326,17 +342,22 @@ export default function ProvidersSection({ onSaved }: ProvidersSectionProps) {
         setProviderApiKeys((prev) => ({ ...prev, [provider]: "" }));
         setMessage({
           type: "success",
-          text: `${PROVIDER_INFO[provider].name} API key cleared`,
+          text: t("providers.messages.keyCleared", {
+            provider: displayName(provider),
+          }),
         });
       } else {
         setMessage({
           type: "error",
-          text: result.error || "Failed to clear API key",
+          text: result.error || t("providers.messages.clearKeyFailed"),
         });
       }
     } catch (error) {
       console.error("Error clearing API key:", error);
-      setMessage({ type: "error", text: "Failed to clear API key" });
+      setMessage({
+        type: "error",
+        text: t("providers.messages.clearKeyFailed"),
+      });
     } finally {
       setIsSaving(false);
     }
@@ -362,10 +383,10 @@ export default function ProvidersSection({ onSaved }: ProvidersSectionProps) {
         </div>
         <div>
           <h2 className="text-base font-semibold text-brand-900 tracking-tight">
-            Providers
+            {t("providers.title")}
           </h2>
           <p className="text-[13px] text-stone-500">
-            API keys and model IDs for each AI provider.
+            {t("providers.subtitle")}
           </p>
         </div>
       </div>
@@ -399,7 +420,7 @@ export default function ProvidersSection({ onSaved }: ProvidersSectionProps) {
                         <ChevronRight className="w-4 h-4 text-stone-400" />
                       )}
                       <span className="font-medium text-stone-700">
-                        {info.name}
+                        {displayName(provider)}
                       </span>
                     </div>
                     <span
@@ -417,10 +438,10 @@ export default function ProvidersSection({ onSaved }: ProvidersSectionProps) {
                         }`}
                       />
                       {configured
-                        ? "Configured"
+                        ? t("providers.status.configured")
                         : isApiKeyOptional
-                        ? "Key optional"
-                        : "Not set"}
+                        ? t("providers.status.keyOptional")
+                        : t("providers.status.notSet")}
                     </span>
                   </button>
 
@@ -434,8 +455,12 @@ export default function ProvidersSection({ onSaved }: ProvidersSectionProps) {
                           <div className="flex items-center gap-2">
                             <label className="text-sm font-medium text-stone-600 flex items-center gap-2">
                               <Key className="w-4 h-4" />
-                              {info.name} API Key
-                              {isApiKeyOptional ? " (optional)" : ""}
+                              {t("providers.apiKeyLabel", {
+                                provider: displayName(provider),
+                              })}
+                              {isApiKeyOptional
+                                ? t("providers.apiKeyOptionalSuffix")
+                                : ""}
                             </label>
                             {configured && (
                               <button
@@ -443,8 +468,8 @@ export default function ProvidersSection({ onSaved }: ProvidersSectionProps) {
                                 className="p-1 rounded hover:bg-stone-200 transition-colors"
                                 title={
                                   unlockedProviders[provider]
-                                    ? "Lock API key"
-                                    : "Unlock to edit"
+                                    ? t("providers.lockTitle")
+                                    : t("providers.unlockTitle")
                                 }
                               >
                                 {unlockedProviders[provider] ? (
@@ -460,7 +485,7 @@ export default function ProvidersSection({ onSaved }: ProvidersSectionProps) {
                               onClick={() => handleClearApiKey(provider)}
                               className="text-sm text-amber-600 hover:text-amber-700 transition-colors font-medium"
                             >
-                              Clear my key
+                              {t("providers.clearKey")}
                             </button>
                           )}
                         </div>
@@ -482,11 +507,17 @@ export default function ProvidersSection({ onSaved }: ProvidersSectionProps) {
                             placeholder={
                               configured
                                 ? unlockedProviders[provider]
-                                  ? "Enter new API key to update"
-                                  : "API key is configured (unlock to edit)"
+                                  ? t("providers.apiKeyPlaceholder.update")
+                                  : t("providers.apiKeyPlaceholder.locked")
                                 : isApiKeyOptional
-                                ? `Optional ${info.name} API key (${info.placeholder})`
-                                : `Enter your ${info.name} API key (${info.placeholder})`
+                                ? t("providers.apiKeyPlaceholder.optional", {
+                                    provider: displayName(provider),
+                                    example: info.placeholder,
+                                  })
+                                : t("providers.apiKeyPlaceholder.enter", {
+                                    provider: displayName(provider),
+                                    example: info.placeholder,
+                                  })
                             }
                             className={`w-full px-3 py-2 rounded-lg font-mono text-sm transition-shadow focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 placeholder:text-stone-400 ${
                               configured && !unlockedProviders[provider]
@@ -507,7 +538,9 @@ export default function ProvidersSection({ onSaved }: ProvidersSectionProps) {
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-1 text-xs text-brand-600 hover:text-brand-700 hover:underline underline-offset-2 transition-colors mt-1.5"
                           >
-                            How to get your {info.name} API key?
+                            {t("providers.howToGetKey", {
+                              provider: displayName(provider),
+                            })}
                           </a>
                         )}
                       </div>
@@ -516,7 +549,7 @@ export default function ProvidersSection({ onSaved }: ProvidersSectionProps) {
                       <div>
                         <label className="text-sm font-medium text-stone-600 mb-2 flex items-center gap-2">
                           <Cpu className="w-4 h-4" />
-                          Model ID
+                          {t("providers.modelIdLabel")}
                         </label>
                         <input
                           type="text"
@@ -531,7 +564,11 @@ export default function ProvidersSection({ onSaved }: ProvidersSectionProps) {
                           className="w-full px-3 py-2 rounded-lg border border-stone-200 bg-white font-mono text-sm transition-shadow focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 placeholder:text-stone-400"
                         />
                         <p className="text-xs text-stone-500 mt-1.5">
-                          {info.modelHelpText || `Default: ${info.defaultModel}`}
+                          {info.modelHelpText
+                            ? t("providers.customModelHelp")
+                            : t("providers.modelDefault", {
+                                model: info.defaultModel,
+                              })}
                         </p>
                       </div>
 
@@ -540,7 +577,7 @@ export default function ProvidersSection({ onSaved }: ProvidersSectionProps) {
                         <div>
                           <label className="text-sm font-medium text-stone-600 mb-2 flex items-center gap-2">
                             <Globe className="w-4 h-4" />
-                            Custom Endpoint URL
+                            {t("providers.customEndpointLabel")}
                           </label>
                           <input
                             type="url"
@@ -560,11 +597,11 @@ export default function ProvidersSection({ onSaved }: ProvidersSectionProps) {
                           {info.endpointHelpText ? (
                             <p className="flex items-start gap-2 rounded-lg ring-1 ring-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 mt-2">
                               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                              <span>{info.endpointHelpText}</span>
+                              <span>{t("providers.customEndpointHelp")}</span>
                             </p>
                           ) : (
                             <p className="text-xs text-stone-500 mt-1.5">
-                              Override to use a custom endpoint.
+                              {t("providers.endpointOverrideHelp")}
                             </p>
                           )}
                         </div>
@@ -578,7 +615,7 @@ export default function ProvidersSection({ onSaved }: ProvidersSectionProps) {
 
           <p className="flex items-center gap-1.5 text-xs text-stone-500">
             <Lock className="w-3.5 h-3.5" />
-            Your API keys are stored securely using system keychain encryption.
+            {t("providers.keychainNote")}
           </p>
 
           {/* Message */}
@@ -609,12 +646,12 @@ export default function ProvidersSection({ onSaved }: ProvidersSectionProps) {
               {isSaving ? (
                 <>
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Saving…
+                  {t("providers.saving")}
                 </>
               ) : (
                 <>
                   <Save className="w-5 h-5" />
-                  Save providers
+                  {t("providers.save")}
                 </>
               )}
             </button>

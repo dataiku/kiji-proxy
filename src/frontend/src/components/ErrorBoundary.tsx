@@ -1,7 +1,8 @@
 import { Component, ErrorInfo, ReactNode } from "react";
 import { AlertCircle, RefreshCw } from "lucide-react";
+import { withTranslation, WithTranslation } from "react-i18next";
 
-interface Props {
+interface Props extends WithTranslation {
   children: ReactNode;
 }
 
@@ -54,6 +55,7 @@ class ErrorBoundary extends Component<Props, State> {
   };
 
   render(): ReactNode {
+    const { t } = this.props;
     if (this.state.hasError) {
       return (
         <div className="min-h-screen bg-gradient-to-br from-red-50 to-red-100 flex items-center justify-center p-4">
@@ -63,12 +65,8 @@ class ErrorBoundary extends Component<Props, State> {
               <div className="flex items-center gap-3">
                 <AlertCircle className="w-8 h-8" />
                 <div>
-                  <h1 className="text-2xl font-bold">
-                    Oops! Something went wrong
-                  </h1>
-                  <p className="text-red-100 mt-1">
-                    The application encountered an unexpected error
-                  </p>
+                  <h1 className="text-2xl font-bold">{t("error.title")}</h1>
+                  <p className="text-red-100 mt-1">{t("error.subtitle")}</p>
                 </div>
               </div>
             </div>
@@ -78,7 +76,7 @@ class ErrorBoundary extends Component<Props, State> {
               {this.state.error && (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                   <h2 className="text-sm font-semibold text-red-900 mb-2">
-                    Error Message:
+                    {t("error.messageLabel")}
                   </h2>
                   <p className="text-sm text-red-800 font-mono">
                     {this.state.error.message}
@@ -89,7 +87,7 @@ class ErrorBoundary extends Component<Props, State> {
               {this.state.errorInfo && (
                 <details className="bg-stone-50 border border-stone-200 rounded-lg p-4">
                   <summary className="text-sm font-semibold text-stone-900 cursor-pointer hover:text-stone-700">
-                    Stack Trace (click to expand)
+                    {t("error.stackTrace")}
                   </summary>
                   <pre className="mt-3 text-xs text-stone-700 font-mono overflow-x-auto whitespace-pre-wrap">
                     {this.state.errorInfo.componentStack}
@@ -104,29 +102,26 @@ class ErrorBoundary extends Component<Props, State> {
                   className="flex items-center gap-2 px-6 py-3 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors font-medium"
                 >
                   <RefreshCw className="w-5 h-5" />
-                  Try Again
+                  {t("error.tryAgain")}
                 </button>
                 <button
                   onClick={this.handleReload}
                   className="px-6 py-3 border-2 border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 transition-colors font-medium"
                 >
-                  Reload Application
+                  {t("error.reload")}
                 </button>
               </div>
 
               {/* Help Text */}
               <div className="mt-6 p-4 bg-brand-50 border border-brand-200 rounded-lg">
                 <h3 className="text-sm font-semibold text-brand-900 mb-2">
-                  What can you do?
+                  {t("error.whatCanYouDo")}
                 </h3>
                 <ul className="text-sm text-brand-800 space-y-1 list-disc list-inside">
-                  <li>Click "Try Again" to reset the component</li>
-                  <li>Click "Reload Application" to refresh the entire app</li>
-                  <li>
-                    If the problem persists, check the browser console for more
-                    details
-                  </li>
-                  <li>Consider reporting this issue to the development team</li>
+                  <li>{t("error.help.tryAgain")}</li>
+                  <li>{t("error.help.reload")}</li>
+                  <li>{t("error.help.console")}</li>
+                  <li>{t("error.help.report")}</li>
                 </ul>
               </div>
             </div>
@@ -139,4 +134,4 @@ class ErrorBoundary extends Component<Props, State> {
   }
 }
 
-export default ErrorBoundary;
+export default withTranslation("common")(ErrorBoundary);
