@@ -449,3 +449,168 @@ func TestOpenAICodec_RestoresNestedDonePayloads(t *testing.T) {
 		t.Errorf("opaque id was rewritten: %s", out)
 	}
 }
+
+// --- regression tests for known streaming-restore bugs (currently FAILING) ---
+//
+// Each test below asserts the behavior the codec SHOULD have. They fail against
+// the current implementation and pin the bugs surfaced in review.
+
+// BUG 1 (OpenAI): the per-channel carry buffer stores POST-restore text and
+// re-restores it on the next delta, so a restored original that is itself a
+// dummy key gets substituted a second time — the exact chained-substitution
+// corruption processor.BuildRestorer was written to prevent. The buffered path
+// guards this in TestRestoreCore_NoChainedSubstitution; the streaming path does
+// not.
+func TestOpenAICodec_NoChainedSubstitutionAcrossDeltas(t *testing.T) {
+	// "Priya" was masked to the dummy "Nicole"; "Claude" was masked to the
+	// dummy "Priya". Restoring the model's "Nicole" must yield "Priya" and stop.
+	codec := newOpenAICodec(map[string]string{
+		"Nicole": "Priya",
+		"Priya":  "Claude",
+	})
+	ev1 := codec.transformEvent(sseLines(
+		"event: response.output_text.delta\n" +
+			`data: {"type":"response.output_text.delta","output_index":0,"content_index":0,"delta":"Hi Nicole"}` + "\n\n"))
+	ev2 := codec.transformEvent(sseLines(
+		"event: response.output_text.delta\n" +
+			`data: {"type":"response.output_text.delta","output_index":0,"content_index":0,"delta":"!"}` + "\n\n"))
+	done := codec.transformEvent(sseLines(
+		"event: response.output_text.done\n" +
+			`data: {"type":"response.output_text.done","output_index":0,"content_index":0,"text":"Hi Nicole!"}` + "\n\n"))
+
+	assembled := deltaPayloads(t, string(ev1)+string(ev2)+string(done))
+	if strings.Contains(assembled, "Claude") {
+		t.Errorf("restored original was re-substituted (chained): assembled=%q contains \"Claude\"", assembled)
+	}
+	if assembled != "Hi Priya!" {
+		t.Errorf("client-assembled deltas = %q, want %q", assembled, "Hi Priya!")
+	}
+}
+
+// BUG 1 (Anthropic): same defect in the per-content-block carry buffer.
+func TestAnthropicCodec_NoChainedSubstitutionAcrossDeltas(t *testing.T) {
+	codec := newAnthropicCodec(map[string]string{
+		"Nicole": "Priya",
+		"Priya":  "Claude",
+	})
+	ev1 := codec.transformEvent(sseLines(
+		"event: content_block_delta\n" +
+			`data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hi Nicole"}}` + "\n\n"))
+	ev2 := codec.transformEvent(sseLines(
+		"event: content_block_delta\n" +
+			`data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"!"}}` + "\n\n"))
+	stop := codec.transformEvent(sseLines(
+		"event: content_block_stop\n" +
+			`data: {"type":"content_block_stop","index":0}` + "\n\n"))
+
+	assembled := deltaPayloads(t, string(ev1)+string(ev2)+string(stop))
+	if strings.Contains(assembled, "Claude") {
+		t.Errorf("restored original was re-substituted (chained): assembled=%q contains \"Claude\"", assembled)
+	}
+	if assembled != "Hi Priya!" {
+		t.Errorf("client-assembled deltas = %q, want %q", assembled, "Hi Priya!")
+	}
+}
+
+// BUG 2: the OpenAI codec only recognizes the Responses-API grammar
+// (type == *.delta / *.done). A /v1/chat/completions stream uses
+// chat.completion.chunk with no top-level "type", so every chunk falls through
+// to passthrough and the dummy value reaches the client unrestored (fail-open).
+func TestOpenAICodec_ChatCompletionsChunkRestored(t *testing.T) {
+	codec := newOpenAICodec(map[string]string{"Nicole": "Priya"})
+	out := string(codec.transformEvent(sseLines(
+		`data: {"id":"c1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"Hi Nicole"}}]}` + "\n\n")))
+
+	if strings.Contains(out, "Nicole") {
+		t.Errorf("chat.completion.chunk not restored — dummy leaked to client: %s", out)
+	}
+	if !strings.Contains(out, "Priya") {
+		t.Errorf("chat.completion.chunk should restore to \"Priya\": %s", out)
+	}
+}
+
+// BUG 3: splitSafe splits the restored string on a raw byte index, which can cut
+// a multi-byte UTF-8 rune. The emit half is then json.Marshal'd, which replaces
+// the truncated bytes with U+FFFD, corrupting non-ASCII restored PII.
+func TestAnthropicCodec_MultibyteRuneNotCorrupted(t *testing.T) {
+	// keep = len("XX") - 1 = 1, so the emit/hold boundary lands inside the
+	// 2-byte 'é' of the restored "José".
+	codec := newAnthropicCodec(map[string]string{"XX": "José"})
+	ev := codec.transformEvent(sseLines(
+		"event: content_block_delta\n" +
+			`data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"XX"}}` + "\n\n"))
+	stop := codec.transformEvent(sseLines(
+		"event: content_block_stop\n" +
+			`data: {"type":"content_block_stop","index":0}` + "\n\n"))
+
+	assembled := deltaPayloads(t, string(ev)+string(stop))
+	if strings.Contains(assembled, "�") {
+		t.Errorf("multi-byte rune corrupted to U+FFFD: assembled=%q", assembled)
+	}
+	if assembled != "José" {
+		t.Errorf("client-assembled deltas = %q, want %q", assembled, "José")
+	}
+}
+
+// BUG 4: tool-call arguments arrive as fragments of a JSON string
+// (input_json_delta.partial_json). Restoring a value containing a JSON
+// metacharacter (here backslashes in a Windows path) splices it in unescaped, so
+// the arguments JSON the client reconstructs is invalid.
+func TestAnthropicCodec_ToolArgsRemainValidJSON(t *testing.T) {
+	codec := newAnthropicCodec(map[string]string{"MASKED_PATH": `C:\Temp\x`})
+	ev := codec.transformEvent(sseLines(
+		"event: content_block_delta\n" +
+			`data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"path\":\"MASKED_PATH\"}"}}` + "\n\n"))
+	stop := codec.transformEvent(sseLines(
+		"event: content_block_stop\n" +
+			`data: {"type":"content_block_stop","index":0}` + "\n\n"))
+
+	// The client concatenates partial_json fragments and parses them as the
+	// tool-call arguments.
+	assembled := deltaPayloads(t, string(ev)+string(stop))
+	var args map[string]interface{}
+	if err := json.Unmarshal([]byte(assembled), &args); err != nil {
+		t.Errorf("reconstructed tool-call arguments are not valid JSON: %v\nassembled=%q", err, assembled)
+	}
+}
+
+// BUG 6: streamSSEResponse flushes the last buffered event on EOF but never
+// flushes each codec's held-back carry tail. If the upstream ends without a
+// content_block_stop / *.done for an open channel, the trailing keep bytes are
+// silently dropped, truncating the client's output.
+func TestStreamSSEResponse_FlushesCarryTailOnEOF(t *testing.T) {
+	// keep = len("SECRET") - 1 = 5, so " Jane" is held back after emitting
+	// "Hello". With no content_block_stop, the tail must still reach the client.
+	upstream := "event: content_block_delta\n" +
+		`data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hello Jane"}}` + "\n\n"
+
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+		Body:       io.NopCloser(strings.NewReader(upstream)),
+	}
+
+	client, server := net.Pipe()
+	codec := newAnthropicCodec(map[string]string{"SECRET": "unused"})
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- streamSSEResponse(server, resp, codec)
+		server.Close()
+	}()
+
+	parsed, err := http.ReadResponse(bufio.NewReader(client), nil)
+	if err != nil {
+		t.Fatalf("client failed to parse response: %v", err)
+	}
+	body, err := io.ReadAll(parsed.Body)
+	if err != nil {
+		t.Fatalf("client failed to read body: %v", err)
+	}
+	if err := <-errCh; err != nil {
+		t.Fatalf("streamSSEResponse returned error: %v", err)
+	}
+
+	if assembled := deltaPayloads(t, string(body)); assembled != "Hello Jane" {
+		t.Errorf("client-assembled deltas = %q, want %q (carry tail dropped on EOF)", assembled, "Hello Jane")
+	}
+}
