@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   X,
   Database,
@@ -27,6 +28,7 @@ function SortableHeader({
   activeOrder,
   onSort,
 }: SortableHeaderProps) {
+  const { t } = useTranslation("mappings");
   const isActive = activeColumn === column;
   return (
     <th className="px-4 py-3 text-left text-sm font-semibold text-stone-700 border-b border-stone-200">
@@ -35,7 +37,7 @@ function SortableHeader({
         <span className="flex flex-col leading-none">
           <button
             type="button"
-            aria-label={`Sort ${label} ascending`}
+            aria-label={t("sort.ascending", { label })}
             onClick={() => onSort(column, "asc")}
             className={`-mb-0.5 transition-colors ${
               isActive && activeOrder === "asc"
@@ -47,7 +49,7 @@ function SortableHeader({
           </button>
           <button
             type="button"
-            aria-label={`Sort ${label} descending`}
+            aria-label={t("sort.descending", { label })}
             onClick={() => onSort(column, "desc")}
             className={`transition-colors ${
               isActive && activeOrder === "desc"
@@ -72,6 +74,7 @@ function SortableHeader({
  * "clear all" confirmation.
  */
 export default function MappingsView() {
+  const { t } = useTranslation("mappings");
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(
     null
@@ -105,12 +108,11 @@ export default function MappingsView() {
                 <AlertTriangle className="w-6 h-6 text-red-600" />
               </div>
               <h3 className="text-xl font-bold text-stone-800">
-                Clear All Mappings?
+                {t("confirm.title")}
               </h3>
             </div>
             <p className="text-stone-600 mb-6">
-              This will permanently delete all {total} PII mapping
-              {total === 1 ? "" : "s"}. This action cannot be undone.
+              {t("confirm.body", { count: total })}
             </p>
             <div className="flex gap-3 justify-end">
               <button
@@ -118,7 +120,7 @@ export default function MappingsView() {
                 disabled={isClearing}
                 className="px-4 py-2 border-2 border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 transition-colors font-medium disabled:opacity-50"
               >
-                Cancel
+                {t("confirm.cancel")}
               </button>
               <button
                 onClick={async () => {
@@ -131,12 +133,12 @@ export default function MappingsView() {
                 {isClearing ? (
                   <>
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Clearing...
+                    {t("confirm.clearing")}
                   </>
                 ) : (
                   <>
                     <Trash2 className="w-4 h-4" />
-                    Clear All Mappings
+                    {t("confirm.clearAll")}
                   </>
                 )}
               </button>
@@ -149,27 +151,24 @@ export default function MappingsView() {
       <div className="flex items-start justify-between mb-6 gap-4">
         <div>
           <h1 className="text-[23px] font-semibold tracking-tight text-stone-900">
-            Mappings
+            {t("title")}
           </h1>
-          <p className="text-stone-500 text-[13px] mt-0.5">
-            Every detected PII value and the fake token Kiji swapped in to
-            protect it.
-          </p>
+          <p className="text-stone-500 text-[13px] mt-0.5">{t("subtitle")}</p>
         </div>
         <div className="flex items-center gap-2.5 shrink-0">
           {total > 0 && (
             <span className="inline-flex items-center text-[13px] font-medium text-stone-600 bg-white border border-brand-900/10 rounded-lg px-3 py-2 shadow-soft">
-              {total} {total === 1 ? "entry" : "entries"}
+              {t("entryCount", { count: total })}
             </span>
           )}
           {total > 0 && (
             <button
               onClick={() => setShowClearConfirm(true)}
               className="inline-flex items-center gap-2 px-3 py-2 text-[13px] font-medium text-red-600 bg-white border border-red-200 rounded-lg shadow-soft hover:bg-red-50 transition-colors"
-              title="Clear all mappings"
+              title={t("clearAllTitle")}
             >
               <Trash2 className="w-4 h-4" />
-              Clear All
+              {t("clearAll")}
             </button>
           )}
         </div>
@@ -180,13 +179,13 @@ export default function MappingsView() {
           {error && (
             <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
               <div className="text-red-600 text-sm flex-1">
-                <strong>Error:</strong> {error}
+                <strong>{t("error.label")}</strong> {error}
               </div>
               <button
                 onClick={retry}
                 className="text-red-600 hover:text-red-800 text-sm font-medium"
               >
-                Retry
+                {t("error.retry")}
               </button>
             </div>
           )}
@@ -201,42 +200,42 @@ export default function MappingsView() {
               ) : mappings.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 text-stone-500">
                   <Database className="w-12 h-12 mb-4 opacity-50" />
-                  <p className="text-lg">No PII mappings found</p>
+                  <p className="text-lg">{t("empty")}</p>
                 </div>
               ) : (
                 <table className="border-collapse w-full">
                   <thead className="bg-stone-100 sticky top-0">
                     <tr>
                       <SortableHeader
-                        label="Entity Type"
+                        label={t("table.entityType")}
                         column="pii_type"
                         activeColumn={sortColumn}
                         activeOrder={sortOrder}
                         onSort={handleSort}
                       />
                       <SortableHeader
-                        label="Original"
+                        label={t("table.original")}
                         column="original_pii"
                         activeColumn={sortColumn}
                         activeOrder={sortOrder}
                         onSort={handleSort}
                       />
                       <SortableHeader
-                        label="Masked"
+                        label={t("table.masked")}
                         column="dummy_pii"
                         activeColumn={sortColumn}
                         activeOrder={sortOrder}
                         onSort={handleSort}
                       />
                       <SortableHeader
-                        label="Date of first entity"
+                        label={t("table.date")}
                         column="created_at"
                         activeColumn={sortColumn}
                         activeOrder={sortOrder}
                         onSort={handleSort}
                       />
                       <th className="px-4 py-3 text-right text-sm font-semibold text-stone-700 border-b border-stone-200 w-px">
-                        <span className="sr-only">Actions</span>
+                        <span className="sr-only">{t("table.actions")}</span>
                       </th>
                     </tr>
                   </thead>
@@ -266,11 +265,11 @@ export default function MappingsView() {
                           ) : confirmingDeleteId === m.id ? (
                             <div className="inline-flex items-center gap-1">
                               <span className="text-xs text-stone-500 mr-1">
-                                Delete?
+                                {t("delete.confirm")}
                               </span>
                               <button
                                 type="button"
-                                aria-label="Confirm delete"
+                                aria-label={t("delete.confirmLabel")}
                                 onClick={async () => {
                                   await handleDeleteOne(m.id);
                                   setConfirmingDeleteId(null);
@@ -281,7 +280,7 @@ export default function MappingsView() {
                               </button>
                               <button
                                 type="button"
-                                aria-label="Cancel delete"
+                                aria-label={t("delete.cancelLabel")}
                                 onClick={() => setConfirmingDeleteId(null)}
                                 className="p-1 text-stone-500 hover:bg-stone-200 rounded transition-colors"
                               >
@@ -291,8 +290,8 @@ export default function MappingsView() {
                           ) : (
                             <button
                               type="button"
-                              aria-label="Delete mapping"
-                              title="Delete mapping"
+                              aria-label={t("delete.label")}
+                              title={t("delete.title")}
                               onClick={() => setConfirmingDeleteId(m.id)}
                               className="p-1 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
                             >
@@ -313,7 +312,7 @@ export default function MappingsView() {
                     onClick={handleLoadMore}
                     className="px-6 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors font-medium"
                   >
-                    Load More Mappings
+                    {t("loadMore")}
                   </button>
                 </div>
               )}
@@ -323,7 +322,7 @@ export default function MappingsView() {
                 <div className="flex justify-center py-4 border-t border-stone-200">
                   <div className="w-6 h-6 border-3 border-brand-600 border-t-transparent rounded-full animate-spin" />
                   <span className="ml-3 text-sm text-stone-600">
-                    Loading more...
+                    {t("loadingMore")}
                   </span>
                 </div>
               )}
@@ -333,10 +332,11 @@ export default function MappingsView() {
           {/* Footer summary */}
           {mappings.length > 0 && (
             <p className="text-sm text-stone-500 mt-4">
-              Showing {mappings.length} of {total} mapping
-              {total === 1 ? "" : "s"}
+              {t("footer.showing", { shown: mappings.length, count: total })}
               {hasMore && (
-                <span className="ml-2 text-stone-400">(more available)</span>
+                <span className="ml-2 text-stone-400">
+                  {t("footer.moreAvailable")}
+                </span>
               )}
             </p>
           )}

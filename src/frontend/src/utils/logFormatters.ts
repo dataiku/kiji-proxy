@@ -1,3 +1,4 @@
+import type { TFunction } from "i18next";
 import type { LogEntry } from "../types/provider";
 
 export function sortLogs(logsToSort: LogEntry[]): LogEntry[] {
@@ -183,15 +184,20 @@ function formatStructuredMessages(
   return messages.map((msg) => `[${msg.role}] ${msg.content}`).join("\n\n");
 }
 
-export function formatMessage(log: LogEntry, useFullJson: boolean): string {
+export function formatMessage(
+  log: LogEntry,
+  useFullJson: boolean,
+  t: TFunction<"activity">
+): string {
+  const truncatedMessage = `\n\n${t("message.truncated")}`;
+  const truncatedJson = `\n\n${t("message.truncatedJson")}`;
+  const noContent = t("message.noContent");
+
   if (!useFullJson) {
     if (log.messages && log.messages.length > 0) {
       const formatted = formatStructuredMessages(log.messages);
       if (formatted.length > 5000) {
-        return (
-          formatted.substring(0, 5000) +
-          "\n\n... [Message truncated for display]"
-        );
+        return formatted.substring(0, 5000) + truncatedMessage;
       }
       return formatted;
     }
@@ -199,15 +205,12 @@ export function formatMessage(log: LogEntry, useFullJson: boolean): string {
     if (log.message) {
       const extracted = extractMessageFromJson(log.message);
       if (extracted.length > 5000) {
-        return (
-          extracted.substring(0, 5000) +
-          "\n\n... [Message truncated for display]"
-        );
+        return extracted.substring(0, 5000) + truncatedMessage;
       }
       return extracted;
     }
 
-    return "No message content";
+    return noContent;
   }
 
   if (log.message) {
@@ -215,35 +218,26 @@ export function formatMessage(log: LogEntry, useFullJson: boolean): string {
       const parsed = JSON.parse(log.message);
       const formatted = JSON.stringify(parsed, null, 2);
       if (formatted.length > 10000) {
-        return (
-          formatted.substring(0, 10000) +
-          "\n\n... [JSON truncated for display]"
-        );
+        return formatted.substring(0, 10000) + truncatedJson;
       }
       return formatted;
     } catch {
       if (log.message && log.message.length > 5000) {
-        return (
-          log.message.substring(0, 5000) +
-          "\n\n... [Message truncated for display]"
-        );
+        return log.message.substring(0, 5000) + truncatedMessage;
       }
-      return log.message || "No message content";
+      return log.message || noContent;
     }
   }
 
   if (log.messages && log.messages.length > 0) {
     const formatted = formatStructuredMessages(log.messages);
     if (formatted.length > 5000) {
-      return (
-        formatted.substring(0, 5000) +
-        "\n\n... [Message truncated for display]"
-      );
+      return formatted.substring(0, 5000) + truncatedMessage;
     }
     return formatted;
   }
 
-  return "No message content";
+  return noContent;
 }
 
 export function isJson(message?: string): boolean {
@@ -269,15 +263,23 @@ export function getProviderFromModel(model?: string): string {
   return "Provider";
 }
 
-export function getDirectionLabel(direction: string, model?: string): string {
-  const providerName = getProviderFromModel(model);
-  if (direction === "request_original") return "Request (Original)";
-  if (direction === "request_masked") return `Request (To ${providerName})`;
+export function getDirectionLabel(
+  direction: string,
+  model: string | undefined,
+  t: TFunction<"activity">
+): string {
+  const provider = getProviderFromModel(model);
+  if (direction === "request_original") return t("direction.requestOriginal");
+  if (direction === "request_masked")
+    return t("direction.requestMasked", { provider });
   if (direction === "response_masked")
-    return `Response (From ${providerName})`;
-  if (direction === "response_original") return "Response (Restored)";
-  if (direction === "request" || direction === "In") return "Request";
-  if (direction === "response" || direction === "Out") return "Response";
+    return t("direction.responseMasked", { provider });
+  if (direction === "response_original")
+    return t("direction.responseOriginal");
+  if (direction === "request" || direction === "In")
+    return t("direction.request");
+  if (direction === "response" || direction === "Out")
+    return t("direction.response");
   return direction;
 }
 

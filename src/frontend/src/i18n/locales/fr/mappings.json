@@ -1,1 +1,46 @@
-{}
+{
+  "title": "Correspondances",
+  "subtitle": "Chaque valeur de PII détectée et le faux jeton que Kiji a substitué pour la protéger.",
+  "entryCount_one": "{{count}} entrée",
+  "entryCount_other": "{{count}} entrées",
+  "clearAll": "Tout effacer",
+  "clearAllTitle": "Effacer toutes les correspondances",
+  "confirm": {
+    "title": "Effacer toutes les correspondances ?",
+    "body_one": "Cela supprimera définitivement {{count}} correspondance de PII. Cette action est irréversible.",
+    "body_other": "Cela supprimera définitivement les {{count}} correspondances de PII. Cette action est irréversible.",
+    "cancel": "Annuler",
+    "clearing": "Effacement...",
+    "clearAll": "Effacer toutes les correspondances"
+  },
+  "error": {
+    "label": "Erreur :",
+    "retry": "Réessayer"
+  },
+  "empty": "Aucune correspondance de PII trouvée",
+  "table": {
+    "entityType": "Type d’entité",
+    "original": "Original",
+    "masked": "Masqué",
+    "date": "Date de première entité",
+    "actions": "Actions"
+  },
+  "sort": {
+    "ascending": "Trier {{label}} par ordre croissant",
+    "descending": "Trier {{label}} par ordre décroissant"
+  },
+  "delete": {
+    "confirm": "Supprimer ?",
+    "confirmLabel": "Confirmer la suppression",
+    "cancelLabel": "Annuler la suppression",
+    "label": "Supprimer la correspondance",
+    "title": "Supprimer la correspondance"
+  },
+  "loadMore": "Charger plus de correspondances",
+  "loadingMore": "Chargement...",
+  "footer": {
+    "showing_one": "Affichage de {{shown}} sur {{count}} correspondance",
+    "showing_other": "Affichage de {{shown}} sur {{count}} correspondances",
+    "moreAvailable": "(plus disponibles)"
+  }
+}
