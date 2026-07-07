@@ -52,12 +52,14 @@
       "submitted": "Requête envoyée",
       "piiExposed": "Données personnelles exposées",
       "piiDetected_one": "{{count}} donnée personnelle détectée",
+      "piiDetected_many": "{{count}} données personnelles détectées",
       "piiDetected_other": "{{count}} données personnelles détectées",
       "avgConfidence": "{{value}} % de confiance moyenne",
       "masked": "masqué",
       "personalInfoRemoved": "Informations personnelles supprimées",
       "piiProtected": "Données personnelles protégées",
       "fakePiiReceived_one": "{{count}} fausse donnée personnelle reçue",
+      "fakePiiReceived_many": "{{count}} fausses données personnelles reçues",
       "fakePiiReceived_other": "{{count}} fausses données personnelles reçues"
     },
     "response": {
@@ -67,6 +69,7 @@
       "personalInfoRestored": "Informations personnelles restaurées",
       "restoredBadge": "Restauré",
       "piiRestored_one": "{{count}} donnée personnelle restaurée",
+      "piiRestored_many": "{{count}} données personnelles restaurées",
       "piiRestored_other": "{{count}} données personnelles restaurées"
     },
     "reportMisclassification": "Signaler une classification incorrecte",

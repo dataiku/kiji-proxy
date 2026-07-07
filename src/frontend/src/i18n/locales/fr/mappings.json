@@ -2,12 +2,14 @@
   "title": "Correspondances",
   "subtitle": "Chaque valeur de PII détectée et le faux jeton que Kiji a substitué pour la protéger.",
   "entryCount_one": "{{count}} entrée",
+  "entryCount_many": "{{count}} entrées",
   "entryCount_other": "{{count}} entrées",
   "clearAll": "Tout effacer",
   "clearAllTitle": "Effacer toutes les correspondances",
   "confirm": {
     "title": "Effacer toutes les correspondances ?",
     "body_one": "Cela supprimera définitivement {{count}} correspondance de PII. Cette action est irréversible.",
+    "body_many": "Cela supprimera définitivement les {{count}} correspondances de PII. Cette action est irréversible.",
     "body_other": "Cela supprimera définitivement les {{count}} correspondances de PII. Cette action est irréversible.",
     "cancel": "Annuler",
     "clearing": "Effacement...",
@@ -40,6 +42,7 @@
   "loadingMore": "Chargement...",
   "footer": {
     "showing_one": "Affichage de {{shown}} sur {{count}} correspondance",
+    "showing_many": "Affichage de {{shown}} sur {{count}} correspondances",
     "showing_other": "Affichage de {{shown}} sur {{count}} correspondances",
     "moreAvailable": "(plus disponibles)"
   }

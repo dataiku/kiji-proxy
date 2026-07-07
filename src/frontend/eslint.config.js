@@ -2,6 +2,7 @@ const tsPlugin = require("@typescript-eslint/eslint-plugin");
 const tsParser = require("@typescript-eslint/parser");
 const reactPlugin = require("eslint-plugin-react");
 const reactHooksPlugin = require("eslint-plugin-react-hooks");
+const i18nextPlugin = require("eslint-plugin-i18next");
 
 module.exports = [
   // Global ignores (replaces .eslintignore)
@@ -116,6 +117,20 @@ module.exports = [
     rules: {
       "@typescript-eslint/no-var-requires": "off",
       "@typescript-eslint/no-require-imports": "off",
+    },
+  },
+
+  // i18n: flag un-extracted UI copy in React components. Scoped to the
+  // renderer's JSX/TSX and limited to `jsx-text-only` (visible text between
+  // tags) so it does not flag brand names, class names, or technical literals
+  // in attributes/expressions. Advisory (warn) so it guides incremental
+  // extraction without gating CI — the hard i18n gate is the plural-aware
+  // parity check (scripts/check-i18n-parity.js, run as `npm run i18n:check`).
+  {
+    files: ["src/**/*.{jsx,tsx}"],
+    plugins: { i18next: i18nextPlugin },
+    rules: {
+      "i18next/no-literal-string": ["warn", { mode: "jsx-text-only" }],
     },
   },
 ];

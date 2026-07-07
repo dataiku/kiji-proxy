@@ -17,6 +17,7 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "type-check": "tsc --noEmit",
+    "i18n:check": "node scripts/check-i18n-parity.js",
     "changeset": "changeset",
     "version": "changeset version",
     "release": "changeset publish"
@@ -53,6 +54,7 @@
     "electron": "^42.4.0",
     "electron-builder": "^26.8.1",
     "eslint": "^9.39.2",
+    "eslint-plugin-i18next": "^6.1.5",
     "eslint-plugin-react": "^7.33.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "html-webpack-plugin": "^5.6.7",

@@ -2,12 +2,14 @@
   "title": "Activité",
   "subtitle": "Chaque requête interceptée par Kiji, avec les PII qu’il a détectées et masquées.",
   "entryCount_one": "{{count}} entrée",
+  "entryCount_many": "{{count}} entrées",
   "entryCount_other": "{{count}} entrées",
   "clearLogs": "Effacer les journaux",
   "clearLogsTitle": "Effacer tous les journaux",
   "confirm": {
     "title": "Effacer tous les journaux ?",
     "body_one": "Cela supprimera définitivement {{count}} entrée de journal. Cette action est irréversible.",
+    "body_many": "Cela supprimera définitivement les {{count}} entrées de journal. Cette action est irréversible.",
     "body_other": "Cela supprimera définitivement les {{count}} entrées de journal. Cette action est irréversible.",
     "cancel": "Annuler",
     "clearing": "Effacement...",
@@ -33,6 +35,7 @@
   },
   "empty": "Aucune entrée de journal trouvée",
   "messageCount_one": "{{count}} message",
+  "messageCount_many": "{{count}} messages",
   "messageCount_other": "{{count}} messages",
   "blocked": {
     "yes": "Oui",
@@ -47,6 +50,7 @@
   "loadingMore": "Chargement...",
   "footer": {
     "showing_one": "Affichage de {{shown}} sur {{count}} entrée de journal",
+    "showing_many": "Affichage de {{shown}} sur {{count}} entrées de journal",
     "showing_other": "Affichage de {{shown}} sur {{count}} entrées de journal",
     "moreAvailable": "(plus disponibles)",
     "largeCount": "Nombre élevé de journaux détecté. Envisagez d’effacer les anciens journaux pour améliorer les performances."
