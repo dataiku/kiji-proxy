@@ -47,7 +47,7 @@
   },
   "pii": {
     "title": "Détection des renseignements personnels",
-    "subtitle": "Ajustez le degré de détection des données et ce qui est masqué.",
+    "subtitle": "Ajustez le degré de détection des renseignements personnels et ce qui est masqué.",
     "saved": "Enregistré",
     "sensitivity": {
       "label": "Sensibilité de détection",
