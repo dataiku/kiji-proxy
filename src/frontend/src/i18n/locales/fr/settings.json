@@ -136,14 +136,14 @@
   },
   "certificates": {
     "title": "Certificats",
-    "subtitle": "Installez le certificat racine de Kiji pour intercepter le trafic HTTPS.",
+    "subtitle": "Installez le certificat racine de Kiji pour permettre l'interception du trafic HTTPS.",
     "setup": {
       "title": "Configurer le certificat racine",
-      "help": "Instructions étape par étape pour faire confiance au certificat à l'échelle du système ou par navigateur."
+      "help": "Instructions étape par étape pour faire confiance au certificat au niveau du système ou dans le navigateur."
     },
     "revealFinder": "Afficher le certificat racine dans le Finder",
     "revealExplorer": "Afficher le certificat racine dans l'Explorateur",
-    "revealHelp": "Ouvrez le dossier contenant le certificat racine du proxy.",
+    "revealHelp": "Ouvre le dossier contenant le certificat racine du proxy.",
     "messages": {
       "revealDesktopOnly": "L'affichage dans le Finder n'est disponible que dans l'application de bureau.",
       "openFolderFailed": "Échec de l'ouverture du dossier de certificats."
