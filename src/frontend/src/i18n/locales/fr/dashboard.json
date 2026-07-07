@@ -15,7 +15,7 @@
   },
   "serverError": "Impossible de joindre le serveur Kiji : {{error}}. Vérifiez que le proxy tourne sur localhost:8080.",
   "kpi": {
-    "piiProtected": "Éléments de PII protégés",
+    "piiProtected": "PII protégées",
     "piiProtectedDelta": "sur {{window}}",
     "windowUnit": {
       "h": "h",
