@@ -1,6 +1,6 @@
 {
   "title": "Correspondances",
-  "subtitle": "Chaque renseignement personnel détecté et le faux jeton que Kiji a substitué pour le protéger.",
+  "subtitle": "Chaque renseignement personnel détecté, avec la valeur fictive utilisée pour le remplacer.",
   "entryCount_one": "{{count}} entrée",
   "entryCount_many": "{{count}} entrées",
   "entryCount_other": "{{count}} entrées",
@@ -21,10 +21,10 @@
   },
   "empty": "Aucune correspondance de renseignements personnels trouvée",
   "table": {
-    "entityType": "Type d’entité",
-    "original": "Original",
-    "masked": "Masqué",
-    "date": "Date de première entité",
+    "entityType": "Type de renseignement",
+    "original": "Valeur originale",
+    "masked": "Remplacement",
+    "date": "Première détection",
     "actions": "Actions"
   },
   "sort": {
