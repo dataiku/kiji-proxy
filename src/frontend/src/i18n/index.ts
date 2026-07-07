@@ -91,4 +91,22 @@ i18next
     },
   });
 
+// In the desktop app, keep the native menu (built in the Electron main process,
+// outside react-i18next) in sync with the renderer's language. The renderer is
+// the source of truth — it detects and persists the choice via localStorage —
+// and pushes the resolved base language to the main process, which persists it
+// and rebuilds the app/tray menus. The web build has no electronAPI, so this is
+// a guarded no-op there.
+const syncMenuLanguage = () => {
+  const language = i18next.resolvedLanguage;
+  if (language) {
+    window.electronAPI?.setLanguage?.(language);
+  }
+};
+
+i18next.on("languageChanged", syncMenuLanguage);
+// Assert the initially detected language once at startup (the main process
+// built its menu from the last persisted value before the renderer loaded).
+syncMenuLanguage();
+
 export default i18next;

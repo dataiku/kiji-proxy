@@ -68,6 +68,13 @@ interface ElectronAPI {
     admin: boolean
   ) => Promise<{ success: boolean; error?: string }>;
 
+  // UI language (persisted for the native menu; the renderer is the source of
+  // truth and pushes its detected/chosen language here).
+  getLanguage: () => Promise<string>;
+  setLanguage: (
+    language: string
+  ) => Promise<{ success: boolean; error?: string }>;
+
   // Model directory settings
   getModelDirectory: () => Promise<string | null>;
   setModelDirectory: (

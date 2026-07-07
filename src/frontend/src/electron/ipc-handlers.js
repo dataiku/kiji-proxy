@@ -1,6 +1,7 @@
 const { app, ipcMain, shell } = require("electron");
 const path = require("path");
 const fs = require("fs");
+const { normalizeLanguage } = require("./menu-i18n");
 
 // Valid provider types accepted by the Go backend.
 // Keep in sync with src/backend/main.go loadApplicationConfig().
@@ -64,6 +65,7 @@ const registerIpcHandlers = ({
   restartGoBinary,
   waitForBackend,
   getMainWindow,
+  onLanguageChange,
 }) => {
   // Register matching get-/set- IPC handlers that read and write a single
   // top-level field of the persisted config. `coerce` transforms the inbound
@@ -421,6 +423,20 @@ const registerIpcHandlers = ({
   );
 
   defineConfigField("admin", "get-admin", "set-admin", booleanField);
+
+  // UI language. Persisted so the native menu can be built in the right
+  // language at startup; onChange rebuilds the live menus. The renderer is the
+  // source of truth (it detects/persists its own choice) and pushes it here.
+  defineConfigField("language", "get-language", "set-language", {
+    defaultValue: "en",
+    coerce: (v) => normalizeLanguage(v),
+    onChange: (language) => {
+      if (onLanguageChange) {
+        onLanguageChange(language);
+      }
+      return { success: true };
+    },
+  });
 
   // ---- Model directory management ----
 
