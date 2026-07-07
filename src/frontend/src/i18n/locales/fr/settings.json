@@ -1,10 +1,10 @@
 {
   "title": "Paramètres",
-  "subtitle": "Fournisseurs, détection des renseignements personnels et configuration avancée du proxy.",
+  "subtitle": "Configurez les fournisseurs, la détection des renseignements personnels et les paramètres avancés du proxy.",
   "serverNote": "Les clés des fournisseurs, le répertoire du modèle et l'installation des certificats se configurent via des variables d'environnement et l'application de bureau sur les déploiements serveur.",
   "providers": {
     "title": "Fournisseurs",
-    "subtitle": "Clés API et identifiants de modèle pour chaque fournisseur d'IA.",
+    "subtitle": "Clés API et identifiants de modèles pour chaque fournisseur d'IA.",
     "customName": "Fournisseur personnalisé",
     "status": {
       "configured": "Configuré",
@@ -29,9 +29,9 @@
     "customEndpointLabel": "URL de point de terminaison personnalisé",
     "customEndpointHelp": "Votre fournisseur personnalisé doit prendre en charge une API de complétion de chat compatible avec OpenAI.",
     "endpointOverrideHelp": "Remplacez pour utiliser un point de terminaison personnalisé.",
-    "keychainNote": "Vos clés API sont stockées de manière sécurisée grâce au chiffrement du trousseau système.",
+    "keychainNote": "Vos clés API sont stockées de façon sécurisée à l'aide du trousseau du système.",
     "saving": "Enregistrement…",
-    "save": "Enregistrer les fournisseurs",
+    "save": "Enregistrer les paramètres des fournisseurs",
     "messages": {
       "loadFailed": "Échec du chargement des paramètres",
       "saveApiKeyFailed": "Échec de l'enregistrement de la clé API {{provider}}",
