@@ -70,7 +70,7 @@
       "none": "Aucun motif personnalisé. Utilisez le bouton + ci-dessous pour en ajouter un.",
       "addTitle": "Ajouter un motif",
       "removeTitle": "Supprimer le motif sélectionné",
-      "help": "Le nom de chaque motif est utilisé comme type de donnée personnelle détectée. Les motifs utilisent la syntaxe RE2 (Go) et sont comparés au contenu de la requête.",
+      "help": "Le nom de chaque motif est utilisé comme type de renseignement personnel détecté. Les motifs utilisent la syntaxe RE2 (Go) et sont comparés au contenu de la requête.",
       "saveFailedInvalid": "Échec de l'enregistrement des motifs. Vérifiez que chaque nom et motif est une expression RE2 valide.",
       "saveFailed": "Échec de l'enregistrement des motifs."
     },
