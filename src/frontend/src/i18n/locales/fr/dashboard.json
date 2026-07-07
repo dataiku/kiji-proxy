@@ -67,7 +67,7 @@
   "sidebar": {
     "brandSuffix": "Proxy",
     "sectionWorkspace": "Espace de travail",
-    "sectionConfigure": "Configuration",
+    "sectionConfigure": "Configurer",
     "nav": {
       "dashboard": "Tableau de bord",
       "playground": "Zone d’essai",
