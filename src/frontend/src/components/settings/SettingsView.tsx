@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { isElectron } from "../../utils/providerHelpers";
+import LanguageSection from "./LanguageSection";
 import ProvidersSection from "./ProvidersSection";
 import PIISection from "./PIISection";
 import AdvancedSection from "./AdvancedSection";
@@ -30,6 +31,9 @@ export default function SettingsView({ onProvidersSaved }: SettingsViewProps) {
       </div>
 
       <div className="space-y-4 animate-rise-in">
+        {/* Language is a universal UI preference (renderer-only, persisted via
+            i18next's localStorage cache), so it is shown everywhere. */}
+        <LanguageSection />
         {/* PII detection is configurable everywhere (talks to the backend over
             HTTP). The remaining sections rely on the desktop app's native
             integration — provider keys come from env vars on a server, the model

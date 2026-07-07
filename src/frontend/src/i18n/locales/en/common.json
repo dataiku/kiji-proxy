@@ -3,6 +3,7 @@
   "tagline": "PII detection & masking proxy",
   "language": {
     "label": "Language",
+    "subtitle": "Choose the language for the Kiji interface.",
     "en": "English",
     "fr": "French"
   },

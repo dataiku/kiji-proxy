@@ -3,6 +3,7 @@
   "tagline": "Proxy de détection et de masquage des données personnelles",
   "language": {
     "label": "Langue",
+    "subtitle": "Choisissez la langue de l’interface Kiji.",
     "en": "Anglais",
     "fr": "Français"
   },
