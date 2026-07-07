@@ -155,6 +155,9 @@ function Donut({
   byType: CompositionEntry[];
 }) {
   const { t } = useTranslation("dashboard");
+  // Some locales (e.g. French "renseignements détectés") are too long for the
+  // small donut center; those translate the label to an empty string to hide it.
+  const centerLabel = t("composition.entities");
   const segments: string[] = [];
   let acc = 0;
   byType.forEach((e, i) => {
@@ -175,9 +178,11 @@ function Donut({
       >
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center">
           <b className="font-mono text-xl text-brand-900">{fmt(total)}</b>
-          <small className="text-[10px] tracking-[0.1em] uppercase text-stone-400">
-            {t("composition.entities")}
-          </small>
+          {centerLabel && (
+            <small className="text-[10px] tracking-[0.1em] uppercase text-stone-400">
+              {centerLabel}
+            </small>
+          )}
         </div>
       </div>
       <div className="flex-1 flex flex-col gap-2.5 text-[13px]">

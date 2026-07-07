@@ -36,9 +36,9 @@
     "readyBody": "Faites passer votre première requête par le proxy pour commencer à protéger vos données."
   },
   "composition": {
-    "title": "Types de données masquées",
+    "title": "Types de renseignements masqués",
     "thisPeriod": "Période sélectionnée",
-    "entities": "renseignements détectés",
+    "entities": "",
     "empty": "Rien de masqué pour l’instant."
   },
   "providers": {
