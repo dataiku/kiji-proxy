@@ -37,7 +37,7 @@
   },
   "composition": {
     "title": "Ce que nous avons masqué",
-    "thisPeriod": "cette période",
+    "thisPeriod": "Période sélectionnée",
     "entities": "entités",
     "empty": "Rien de masqué pour l’instant."
   },
