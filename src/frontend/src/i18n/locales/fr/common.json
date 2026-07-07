@@ -43,10 +43,10 @@
     "processing": "Traitement…",
     "processData": "Traiter les données",
     "tabs": {
-      "sentToProvider": "Envoyé à {{provider}}",
-      "sentToLLM": "Envoyé au LLM",
-      "returnedByProvider": "Renvoyé par {{provider}}",
-      "returnedByLLM": "Renvoyé par le LLM"
+      "sentToProvider": "Envoyée à {{provider}}",
+      "sentToLLM": "Envoyée au LLM",
+      "returnedByProvider": "Réponse de {{provider}}",
+      "returnedByLLM": "Réponse du LLM"
     },
     "request": {
       "submitted": "Requête envoyée",
@@ -58,9 +58,9 @@
       "masked": "masqué",
       "personalInfoRemoved": "Renseignements personnels masqués",
       "piiProtected": "Renseignements personnels protégés",
-      "fakePiiReceived_one": "{{count}} faux renseignement personnel reçu",
-      "fakePiiReceived_many": "{{count}} faux renseignements personnels reçus",
-      "fakePiiReceived_other": "{{count}} faux renseignements personnels reçus"
+      "fakePiiReceived_one": "{{count}} renseignement personnel fictif reçu",
+      "fakePiiReceived_many": "{{count}} renseignements personnels fictifs reçus",
+      "fakePiiReceived_other": "{{count}} renseignements personnels fictifs reçus"
     },
     "response": {
       "received": "Réponse reçue",
@@ -72,8 +72,8 @@
       "piiRestored_many": "{{count}} renseignements personnels restaurés",
       "piiRestored_other": "{{count}} renseignements personnels restaurés"
     },
-    "reportMisclassification": "Signaler une classification incorrecte",
-    "reportMisclassificationTitle": "Signaler une classification incorrecte des renseignements personnels"
+    "reportMisclassification": "Signaler une erreur de classification",
+    "reportMisclassificationTitle": "Signaler une erreur de classification des renseignements personnels"
   },
   "footer": {
     "builtBy": "Kiji Privacy Proxy · développé par <labLink>575 Lab</labLink>, le bureau Open Source de Dataiku",

@@ -59,7 +59,7 @@ export default function PrivacyProxyUI({
   onRequestSettings,
   onRequestAbout,
 }: PrivacyProxyUIProps = {}) {
-  const { t } = useTranslation("common");
+  const { t, i18n } = useTranslation("common");
 
   // UI toggle state (simple enough to stay in the component)
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -456,7 +456,13 @@ export default function PrivacyProxyUI({
                         }}
                       >
                         {t("playground.request.avgConfidence", {
-                          value: (averageConfidence * 100).toFixed(1),
+                          value: (averageConfidence * 100).toLocaleString(
+                            i18n.resolvedLanguage ?? "en",
+                            {
+                              minimumFractionDigits: 1,
+                              maximumFractionDigits: 1,
+                            }
+                          ),
                         })}
                       </p>
                     </div>
