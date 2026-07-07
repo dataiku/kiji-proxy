@@ -27,7 +27,7 @@
     "requestsToday": "{{value}} aujourd’hui",
     "avgLatency": "Latence ajoutée moyenne",
     "latencyUnit": "ms",
-    "latencyCaption": "confidentialité, sans ralentissement"
+    "latencyCaption": "La confidentialité, sans le ralentissement."
   },
   "chart": {
     "title": "PII masquées au fil du temps",
