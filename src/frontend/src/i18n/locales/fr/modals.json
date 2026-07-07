@@ -1,9 +1,9 @@
 {
   "caCert": {
-    "title": "Configuration du certificat CA requise",
+    "title": "Configuration du certificat racine requise",
     "intro": "Pour intercepter et analyser le trafic HTTPS, Kiji Privacy Proxy utilise une autorité de certification (CA) auto-signée. Vous devez approuver ce certificat sur votre système et/ou vos navigateurs.",
-    "revealFinder": "Afficher le certificat CA dans le Finder",
-    "revealExplorer": "Afficher le certificat CA dans l’Explorateur",
+    "revealFinder": "Afficher le certificat racine dans le Finder",
+    "revealExplorer": "Afficher le certificat racine dans l’Explorateur",
     "revealDesktopOnly": "L’affichage dans le Finder n’est disponible que dans l’application de bureau.",
     "revealFailed": "Échec de l’ouverture du dossier du certificat.",
     "tabs": {
@@ -47,7 +47,7 @@
       "chromeSteps": {
         "s1": "Paramètres → <b>Confidentialité et sécurité</b> → <b>Sécurité</b>",
         "s2": "<b>Gérer les certificats</b> → Autorités",
-        "s3": "<b>Importer</b> le certificat CA (<code>~/Library/Application Support/Kiji Privacy Proxy/certs/ca.crt</code>)"
+        "s3": "<b>Importer</b> le certificat racine (<code>~/Library/Application Support/Kiji Privacy Proxy/certs/ca.crt</code>)"
       },
       "chromeTip": "<b>Astuce :</b> Chrome sur macOS utilise généralement le trousseau système, l’approbation à l’échelle du système (voir l’autre onglet) devrait donc suffire."
     },
