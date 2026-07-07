@@ -12,13 +12,13 @@
     }
   },
   "welcome": {
-    "intro": "Kiji masque les données personnelles de vos requêtes avant qu’elles n’atteignent un fournisseur d’IA — le tout sur votre appareil.",
+    "intro": "Kiji masque les renseignements personnels de vos requêtes avant qu’ils n’atteignent un fournisseur d’IA — le tout sur votre appareil.",
     "getStarted": "Commencer"
   },
   "promises": {
     "local": {
       "title": "100 % local",
-      "desc": "La détection des PII s’exécute sur votre appareil."
+      "desc": "La détection des renseignements personnels s’exécute sur votre appareil."
     },
     "thirdParty": {
       "title": "Aucun tiers",

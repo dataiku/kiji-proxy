@@ -1,6 +1,6 @@
 {
   "title": "Correspondances",
-  "subtitle": "Chaque valeur de PII détectée et le faux jeton que Kiji a substitué pour la protéger.",
+  "subtitle": "Chaque renseignement personnel détecté et le faux jeton que Kiji a substitué pour le protéger.",
   "entryCount_one": "{{count}} entrée",
   "entryCount_many": "{{count}} entrées",
   "entryCount_other": "{{count}} entrées",
@@ -8,9 +8,9 @@
   "clearAllTitle": "Effacer toutes les correspondances",
   "confirm": {
     "title": "Effacer toutes les correspondances ?",
-    "body_one": "Cela supprimera définitivement {{count}} correspondance de PII. Cette action est irréversible.",
-    "body_many": "Cela supprimera définitivement les {{count}} correspondances de PII. Cette action est irréversible.",
-    "body_other": "Cela supprimera définitivement les {{count}} correspondances de PII. Cette action est irréversible.",
+    "body_one": "Cela supprimera définitivement {{count}} correspondance de renseignements personnels. Cette action est irréversible.",
+    "body_many": "Cela supprimera définitivement les {{count}} correspondances de renseignements personnels. Cette action est irréversible.",
+    "body_other": "Cela supprimera définitivement les {{count}} correspondances de renseignements personnels. Cette action est irréversible.",
     "cancel": "Annuler",
     "clearing": "Effacement...",
     "clearAll": "Effacer toutes les correspondances"
@@ -19,7 +19,7 @@
     "label": "Erreur :",
     "retry": "Réessayer"
   },
-  "empty": "Aucune correspondance de PII trouvée",
+  "empty": "Aucune correspondance de renseignements personnels trouvée",
   "table": {
     "entityType": "Type d’entité",
     "original": "Original",

@@ -58,7 +58,7 @@
     "live": "en direct",
     "requestFallback": "requête",
     "maskedLabel": "masquée",
-    "piiCount": "{{count}} PII",
+    "piiCount": "{{count}} renseignements",
     "empty": "Aucune requête interceptée pour l’instant.",
     "viewAll": "Voir toute l’activité"
   },

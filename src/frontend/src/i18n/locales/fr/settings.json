@@ -1,6 +1,6 @@
 {
   "title": "Paramètres",
-  "subtitle": "Fournisseurs, détection des données personnelles et configuration avancée du proxy.",
+  "subtitle": "Fournisseurs, détection des renseignements personnels et configuration avancée du proxy.",
   "serverNote": "Les clés des fournisseurs, le répertoire du modèle et l'installation des certificats se configurent via des variables d'environnement et l'application de bureau sur les déploiements serveur.",
   "providers": {
     "title": "Fournisseurs",
@@ -46,7 +46,7 @@
     }
   },
   "pii": {
-    "title": "Détection des données personnelles",
+    "title": "Détection des renseignements personnels",
     "subtitle": "Ajustez le degré de détection des données et ce qui est masqué.",
     "saved": "Enregistré",
     "sensitivity": {
@@ -54,7 +54,7 @@
       "low": "Faible",
       "medium": "Moyenne",
       "high": "Élevée",
-      "help": "Contrôle le degré de détection des données personnelles. Un réglage élevé détecte davantage de données potentielles mais peut générer des faux positifs. Un réglage faible est plus précis mais peut manquer certaines données."
+      "help": "Contrôle le degré de détection des renseignements personnels. Un réglage élevé détecte davantage de renseignements potentiels mais peut générer des faux positifs. Un réglage faible est plus précis mais peut manquer certains renseignements."
     },
     "entities": {
       "label": "Entités à masquer",
@@ -108,7 +108,7 @@
     "subtitle": "Interception à l'échelle du système et modèles de détection personnalisés.",
     "transparentProxy": {
       "label": "Proxy transparent",
-      "help": "Interceptez le trafic HTTPS à l'échelle du système pour une protection automatique des données personnelles.",
+      "help": "Interceptez le trafic HTTPS à l'échelle du système pour une protection automatique des renseignements personnels.",
       "experimentalLabel": "Expérimental :",
       "experimentalHelp": "Cette fonctionnalité nécessite l'installation d'un certificat d'autorité de certification et peut affecter les paramètres réseau du système."
     },

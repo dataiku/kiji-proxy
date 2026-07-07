@@ -1,6 +1,6 @@
 {
   "title": "Activité",
-  "subtitle": "Chaque requête interceptée par Kiji, avec les PII qu’il a détectées et masquées.",
+  "subtitle": "Chaque requête interceptée par Kiji, avec les renseignements personnels qu’il a détectés et masqués.",
   "entryCount_one": "{{count}} entrée",
   "entryCount_many": "{{count}} entrées",
   "entryCount_other": "{{count}} entrées",
@@ -29,7 +29,7 @@
     "direction": "Direction",
     "model": "Modèle",
     "message": "Message",
-    "detectedPII": "PII détectées",
+    "detectedPII": "Renseignements personnels détectés",
     "blocked": "Bloqué",
     "timestamp": "Horodatage"
   },
@@ -43,7 +43,7 @@
   },
   "report": {
     "label": "Signaler",
-    "noPII": "Aucune PII détectée dans ce journal",
+    "noPII": "Aucun renseignement personnel détecté dans ce journal",
     "report": "Signaler une erreur de classification"
   },
   "loadMore": "Charger plus de journaux",

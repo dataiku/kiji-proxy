@@ -3,11 +3,11 @@
   "subtitle": "Version, ressources et licence de Kiji Privacy Proxy™.",
   "logoAlt": "Logo Kiji",
   "productName": "Kiji Privacy Proxy™",
-  "tagline": "Proxy de détection et de masquage des PII",
+  "tagline": "Proxy de détection et de masquage des renseignements personnels",
   "versionLabel": "Version",
   "versionLoading": "Chargement…",
   "versionUnknown": "Inconnue",
-  "description": "Kiji Privacy Proxy™ détecte et masque automatiquement les informations personnelles identifiables (PII) dans vos requêtes API, garantissant la confidentialité des données lors des échanges avec des services externes.",
+  "description": "Kiji Privacy Proxy™ détecte et masque automatiquement les renseignements personnels (PII) dans vos requêtes API, garantissant la confidentialité des données lors des échanges avec des services externes.",
   "resources": "Ressources",
   "links": {
     "github": "Voir sur GitHub",

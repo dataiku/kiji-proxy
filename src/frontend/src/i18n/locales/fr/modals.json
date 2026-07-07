@@ -61,7 +61,7 @@
     "confidence": "{{value}} % de confiance",
     "originalInputLabel": "Entrée d’origine",
     "feedbackLabel": "Votre retour",
-    "feedbackHelp": "Veuillez décrire ce qui a été mal classé. Votre retour nous aide à améliorer le modèle de détection des PII.",
+    "feedbackHelp": "Veuillez décrire ce qui a été mal classé. Votre retour nous aide à améliorer le modèle de détection des renseignements personnels.",
     "feedbackPlaceholder": "Exemple : « John Smith » a été détecté comme nom de personne, mais c’est en fait un nom d’entreprise...",
     "submit": "Envoyer le signalement"
   }
