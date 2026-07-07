@@ -75,11 +75,11 @@
       "saveFailed": "Échec de l'enregistrement des motifs."
     },
     "entityLabels": {
-      "SURNAME": "Nom de famille",
+      "SURNAME": "Nom",
       "FIRSTNAME": "Prénom",
       "BUILDINGNUM": "Numéro de bâtiment",
       "DATEOFBIRTH": "Date de naissance",
-      "EMAIL": "E-mail",
+      "EMAIL": "Courriel",
       "PHONENUMBER": "Numéro de téléphone",
       "CITY": "Ville",
       "URL": "URL",

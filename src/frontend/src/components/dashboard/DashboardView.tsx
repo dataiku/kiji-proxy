@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { Shield, TrendingUp, Send, ArrowRight } from "lucide-react";
+import i18n from "../../i18n";
 import { isElectron } from "../../utils/providerHelpers";
 import { useDashboardData } from "../../hooks/useDashboardData";
 import type {
@@ -19,8 +20,18 @@ const SEGMENT_COLORS = ["#1f8568", "#5dc1a6", "#ecaa4f", "#195545", "#d6d3d1"];
 // users to the Activity tab for the full, paginated history.
 const RECENT_LIMIT = 5;
 
+// Format numbers in the active UI locale so grouping matches the language
+// (e.g. "1,051" in English, "1 051" in French).
 function fmt(n: number): string {
-  return n.toLocaleString("en-US");
+  return n.toLocaleString(i18n.resolvedLanguage ?? "en");
+}
+
+// Same, with one fixed decimal place (e.g. detection confidence "79.0" / "79,0").
+function fmt1(n: number): string {
+  return n.toLocaleString(i18n.resolvedLanguage ?? "en", {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  });
 }
 
 // The backend sends the delta window as a "<number><unit>" string (e.g. "7d").
@@ -335,8 +346,9 @@ export default function DashboardView({
                 {t("kpi.avgLatency")}
               </div>
               <div className="font-mono text-[34px] font-semibold text-brand-900 mt-2 leading-none">
-                {data.kpis.latency_ms.avg_added}
+                {fmt(data.kpis.latency_ms.avg_added)}
                 <span className="text-lg text-stone-500">
+                  {" "}
                   {t("kpi.latencyUnit")}
                 </span>
               </div>
@@ -451,7 +463,7 @@ export default function DashboardView({
                       {t("highlights.detectionConfidence")}
                     </div>
                     <div className="text-[15px] font-semibold text-brand-900 mt-1">
-                      {(data.kpis.detection_confidence.avg * 100).toFixed(1)}
+                      {fmt1(data.kpis.detection_confidence.avg * 100)}
                       <span className="font-mono font-normal text-stone-500 text-xs">
                         {t("highlights.avgSuffix")}
                       </span>

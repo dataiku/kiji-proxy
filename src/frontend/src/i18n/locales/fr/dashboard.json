@@ -15,49 +15,49 @@
   },
   "serverError": "Impossible de joindre le serveur Kiji : {{error}}. Vérifiez que le proxy tourne sur localhost:8080.",
   "kpi": {
-    "piiProtected": "PII protégées",
+    "piiProtected": "Renseignements personnels protégés",
     "piiProtectedDelta": "sur {{window}}",
     "windowUnit": {
-      "h": "h",
-      "d": "j",
-      "w": "sem",
-      "mo": "mois"
+      "h": " h",
+      "d": " j",
+      "w": " sem",
+      "mo": " mois"
     },
     "requestsProxied": "Requêtes relayées",
     "requestsToday": "{{value}} aujourd’hui",
     "avgLatency": "Latence ajoutée moyenne",
     "latencyUnit": "ms",
-    "latencyCaption": "La confidentialité, sans le ralentissement."
+    "latencyCaption": "La confidentialité, sans ralentir vos requêtes."
   },
   "chart": {
-    "title": "PII masquées au fil du temps",
+    "title": "Renseignements personnels masqués au fil du temps",
     "notEnough": "Pas encore assez d’activité pour un graphique.",
     "readyTitle": "Kiji est lancé et prêt.",
     "readyBody": "Faites passer votre première requête par le proxy pour commencer à protéger vos données."
   },
   "composition": {
-    "title": "Ce que nous avons masqué",
+    "title": "Types de données masquées",
     "thisPeriod": "Période sélectionnée",
-    "entities": "entités",
+    "entities": "données détectées",
     "empty": "Rien de masqué pour l’instant."
   },
   "providers": {
-    "title": "Trafic par fournisseur",
+    "title": "Requêtes par fournisseur",
     "requests": "requêtes",
     "empty": "Aucun trafic pour l’instant."
   },
   "highlights": {
     "peakToday": "Pic aujourd’hui",
-    "reqPerMin": "req/min",
+    "reqPerMin": "req./min",
     "busiestSource": "Source la plus active",
-    "detectionConfidence": "Conf. de détection",
-    "avgSuffix": "% moy."
+    "detectionConfidence": "Score de détection",
+    "avgSuffix": " % en moy."
   },
   "recent": {
     "title": "Interceptions récentes",
     "live": "en direct",
     "requestFallback": "requête",
-    "maskedLabel": "masqué",
+    "maskedLabel": "masquée",
     "piiCount": "{{count}} PII",
     "empty": "Aucune requête interceptée pour l’instant.",
     "viewAll": "Voir toute l’activité"
