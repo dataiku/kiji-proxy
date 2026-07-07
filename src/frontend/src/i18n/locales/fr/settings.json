@@ -110,11 +110,11 @@
       "label": "Proxy transparent",
       "help": "Interceptez le trafic HTTPS à l'échelle du système pour une protection automatique des renseignements personnels.",
       "experimentalLabel": "Expérimental :",
-      "experimentalHelp": "Cette fonctionnalité nécessite l'installation d'un certificat d'autorité de certification et peut affecter les paramètres réseau du système."
+      "experimentalHelp": "Cette fonctionnalité nécessite l'installation d'un certificat racine et peut affecter les paramètres réseau du système."
     },
     "model": {
       "label": "Charger un modèle de détection Kiji personnalisé",
-      "statusHealthy": "Fonctionnel",
+      "statusHealthy": "Opérationnel",
       "statusUnhealthy": "Défaillant",
       "statusLine": "État : {{status}}",
       "currentLine": "Actuel : {{directory}}",
@@ -138,7 +138,7 @@
     "title": "Certificats",
     "subtitle": "Faites confiance au certificat racine de Kiji pour intercepter le trafic HTTPS.",
     "setup": {
-      "title": "Configurer le certificat d'autorité",
+      "title": "Configurer le certificat racine",
       "help": "Instructions étape par étape pour faire confiance au certificat à l'échelle du système ou par navigateur."
     },
     "revealFinder": "Afficher le certificat CA dans le Finder",
