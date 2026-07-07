@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { X, Flag, AlertCircle } from "lucide-react";
 import type { DetectedEntity, ReportSource } from "../../types/provider";
 
@@ -21,6 +22,7 @@ export default function MisclassificationModal({
   maskedInput: _maskedInput = "",
   source: _source = "main",
 }: MisclassificationModalProps) {
+  const { t } = useTranslation("modals");
   const [comment, setComment] = useState("");
 
   if (!isOpen) return null;
@@ -44,13 +46,13 @@ export default function MisclassificationModal({
           <div className="flex items-center gap-2">
             <Flag className="w-5 h-5 text-amber-600" />
             <h2 className="text-xl font-semibold text-stone-800">
-              Report Misclassification
+              {t("misclassification.title")}
             </h2>
           </div>
           <button
             onClick={handleCancel}
             className="text-stone-400 hover:text-stone-600 transition-colors"
-            aria-label="Close"
+            aria-label={t("common:actions.close")}
           >
             <X className="w-5 h-5" />
           </button>
@@ -63,7 +65,9 @@ export default function MisclassificationModal({
               <div className="bg-stone-50 rounded-lg p-4 space-y-3">
                 <h3 className="text-sm font-semibold text-stone-700 flex items-center gap-2">
                   <AlertCircle className="w-4 h-4" />
-                  Detected Entities ({entities.length})
+                  {t("misclassification.detectedEntities", {
+                    num: entities.length,
+                  })}
                 </h3>
                 <div className="space-y-2">
                   {entities.map((entity, index) => (
@@ -78,7 +82,9 @@ export default function MisclassificationModal({
                               {entity.type}
                             </span>
                             <span className="text-xs text-stone-500">
-                              {(entity.confidence * 100).toFixed(1)}% confidence
+                              {t("misclassification.confidence", {
+                                value: (entity.confidence * 100).toFixed(1),
+                              })}
                             </span>
                           </div>
                           <p className="text-sm text-stone-900 font-mono break-all">
@@ -96,7 +102,7 @@ export default function MisclassificationModal({
             {originalInput && (
               <div className="bg-stone-50 rounded-lg p-3">
                 <h4 className="text-xs font-semibold text-stone-600 mb-2">
-                  Original Input
+                  {t("misclassification.originalInputLabel")}
                 </h4>
                 <p className="text-sm text-stone-700 font-mono whitespace-pre-wrap break-words max-h-32 overflow-y-auto">
                   {originalInput.substring(0, 500)}
@@ -107,17 +113,16 @@ export default function MisclassificationModal({
 
             <div>
               <label className="block text-sm font-medium text-stone-700 mb-2">
-                Your Feedback
+                {t("misclassification.feedbackLabel")}
               </label>
               <p className="text-sm text-stone-600 mb-3">
-                Please describe what was incorrectly classified. Your feedback
-                helps us improve the PII detection model.
+                {t("misclassification.feedbackHelp")}
               </p>
               <textarea
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
                 className="w-full h-32 p-3 border-2 border-stone-200 rounded-lg focus:border-amber-500 focus:outline-none resize-none text-sm placeholder:text-stone-400"
-                placeholder="Example: 'John Smith' was detected as a person name but it's actually a company name..."
+                placeholder={t("misclassification.feedbackPlaceholder")}
                 autoFocus
               />
             </div>
@@ -128,7 +133,7 @@ export default function MisclassificationModal({
               type="submit"
               className="flex-1 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-colors font-medium"
             >
-              Submit Report
+              {t("misclassification.submit")}
             </button>
           </div>
         </form>

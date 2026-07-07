@@ -11,6 +11,7 @@ import enOnboarding from "./locales/en/onboarding.json";
 import enActivity from "./locales/en/activity.json";
 import enMappings from "./locales/en/mappings.json";
 import enAbout from "./locales/en/about.json";
+import enModals from "./locales/en/modals.json";
 
 import frCommon from "./locales/fr/common.json";
 import frSettings from "./locales/fr/settings.json";
@@ -19,6 +20,7 @@ import frOnboarding from "./locales/fr/onboarding.json";
 import frActivity from "./locales/fr/activity.json";
 import frMappings from "./locales/fr/mappings.json";
 import frAbout from "./locales/fr/about.json";
+import frModals from "./locales/fr/modals.json";
 
 export const SUPPORTED_LANGUAGES = ["en", "fr"] as const;
 export type SupportedLanguage = (typeof SUPPORTED_LANGUAGES)[number];
@@ -31,6 +33,7 @@ export const NAMESPACES = [
   "activity",
   "mappings",
   "about",
+  "modals",
 ] as const;
 
 export const DEFAULT_NAMESPACE = "common";
@@ -44,6 +47,7 @@ const resources = {
     activity: enActivity,
     mappings: enMappings,
     about: enAbout,
+    modals: enModals,
   },
   fr: {
     common: frCommon,
@@ -53,6 +57,7 @@ const resources = {
     activity: frActivity,
     mappings: frMappings,
     about: frAbout,
+    modals: frModals,
   },
 } as const;
 
