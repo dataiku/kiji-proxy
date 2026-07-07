@@ -23,6 +23,18 @@ function fmt(n: number): string {
   return n.toLocaleString("en-US");
 }
 
+// The backend sends the delta window as a "<number><unit>" string (e.g. "7d").
+// Localize just the unit suffix so French shows "7j" rather than "7d"; unknown
+// formats fall through unchanged.
+function formatDeltaWindow(window: string, t: TFunction<"dashboard">): string {
+  const match = window.match(/^(\d+)\s*([a-zA-Z]+)$/);
+  if (!match) return window;
+  const [, count, unit] = match;
+  return `${count}${t(`kpi.windowUnit.${unit.toLowerCase()}`, {
+    defaultValue: unit,
+  })}`;
+}
+
 function relativeTime(ts: string, t: TFunction<"dashboard">): string {
   const diff = Date.now() - new Date(ts).getTime();
   if (Number.isNaN(diff)) return "";
@@ -293,7 +305,10 @@ export default function DashboardView({
                       {fmt(data.kpis.pii_protected.delta)}
                     </span>
                     {t("kpi.piiProtectedDelta", {
-                      window: data.kpis.pii_protected.delta_window,
+                      window: formatDeltaWindow(
+                        data.kpis.pii_protected.delta_window,
+                        t
+                      ),
                     })}
                   </div>
                 </div>

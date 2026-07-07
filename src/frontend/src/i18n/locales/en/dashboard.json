@@ -17,6 +17,12 @@
   "kpi": {
     "piiProtected": "PII items protected",
     "piiProtectedDelta": "in the last {{window}}",
+    "windowUnit": {
+      "h": "h",
+      "d": "d",
+      "w": "w",
+      "mo": "mo"
+    },
     "requestsProxied": "Requests proxied",
     "requestsToday": "{{value}} today",
     "avgLatency": "Avg added latency",

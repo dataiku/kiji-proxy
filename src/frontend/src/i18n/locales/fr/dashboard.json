@@ -17,6 +17,12 @@
   "kpi": {
     "piiProtected": "Éléments de PII protégés",
     "piiProtectedDelta": "sur {{window}}",
+    "windowUnit": {
+      "h": "h",
+      "d": "j",
+      "w": "sem",
+      "mo": "mois"
+    },
     "requestsProxied": "Requêtes relayées",
     "requestsToday": "{{value}} aujourd’hui",
     "avgLatency": "Latence ajoutée moyenne",
