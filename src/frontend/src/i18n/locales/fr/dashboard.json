@@ -38,7 +38,7 @@
   "composition": {
     "title": "Types de données masquées",
     "thisPeriod": "Période sélectionnée",
-    "entities": "données détectées",
+    "entities": "renseignements détectés",
     "empty": "Rien de masqué pour l’instant."
   },
   "providers": {
