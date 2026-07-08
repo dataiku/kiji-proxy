@@ -1,0 +1,68 @@
+{
+  "caCert": {
+    "title": "Se requiere configurar el certificado raíz",
+    "intro": "Para interceptar y analizar el tráfico HTTPS, Kiji Privacy Proxy utiliza una autoridad de certificación (CA) autofirmada. Es necesario confiar en este certificado en el sistema o en los navegadores.",
+    "revealFinder": "Mostrar el certificado raíz en el Finder",
+    "revealExplorer": "Mostrar el certificado raíz en el Explorador",
+    "revealDesktopOnly": "Mostrar en el Finder solo está disponible en la aplicación de escritorio.",
+    "revealFailed": "No se pudo abrir la carpeta del certificado.",
+    "tabs": {
+      "system": "Confianza en todo el sistema",
+      "browsers": "Específico del navegador"
+    },
+    "system": {
+      "option1Title": "Opción 1: línea de comandos (recomendada)",
+      "copiedAria": "Comando copiado en el portapapeles",
+      "copyAria": "Copiar el comando en el portapapeles",
+      "copiedTitle": "¡Copiado!",
+      "copyTitle": "Copiar en el portapapeles",
+      "copiedLabel": "Copiado",
+      "copyLabel": "Copiar",
+      "commandHelp": "Este comando requiere privilegios de administrador e instalará el certificado en todo el sistema.",
+      "option2Title": "Opción 2: interfaz de Acceso a Llaveros",
+      "steps": {
+        "s1": "Hacer doble clic en el archivo del certificado: <code>~/Library/Application Support/Kiji Privacy Proxy/certs/ca.crt</code>",
+        "s2": "Esto abre <b>Acceso a Llaveros</b>: hacer clic en <b>Añadir</b> para instalar",
+        "s3": "En Acceso a Llaveros, seleccionar el llavero <b>Sistema</b> en la barra lateral izquierda",
+        "s4": "Buscar <b>«Kiji Privacy Proxy CA»</b> y hacer doble clic en él",
+        "s5": "Hacer clic en el <b>▶ triángulo junto a «Confiar»</b> para desplegar la sección",
+        "s6": "Establecer <b>«Al usar este certificado»</b> en <accent>«Confiar siempre»</accent>",
+        "s7": "Establecer <b>«Secure Sockets Layer (SSL)»</b> en <accent>«Confiar siempre»</accent>",
+        "s8": "<b>Cerrar la ventana</b> e introducir la contraseña cuando se solicite",
+        "s9": "<amber>Reiniciar el navegador por completo</amber> (Cmd+Q y luego volver a abrirlo)"
+      },
+      "important": "<b>Importante:</b> es necesario reiniciar el navegador después de confiar en el certificado. La confianza en todo el sistema funciona con Safari y Chrome. Firefox requiere una configuración aparte (consultar la pestaña Específico del navegador).",
+      "commonIssue": "<b>⚠️ Problema común:</b> si el certificado muestra «Number of trust settings: 0» en el terminal, significa que no se estableció en «Confiar siempre» en los pasos 6-7 anteriores. El certificado debe estar marcado como de confianza para SSL, no solo instalado."
+    },
+    "browsers": {
+      "firefox": "Firefox",
+      "firefoxSteps": {
+        "s1": "Configuración → <b>Privacidad y seguridad</b>",
+        "s2": "Certificados → <b>Ver certificados</b>",
+        "s3": "Autoridades → <b>Importar</b>",
+        "s4": "Seleccionar <code>~/Library/Application Support/Kiji Privacy Proxy/certs/ca.crt</code>",
+        "s5": "Marcar <b>«Confiar en esta CA para identificar sitios web»</b>"
+      },
+      "chrome": "Chrome/Chromium",
+      "chromeSteps": {
+        "s1": "Configuración → <b>Privacidad y seguridad</b> → <b>Seguridad</b>",
+        "s2": "<b>Administrar certificados</b> → Autoridades",
+        "s3": "<b>Importar</b> el certificado raíz (<code>~/Library/Application Support/Kiji Privacy Proxy/certs/ca.crt</code>)"
+      },
+      "chromeTip": "<b>Consejo:</b> Chrome en macOS suele usar el llavero del sistema, por lo que la confianza en todo el sistema (consultar la otra pestaña) debería ser suficiente."
+    },
+    "docLink": "Ver la documentación completa",
+    "dontShowAgain": "No volver a mostrar este mensaje",
+    "confirm": "Entendido"
+  },
+  "misclassification": {
+    "title": "Informar de una clasificación incorrecta",
+    "detectedEntities": "Entidades detectadas ({{num}})",
+    "confidence": "{{value}} % de confianza",
+    "originalInputLabel": "Entrada original",
+    "feedbackLabel": "Sus comentarios",
+    "feedbackHelp": "Describir qué se clasificó de forma incorrecta. Sus comentarios nos ayudan a mejorar el modelo de detección de datos personales.",
+    "feedbackPlaceholder": "Ejemplo: «John Smith» se detectó como nombre de persona, pero en realidad es el nombre de una empresa...",
+    "submit": "Enviar el informe"
+  }
+}

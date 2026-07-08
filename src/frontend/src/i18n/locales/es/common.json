@@ -1,0 +1,107 @@
+{
+  "appName": "Kiji Privacy Proxy",
+  "tagline": "Proxy de detección y enmascaramiento de datos personales",
+  "language": {
+    "label": "Idioma",
+    "subtitle": "Elegir el idioma de la interfaz de Kiji.",
+    "en": "Inglés",
+    "fr": "Francés",
+    "es": "Español"
+  },
+  "actions": {
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "close": "Cerrar",
+    "confirm": "Confirmar",
+    "retry": "Reintentar",
+    "reset": "Restablecer",
+    "settings": "Configuración",
+    "about": "Acerca de Kiji Privacy Proxy"
+  },
+  "menu": {
+    "label": "Menú"
+  },
+  "badges": {
+    "localProxy": "Proxy local",
+    "onDeviceDetection": "Detección en el dispositivo"
+  },
+  "modelHealth": {
+    "unhealthy": "El modelo no está operativo",
+    "checkConfig": "Verificar la configuración del modelo en <settingsAction>Configuración</settingsAction>"
+  },
+  "apiKey": {
+    "notConfigured": "La clave API de {{provider}} no está configurada.",
+    "configureInSettings": "Configurar en Configuración"
+  },
+  "playground": {
+    "loadingOverlay": "Protegiendo sus datos…",
+    "mascotAlt": "Mascota de Kiji",
+    "logoAlt": "Logotipo de Kiji",
+    "yourRequest": "Su solicitud",
+    "sendTo": "Enviar a",
+    "inputPlaceholder": "Escriba un mensaje que contenga información sensible…\n\nEjemplo: Hola, me llamo John Smith y mi correo electrónico es john.smith@email.com. Mi teléfono es 555-123-4567.\n\nKiji detecta y enmascara los datos personales antes de que salgan de su equipo.",
+    "backendOffline": "El servidor backend está desconectado",
+    "processing": "Procesando…",
+    "processData": "Procesar datos",
+    "tabs": {
+      "sentToProvider": "Enviado a {{provider}}",
+      "sentToLLM": "Enviado al LLM",
+      "returnedByProvider": "Devuelto por {{provider}}",
+      "returnedByLLM": "Devuelto por el LLM"
+    },
+    "request": {
+      "submitted": "Solicitud enviada",
+      "piiExposed": "Datos personales expuestos",
+      "piiDetected_one": "{{count}} dato personal detectado",
+      "piiDetected_many": "{{count}} datos personales detectados",
+      "piiDetected_other": "{{count}} datos personales detectados",
+      "avgConfidence": "{{value}} % de confianza media",
+      "masked": "enmascarado",
+      "personalInfoRemoved": "Datos personales eliminados",
+      "piiProtected": "Datos personales protegidos",
+      "fakePiiReceived_one": "{{count}} dato personal falso recibido",
+      "fakePiiReceived_many": "{{count}} datos personales falsos recibidos",
+      "fakePiiReceived_other": "{{count}} datos personales falsos recibidos"
+    },
+    "response": {
+      "received": "Respuesta recibida",
+      "fromProvider": "De {{provider}}",
+      "restored": "restaurado",
+      "personalInfoRestored": "Datos personales restaurados",
+      "restoredBadge": "Restaurado",
+      "piiRestored_one": "{{count}} dato personal restaurado",
+      "piiRestored_many": "{{count}} datos personales restaurados",
+      "piiRestored_other": "{{count}} datos personales restaurados"
+    },
+    "reportMisclassification": "Informar de una clasificación incorrecta",
+    "reportMisclassificationTitle": "Informar de una clasificación incorrecta de datos personales"
+  },
+  "footer": {
+    "builtBy": "Kiji Privacy Proxy · desarrollado por <labLink>575 Lab</labLink>, la oficina de código abierto de Dataiku",
+    "version": "v{{version}}"
+  },
+  "status": {
+    "serverOnline": "Servidor en línea",
+    "serverOffline": "Servidor desconectado",
+    "serverOfflineDetail": "Servidor desconectado: iniciar el backend de Go en localhost:{{port}}",
+    "model": "Modelo",
+    "modelSignature": "Firma del modelo",
+    "modelSignatureLabel": "Firma del modelo {{signature}}",
+    "verifiedModelSignature": "Firma del modelo verificada"
+  },
+  "error": {
+    "title": "¡Vaya! Algo salió mal",
+    "subtitle": "La aplicación encontró un error inesperado",
+    "messageLabel": "Mensaje de error:",
+    "stackTrace": "Traza de la pila (haga clic para desplegar)",
+    "tryAgain": "Reintentar",
+    "reload": "Recargar la aplicación",
+    "whatCanYouDo": "¿Qué se puede hacer?",
+    "help": {
+      "tryAgain": "Hacer clic en «Reintentar» para restablecer el componente",
+      "reload": "Hacer clic en «Recargar la aplicación» para actualizar toda la aplicación",
+      "console": "Si el problema persiste, consultar la consola del navegador para obtener más detalles",
+      "report": "Considerar informar de este problema al equipo de desarrollo"
+    }
+  }
+}

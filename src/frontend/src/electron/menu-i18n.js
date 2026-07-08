@@ -6,7 +6,7 @@
 // the menus can be rebuilt in the user's language. Keep the keys here in sync
 // with what createMenu()/updateTrayMenu() reference in electron-main.js.
 
-const SUPPORTED_LANGUAGES = ["en", "fr"];
+const SUPPORTED_LANGUAGES = ["en", "fr", "es"];
 const DEFAULT_LANGUAGE = "en";
 
 const STRINGS = {
@@ -103,6 +103,53 @@ const STRINGS = {
     bugReport: "Signaler un bogue",
     featureRequest: "Proposer une fonctionnalité",
     emailUs: "Nous écrire",
+  },
+  es: {
+    // File
+    file: "Archivo",
+    quit: "Salir",
+    // Edit
+    edit: "Edición",
+    undo: "Deshacer",
+    redo: "Rehacer",
+    cut: "Cortar",
+    copy: "Copiar",
+    paste: "Pegar",
+    selectAll: "Seleccionar todo",
+    // View
+    view: "Ver",
+    reload: "Recargar",
+    forceReload: "Forzar recarga",
+    toggleDevTools: "Mostrar/ocultar herramientas de desarrollo",
+    actualSize: "Tamaño real",
+    zoomIn: "Acercar",
+    zoomOut: "Alejar",
+    toggleFullscreen: "Activar/desactivar pantalla completa",
+    // Window
+    window: "Ventana",
+    minimize: "Minimizar",
+    close: "Cerrar",
+    zoom: "Zoom",
+    bringAllToFront: "Traer todo al frente",
+    // Settings / Help
+    settings: "Configuración",
+    preferences: "Preferencias...",
+    help: "Ayuda",
+    // macOS app menu
+    services: "Servicios",
+    hideOthers: "Ocultar los demás",
+    showAll: "Mostrar todo",
+    restartToUpdate: "Reiniciar para actualizar",
+    aboutApp: "Acerca de {{name}}",
+    hideApp: "Ocultar {{name}}",
+    quitApp: "Salir de {{name}}",
+    openApp: "Abrir {{name}}",
+    // Tray / links
+    documentation: "Documentación",
+    chromeExtension: "Extensión de Chrome de Kiji",
+    bugReport: "Informar de un error",
+    featureRequest: "Solicitar una función",
+    emailUs: "Escríbanos",
   },
 };
 

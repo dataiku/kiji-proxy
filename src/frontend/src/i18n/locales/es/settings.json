@@ -1,0 +1,152 @@
+{
+  "title": "Configuración",
+  "subtitle": "Configurar los proveedores, la detección de datos personales y las opciones avanzadas del proxy.",
+  "serverNote": "En los despliegues de servidor, las claves de los proveedores, el directorio del modelo y la instalación de certificados se configuran mediante variables de entorno y la aplicación de escritorio.",
+  "providers": {
+    "title": "Proveedores",
+    "subtitle": "Claves API e identificadores de modelo de cada proveedor de IA.",
+    "customName": "Proveedor personalizado",
+    "status": {
+      "configured": "Configurado",
+      "keyOptional": "Clave opcional",
+      "notSet": "Sin definir"
+    },
+    "apiKeyLabel": "Clave API de {{provider}}",
+    "apiKeyOptionalSuffix": " (opcional)",
+    "lockTitle": "Bloquear la clave API",
+    "unlockTitle": "Desbloquear para editar",
+    "clearKey": "Borrar mi clave",
+    "apiKeyPlaceholder": {
+      "update": "Introducir una nueva clave API para actualizarla",
+      "locked": "La clave API está configurada (desbloquear para editar)",
+      "optional": "Clave API de {{provider}} opcional ({{example}})",
+      "enter": "Introducir la clave API de {{provider}} ({{example}})"
+    },
+    "howToGetKey": "¿Cómo obtener la clave API de {{provider}}?",
+    "modelIdLabel": "Identificador del modelo",
+    "modelDefault": "Predeterminado: {{model}}",
+    "customModelHelp": "Usar el identificador de modelo exacto que espera el proveedor.",
+    "customEndpointLabel": "URL del punto de conexión personalizado",
+    "customEndpointHelp": "El proveedor personalizado debe admitir una API de chat completions compatible con OpenAI.",
+    "endpointOverrideHelp": "Sustituir para usar un punto de conexión personalizado.",
+    "keychainNote": "Las claves API se almacenan de forma segura mediante el cifrado del llavero del sistema.",
+    "saving": "Guardando…",
+    "save": "Guardar proveedores",
+    "messages": {
+      "loadFailed": "No se pudo cargar la configuración",
+      "saveApiKeyFailed": "No se pudo guardar la clave API de {{provider}}",
+      "saveModelFailed": "No se pudo guardar el modelo de {{provider}}",
+      "saveEndpointFailed": "No se pudo guardar la URL del punto de conexión de {{provider}}",
+      "restarting": "Guardado. Reiniciando el backend…",
+      "restartFailed": "Configuración guardada, pero el reinicio del backend falló. Reiniciar la aplicación para aplicarla.",
+      "savedApplied": "¡Configuración guardada y aplicada!",
+      "saveFailed": "No se pudo guardar la configuración",
+      "keyCleared": "Clave API de {{provider}} borrada",
+      "clearKeyFailed": "No se pudo borrar la clave API"
+    }
+  },
+  "pii": {
+    "title": "Detección de datos personales",
+    "subtitle": "Ajustar el nivel de detección de los datos y qué elementos se enmascaran.",
+    "saved": "Guardado",
+    "sensitivity": {
+      "label": "Sensibilidad de la detección",
+      "low": "Baja",
+      "medium": "Media",
+      "high": "Alta",
+      "help": "Controla el nivel de detección de los datos personales. Un nivel alto detecta más datos personales potenciales, pero puede generar falsos positivos. Un nivel bajo es más preciso, pero puede pasar por alto algunos datos personales."
+    },
+    "entities": {
+      "label": "Entidades que enmascarar",
+      "selectAll": "Seleccionar todo",
+      "deselectAll": "Deseleccionar todo",
+      "none": "No hay tipos de entidad disponibles. Cargar un modelo de detección operativo para configurar el enmascaramiento.",
+      "help": "Los tipos no marcados no se enmascaran y se envían tal cual al proveedor de IA."
+    },
+    "regex": {
+      "label": "Patrones de expresiones regulares personalizados",
+      "nameColumn": "Nombre",
+      "patternColumn": "Patrón",
+      "none": "No hay patrones personalizados. Usar el botón + de abajo para añadir uno.",
+      "addTitle": "Añadir patrón",
+      "removeTitle": "Eliminar el patrón seleccionado",
+      "help": "El nombre de cada patrón se usa como el tipo de dato personal detectado. Los patrones utilizan la sintaxis RE2 (Go) y se comparan con el contenido de la solicitud.",
+      "saveFailedInvalid": "No se pudieron guardar los patrones. Comprobar que cada nombre y patrón sea una expresión RE2 válida.",
+      "saveFailed": "No se pudieron guardar los patrones."
+    },
+    "entityLabels": {
+      "SURNAME": "Apellido",
+      "FIRSTNAME": "Nombre",
+      "BUILDINGNUM": "Número de edificio",
+      "DATEOFBIRTH": "Fecha de nacimiento",
+      "EMAIL": "Correo electrónico",
+      "PHONENUMBER": "Número de teléfono",
+      "CITY": "Ciudad",
+      "URL": "URL",
+      "COMPANYNAME": "Nombre de la empresa",
+      "STATE": "Estado/Región",
+      "ZIP": "Código postal",
+      "STREET": "Calle",
+      "COUNTRY": "País",
+      "SSN": "Número de la Seguridad Social",
+      "DRIVERLICENSENUM": "Número de licencia de conducir",
+      "PASSPORTID": "Número de pasaporte",
+      "NATIONALID": "Identificación nacional",
+      "IDCARDNUM": "Número de documento de identidad",
+      "TAXNUM": "Número de identificación fiscal",
+      "LICENSEPLATENUM": "Número de matrícula",
+      "PASSWORD": "Contraseña",
+      "IBAN": "IBAN",
+      "AGE": "Edad",
+      "SECURITYTOKEN": "Token de seguridad",
+      "CREDITCARDNUMBER": "Número de tarjeta de crédito",
+      "USERNAME": "Nombre de usuario"
+    }
+  },
+  "advanced": {
+    "title": "Avanzado",
+    "subtitle": "Interceptación en todo el sistema y modelos de detección personalizados.",
+    "transparentProxy": {
+      "label": "Proxy transparente",
+      "help": "Interceptar el tráfico HTTPS en todo el sistema para una protección automática de los datos personales.",
+      "experimentalLabel": "Experimental:",
+      "experimentalHelp": "Esta función requiere la instalación de un certificado raíz y puede afectar a la configuración de red del sistema."
+    },
+    "model": {
+      "label": "Cargar un modelo de detección de Kiji personalizado",
+      "statusHealthy": "Operativo",
+      "statusUnhealthy": "No operativo",
+      "statusLine": "Estado: {{status}}",
+      "currentLine": "Actual: {{directory}}",
+      "errorLine": "Error: {{error}}",
+      "pathPlaceholder": "/ruta/al/directorio/del/modelo",
+      "browse": "Examinar",
+      "browseTitle": "Buscar una carpeta",
+      "requirements": "El directorio debe contener: model.onnx, tokenizer.json, label_mappings.json",
+      "reloading": "Recargando…",
+      "reload": "Recargar el modelo",
+      "messages": {
+        "saveDirFailed": "No se pudo guardar el directorio del modelo",
+        "reloadSuccess": "¡Modelo guardado y recargado correctamente!",
+        "reloadFailed": "No se pudo recargar el modelo",
+        "unknownError": "Error desconocido",
+        "folderSelectorFailed": "No se pudo abrir el selector de carpetas"
+      }
+    }
+  },
+  "certificates": {
+    "title": "Certificados",
+    "subtitle": "Confiar en el certificado raíz de Kiji para interceptar el tráfico HTTPS.",
+    "setup": {
+      "title": "Configurar el certificado raíz",
+      "help": "Instrucciones paso a paso para confiar en el certificado en todo el sistema o en cada navegador."
+    },
+    "revealFinder": "Mostrar el certificado raíz en el Finder",
+    "revealExplorer": "Mostrar el certificado raíz en el Explorador",
+    "revealHelp": "Abre la carpeta que contiene el certificado raíz del proxy.",
+    "messages": {
+      "revealDesktopOnly": "Mostrar en el Finder solo está disponible en la aplicación de escritorio.",
+      "openFolderFailed": "No se pudo abrir la carpeta de certificados."
+    }
+  }
+}

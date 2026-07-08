@@ -5,7 +5,8 @@
     "label": "Langue",
     "subtitle": "Choisissez la langue de l’interface Kiji.",
     "en": "Anglais",
-    "fr": "Français"
+    "fr": "Français",
+    "es": "Espagnol"
   },
   "actions": {
     "save": "Enregistrer",

@@ -22,7 +22,16 @@ import frMappings from "./locales/fr/mappings.json";
 import frAbout from "./locales/fr/about.json";
 import frModals from "./locales/fr/modals.json";
 
-export const SUPPORTED_LANGUAGES = ["en", "fr"] as const;
+import esCommon from "./locales/es/common.json";
+import esSettings from "./locales/es/settings.json";
+import esDashboard from "./locales/es/dashboard.json";
+import esOnboarding from "./locales/es/onboarding.json";
+import esActivity from "./locales/es/activity.json";
+import esMappings from "./locales/es/mappings.json";
+import esAbout from "./locales/es/about.json";
+import esModals from "./locales/es/modals.json";
+
+export const SUPPORTED_LANGUAGES = ["en", "fr", "es"] as const;
 export type SupportedLanguage = (typeof SUPPORTED_LANGUAGES)[number];
 
 export const NAMESPACES = [
@@ -58,6 +67,16 @@ const resources = {
     mappings: frMappings,
     about: frAbout,
     modals: frModals,
+  },
+  es: {
+    common: esCommon,
+    settings: esSettings,
+    dashboard: esDashboard,
+    onboarding: esOnboarding,
+    activity: esActivity,
+    mappings: esMappings,
+    about: esAbout,
+    modals: esModals,
   },
 } as const;
 

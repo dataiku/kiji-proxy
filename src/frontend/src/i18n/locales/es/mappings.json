@@ -1,0 +1,49 @@
+{
+  "title": "Correspondencias",
+  "subtitle": "Cada dato personal detectado y el token falso que Kiji usó para reemplazarlo y protegerlo.",
+  "entryCount_one": "{{count}} entrada",
+  "entryCount_many": "{{count}} entradas",
+  "entryCount_other": "{{count}} entradas",
+  "clearAll": "Borrar todo",
+  "clearAllTitle": "Borrar todas las correspondencias",
+  "confirm": {
+    "title": "¿Borrar todas las correspondencias?",
+    "body_one": "Esto eliminará de forma permanente {{count}} correspondencia de datos personales. Esta acción no se puede deshacer.",
+    "body_many": "Esto eliminará de forma permanente las {{count}} correspondencias de datos personales. Esta acción no se puede deshacer.",
+    "body_other": "Esto eliminará de forma permanente las {{count}} correspondencias de datos personales. Esta acción no se puede deshacer.",
+    "cancel": "Cancelar",
+    "clearing": "Borrando...",
+    "clearAll": "Borrar todas las correspondencias"
+  },
+  "error": {
+    "label": "Error:",
+    "retry": "Reintentar"
+  },
+  "empty": "No se encontraron correspondencias de datos personales",
+  "table": {
+    "entityType": "Tipo de entidad",
+    "original": "Valor original",
+    "masked": "Reemplazo",
+    "date": "Primera detección",
+    "actions": "Acciones"
+  },
+  "sort": {
+    "ascending": "Ordenar {{label}} de forma ascendente",
+    "descending": "Ordenar {{label}} de forma descendente"
+  },
+  "delete": {
+    "confirm": "¿Eliminar?",
+    "confirmLabel": "Confirmar eliminación",
+    "cancelLabel": "Cancelar eliminación",
+    "label": "Eliminar correspondencia",
+    "title": "Eliminar correspondencia"
+  },
+  "loadMore": "Cargar más correspondencias",
+  "loadingMore": "Cargando...",
+  "footer": {
+    "showing_one": "Mostrando {{shown}} de {{count}} correspondencia",
+    "showing_many": "Mostrando {{shown}} de {{count}} correspondencias",
+    "showing_other": "Mostrando {{shown}} de {{count}} correspondencias",
+    "moreAvailable": "(hay más disponibles)"
+  }
+}

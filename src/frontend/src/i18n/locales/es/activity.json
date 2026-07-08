@@ -1,0 +1,71 @@
+{
+  "title": "Actividad",
+  "subtitle": "Cada solicitud interceptada por Kiji, con los datos personales que detectó y enmascaró.",
+  "entryCount_one": "{{count}} entrada",
+  "entryCount_many": "{{count}} entradas",
+  "entryCount_other": "{{count}} entradas",
+  "clearLogs": "Borrar los registros",
+  "clearLogsTitle": "Borrar todos los registros",
+  "confirm": {
+    "title": "¿Borrar todos los registros?",
+    "body_one": "Esto eliminará de forma permanente {{count}} entrada de registro. Esta acción no se puede deshacer.",
+    "body_many": "Esto eliminará de forma permanente las {{count}} entradas de registro. Esta acción no se puede deshacer.",
+    "body_other": "Esto eliminará de forma permanente las {{count}} entradas de registro. Esta acción no se puede deshacer.",
+    "cancel": "Cancelar",
+    "clearing": "Borrando...",
+    "clearAll": "Borrar todos los registros"
+  },
+  "toggle": {
+    "messagesOnly": "Solo mensajes",
+    "fullJson": "JSON completo",
+    "showingFull": "Mostrando la solicitud/respuesta completa",
+    "showingMessages": "Mostrando solo el contenido de los mensajes"
+  },
+  "error": {
+    "loading": "Error al cargar los registros:",
+    "retry": "Reintentar"
+  },
+  "table": {
+    "direction": "Dirección",
+    "model": "Modelo",
+    "message": "Mensaje",
+    "detectedPII": "Datos personales detectados",
+    "blocked": "Bloqueado",
+    "timestamp": "Marca de tiempo"
+  },
+  "empty": "No se encontraron entradas de registro",
+  "messageCount_one": "{{count}} mensaje",
+  "messageCount_many": "{{count}} mensajes",
+  "messageCount_other": "{{count}} mensajes",
+  "blocked": {
+    "yes": "Sí",
+    "no": "No"
+  },
+  "report": {
+    "label": "Informar",
+    "noPII": "No se detectaron datos personales en este registro",
+    "report": "Informar de una clasificación incorrecta"
+  },
+  "loadMore": "Cargar más registros",
+  "loadingMore": "Cargando...",
+  "footer": {
+    "showing_one": "Mostrando {{shown}} de {{count}} entrada de registro",
+    "showing_many": "Mostrando {{shown}} de {{count}} entradas de registro",
+    "showing_other": "Mostrando {{shown}} de {{count}} entradas de registro",
+    "moreAvailable": "(hay más disponibles)",
+    "largeCount": "Se detectó un número elevado de registros. Considerar borrar los registros antiguos para mejorar el rendimiento."
+  },
+  "direction": {
+    "requestOriginal": "Solicitud (original)",
+    "requestMasked": "Solicitud (a {{provider}})",
+    "responseMasked": "Respuesta (de {{provider}})",
+    "responseOriginal": "Respuesta (restaurada)",
+    "request": "Solicitud",
+    "response": "Respuesta"
+  },
+  "message": {
+    "noContent": "Sin contenido de mensaje",
+    "truncated": "... [Mensaje truncado para su visualización]",
+    "truncatedJson": "... [JSON truncado para su visualización]"
+  }
+}
