@@ -1,5 +1,12 @@
 import { useState, useEffect } from "react";
-import { Settings2, Server, FolderOpen, Shield, AlertTriangle } from "lucide-react";
+import {
+  Settings2,
+  Server,
+  FolderOpen,
+  Shield,
+  AlertTriangle,
+  BarChart3,
+} from "lucide-react";
 import { isElectron } from "../../utils/providerHelpers";
 
 interface AdvancedSectionProps {
@@ -26,6 +33,11 @@ export default function AdvancedSection({ onOpenCACert }: AdvancedSectionProps) 
   const [transparentProxyEnabled, setTransparentProxyEnabled] = useState(false);
   const [isTogglingProxy, setIsTogglingProxy] = useState(false);
 
+  // Telemetry (crash & error reporting) opt-in state
+  const [telemetryEnabled, setTelemetryEnabled] = useState(false);
+  const [isTogglingTelemetry, setIsTogglingTelemetry] = useState(false);
+  const [telemetryNeedsRestart, setTelemetryNeedsRestart] = useState(false);
+
   const loadTransparentProxySetting = async () => {
     if (!window.electronAPI) return;
 
@@ -34,6 +46,17 @@ export default function AdvancedSection({ onOpenCACert }: AdvancedSectionProps) 
       setTransparentProxyEnabled(enabled);
     } catch (error) {
       console.error("Error loading transparent proxy setting:", error);
+    }
+  };
+
+  const loadTelemetrySetting = async () => {
+    if (!window.electronAPI) return;
+
+    try {
+      const enabled = await window.electronAPI.getTelemetryEnabled();
+      setTelemetryEnabled(enabled);
+    } catch (error) {
+      console.error("Error loading telemetry setting:", error);
     }
   };
 
@@ -59,9 +82,30 @@ export default function AdvancedSection({ onOpenCACert }: AdvancedSectionProps) 
       /* eslint-disable react-hooks/set-state-in-effect */
       loadModelInfo();
       loadTransparentProxySetting();
+      loadTelemetrySetting();
       /* eslint-enable react-hooks/set-state-in-effect */
     }
   }, []);
+
+  const handleToggleTelemetry = async () => {
+    if (!window.electronAPI) return;
+
+    const newValue = !telemetryEnabled;
+    setIsTogglingTelemetry(true);
+    try {
+      const result = await window.electronAPI.setTelemetryEnabled(newValue);
+      if (result.success) {
+        setTelemetryEnabled(newValue);
+        // The main + Go backend processes read this preference at startup, so a
+        // change only fully applies after the app restarts. Surface that.
+        setTelemetryNeedsRestart(true);
+      }
+    } catch (error) {
+      console.error("Error toggling telemetry:", error);
+    } finally {
+      setIsTogglingTelemetry(false);
+    }
+  };
 
   const handleToggleTransparentProxy = async () => {
     if (!window.electronAPI) return;
@@ -205,6 +249,43 @@ export default function AdvancedSection({ onOpenCACert }: AdvancedSectionProps) 
               </p>
             </div>
           </div>
+        </div>
+
+        {/* Crash & Error Reporting (Telemetry) Opt-in */}
+        <div className="rounded-xl ring-1 ring-stone-200 p-4">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-semibold text-stone-700 flex items-center gap-2">
+              <BarChart3 className="w-4 h-4" />
+              Crash &amp; Error Reporting
+            </label>
+            <button
+              onClick={handleToggleTelemetry}
+              disabled={isTogglingTelemetry}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 ${
+                telemetryEnabled ? "bg-brand-600" : "bg-stone-300"
+              } ${isTogglingTelemetry ? "opacity-50 cursor-not-allowed" : ""}`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  telemetryEnabled ? "translate-x-6" : "translate-x-1"
+                }`}
+              />
+            </button>
+          </div>
+          <p className="text-xs text-stone-500 mt-2">
+            Off by default. When enabled, anonymous crash and error reports are
+            sent to help improve Kiji. Your prompts and the original (unmasked)
+            text are never sent — only masked text and technical error details.
+            Enabling this also lets you submit PII misclassification reports.
+          </p>
+          {telemetryNeedsRestart && (
+            <div className="mt-3 p-3 rounded-lg bg-brand-50 ring-1 ring-brand-200">
+              <p className="text-xs text-brand-800">
+                Restart the app for this change to fully take effect across all
+                components.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Load Custom Kiji PII Model */}

@@ -134,6 +134,15 @@ contextBridge.exposeInMainWorld("electronAPI", {
     return await ipcRenderer.invoke("set-admin", admin);
   },
 
+  // Telemetry (crash & error reporting) opt-in. Off by default.
+  getTelemetryEnabled: async () => {
+    return await ipcRenderer.invoke("get-telemetry-enabled");
+  },
+
+  setTelemetryEnabled: async (enabled) => {
+    return await ipcRenderer.invoke("set-telemetry-enabled", enabled);
+  },
+
   // Model directory management
   selectModelDirectory: async () => {
     return await ipcRenderer.invoke("select-model-directory");

@@ -68,6 +68,12 @@ interface ElectronAPI {
     admin: boolean
   ) => Promise<{ success: boolean; error?: string }>;
 
+  // Telemetry (crash & error reporting) opt-in. Off by default.
+  getTelemetryEnabled: () => Promise<boolean>;
+  setTelemetryEnabled: (
+    enabled: boolean
+  ) => Promise<{ success: boolean; error?: string }>;
+
   // Model directory settings
   getModelDirectory: () => Promise<string | null>;
   setModelDirectory: (

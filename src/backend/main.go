@@ -13,9 +13,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/getsentry/sentry-go"
 	"github.com/dataiku/kiji-proxy/src/backend/config"
 	"github.com/dataiku/kiji-proxy/src/backend/server"
+	"github.com/dataiku/kiji-proxy/src/backend/telemetry"
 	"github.com/joho/godotenv"
 )
 
@@ -49,33 +49,29 @@ func main() {
 		log.Printf("Note: .env file not found or could not be loaded: %v", err)
 	}
 
-	// Initialize Sentry for error tracking (deferred flush happens in run)
+	// Initialize telemetry (error/crash reporting). Opt-in: nothing is sent
+	// unless KIJI_TELEMETRY_ENABLED=true. The desktop app forwards the user's
+	// Settings choice through this env var; server deployments set it directly.
 	environment := "production"
 	if os.Getenv("NODE_ENV") == "development" {
 		environment = "development"
 	}
-	err := sentry.Init(sentry.ClientOptions{
-		Dsn:              "https://d7ad4213601549253c0d313b271f83cf@o4510660510679040.ingest.de.sentry.io/4510660556095568",
-		Environment:      environment,
-		Release:          version,
-		TracesSampleRate: 1.0,
-	})
-	if err != nil {
-		log.Printf("Warning: Failed to initialize Sentry: %v", err)
-	} else {
-		log.Println("Sentry initialized successfully")
-	}
+	telemetry.Init(os.Getenv("KIJI_TELEMETRY_ENABLED") == TRUE, environment, version)
 
 	// Run main logic
 	if err := run(configPath); err != nil {
 		log.Printf("Fatal error: %v", err)
-		sentry.CaptureException(err)
-		sentry.Flush(2 * time.Second)
+		telemetry.CaptureException(err)
+		telemetry.Flush(2 * time.Second)
 		os.Exit(1)
 	}
 }
 
 func run(configPath *string) error {
+	// Report an unhandled panic in the main goroutine to telemetry (if enabled)
+	// before it crashes the process. Re-panics to preserve the original behavior.
+	defer telemetry.Recover()
+
 	// Log version at startup with banner
 	log.Println("================================================================================")
 	log.Printf("🚀 Starting Dataiku's Kiji Privacy Proxy v%s", version)

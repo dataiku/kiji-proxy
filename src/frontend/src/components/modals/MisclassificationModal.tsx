@@ -123,6 +123,18 @@ export default function MisclassificationModal({
             </div>
           </div>
 
+          <div className="p-6 pt-0">
+            <p className="text-xs text-stone-500 flex items-start gap-1.5">
+              <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+              <span>
+                Only the <strong>masked</strong> text and entity metadata (type,
+                confidence) are sent — never the original input shown above.
+                Reports are sent only if crash &amp; error reporting is enabled
+                in Settings.
+              </span>
+            </p>
+          </div>
+
           <div className="flex gap-3 p-6 pt-0 border-t border-stone-100">
             <button
               type="submit"

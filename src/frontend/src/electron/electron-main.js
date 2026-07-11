@@ -13,13 +13,43 @@ const { spawn } = require("child_process");
 const { registerIpcHandlers } = require("./ipc-handlers");
 const isDev = process.env.NODE_ENV === "development";
 
-// Initialize Sentry for error tracking
+// Telemetry (Sentry error reporting) is OPT-IN. It is only initialized when the
+// user turned on "Crash & error reporting" in Settings (persisted as
+// `telemetryEnabled` in the Electron config). See initTelemetryMain().
 const Sentry = require("@sentry/electron/main");
-Sentry.init({
-  dsn: "https://d7ad4213601549253c0d313b271f83cf@o4510660510679040.ingest.de.sentry.io/4510660556095568",
-  environment: isDev ? "development" : "production",
-  tracesSampleRate: 1.0,
-});
+const {
+  SENTRY_DSN,
+  SENTRY_TRACES_SAMPLE_RATE,
+} = require("../telemetry/sentry");
+
+// Whether the user has opted into telemetry. Read from the persisted config;
+// defaults to false (opt-in) and fails closed on any read error.
+const isTelemetryEnabled = () => {
+  try {
+    return readConfig().telemetryEnabled === true;
+  } catch (error) {
+    console.error("[Telemetry] Failed to read telemetry preference:", error);
+    return false;
+  }
+};
+
+// Initialize Sentry in the main process, but only if the user opted in. Called
+// once at startup (after readConfig is available). No-op when disabled, so no
+// data ever leaves the machine unless telemetry is on.
+const initTelemetryMain = () => {
+  if (!isTelemetryEnabled()) {
+    console.log(
+      "[Telemetry] Disabled (opt-in). Enable it in Settings to send crash/error reports."
+    );
+    return;
+  }
+  Sentry.init({
+    dsn: SENTRY_DSN,
+    environment: isDev ? "development" : "production",
+    tracesSampleRate: SENTRY_TRACES_SAMPLE_RATE,
+  });
+  console.log("[Telemetry] Enabled: Sentry initialized (main process).");
+};
 
 // Configure auto-updater. In dev, reads dev-app-update.yml from app.getAppPath().
 const autoUpdater = require("electron-updater").autoUpdater;
@@ -220,6 +250,11 @@ const launchGoBinary = () => {
   // Order matters: the saved provider config wins over inherited process.env
   // because the user explicitly set those values via the Settings UI.
   const env = { ...process.env, ...buildProviderEnvFromConfig() };
+
+  // Forward the user's telemetry opt-in to the Go backend so it only initializes
+  // Sentry when the user consented. Set explicitly (true/false) rather than
+  // inheriting any stray value from process.env.
+  env.KIJI_TELEMETRY_ENABLED = isTelemetryEnabled() ? "true" : "false";
 
   // In development mode, set ONNX Runtime library path
   // Try multiple locations relative to project root
@@ -1018,6 +1053,9 @@ function createMenu() {
 
 // This method will be called when Electron has finished initialization
 app.whenReady().then(async () => {
+  // Initialize telemetry first (opt-in) so early startup errors can be reported.
+  initTelemetryMain();
+
   // Launch the Go binary backend first
   launchGoBinary();
 

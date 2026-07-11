@@ -1,7 +1,10 @@
 import * as Sentry from "@sentry/electron/renderer";
 
 export interface MisclassificationReport {
-  originalInput: string;
+  // NOTE: the raw, pre-masking input is deliberately NOT part of this payload.
+  // Kiji is a privacy proxy; sending the unmasked text (which by definition
+  // contains the PII we exist to strip) to a third party would defeat the point.
+  // Only the masked text and non-identifying entity metadata are reported.
   maskedInput: string;
   detectedEntities: Array<{
     type: string;
@@ -15,30 +18,49 @@ export interface MisclassificationReport {
 }
 
 /**
- * Report a misclassification to Sentry for tracking and analysis
+ * Report a misclassification to Sentry for tracking and analysis.
+ *
+ * Privacy: only the MASKED input and non-identifying entity metadata (type,
+ * replacement token, confidence) are sent. The original text and the original
+ * matched substrings are never transmitted.
+ *
+ * Returns true if the report was actually sent, false if telemetry is disabled
+ * (Sentry not initialized) so the caller can tell the user nothing was sent.
  */
 export async function reportMisclassification(
   report: MisclassificationReport
-): Promise<void> {
+): Promise<boolean> {
+  // When telemetry is opt-out (default), Sentry is never initialized, so there
+  // is no client and captureMessage would silently no-op. Detect that up front.
+  if (!Sentry.getClient()) {
+    return false;
+  }
+
   try {
-    // Format entity details for better readability
+    // Non-identifying entity summary: type + confidence only, never the matched
+    // text. Safe to include in the human-readable event title.
     const entitySummary = report.detectedEntities
       .map(
-        (e) =>
-          `${e.type}: "${e.original}" (confidence: ${(
-            e.confidence * 100
-          ).toFixed(1)}%)`
+        (e) => `${e.type} (confidence: ${(e.confidence * 100).toFixed(1)}%)`
       )
       .join(", ");
 
-    // Create a descriptive message that includes key details
+    // Create a descriptive message that includes key (non-PII) details
     const message = `PII Misclassification: ${
       report.detectedEntities.length
     } entities detected - ${entitySummary.substring(0, 100)}${
       entitySummary.length > 100 ? "..." : ""
     }`;
 
-    // Capture as a custom message/event with enhanced data
+    // Strip the raw matched text from entity details — keep only the metadata
+    // that is safe to leave the machine.
+    const safeEntityDetails = report.detectedEntities.map((e) => ({
+      type: e.type,
+      replacement_token: e.token,
+      confidence: `${(e.confidence * 100).toFixed(1)}%`,
+    }));
+
+    // Capture as a custom message/event with enhanced (non-PII) data
     const eventId = Sentry.captureMessage(message, {
       level: "info",
       tags: {
@@ -50,22 +72,15 @@ export async function reportMisclassification(
       extra: {
         // Extra fields are shown prominently in Sentry UI
         user_comment: report.userComment || "(no comment provided)",
-        original_input: report.originalInput,
         masked_input: report.maskedInput,
-        entity_details: report.detectedEntities.map((e) => ({
-          type: e.type,
-          original_text: e.original,
-          replacement_token: e.token,
-          confidence: `${(e.confidence * 100).toFixed(1)}%`,
-        })),
+        entity_details: safeEntityDetails,
         model_version: report.modelVersion || "unknown",
         timestamp: report.timestamp,
       },
       contexts: {
         misclassification: {
-          original_input: report.originalInput,
           masked_input: report.maskedInput,
-          detected_entities: report.detectedEntities,
+          detected_entities: safeEntityDetails,
           user_comment: report.userComment || "",
           model_version: report.modelVersion || "unknown",
           timestamp: report.timestamp,
@@ -76,13 +91,16 @@ export async function reportMisclassification(
 
     // eventId available if needed for support reference
     void eventId;
+    return true;
   } catch (error) {
     console.error("Failed to send misclassification report:", error);
+    return false;
   }
 }
 
 /**
- * Report a general error to Sentry
+ * Report a general error to Sentry. No-op when telemetry is disabled (Sentry
+ * not initialized), so this is safe to call unconditionally.
  */
 export function reportError(
   error: Error,

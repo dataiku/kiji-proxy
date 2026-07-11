@@ -422,6 +422,18 @@ const registerIpcHandlers = ({
 
   defineConfigField("admin", "get-admin", "set-admin", booleanField);
 
+  // ---- Telemetry (crash & error reporting) opt-in ----
+  // Persisted preference gating Sentry in all three processes. Defaults to false
+  // (opt-in). The main + renderer processes read this to decide whether to call
+  // Sentry.init, and it is forwarded to the Go backend as KIJI_TELEMETRY_ENABLED
+  // at spawn time — so a change fully takes effect after the backend restarts.
+  defineConfigField(
+    "telemetryEnabled",
+    "get-telemetry-enabled",
+    "set-telemetry-enabled",
+    booleanField
+  );
+
   // ---- Model directory management ----
 
   ipcMain.handle("select-model-directory", async () => {

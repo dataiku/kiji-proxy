@@ -4,13 +4,28 @@ import "./src/styles/styles.css";
 import AppShell from "./src/components/AppShell.tsx";
 import ErrorBoundary from "./src/components/ErrorBoundary.tsx";
 import * as Sentry from "@sentry/electron/renderer";
+import { SENTRY_DSN, SENTRY_TRACES_SAMPLE_RATE } from "./src/telemetry/sentry";
 
-// Initialize Sentry for renderer process
-Sentry.init({
-  dsn: "https://d7ad4213601549253c0d313b271f83cf@o4510660510679040.ingest.de.sentry.io/4510660556095568",
-  environment: process.env.NODE_ENV || "production",
-  tracesSampleRate: 1.0,
-});
+// Telemetry (Sentry) is OPT-IN: only initialize the renderer SDK when the user
+// enabled "Crash & error reporting" in Settings (persisted in the Electron
+// config, read here over IPC). When disabled, Sentry is never initialized, so
+// every capture call elsewhere in the renderer is a harmless no-op.
+async function initTelemetryRenderer() {
+  try {
+    const enabled = await window.electronAPI?.getTelemetryEnabled?.();
+    if (!enabled) return;
+    Sentry.init({
+      dsn: SENTRY_DSN,
+      environment: process.env.NODE_ENV || "production",
+      tracesSampleRate: SENTRY_TRACES_SAMPLE_RATE,
+    });
+  } catch (error) {
+    console.error("[Telemetry] Failed to initialize renderer Sentry:", error);
+  }
+}
+
+// Fire-and-forget: rendering must not wait on the telemetry preference lookup.
+initTelemetryRenderer();
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(

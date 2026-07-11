@@ -21,6 +21,7 @@ import (
 	"github.com/dataiku/kiji-proxy/src/backend/paths"
 	"github.com/dataiku/kiji-proxy/src/backend/providers"
 	"github.com/dataiku/kiji-proxy/src/backend/proxy"
+	"github.com/dataiku/kiji-proxy/src/backend/telemetry"
 	"golang.org/x/time/rate"
 )
 
@@ -341,6 +342,11 @@ func (s *Server) Start() error {
 	if s.config.BasicAuth.Active() {
 		rootHandler = s.basicAuthMiddleware(mux)
 	}
+
+	// Report panics in any HTTP handler to telemetry (when enabled) before the
+	// request is aborted. Repanic is on inside the middleware, so net/http's own
+	// per-connection recovery still runs and the server stays up as before.
+	rootHandler = telemetry.HTTPMiddleware(rootHandler)
 
 	// Create server with timeout configuration
 	server := &http.Server{

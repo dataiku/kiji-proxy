@@ -93,8 +93,9 @@ export function useMisclassificationReport() {
       }
 
       try {
-        await reportMisclassification({
-          originalInput: reportingData.originalInput,
+        // The raw originalInput is intentionally NOT forwarded — only the masked
+        // text and entity metadata leave the machine (see misclassificationReporter).
+        const sent = await reportMisclassification({
           maskedInput: reportingData.maskedInput,
           detectedEntities: reportingData.entities,
           userComment: comment || undefined,
@@ -102,9 +103,16 @@ export function useMisclassificationReport() {
           timestamp: new Date().toISOString(),
         });
 
-        alert(
-          "Thank you for your feedback! The misclassification has been reported."
-        );
+        if (sent) {
+          alert(
+            "Thank you for your feedback! The misclassification has been reported."
+          );
+        } else {
+          // Telemetry is opt-in and currently disabled, so nothing was sent.
+          alert(
+            "Crash & error reporting is turned off, so this report was not sent. Enable it in Settings to submit misclassification reports."
+          );
+        }
 
         setReportingData(null);
         setIsMisclassificationModalOpen(false);
