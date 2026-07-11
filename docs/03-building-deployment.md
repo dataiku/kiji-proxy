@@ -620,6 +620,20 @@ KIJI_BASIC_AUTH_PASSWORD=change-me
 - Set `KIJI_BASIC_AUTH_ENABLED=false` to disable auth even when credentials are
   present (only the literal `true` keeps it on).
 
+### Telemetry (Crash & Error Reporting)
+
+Telemetry is **opt-in and off by default**. To send crash/error reports to Sentry
+from a server deployment, set:
+
+```bash
+# add to /etc/kiji-proxy.env
+KIJI_TELEMETRY_ENABLED=true   # only the literal "true" enables it
+```
+
+Prompts, request/response bodies, and unmasked input are never sent. See
+[Telemetry & Privacy](05-advanced-topics.md#telemetry--privacy) for the full list
+of what is and isn't collected.
+
 ### Docker Deployment
 
 ```dockerfile

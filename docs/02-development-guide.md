@@ -654,6 +654,10 @@ export MODEL_PATH="model/quantized"
 export LOG_REQUESTS="true"
 export LOG_PII_CHANGES="true"
 
+# Telemetry (crash & error reporting via Sentry) — opt-in, off by default.
+# See docs/05-advanced-topics.md → Telemetry & Privacy.
+export KIJI_TELEMETRY_ENABLED="false"
+
 # Database (usually disabled in dev)
 export DB_ENABLED="false"
 

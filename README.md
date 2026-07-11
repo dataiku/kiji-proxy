@@ -201,7 +201,7 @@ make electron
 - **Thread-Safe** - Handles concurrent requests with isolated mappings
 - **Desktop UI** - Native Electron app for macOS with visual request monitoring
 - **Production Ready** - Systemd service, Docker support, comprehensive logging
-- **Privacy First** - All processing happens locally, no external dependencies
+- **Privacy First** - All PII processing happens locally; crash/error telemetry is [opt-in and off by default](docs/05-advanced-topics.md#telemetry--privacy), and never includes your prompts or unmasked text
 
 ---
 

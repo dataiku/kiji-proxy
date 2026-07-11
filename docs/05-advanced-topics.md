@@ -8,6 +8,7 @@ This chapter covers advanced features, security considerations, and troubleshoot
 - [Model Signing](#model-signing)
 - [Build Troubleshooting](#build-troubleshooting)
 - [Performance Optimization](#performance-optimization)
+- [Telemetry & Privacy](#telemetry--privacy)
 - [Security Best Practices](#security-best-practices)
 
 ## Transparent Proxy & MITM
@@ -1098,6 +1099,54 @@ ls -la build/tokenizers/libtokenizers.a && echo "Cached" || echo "Will rebuild"
 - Use connection pooling
 - Enable HTTP/2 when available
 - Configure appropriate timeouts
+
+## Telemetry & Privacy
+
+Kiji uses [Sentry](https://sentry.io) for crash and error reporting. Because Kiji
+is a privacy proxy, telemetry is **opt-in and disabled by default** — nothing is
+sent unless you explicitly turn it on.
+
+### What is (and isn't) sent
+
+When telemetry is enabled, Kiji may send:
+
+- ✅ Uncaught exceptions and crashes (stack traces, error messages)
+- ✅ Backend panics (via the HTTP handler middleware and the main goroutine)
+- ✅ PII misclassification reports you explicitly submit — **masked** text plus
+  entity metadata only (entity type, replacement token, confidence)
+- ✅ Basic environment info (app version, `production`/`development`)
+
+Kiji never sends:
+
+- ❌ Your prompts or request/response bodies
+- ❌ The original, **unmasked** input text
+- ❌ The raw matched PII substrings (only the entity *type* and *confidence*)
+- ❌ Your API keys or provider credentials
+
+Performance tracing is sampled at 10% (`tracesSampleRate: 0.1`).
+
+### Enabling / disabling
+
+**Desktop app (macOS):** Settings → Advanced → **Crash & Error Reporting**. The
+choice is persisted in the Electron config (`telemetryEnabled`). Restart the app
+after changing it so all three processes (renderer, Electron main, and the Go
+backend) pick up the new value.
+
+**Server / headless backend (Linux):** telemetry is controlled by an environment
+variable and defaults to off:
+
+```bash
+# Opt in to error/crash reporting
+export KIJI_TELEMETRY_ENABLED=true
+
+# Leave unset (or set to anything other than "true") to keep it off
+```
+
+The desktop app forwards your Settings choice to the Go backend through this same
+`KIJI_TELEMETRY_ENABLED` variable when it spawns the backend process.
+
+> Submitting a PII misclassification report requires telemetry to be enabled — if
+> it is off, the report is not sent and the app tells you so.
 
 ## Security Best Practices
 
