@@ -60,14 +60,15 @@ type Provider interface {
 // `defaultProviders` struct sets the default provider to use when there is a subpath clash,
 // e.g. OpenAI and Mistral use the same '/v1/chat/completions' subpath.
 type defaultProviders struct {
-	OpenAISubpath ProviderType // only "openai" or "mistral"
+	OpenAISubpath ProviderType // provider selected for the shared chat completions subpath
 }
 
 func NewDefaultProviders(defaultOpenAIProvider ProviderType) (*defaultProviders, error) {
-	if defaultOpenAIProvider == ProviderTypeOpenAI || defaultOpenAIProvider == ProviderTypeMistral {
+	switch defaultOpenAIProvider {
+	case ProviderTypeOpenAI, ProviderTypeMistral, ProviderTypeMiniMax:
 		return &defaultProviders{OpenAISubpath: defaultOpenAIProvider}, nil
-	} else {
-		return nil, fmt.Errorf("defaultOpenAIProvider must be 'openai' or 'mistral'")
+	default:
+		return nil, fmt.Errorf("unsupported default provider for shared chat completions subpath: %q", defaultOpenAIProvider)
 	}
 }
 
@@ -151,6 +152,8 @@ func (p *Providers) GetProviderFromPath(host string, path string, body *[]byte, 
 			provider = p.OpenAIProvider
 		case ProviderTypeMistral:
 			provider = p.MistralProvider
+		case ProviderTypeMiniMax:
+			provider = p.MiniMaxProvider
 		}
 	case path == ProviderSubpathOpenAIResp:
 		provider = p.OpenAIProvider

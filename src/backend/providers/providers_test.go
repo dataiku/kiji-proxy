@@ -1356,6 +1356,7 @@ func TestNewDefaultProviders(t *testing.T) {
 	}{
 		{"openai valid", ProviderTypeOpenAI, false, ProviderTypeOpenAI},
 		{"mistral valid", ProviderTypeMistral, false, ProviderTypeMistral},
+		{"minimax valid", ProviderTypeMiniMax, false, ProviderTypeMiniMax},
 		{"invalid provider", ProviderType("invalid"), true, ""},
 	}
 
@@ -1381,6 +1382,7 @@ func newTestProviders(defaultOpenAI ProviderType) *Providers {
 		AnthropicProvider: NewAnthropicProvider("api.anthropic.com", "sk-ant", nil),
 		GeminiProvider:    NewGeminiProvider("generativelanguage.googleapis.com", "AIza", nil),
 		MistralProvider:   NewMistralProvider("api.mistral.ai", "sk-mistral", nil),
+		MiniMaxProvider:   NewMiniMaxProvider("api.minimax.io/v1", "sk-minimax", nil),
 		CustomProvider:    NewCustomProvider("custom.example.com", "sk-custom", nil),
 	}
 }
@@ -1407,6 +1409,13 @@ func TestProviders_GetProviderFromPath(t *testing.T) {
 			body:         `{"model":"mistral","messages":[]}`,
 			defaultOAI:   ProviderTypeMistral,
 			wantProvider: "Mistral",
+		},
+		{
+			name:         "MiniMax from subpath when default",
+			path:         "/v1/chat/completions",
+			body:         `{"model":"MiniMax-M3","messages":[]}`,
+			defaultOAI:   ProviderTypeMiniMax,
+			wantProvider: "MiniMax",
 		},
 		{
 			name:         "Anthropic from subpath",
@@ -1456,6 +1465,20 @@ func TestProviders_GetProviderFromPath(t *testing.T) {
 			body:         `{"provider":"mistral","model":"mistral","messages":[]}`,
 			defaultOAI:   ProviderTypeOpenAI,
 			wantProvider: "Mistral",
+		},
+		{
+			name:         "provider field MiniMax-M3",
+			path:         "/v1/chat/completions",
+			body:         `{"provider":"minimax","model":"MiniMax-M3","messages":[]}`,
+			defaultOAI:   ProviderTypeOpenAI,
+			wantProvider: "MiniMax",
+		},
+		{
+			name:         "provider field MiniMax-M2.7",
+			path:         "/v1/chat/completions",
+			body:         `{"provider":"minimax","model":"MiniMax-M2.7","messages":[]}`,
+			defaultOAI:   ProviderTypeOpenAI,
+			wantProvider: "MiniMax",
 		},
 		{
 			name:         "provider field custom",
@@ -1514,6 +1537,7 @@ func TestProviders_GetProviderFromHost(t *testing.T) {
 		{"Anthropic host", "api.anthropic.com", "Anthropic", false},
 		{"Gemini host", "generativelanguage.googleapis.com", "Gemini", false},
 		{"Mistral host", "api.mistral.ai", "Mistral", false},
+		{"MiniMax host", "api.minimax.io", "MiniMax", false},
 		{"Custom host", "custom.example.com", "Custom Provider", false},
 		{"unknown host", "unknown.example.com", "", true},
 	}
@@ -1532,4 +1556,15 @@ func TestProviders_GetProviderFromHost(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("MiniMax regional host", func(t *testing.T) {
+		providers.MiniMaxProvider = NewMiniMaxProvider("https://api.minimaxi.com/v1", "sk-minimax", nil)
+		provider, err := providers.GetProviderFromHost("api.minimaxi.com", "[test]")
+		if err != nil {
+			t.Fatalf("GetProviderFromHost() error = %v", err)
+		}
+		if got := (*provider).GetName(); got != ProviderNameMiniMax {
+			t.Errorf("GetProviderFromHost() provider = %q, want %q", got, ProviderNameMiniMax)
+		}
+	})
 }

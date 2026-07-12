@@ -156,6 +156,7 @@ const PROVIDER_ENV_NAMES = {
   anthropic: { apiKey: "ANTHROPIC_API_KEY", baseUrl: "ANTHROPIC_BASE_URL" },
   gemini: { apiKey: "GEMINI_API_KEY", baseUrl: "GEMINI_BASE_URL" },
   mistral: { apiKey: "MISTRAL_API_KEY", baseUrl: "MISTRAL_BASE_URL" },
+  minimax: { apiKey: "MINIMAX_API_KEY", baseUrl: "MINIMAX_BASE_URL" },
   custom: { apiKey: "CUSTOM_API_KEY", baseUrl: "CUSTOM_BASE_URL" },
 };
 
@@ -1081,8 +1082,16 @@ app.on("will-quit", () => {
 
 // Migrate old single-key config format to new multi-provider format
 const migrateConfig = (config) => {
-  // If already migrated (has providers object), return as-is
+  // Backfill MiniMax for existing multi-provider configurations.
   if (config.providers) {
+    if (!config.providers.minimax) {
+      config.providers.minimax = {
+        apiKey: "",
+        encrypted: false,
+        model: "",
+        baseUrl: "",
+      };
+    }
     return config;
   }
 
@@ -1094,6 +1103,7 @@ const migrateConfig = (config) => {
     anthropic: { apiKey: "", encrypted: false, model: "" },
     gemini: { apiKey: "", encrypted: false, model: "" },
     mistral: { apiKey: "", encrypted: false, model: "" },
+    minimax: { apiKey: "", encrypted: false, model: "", baseUrl: "" },
     custom: { apiKey: "", encrypted: false, model: "", baseUrl: "" },
   };
 

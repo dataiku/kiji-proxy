@@ -325,6 +325,8 @@ func loadApplicationConfig(cfg *config.Config) {
 	if minimaxApiKey := os.Getenv("MINIMAX_API_KEY"); minimaxApiKey != "" {
 		cfg.Providers.MiniMaxProviderConfig.APIKey = minimaxApiKey
 		log.Printf("Loaded MINIMAX_API_KEY from environment (length: %d)", len(minimaxApiKey))
+	} else {
+		log.Printf("Warning: MINIMAX_API_KEY is empty or not set")
 	}
 
 	if variant := os.Getenv("MODEL_VARIANT"); variant != "" {

@@ -4,7 +4,14 @@ const fs = require("fs");
 
 // Valid provider types accepted by the Go backend.
 // Keep in sync with src/backend/main.go loadApplicationConfig().
-const VALID_PROVIDERS = ["openai", "anthropic", "gemini", "mistral", "custom"];
+const VALID_PROVIDERS = [
+  "openai",
+  "anthropic",
+  "gemini",
+  "mistral",
+  "minimax",
+  "custom",
+];
 
 // Make a JSON request to the local Go backend.
 // Resolves with the parsed JSON body; rejects on network error or invalid JSON.
@@ -396,6 +403,7 @@ const registerIpcHandlers = ({
           anthropic: { hasApiKey: false, model: "", baseUrl: "" },
           gemini: { hasApiKey: false, model: "", baseUrl: "" },
           mistral: { hasApiKey: false, model: "", baseUrl: "" },
+          minimax: { hasApiKey: false, model: "", baseUrl: "" },
           custom: { hasApiKey: false, model: "", baseUrl: "" },
         },
       };

@@ -252,6 +252,23 @@ func isResponsesAPIResponse(data map[string]interface{}) bool {
 	return false
 }
 
+func appendChatContentText(result *strings.Builder, content interface{}) {
+	switch content := content.(type) {
+	case string:
+		result.WriteString(content + "\n")
+	case []interface{}:
+		for _, part := range content {
+			partMap, ok := part.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			if text, ok := partMap["text"].(string); ok {
+				result.WriteString(text + "\n")
+			}
+		}
+	}
+}
+
 func (p *OpenAIProvider) ExtractRequestText(data map[string]interface{}) (string, error) {
 	if isResponsesAPIRequest(data) {
 		return extractResponsesRequestText(data)
@@ -268,9 +285,7 @@ func (p *OpenAIProvider) ExtractRequestText(data map[string]interface{}) (string
 		if !ok {
 			continue
 		}
-		if content, ok := msgMap["content"].(string); ok {
-			result.WriteString(content + "\n")
-		}
+		appendChatContentText(&result, msgMap["content"])
 	}
 	return result.String(), nil
 }
@@ -384,6 +399,12 @@ func (p *OpenAIProvider) CreateMaskedRequest(maskedRequest map[string]interface{
 
 	maskedToOriginal := make(map[string]string)
 	var entities []pii.Entity
+	mergeMask := func(m map[string]string, ents []pii.Entity) {
+		entities = append(entities, ents...)
+		for k, v := range m {
+			maskedToOriginal[k] = v
+		}
+	}
 
 	messages, ok := maskedRequest["messages"].([]interface{})
 	if !ok {
@@ -395,19 +416,29 @@ func (p *OpenAIProvider) CreateMaskedRequest(maskedRequest map[string]interface{
 		if !ok {
 			continue
 		}
-		content, ok := msgMap["content"].(string)
+		content, ok := msgMap["content"]
 		if !ok {
 			continue
 		}
-
-		// Mask PII in this message's content and update message content with masked text
-		maskedText, _maskedToOriginal, _entities := maskPIIInText(content, "[MaskedRequest]")
-		msgMap["content"] = maskedText
-
-		// Collect entities and mappings
-		entities = append(entities, _entities...)
-		for k, v := range _maskedToOriginal {
-			maskedToOriginal[k] = v
+		switch content := content.(type) {
+		case string:
+			masked, m, ents := maskPIIInText(content, "[MaskedRequest]")
+			msgMap["content"] = masked
+			mergeMask(m, ents)
+		case []interface{}:
+			for _, part := range content {
+				partMap, ok := part.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				text, ok := partMap["text"].(string)
+				if !ok {
+					continue
+				}
+				masked, m, ents := maskPIIInText(text, "[MaskedRequest]")
+				partMap["text"] = masked
+				mergeMask(m, ents)
+			}
 		}
 	}
 

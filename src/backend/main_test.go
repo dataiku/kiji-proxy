@@ -97,3 +97,18 @@ func TestLoadApplicationConfigUnixSocket(t *testing.T) {
 		t.Errorf("UnixSocketPath = %q, want %q", cfg.UnixSocketPath, "/tmp/kiji-proxy.sock")
 	}
 }
+
+func TestLoadApplicationConfigMiniMax(t *testing.T) {
+	t.Setenv("MINIMAX_API_KEY", "test-minimax-key")
+	t.Setenv("MINIMAX_BASE_URL", "https://api.minimaxi.com/v1")
+
+	cfg := config.DefaultConfig()
+	loadApplicationConfig(cfg)
+
+	if got := cfg.Providers.MiniMaxProviderConfig.APIKey; got != "test-minimax-key" {
+		t.Errorf("MiniMax APIKey = %q, want %q", got, "test-minimax-key")
+	}
+	if got := cfg.Providers.MiniMaxProviderConfig.APIDomain; got != "https://api.minimaxi.com/v1" {
+		t.Errorf("MiniMax APIDomain = %q, want %q", got, "https://api.minimaxi.com/v1")
+	}
+}

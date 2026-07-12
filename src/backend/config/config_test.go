@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/dataiku/kiji-proxy/src/backend/providers"
 )
 
 func TestValidatePort(t *testing.T) {
@@ -359,6 +361,25 @@ func TestDefaultConfig_Detectors(t *testing.T) {
 	want := []string{DetectorTypeONNX, DetectorTypeRegex}
 	if !reflect.DeepEqual(cfg.Detectors, want) {
 		t.Errorf("DefaultConfig().Detectors = %v, want %v", cfg.Detectors, want)
+	}
+}
+
+func TestDefaultConfig_MiniMaxProvider(t *testing.T) {
+	cfg := DefaultConfig()
+	if got := cfg.Providers.MiniMaxProviderConfig.APIDomain; got != providers.ProviderAPIDomainMiniMax {
+		t.Errorf("MiniMax APIDomain = %q, want %q", got, providers.ProviderAPIDomainMiniMax)
+	}
+
+	wantDomain := "api.minimax.io"
+	found := false
+	for _, domain := range cfg.Providers.GetInterceptDomains() {
+		if domain == wantDomain {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("GetInterceptDomains() does not contain %q", wantDomain)
 	}
 }
 

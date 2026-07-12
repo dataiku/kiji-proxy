@@ -85,6 +85,63 @@ func TestMiniMaxProvider_ExtractRequestText(t *testing.T) {
 	}
 }
 
+func TestMiniMaxProvider_ExtractMultimodalRequestText(t *testing.T) {
+	p := NewMiniMaxProvider("api.minimax.io/v1", "key", nil)
+	data := map[string]interface{}{
+		"model": "MiniMax-M3",
+		"messages": []interface{}{
+			map[string]interface{}{
+				"role": "user",
+				"content": []interface{}{
+					map[string]interface{}{"type": "text", "text": "Hello MiniMax"},
+					map[string]interface{}{"type": "image_url", "image_url": map[string]interface{}{"url": "https://example.com/image.png"}},
+					map[string]interface{}{"type": "video_url", "video_url": map[string]interface{}{"url": "https://example.com/video.mp4"}},
+				},
+			},
+		},
+	}
+
+	got, err := p.ExtractRequestText(data)
+	if err != nil {
+		t.Fatalf("ExtractRequestText() error = %v", err)
+	}
+	if got != "Hello MiniMax\n" {
+		t.Errorf("ExtractRequestText() = %q, want %q", got, "Hello MiniMax\n")
+	}
+}
+
+func TestMiniMaxProvider_CreateMaskedMultimodalRequest(t *testing.T) {
+	p := NewMiniMaxProvider("api.minimax.io/v1", "key", nil)
+	imagePart := map[string]interface{}{
+		"type":      "image_url",
+		"image_url": map[string]interface{}{"url": "https://example.com/image.png"},
+	}
+	textPart := map[string]interface{}{"type": "text", "text": "Hello John Doe"}
+	data := map[string]interface{}{
+		"model": "MiniMax-M3",
+		"messages": []interface{}{
+			map[string]interface{}{
+				"role":    "user",
+				"content": []interface{}{textPart, imagePart},
+			},
+		},
+	}
+
+	mapping, entities, err := p.CreateMaskedRequest(data, replaceMaskPII)
+	if err != nil {
+		t.Fatalf("CreateMaskedRequest() error = %v", err)
+	}
+	if textPart["text"] != "Hello Jane Smith" {
+		t.Errorf("text content = %q, want %q", textPart["text"], "Hello Jane Smith")
+	}
+	if len(mapping) == 0 || entities == nil || len(*entities) == 0 {
+		t.Fatal("expected masked mapping and entities")
+	}
+	if imagePart["image_url"].(map[string]interface{})["url"] != "https://example.com/image.png" {
+		t.Error("image content should remain unchanged")
+	}
+}
+
 func TestMiniMaxProvider_ExtractResponseText(t *testing.T) {
 	p := NewMiniMaxProvider("api.minimax.io/v1", "key", nil)
 

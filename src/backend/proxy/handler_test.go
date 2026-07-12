@@ -209,6 +209,11 @@ func newTestHandler(t *testing.T, detector *mockDetector, upstreamServer *httpte
 				APIKey:            "sk-mistral-test",
 				AdditionalHeaders: map[string]string{},
 			},
+			MiniMaxProviderConfig: config.ProviderConfig{
+				APIDomain:         "api.minimax.io/v1",
+				APIKey:            "sk-minimax-test",
+				AdditionalHeaders: map[string]string{},
+			},
 			CustomProviderConfig: config.ProviderConfig{
 				APIDomain:         "custom.example.com",
 				APIKey:            "sk-custom-test",
@@ -244,6 +249,11 @@ func newTestHandler(t *testing.T, detector *mockDetector, upstreamServer *httpte
 		cfg.Providers.MistralProviderConfig.APIKey,
 		cfg.Providers.MistralProviderConfig.AdditionalHeaders,
 	)
+	miniMaxProvider := providers.NewMiniMaxProvider(
+		cfg.Providers.MiniMaxProviderConfig.APIDomain,
+		cfg.Providers.MiniMaxProviderConfig.APIKey,
+		cfg.Providers.MiniMaxProviderConfig.AdditionalHeaders,
+	)
 	customProvider := providers.NewCustomProvider(
 		cfg.Providers.CustomProviderConfig.APIDomain,
 		cfg.Providers.CustomProviderConfig.APIKey,
@@ -261,6 +271,7 @@ func newTestHandler(t *testing.T, detector *mockDetector, upstreamServer *httpte
 		AnthropicProvider: anthropicProvider,
 		GeminiProvider:    geminiProvider,
 		MistralProvider:   mistralProvider,
+		MiniMaxProvider:   miniMaxProvider,
 		CustomProvider:    customProvider,
 	}
 
@@ -289,6 +300,16 @@ func newTestHandler(t *testing.T, detector *mockDetector, upstreamServer *httpte
 		loggingDB:         loggingDB,
 		mappingDB:         mappingDB,
 		piiMapping:        piiMapping,
+	}
+}
+
+func TestProviderFromModelMiniMax(t *testing.T) {
+	for _, model := range []string{"MiniMax-M3", "MiniMax-M2.7"} {
+		t.Run(model, func(t *testing.T) {
+			if got := providerFromModel(model); got != "minimax" {
+				t.Errorf("providerFromModel(%q) = %q, want %q", model, got, "minimax")
+			}
+		})
 	}
 }
 
