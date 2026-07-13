@@ -3,6 +3,7 @@ package processor
 import (
 	"encoding/json"
 	"log"
+	"sort"
 	"strings"
 	"time"
 
@@ -72,11 +73,35 @@ func (rp *ResponseProcessor) ProcessResponse(body []byte, contentType string, ma
 	return modifiedBody
 }
 
-// RestorePII restores masked PII text back to original text using the provided mapping
+// RestorePII restores masked PII text back to original text using the provided mapping.
 func (rp *ResponseProcessor) RestorePII(text string, maskedToOriginal map[string]string) string {
-	// Replace all occurrences of masked text with original text
-	for maskedText, originalText := range maskedToOriginal {
-		text = strings.ReplaceAll(text, maskedText, originalText)
+	return BuildRestorer(maskedToOriginal).Replace(text)
+}
+
+// BuildRestorer builds a single-pass replacer that maps each masked (dummy)
+// value back to its original.
+//
+// It must be a single simultaneous pass, not a sequence of ReplaceAll calls:
+// a generated dummy can coincide with a real original from another mapping
+// (e.g. "Priya"→"Nicole" alongside "Claude"→"Priya"). Sequential replacement
+// chains — restoring "Nicole"→"Priya" and then re-replacing that "Priya"→
+// "Claude" — corrupting the output. strings.Replacer scans the input once and
+// never re-examines what it has emitted, so restored text is never
+// re-substituted. Keys are ordered longest-first so that when one dummy is a
+// prefix of another the longer match wins.
+func BuildRestorer(maskedToOriginal map[string]string) *strings.Replacer {
+	keys := make([]string, 0, len(maskedToOriginal))
+	for masked := range maskedToOriginal {
+		if masked == "" {
+			continue // an empty key would match everywhere; skip defensively
+		}
+		keys = append(keys, masked)
 	}
-	return text
+	sort.Slice(keys, func(i, j int) bool { return len(keys[i]) > len(keys[j]) })
+
+	pairs := make([]string, 0, len(keys)*2)
+	for _, masked := range keys {
+		pairs = append(pairs, masked, maskedToOriginal[masked])
+	}
+	return strings.NewReplacer(pairs...)
 }

@@ -119,8 +119,9 @@ func (tp *TransparentProxy) handleHTTPRequest(w http.ResponseWriter, r *http.Req
 		targetHost = r.URL.Host
 	}
 
-	// Check if we should intercept
-	if !tp.router.ShouldIntercept(targetHost) {
+	// Check if we should intercept (host must be an intercept domain and, for
+	// hosts with a path allowlist, the path must match)
+	if !tp.router.ShouldInterceptRequest(targetHost, r.URL.Path) {
 		// Passthrough - forward directly
 		tp.passthroughHTTP(w, r)
 		return
@@ -377,7 +378,11 @@ func (tp *TransparentProxy) interceptCONNECT(w http.ResponseWriter, _ *http.Requ
 		Conn: tlsConn,
 	}
 
-	// Handle HTTP requests over the TLS connection
+	// Handle HTTP requests over the TLS connection. The buffered reader is
+	// created once for the connection: a per-iteration reader would silently
+	// drop any bytes of the next request it had already buffered while reading
+	// the previous one, desyncing the keep-alive connection.
+	connReader := bufio.NewReader(conn)
 	for {
 		// Set read deadline
 		if err := conn.SetReadDeadline(time.Now().Add(30 * time.Second)); err != nil {
@@ -386,7 +391,7 @@ func (tp *TransparentProxy) interceptCONNECT(w http.ResponseWriter, _ *http.Requ
 		}
 
 		// Read HTTP request
-		req, err := http.ReadRequest(bufio.NewReader(conn))
+		req, err := http.ReadRequest(connReader)
 		if err != nil {
 			if err == io.EOF {
 				break
@@ -399,8 +404,16 @@ func (tp *TransparentProxy) interceptCONNECT(w http.ResponseWriter, _ *http.Requ
 		req.URL.Scheme = "https"
 		req.URL.Host = host
 
-		// Process the request
-		tp.interceptHTTPOverTLS(conn, req, host, provider)
+		// Process the request. Hosts with a path allowlist (chatgpt.com) only
+		// mask matching paths; everything else on the (already MITM'd)
+		// connection is forwarded verbatim so streaming side channels like the
+		// Codex MCP transport survive.
+		if tp.router.ShouldInterceptRequest(host, req.URL.Path) {
+			tp.interceptHTTPOverTLS(conn, req, host, provider)
+		} else if !tp.passthroughHTTPOverTLS(conn, req, host) {
+			// Response framing can't keep the connection in sync; stop reusing it.
+			break
+		}
 	}
 }
 
@@ -413,6 +426,17 @@ func (tp *TransparentProxy) interceptHTTPOverTLS(conn net.Conn, r *http.Request,
 		log.Printf("[TransparentProxy] Responding to OPTIONS preflight for %s%s", targetHost, r.URL.Path)
 		drainAndClose(r.Body)
 		writeCORSPreflightOverTLS(conn, r)
+		return
+	}
+
+	// Reject protocol upgrades (e.g. WebSocket) on intercepted paths: PII inside
+	// a switched protocol cannot be masked, so fail closed — and fast, so the
+	// client's fallback/retry logic isn't stalled by a 30s hang. (Codex can be
+	// steered to SSE via a provider config with supports_websockets = false.)
+	if upgrade := r.Header.Get("Upgrade"); upgrade != "" {
+		log.Printf("[TransparentProxy] ❌ Rejecting %q upgrade on intercepted path %s (cannot mask non-HTTP protocols)", upgrade, r.URL.Path)
+		drainAndClose(r.Body)
+		tp.writeErrorResponse(conn, http.StatusNotImplemented, "Kiji proxy: protocol upgrades are not supported on masked endpoints")
 		return
 	}
 
@@ -457,15 +481,48 @@ func (tp *TransparentProxy) interceptHTTPOverTLS(conn net.Conn, r *http.Request,
 	// Explicitly set Accept-Encoding to identity to avoid compressed responses
 	proxyReq.Header.Set("Accept-Encoding", "identity")
 
-	// Forward request using handler's HTTP client (bypasses proxy to prevent infinite loop)
-	log.Printf("[TransparentProxy] Forwarding TLS request directly to %s (bypassing proxy)", targetURL)
-	resp, err := tp.handler.GetHTTPClient().Do(proxyReq)
+	// Forward request using handler's HTTP client (bypasses proxy to prevent infinite loop).
+	// Streaming requests use a client without an overall timeout so long-lived
+	// SSE token streams are not cut off mid-response.
+	wantStream := requestWantsStream(processed.RedactedBody)
+	httpClient := tp.handler.GetHTTPClient()
+	if wantStream {
+		httpClient = streamingClient
+	}
+	log.Printf("[TransparentProxy] Forwarding TLS request directly to %s (bypassing proxy, stream=%t)", targetURL, wantStream)
+	resp, err := httpClient.Do(proxyReq)
 	if err != nil {
 		log.Printf("[TransparentProxy] ❌ Failed to forward request: %v", err)
 		tp.writeErrorResponse(conn, http.StatusBadGateway, fmt.Sprintf("Failed to forward request: %v", err))
 		return
 	}
 	defer resp.Body.Close()
+
+	log.Printf("[TransparentProxy] Upstream response for %s: status=%d content-type=%q content-encoding=%q",
+		r.URL.Path, resp.StatusCode, resp.Header.Get("Content-Type"), resp.Header.Get("Content-Encoding"))
+
+	// Stream Server-Sent Events straight through to the client, restoring PII
+	// incrementally. Buffering an SSE stream (as the non-streaming path below
+	// does) breaks streaming clients like Claude Code and hangs until the
+	// upstream timeout fires. responseLooksLikeSSE also body-sniffs, because
+	// the Codex backend streams SSE without a Content-Type header.
+	if wantStream && responseLooksLikeSSE(resp) {
+		log.Printf("[TransparentProxy] Streaming SSE response for %s", r.URL.Path)
+		codec := codecForProvider(provider, processed.MaskedToOriginal)
+		if streamErr := streamSSEResponse(conn, resp, codec); streamErr != nil {
+			log.Printf("[TransparentProxy] ❌ Failed to stream SSE response: %v", streamErr)
+		}
+		// Record the streamed response for audit: masked = the text the model
+		// actually returned (pre-restore), restored = what the client received.
+		maskedText := codec.maskedOutput()
+		tp.handler.LogStreamedResponse(ctx, processed.TransactionID, maskedText, codec.restore(maskedText))
+		log.Printf("[TransparentProxy] Streamed %s %s - Status: %d", r.Method, r.URL.Path, resp.StatusCode)
+		// Count streamed requests in the dashboard metrics too. Response
+		// restoration is interleaved with the upstream stream here, so the
+		// recorded overhead is the request-masking time only.
+		tp.handler.recordMetrics(provider, processed, sourceFromRequest(r), requestMaskTime, resp.StatusCode)
+		return
+	}
 
 	// Read response body
 	respBody, err := io.ReadAll(resp.Body)
@@ -480,13 +537,17 @@ func (tp *TransparentProxy) interceptHTTPOverTLS(conn net.Conn, r *http.Request,
 	modifiedBody := tp.handler.ProcessResponseBody(ctx, respBody, resp.Header.Get("Content-Type"), processed.MaskedToOriginal, processed.TransactionID, provider)
 	responseRestoreTime := time.Since(restoreStart)
 
-	// Create new response with modified body
+	// Create new response with modified body. The proto is pinned to HTTP/1.1
+	// regardless of what the upstream leg negotiated: the client side of the
+	// tunnel speaks HTTP/1.1, and relaying an upstream "HTTP/2.0" proto into
+	// the status line makes strict clients (e.g. Codex's hyper) drop the
+	// connection as malformed.
 	newResp := &http.Response{
 		StatusCode:    resp.StatusCode,
 		Status:        resp.Status,
-		Proto:         resp.Proto,
-		ProtoMajor:    resp.ProtoMajor,
-		ProtoMinor:    resp.ProtoMinor,
+		Proto:         protoHTTP11,
+		ProtoMajor:    1,
+		ProtoMinor:    1,
 		Header:        resp.Header,
 		Body:          io.NopCloser(bytes.NewReader(modifiedBody)),
 		ContentLength: int64(len(modifiedBody)),
@@ -521,7 +582,7 @@ func (tp *TransparentProxy) writeErrorResponse(conn net.Conn, statusCode int, me
 	resp := &http.Response{
 		StatusCode:    statusCode,
 		Status:        http.StatusText(statusCode),
-		Proto:         "HTTP/1.1",
+		Proto:         protoHTTP11,
 		ProtoMajor:    1,
 		ProtoMinor:    1,
 		Header:        make(http.Header),

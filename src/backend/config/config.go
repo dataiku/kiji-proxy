@@ -352,7 +352,7 @@ func DefaultConfig() *Config {
 
 // GetInterceptDomains returns the list of intercept domains (as a union of all provider domains)
 func (pc ProvidersConfig) GetInterceptDomains() []string {
-	return []string{
+	domains := []string{
 		interceptDomain(pc.AnthropicProviderConfig.APIDomain),
 		interceptDomain(pc.OpenAIProviderConfig.APIDomain),
 		interceptDomain(pc.GeminiProviderConfig.APIDomain),
@@ -360,6 +360,25 @@ func (pc ProvidersConfig) GetInterceptDomains() []string {
 		interceptDomain(pc.MiniMaxProviderConfig.APIDomain),
 		interceptDomain(pc.CustomProviderConfig.APIDomain),
 	}
+	// ChatGPT-login Codex talks to chatgpt.com instead of the configured OpenAI
+	// API domain, so it must be intercepted explicitly whenever OpenAI is enabled.
+	if pc.OpenAIProviderConfig.APIDomain != "" {
+		domains = append(domains, "chatgpt.com")
+	}
+	return domains
+}
+
+// GetInterceptPathPrefixes returns, per intercept host, the path prefixes that
+// should be intercepted/masked. Hosts absent from the map intercept all paths.
+// chatgpt.com serves far more than the Codex completions endpoint (a streaming
+// MCP transport, model refresh, telemetry); only the completions path is
+// masked — the rest is passed through verbatim so Codex startup isn't broken.
+func (pc ProvidersConfig) GetInterceptPathPrefixes() map[string][]string {
+	prefixes := map[string][]string{}
+	if pc.OpenAIProviderConfig.APIDomain != "" {
+		prefixes[providers.ProviderAPIDomainCodex] = []string{providers.ProviderSubpathCodexResponses}
+	}
+	return prefixes
 }
 
 func interceptDomain(apiDomain string) string {

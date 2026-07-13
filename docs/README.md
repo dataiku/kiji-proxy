@@ -146,6 +146,22 @@ Control what gets masked and review what already has been, from the desktop app.
 
 ---
 
+### [Chapter 9: Coding Agents (Codex & Claude Code)](09-coding-agents.md)
+
+Route terminal coding agents through the proxy so PII in prompts, code, and tool calls is masked before it reaches the model and restored in replies.
+
+**Topics:**
+- How agents are intercepted (hosts, masking, streaming restore)
+- Claude Code setup (`HTTP_PROXY`/`HTTPS_PROXY`, `NODE_EXTRA_CA_CERTS`, `settings.json`)
+- Codex setup (rustls CA trust via `CODEX_CA_CERTIFICATE`, API-key vs ChatGPT-login)
+- A shared shell snippet for both agents
+- Verifying interception and troubleshooting TLS/proxy issues
+- Forward-proxy alternative without CA trust
+
+**Start here if you're:** Using OpenAI Codex or Claude Code and want their traffic masked by Kiji.
+
+---
+
 ## Quick Links
 
 ### Getting Started
@@ -186,6 +202,12 @@ Control what gets masked and review what already has been, from the desktop app.
 - [Disable Entity Types](08-masking-controls.md#choosing-which-entities-to-mask)
 - [Custom Regex Patterns](08-masking-controls.md#custom-regex-patterns)
 - [Review & Delete Mappings](08-masking-controls.md#reviewing-and-deleting-masked-entities)
+
+### Coding Agents
+- [Claude Code Setup](09-coding-agents.md#claude-code)
+- [Codex Setup](09-coding-agents.md#codex)
+- [Environment Variables](09-coding-agents.md#the-environment-variables-at-a-glance)
+- [Troubleshooting](09-coding-agents.md#troubleshooting)
 
 ## Document Status
 

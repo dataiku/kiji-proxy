@@ -27,6 +27,14 @@ import (
 
 const paramLimit = "limit"
 
+// JSON field names reused across the response wrappers and the SSE codecs.
+const (
+	jsonKeyType    = "type"
+	jsonKeyText    = "text"
+	jsonKeyDelta   = "delta"
+	jsonKeyContent = "content"
+)
+
 // Handler handles HTTP requests and proxies them to LLM provider
 type Handler struct {
 	client            *http.Client
@@ -280,7 +288,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				}
 
 				piiEntities = append(piiEntities, map[string]interface{}{
-					"text":        entity.Text,
+					jsonKeyText:   entity.Text,
 					"masked_text": maskedText,
 					"label":       entity.Label,
 					"confidence":  entity.Confidence,
@@ -589,7 +597,7 @@ func (h *Handler) MaskPIIInTextWithLogging(ctx context.Context, text, site strin
 func wrapPIICheckMessage(text, site, transactionID string) string {
 	envelope := map[string]any{
 		"messages": []map[string]string{
-			{"role": "user", "content": text},
+			{"role": "user", jsonKeyContent: text},
 		},
 		"_transaction_id": transactionID,
 	}
@@ -671,6 +679,42 @@ func (h *Handler) ProcessResponseBody(ctx context.Context, body []byte, contentT
 	}
 
 	return modifiedBody
+}
+
+// LogStreamedResponse records a streamed (SSE) response in the logging DB. The
+// usual ProcessResponseBody path is skipped for streams (the body is pumped
+// straight to the client), so this mirrors its response-logging half: a
+// response_masked row (the text the model actually returned, before PII
+// restoration) and a response_original row (the text delivered to the client,
+// after restoration), correlated by transactionID. Both assistant text and
+// tool-call argument JSON are captured (concatenated in the logged text);
+// tool_result blocks on the request side are not.
+func (h *Handler) LogStreamedResponse(ctx context.Context, transactionID, maskedText, restoredText string) {
+	if h.loggingDB == nil {
+		return
+	}
+	logCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	// Wrap the assistant text in a minimal Anthropic-shaped envelope so the
+	// transaction ID can be attached and the log UI can parse it consistently.
+	wrap := func(text string) string {
+		b, err := json.Marshal(map[string]interface{}{
+			"streamed":     true,
+			jsonKeyContent: []map[string]interface{}{{jsonKeyType: jsonKeyText, jsonKeyText: text}},
+		})
+		if err != nil {
+			return text
+		}
+		return h.addTransactionID(string(b), transactionID)
+	}
+
+	if err := h.loggingDB.InsertLog(logCtx, wrap(maskedText), "response_masked", []pii.Entity{}, false); err != nil {
+		log.Printf("[Proxy] ⚠️  Failed to log masked streamed response: %v", err)
+	}
+	if err := h.loggingDB.InsertLog(logCtx, wrap(restoredText), "response_original", []pii.Entity{}, false); err != nil {
+		log.Printf("[Proxy] ⚠️  Failed to log restored streamed response: %v", err)
+	}
 }
 
 // addTransactionID adds transaction ID to JSON message for log correlation

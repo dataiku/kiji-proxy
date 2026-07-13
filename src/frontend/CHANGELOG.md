@@ -1,5 +1,11 @@
 # kiji-privacy-proxy
 
+## 1.5.0
+
+### Minor Changes
+
+- ba62982: Add streaming (SSE) support for coding agents: Claude Code and Codex responses are now streamed through the proxy with PII masking/restoration applied per delta, including tool-call arguments. Streamed requests are also recorded in the dashboard metrics.
+
 ## 1.4.1
 
 ### Patch Changes

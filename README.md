@@ -217,6 +217,7 @@ Complete documentation is available in [docs/README.md](docs/README.md):
 - **[Chrome Extension](docs/06-chrome-extension.md)** - Building, configuring, and publishing the PII Guard extension
 - **[Customizing the PII Model](docs/07-customizing-pii-model.md)** - Training a model with your own entity types
 - **[Masking Controls & Review](docs/08-masking-controls.md)** - Disable entity types, custom regex, mapping review
+- **[Coding Agents (Codex & Claude Code)](docs/09-coding-agents.md)** - Route terminal coding agents through the proxy
 
 **Quick Links:**
 - [Installation Guide](docs/01-getting-started.md#quick-installation)
@@ -225,6 +226,7 @@ Complete documentation is available in [docs/README.md](docs/README.md):
 - [Build for macOS](docs/03-building-deployment.md#building-for-macos)
 - [Build for Linux](docs/03-building-deployment.md#building-for-linux)
 - [Masking Controls](docs/08-masking-controls.md) - disable entities, custom regex, review mappings
+- [Coding Agents Setup](docs/09-coding-agents.md) - Codex & Claude Code via the proxy
 
 ---
 

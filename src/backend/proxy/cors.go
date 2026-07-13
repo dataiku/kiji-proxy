@@ -51,7 +51,7 @@ func writeCORSPreflightOverTLS(conn net.Conn, r *http.Request) {
 	resp := &http.Response{
 		StatusCode:    http.StatusNoContent,
 		Status:        http.StatusText(http.StatusNoContent),
-		Proto:         "HTTP/1.1",
+		Proto:         protoHTTP11,
 		ProtoMajor:    1,
 		ProtoMinor:    1,
 		Header:        make(http.Header),
