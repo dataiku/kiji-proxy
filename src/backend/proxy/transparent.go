@@ -508,7 +508,7 @@ func (tp *TransparentProxy) interceptHTTPOverTLS(conn net.Conn, r *http.Request,
 	// the Codex backend streams SSE without a Content-Type header.
 	if wantStream && responseLooksLikeSSE(resp) {
 		log.Printf("[TransparentProxy] Streaming SSE response for %s", r.URL.Path)
-		codec := codecForProvider(provider, processed.MaskedToOriginal)
+		codec := codecForProvider(provider, r.URL.Path, processed.MaskedToOriginal)
 		if streamErr := streamSSEResponse(conn, resp, codec); streamErr != nil {
 			log.Printf("[TransparentProxy] ❌ Failed to stream SSE response: %v", streamErr)
 		}

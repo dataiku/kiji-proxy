@@ -40,7 +40,8 @@ type DatabaseConfig struct {
 
 // Provider config structs
 type DefaultProvidersConfig struct {
-	OpenAISubpath providers.ProviderType `json:"openai_subpath"`
+	OpenAISubpath    providers.ProviderType `json:"openai_subpath"`
+	AnthropicSubpath providers.ProviderType `json:"anthropic_subpath"`
 }
 
 type ProviderConfig struct {
@@ -272,7 +273,8 @@ func validateAdditionalHeaders(headers map[string]string, fieldName string) erro
 func DefaultConfig() *Config {
 	// Provider parameters
 	defaultProvidersConfig := DefaultProvidersConfig{
-		OpenAISubpath: providers.ProviderTypeOpenAI,
+		OpenAISubpath:    providers.ProviderTypeOpenAI,
+		AnthropicSubpath: providers.ProviderTypeAnthropic,
 	}
 
 	defaultOpenAIProviderConfig := ProviderConfig{

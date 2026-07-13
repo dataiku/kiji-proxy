@@ -800,13 +800,13 @@ The proxy uses two detection methods depending on the mode:
 
 ### Handling Subpath Clashes
 
-Some providers share the same API subpath. For example, OpenAI and Mistral both use `/v1/chat/completions`. When adding a provider with a clashing subpath:
+Some providers share the same API subpath. For example, OpenAI, Mistral, and MiniMax use `/v1/chat/completions`, while Anthropic and MiniMax use `/v1/messages`. When adding a provider with a clashing subpath:
 
-1. **Use the `defaultProviders` mechanism**: The `defaultProviders` struct in `provider.go` determines which provider is selected when subpaths clash. Currently, `OpenAISubpath` controls whether OpenAI or Mistral is chosen for `/v1/chat/completions`.
+1. **Use the `defaultProviders` mechanism**: The `defaultProviders` struct in `provider.go` determines which provider is selected when subpaths clash. `OpenAISubpath` selects the provider for `/v1/chat/completions`, and `AnthropicSubpath` selects the provider for `/v1/messages`.
 
 2. **Extend the mechanism if needed**: If your new provider clashes with a different subpath, you may need to add a new field to `defaultProviders` and update `NewDefaultProviders()` to validate it.
 
-3. **Config file control**: Users configure the default via `default_providers_config` in the config file (e.g., `"openai_subpath": "openai"` or `"openai_subpath": "mistral"`).
+3. **Config file control**: Users configure both defaults via `default_providers_config` in the config file (for example, `"openai_subpath": "minimax"` and `"anthropic_subpath": "minimax"`).
 
 4. **Explicit provider field**: Clients can always bypass subpath ambiguity by including `"provider": "<provider_name>"` in their request body, which takes precedence over subpath detection.
 

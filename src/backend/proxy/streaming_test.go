@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/dataiku/kiji-proxy/src/backend/providers"
 )
 
 // --- restoreCore / splitSafe ---
@@ -57,6 +59,17 @@ func TestRestoreCore(t *testing.T) {
 	}
 	if got := empty.restore("unchanged"); got != "unchanged" {
 		t.Errorf("restore with empty mapping = %q", got)
+	}
+}
+
+func TestCodecForMiniMaxProtocol(t *testing.T) {
+	var provider providers.Provider = providers.NewMiniMaxProvider("api.minimax.io/v1", "key", nil)
+
+	if _, ok := codecForProvider(&provider, "/v1/chat/completions", nil).(*openaiCodec); !ok {
+		t.Error("OpenAI-compatible MiniMax request should use openaiCodec")
+	}
+	if _, ok := codecForProvider(&provider, "/anthropic/v1/messages", nil).(*anthropicCodec); !ok {
+		t.Error("Anthropic-compatible MiniMax request should use anthropicCodec")
 	}
 }
 

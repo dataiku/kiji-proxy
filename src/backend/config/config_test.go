@@ -424,6 +424,9 @@ func TestDefaultConfig_MiniMaxProvider(t *testing.T) {
 	if !found {
 		t.Errorf("GetInterceptDomains() does not contain %q", wantDomain)
 	}
+	if got := cfg.Providers.DefaultProvidersConfig.AnthropicSubpath; got != providers.ProviderTypeAnthropic {
+		t.Errorf("AnthropicSubpath = %q, want %q", got, providers.ProviderTypeAnthropic)
+	}
 }
 
 // An absent "detectors" key must not clobber the default, while an explicit value

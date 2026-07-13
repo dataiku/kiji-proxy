@@ -3,6 +3,7 @@ package providers
 import (
 	"context"
 	"net/http"
+	"strings"
 	"testing"
 )
 
@@ -57,6 +58,28 @@ func TestMiniMaxProvider_SetAuthHeaders(t *testing.T) {
 		p.SetAuthHeaders(req)
 		if got := req.Header.Get("Authorization"); got != "Bearer existing" {
 			t.Errorf("Authorization = %q, want %q", got, "Bearer existing")
+		}
+	})
+
+	t.Run("sets X-Api-Key for Anthropic-compatible requests", func(t *testing.T) {
+		p := NewMiniMaxProvider("https://api.minimax.io/anthropic", "mm-test-key", nil)
+		req, _ := http.NewRequestWithContext(context.Background(), "POST", "https://api.minimax.io/anthropic/v1/messages", nil)
+		p.SetAuthHeaders(req)
+		if got := req.Header.Get("X-Api-Key"); got != "mm-test-key" {
+			t.Errorf("X-Api-Key = %q, want %q", got, "mm-test-key")
+		}
+		if got := req.Header.Get("Authorization"); got != "" {
+			t.Errorf("Authorization should be empty, got %q", got)
+		}
+	})
+
+	t.Run("does not override existing X-Api-Key", func(t *testing.T) {
+		p := NewMiniMaxProvider("https://api.minimax.io/anthropic", "mm-test-key", nil)
+		req, _ := http.NewRequestWithContext(context.Background(), "POST", "https://api.minimax.io/anthropic/v1/messages", nil)
+		req.Header.Set("X-Api-Key", "existing")
+		p.SetAuthHeaders(req)
+		if got := req.Header.Get("X-Api-Key"); got != "existing" {
+			t.Errorf("X-Api-Key = %q, want %q", got, "existing")
 		}
 	})
 
@@ -154,5 +177,44 @@ func TestMiniMaxProvider_ExtractResponseText(t *testing.T) {
 	}
 	if got != "Hello from MiniMax\n" {
 		t.Errorf("ExtractResponseText() = %q, want %q", got, "Hello from MiniMax\n")
+	}
+}
+
+func TestMiniMaxProvider_ExtractAnthropicResponseText(t *testing.T) {
+	p := NewMiniMaxProvider("https://api.minimax.io/anthropic", "key", nil)
+	data := map[string]interface{}{
+		"content": []interface{}{
+			map[string]interface{}{"type": "thinking", "thinking": "internal"},
+			map[string]interface{}{"type": "text", "text": "Hello from MiniMax"},
+		},
+	}
+
+	got, err := p.ExtractResponseText(data)
+	if err != nil {
+		t.Fatalf("ExtractResponseText() error = %v", err)
+	}
+	if got != "Hello from MiniMax\n" {
+		t.Errorf("ExtractResponseText() = %q, want %q", got, "Hello from MiniMax\n")
+	}
+}
+
+func TestMiniMaxProvider_RestoreAnthropicResponse(t *testing.T) {
+	p := NewMiniMaxProvider("https://api.minimax.io/anthropic", "key", nil)
+	data := map[string]interface{}{
+		"content": []interface{}{
+			map[string]interface{}{"type": "text", "text": "Hello Jane Smith"},
+		},
+	}
+	restore := func(text string, _ map[string]string) string {
+		return strings.ReplaceAll(text, "Jane Smith", "John Doe")
+	}
+
+	err := p.RestoreMaskedResponse(data, map[string]string{"Jane Smith": "John Doe"}, "", restore, falseFunc, falseFunc, falseFunc)
+	if err != nil {
+		t.Fatalf("RestoreMaskedResponse() error = %v", err)
+	}
+	content := data["content"].([]interface{})[0].(map[string]interface{})["text"]
+	if content != "Hello John Doe" {
+		t.Errorf("restored content = %q, want %q", content, "Hello John Doe")
 	}
 }

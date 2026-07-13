@@ -979,6 +979,7 @@ func NewHandler(cfg *config.Config) (*Handler, error) {
 
 	defaultProviders, err := providers.NewDefaultProviders(
 		cfg.Providers.DefaultProvidersConfig.OpenAISubpath,
+		cfg.Providers.DefaultProvidersConfig.AnthropicSubpath,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to set default providers: %w", err)
