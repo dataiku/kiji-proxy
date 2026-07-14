@@ -71,44 +71,75 @@ func EmailGenerator(rng *rand.Rand, original string) string {
 	return fmt.Sprintf("%s.%s@%s", firstName, lastName, domain)
 }
 
-// PhoneGenerator generates dummy phone numbers
+// PhoneGenerator generates dummy phone numbers. The exchange is fixed to 555
+// and the line number to 0100-0199 — the NANP block reserved for fictional
+// use — so the output looks real but can never be a dialable subscriber
+// number belonging to someone.
 func PhoneGenerator(rng *rand.Rand, original string) string {
 	// Generate a random 3-digit area code (200-999)
 	areaCode := 200 + rng.Intn(800)
 
-	// Generate a random 3-digit exchange (200-999)
-	exchange := 200 + rng.Intn(800)
-
-	// Generate a random 4-digit number
-	number := 1000 + rng.Intn(9000)
+	// Line number in the reserved fictional range 0100-0199
+	line := 100 + rng.Intn(100)
 
 	// Randomly choose format
-	formats := []string{"%d-%d-%d", "%d.%d.%d", "(%d) %d-%d"}
+	formats := []string{"%d-555-%04d", "%d.555.%04d", "(%d) 555-%04d"}
 	format := formats[rng.Intn(len(formats))]
 
-	return fmt.Sprintf(format, areaCode, exchange, number)
+	return fmt.Sprintf(format, areaCode, line)
 }
 
-// SSNGenerator generates dummy SSN numbers (SOCIALNUM)
+// SSNGenerator generates dummy SSN numbers (SOCIALNUM). The area number is
+// drawn from 900-999, which the SSA has never issued and has reserved against
+// future issuance, so the output looks real but can never collide with an
+// actual person's SSN.
 func SSNGenerator(rng *rand.Rand, original string) string {
-	// Generate random numbers, avoiding obvious patterns
-	first := 100 + rng.Intn(900)   // 100-999
-	second := 10 + rng.Intn(90)    // 10-99
-	third := 1000 + rng.Intn(9000) // 1000-9999
+	area := 900 + rng.Intn(100)     // 900-999: never issued
+	group := 10 + rng.Intn(90)      // 10-99
+	serial := 1000 + rng.Intn(9000) // 1000-9999
 
-	return fmt.Sprintf("%d-%d-%d", first, second, third)
+	return fmt.Sprintf("%d-%d-%d", area, group, serial)
 }
 
-// CreditCardGenerator generates dummy credit card numbers
+// luhnCheckDigit returns the check digit that would make digits followed by
+// that digit pass the Luhn checksum.
+func luhnCheckDigit(digits []int) int {
+	sum := 0
+	// Walk right to left; with the check digit occupying the final position,
+	// the rightmost digit here sits in a doubled position.
+	for i := 0; i < len(digits); i++ {
+		d := digits[len(digits)-1-i]
+		if i%2 == 0 {
+			d *= 2
+			if d > 9 {
+				d -= 9
+			}
+		}
+		sum += d
+	}
+	return (10 - sum%10) % 10
+}
+
+// CreditCardGenerator generates dummy credit card numbers that deliberately
+// fail the Luhn checksum: the final digit is chosen to be anything except the
+// valid check digit, so the output looks real but is never an issuable card
+// number.
 func CreditCardGenerator(rng *rand.Rand, original string) string {
-	// Generate 4 groups of 4 digits
-	groups := make([]int, 4)
-	for i := range groups {
-		groups[i] = 1000 + rng.Intn(9000)
+	digits := make([]int, 16)
+	// Lead with a real-looking network digit (Visa/Mastercard/Discover style)
+	digits[0] = 4 + rng.Intn(3)
+	for i := 1; i < 15; i++ {
+		digits[i] = rng.Intn(10)
+	}
+	digits[15] = (luhnCheckDigit(digits[:15]) + 1 + rng.Intn(9)) % 10
+
+	var groups [4]string
+	for g := 0; g < 4; g++ {
+		groups[g] = fmt.Sprintf("%d%d%d%d", digits[g*4], digits[g*4+1], digits[g*4+2], digits[g*4+3])
 	}
 
 	// Randomly choose format
-	formats := []string{"%d %d %d %d", "%d-%d-%d-%d"}
+	formats := []string{"%s %s %s %s", "%s-%s-%s-%s"}
 	format := formats[rng.Intn(len(formats))]
 
 	return fmt.Sprintf(format, groups[0], groups[1], groups[2], groups[3])
@@ -158,7 +189,7 @@ func StreetGenerator(rng *rand.Rand, original string) string {
 		"King Street", "Manor Road", "Park Lane", "The Crescent", "Green Lane",
 		"Mill Lane", "New Road", "Chapel Street", "West End", "North Terrace",
 	}
-	return streetNames[rng.Intn(len(streetNames))]
+	return pickExcluding(rng, streetNames, original)
 }
 
 // ZipCodeGenerator generates dummy zip codes

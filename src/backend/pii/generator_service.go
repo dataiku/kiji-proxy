@@ -50,10 +50,23 @@ func NewGeneratorService() *GeneratorService {
 	}
 }
 
-// GenerateReplacement generates a replacement for the given PII label and original text
+// generateAttempts is how many times a label's generator may collide with the
+// original before we fall back to the deterministic placeholder.
+const generateAttempts = 3
+
+// GenerateReplacement generates a replacement for the given PII label and
+// original text. The replacement is guaranteed to differ from the original:
+// returning it unchanged would leak the very PII we are masking, so after a
+// few collisions we fall back to GenericGenerator's [REDACTED_...] placeholder,
+// which embeds a hash of the original and therefore never equals it.
 func (s *GeneratorService) GenerateReplacement(label, originalText string) string {
 	generator := s.getGeneratorForLabel(label)
-	return generator(originalText)
+	for attempt := 0; attempt < generateAttempts; attempt++ {
+		if replacement := generator(originalText); replacement != originalText {
+			return replacement
+		}
+	}
+	return piiGenerators.GenericGenerator(label, originalText)
 }
 
 // getGeneratorForLabel returns the appropriate generator function for the given label

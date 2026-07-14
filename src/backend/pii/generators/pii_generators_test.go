@@ -103,7 +103,7 @@ func TestUsernameGenerator(t *testing.T) {
 
 func TestDateOfBirthGenerator(t *testing.T) {
 	rng := getTestRand(42)
-	
+
 	// Test with empty original
 	result := DateOfBirthGenerator(rng, "")
 	datePattern := regexp.MustCompile(`^\d{2}/\d{2}/\d{4}$`)
@@ -141,7 +141,7 @@ func TestStreetGenerator(t *testing.T) {
 
 func TestZipCodeGenerator(t *testing.T) {
 	rng := getTestRand(42)
-	
+
 	// Test basic 5-digit zip
 	result := ZipCodeGenerator(rng, "")
 	zipPattern := regexp.MustCompile(`^\d{5}$`)
@@ -255,9 +255,9 @@ func TestUrlGenerator(t *testing.T) {
 	}
 
 	// Check that it uses reserved domains
-	hasReservedDomain := strings.Contains(result, "example.") || 
-		strings.Contains(result, "test.") || 
-		strings.Contains(result, "invalid.") || 
+	hasReservedDomain := strings.Contains(result, "example.") ||
+		strings.Contains(result, "test.") ||
+		strings.Contains(result, "invalid.") ||
 		strings.Contains(result, "localhost.")
 	if !hasReservedDomain {
 		t.Errorf("UrlGenerator returned URL with non-reserved domain: %s", result)
@@ -435,6 +435,75 @@ func TestGenericGenerator(t *testing.T) {
 	}
 }
 
+// The exchange must be 555 and the line number 0100-0199 — the NANP block
+// reserved for fictional use — so a generated number is never dialable.
+func TestPhoneGeneratorFictionalRange(t *testing.T) {
+	phonePattern := regexp.MustCompile(`^(\(\d{3}\) 555-01\d{2}|\d{3}-555-01\d{2}|\d{3}\.555\.01\d{2})$`)
+	for seed := int64(0); seed < 50; seed++ {
+		result := PhoneGenerator(getTestRand(seed), "")
+		if !phonePattern.MatchString(result) {
+			t.Errorf("PhoneGenerator returned number outside the 555-01XX fictional range: %s", result)
+		}
+	}
+}
+
+// The area number must fall in 900-999, which the SSA has never issued, so a
+// generated SSN can never collide with a real person's.
+func TestSSNGeneratorNeverIssuedArea(t *testing.T) {
+	for seed := int64(0); seed < 50; seed++ {
+		result := SSNGenerator(getTestRand(seed), "")
+		var area, group, serial int
+		if _, err := fmt.Sscanf(result, "%d-%d-%d", &area, &group, &serial); err != nil {
+			t.Fatalf("SSNGenerator returned unparseable SSN: %s", result)
+		}
+		if area < 900 || area > 999 {
+			t.Errorf("SSNGenerator returned area %d, expected never-issued range 900-999: %s", area, result)
+		}
+	}
+}
+
+// luhnValid reports whether a full card number (check digit included) passes
+// the Luhn checksum.
+func luhnValid(digits []int) bool {
+	sum := 0
+	for i := 0; i < len(digits); i++ {
+		d := digits[len(digits)-1-i]
+		if i%2 == 1 {
+			d *= 2
+			if d > 9 {
+				d -= 9
+			}
+		}
+		sum += d
+	}
+	return sum%10 == 0
+}
+
+// Generated card numbers must deliberately fail the Luhn checksum so they can
+// never be an issuable card number.
+func TestCreditCardGeneratorFailsLuhn(t *testing.T) {
+	for seed := int64(0); seed < 100; seed++ {
+		result := CreditCardGenerator(getTestRand(seed), "")
+		cleaned := strings.NewReplacer(" ", "", "-", "").Replace(result)
+		digits := make([]int, 0, len(cleaned))
+		for _, ch := range cleaned {
+			digits = append(digits, int(ch-'0'))
+		}
+		if luhnValid(digits) {
+			t.Errorf("CreditCardGenerator returned a Luhn-valid number: %s", result)
+		}
+	}
+}
+
+// Echoing the original street back would leak the PII we are masking.
+func TestStreetGeneratorExcludesOriginal(t *testing.T) {
+	for seed := int64(0); seed < 100; seed++ {
+		if result := StreetGenerator(getTestRand(seed), "Main St"); result == "Main St" {
+			t.Errorf("StreetGenerator returned the original street name (seed %d)", seed)
+		}
+	}
+}
+
 // Test that generators produce different outputs with different seeds
 func TestGeneratorsDifferentSeeds(t *testing.T) {
 	rng1 := getTestRand(1)
@@ -464,32 +533,32 @@ func TestGeneratorsSameSeed(t *testing.T) {
 // Test all generators return non-empty strings
 func TestAllGeneratorsNonEmpty(t *testing.T) {
 	generators := map[string]func(*rand.Rand, string) string{
-		"EmailGenerator":              EmailGenerator,
-		"PhoneGenerator":              PhoneGenerator,
-		"SSNGenerator":                SSNGenerator,
-		"CreditCardGenerator":         CreditCardGenerator,
-		"UsernameGenerator":           UsernameGenerator,
-		"DateOfBirthGenerator":        DateOfBirthGenerator,
-		"StreetGenerator":             StreetGenerator,
-		"ZipCodeGenerator":            ZipCodeGenerator,
-		"CityGenerator":               CityGenerator,
-		"BuildingNumGenerator":        BuildingNumGenerator,
-		"FirstNameGenerator":          FirstNameGenerator,
-		"SurnameGenerator":            SurnameGenerator,
-		"IDCardNumGenerator":          IDCardNumGenerator,
-		"DriverLicenseNumGenerator":   DriverLicenseNumGenerator,
-		"TaxNumGenerator":             TaxNumGenerator,
-		"UrlGenerator":                UrlGenerator,
-		"CompanyNameGenerator":        CompanyNameGenerator,
-		"StateGenerator":              StateGenerator,
-		"CountryGenerator":            CountryGenerator,
-		"PassportIdGenerator":         PassportIdGenerator,
-		"NationalIdGenerator":         NationalIdGenerator,
-		"LicensePlateNumGenerator":    LicensePlateNumGenerator,
-		"PasswordGenerator":           PasswordGenerator,
-		"IbanGenerator":               IbanGenerator,
-		"AgeGenerator":                AgeGenerator,
-		"SecurityTokenGenerator":      SecurityTokenGenerator,
+		"EmailGenerator":            EmailGenerator,
+		"PhoneGenerator":            PhoneGenerator,
+		"SSNGenerator":              SSNGenerator,
+		"CreditCardGenerator":       CreditCardGenerator,
+		"UsernameGenerator":         UsernameGenerator,
+		"DateOfBirthGenerator":      DateOfBirthGenerator,
+		"StreetGenerator":           StreetGenerator,
+		"ZipCodeGenerator":          ZipCodeGenerator,
+		"CityGenerator":             CityGenerator,
+		"BuildingNumGenerator":      BuildingNumGenerator,
+		"FirstNameGenerator":        FirstNameGenerator,
+		"SurnameGenerator":          SurnameGenerator,
+		"IDCardNumGenerator":        IDCardNumGenerator,
+		"DriverLicenseNumGenerator": DriverLicenseNumGenerator,
+		"TaxNumGenerator":           TaxNumGenerator,
+		"UrlGenerator":              UrlGenerator,
+		"CompanyNameGenerator":      CompanyNameGenerator,
+		"StateGenerator":            StateGenerator,
+		"CountryGenerator":          CountryGenerator,
+		"PassportIdGenerator":       PassportIdGenerator,
+		"NationalIdGenerator":       NationalIdGenerator,
+		"LicensePlateNumGenerator":  LicensePlateNumGenerator,
+		"PasswordGenerator":         PasswordGenerator,
+		"IbanGenerator":             IbanGenerator,
+		"AgeGenerator":              AgeGenerator,
+		"SecurityTokenGenerator":    SecurityTokenGenerator,
 	}
 
 	for name, generator := range generators {
