@@ -824,7 +824,13 @@ func (h *Handler) createAndSendProxyRequest(r *http.Request, body []byte, provid
 // reasoning-model routing from /v1/chat/completions to /v1/responses).
 func (h *Handler) buildTargetURL(r *http.Request, provider *providers.Provider, requestPath string) (string, error) {
 	useHttps := true
-	baseURL := strings.TrimSuffix((*provider).GetBaseURL(useHttps), "/")
+	baseURL := (*provider).GetBaseURL(useHttps)
+	if pathAware, ok := (*provider).(interface {
+		GetBaseURLForPath(bool, string) string
+	}); ok {
+		baseURL = pathAware.GetBaseURLForPath(useHttps, requestPath)
+	}
+	baseURL = strings.TrimSuffix(baseURL, "/")
 
 	// Parse the base URL to extract any path prefix (e.g. "/v1" from "https://api.openai.com/v1")
 	parsed, err := url.Parse(baseURL)

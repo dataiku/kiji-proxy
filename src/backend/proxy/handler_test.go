@@ -413,7 +413,11 @@ func TestHandler_AddTransactionID(t *testing.T) {
 
 func TestHandler_BuildTargetURL(t *testing.T) {
 	openAIProvider := providers.NewOpenAIProvider("api.openai.com", "sk-test", nil)
+	globalMiniMaxProvider := providers.NewMiniMaxProvider("https://api.minimax.io/anthropic", "mm-test", nil)
+	chinaMiniMaxProvider := providers.NewMiniMaxProvider("https://api.minimaxi.com/v1", "mm-test", nil)
 	var provider providers.Provider = openAIProvider
+	var globalMiniMax providers.Provider = globalMiniMaxProvider
+	var chinaMiniMax providers.Provider = chinaMiniMaxProvider
 
 	h := &Handler{}
 
@@ -437,6 +441,18 @@ func TestHandler_BuildTargetURL(t *testing.T) {
 			query:    "stream=true",
 			provider: provider,
 			want:     "https://api.openai.com/v1/chat/completions?stream=true",
+		},
+		{
+			name:     "MiniMax OpenAI-compatible path from Anthropic root",
+			path:     "/v1/chat/completions",
+			provider: globalMiniMax,
+			want:     "https://api.minimax.io/v1/chat/completions",
+		},
+		{
+			name:     "MiniMax Anthropic-compatible path from OpenAI root",
+			path:     "/v1/messages",
+			provider: chinaMiniMax,
+			want:     "https://api.minimaxi.com/anthropic/v1/messages",
 		},
 	}
 

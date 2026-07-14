@@ -443,7 +443,7 @@ export TRANSPARENT_PROXY_KEY_PATH="~/.kiji-proxy/certs/ca.key"
 | Global | `https://api.minimax.io/v1` | `https://api.minimax.io/anthropic` |
 | Mainland China | `https://api.minimaxi.com/v1` | `https://api.minimaxi.com/anthropic` |
 
-Use one of these values for `MINIMAX_BASE_URL` or `minimax_provider_config.api_domain`. For forward-proxy OpenAI-compatible clients, set `openai_subpath` to `"minimax"`. For forward-proxy Anthropic-compatible clients, set `anthropic_subpath` to `"minimax"`; the client appends `/v1/messages` directly to the configured `/anthropic` base URL.
+Use either official base URL for `MINIMAX_BASE_URL` or `minimax_provider_config.api_domain`. The forward proxy derives the matching official root for each request protocol, so the same configuration supports both `/v1/chat/completions` and `/v1/messages`. Set `openai_subpath` and `anthropic_subpath` to `"minimax"` when those shared paths should default to MiniMax.
 
 ### Provider Detection
 

@@ -2,6 +2,7 @@ package providers
 
 import (
 	"net/http"
+	"net/url"
 	"strings"
 )
 
@@ -30,6 +31,31 @@ func (p *MiniMaxProvider) GetName() string {
 
 func (p *MiniMaxProvider) GetType() ProviderType {
 	return ProviderTypeMiniMax
+}
+
+// GetBaseURLForPath selects the official MiniMax API root for the request
+// protocol. The provider accepts either official root in configuration, while
+// forward-proxy requests use the shared /v1 paths for both protocols.
+func (p *MiniMaxProvider) GetBaseURLForPath(useHttps bool, requestPath string) string {
+	baseURL := normalizeBaseURL(p.apiDomain, useHttps)
+	parsed, err := url.Parse(baseURL)
+	if err != nil || !isOfficialMiniMaxHost(parsed.Hostname()) {
+		return baseURL
+	}
+
+	if IsAnthropicMessagesPath(requestPath) {
+		parsed.Path = "/anthropic"
+	} else {
+		parsed.Path = "/v1"
+	}
+	parsed.RawPath = ""
+	parsed.RawQuery = ""
+	parsed.Fragment = ""
+	return strings.TrimSuffix(parsed.String(), "/")
+}
+
+func isOfficialMiniMaxHost(host string) bool {
+	return host == "api.minimax.io" || host == "api.minimaxi.com"
 }
 
 func (p *MiniMaxProvider) ExtractResponseText(data map[string]interface{}) (string, error) {

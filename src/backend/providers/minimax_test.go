@@ -41,6 +41,55 @@ func TestMiniMaxProvider_GetBaseURL(t *testing.T) {
 	}
 }
 
+func TestMiniMaxProvider_GetBaseURLForPath(t *testing.T) {
+	tests := []struct {
+		name        string
+		apiDomain   string
+		requestPath string
+		want        string
+	}{
+		{
+			name:        "global OpenAI root for chat completions",
+			apiDomain:   "https://api.minimax.io/anthropic",
+			requestPath: "/v1/chat/completions",
+			want:        "https://api.minimax.io/v1",
+		},
+		{
+			name:        "global Anthropic root for messages",
+			apiDomain:   "https://api.minimax.io/v1",
+			requestPath: "/v1/messages",
+			want:        "https://api.minimax.io/anthropic",
+		},
+		{
+			name:        "mainland China OpenAI root for chat completions",
+			apiDomain:   "https://api.minimaxi.com/anthropic",
+			requestPath: "/v1/chat/completions",
+			want:        "https://api.minimaxi.com/v1",
+		},
+		{
+			name:        "mainland China Anthropic root for messages",
+			apiDomain:   "https://api.minimaxi.com/v1",
+			requestPath: "/v1/messages",
+			want:        "https://api.minimaxi.com/anthropic",
+		},
+		{
+			name:        "custom endpoint remains unchanged",
+			apiDomain:   "https://minimax.example.test/api",
+			requestPath: "/v1/messages",
+			want:        "https://minimax.example.test/api",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := NewMiniMaxProvider(tt.apiDomain, "key", nil)
+			if got := p.GetBaseURLForPath(true, tt.requestPath); got != tt.want {
+				t.Errorf("GetBaseURLForPath() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestMiniMaxProvider_SetAuthHeaders(t *testing.T) {
 	t.Run("sets Authorization header", func(t *testing.T) {
 		p := NewMiniMaxProvider("api.minimax.io/v1", "mm-test-key", nil)
