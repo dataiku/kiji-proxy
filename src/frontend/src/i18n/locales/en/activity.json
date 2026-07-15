@@ -1,0 +1,67 @@
+{
+  "title": "Activity",
+  "subtitle": "Every request intercepted by Kiji, with the PII it detected and masked.",
+  "entryCount_one": "{{count}} entry",
+  "entryCount_other": "{{count}} entries",
+  "clearLogs": "Clear Logs",
+  "clearLogsTitle": "Clear all logs",
+  "confirm": {
+    "title": "Clear All Logs?",
+    "body_one": "This will permanently delete all {{count}} log entry. This action cannot be undone.",
+    "body_other": "This will permanently delete all {{count}} log entries. This action cannot be undone.",
+    "cancel": "Cancel",
+    "clearing": "Clearing...",
+    "clearAll": "Clear All Logs"
+  },
+  "toggle": {
+    "messagesOnly": "Messages Only",
+    "fullJson": "Full JSON",
+    "showingFull": "Showing complete request/response",
+    "showingMessages": "Showing message content only"
+  },
+  "error": {
+    "loading": "Error loading logs:",
+    "retry": "Retry"
+  },
+  "table": {
+    "direction": "Direction",
+    "model": "Model",
+    "message": "Message",
+    "detectedPII": "Detected PII",
+    "blocked": "Blocked",
+    "timestamp": "Time Stamp"
+  },
+  "empty": "No log entries found",
+  "messageCount_one": "{{count}} message",
+  "messageCount_other": "{{count}} messages",
+  "blocked": {
+    "yes": "Yes",
+    "no": "No"
+  },
+  "report": {
+    "label": "Report",
+    "noPII": "No PII detected in this log",
+    "report": "Report misclassification"
+  },
+  "loadMore": "Load More Logs",
+  "loadingMore": "Loading more...",
+  "footer": {
+    "showing_one": "Showing {{shown}} of {{count}} log entry",
+    "showing_other": "Showing {{shown}} of {{count}} log entries",
+    "moreAvailable": "(more available)",
+    "largeCount": "Large log count detected. Consider clearing old logs to improve performance."
+  },
+  "direction": {
+    "requestOriginal": "Request (Original)",
+    "requestMasked": "Request (To {{provider}})",
+    "responseMasked": "Response (From {{provider}})",
+    "responseOriginal": "Response (Restored)",
+    "request": "Request",
+    "response": "Response"
+  },
+  "message": {
+    "noContent": "No message content",
+    "truncated": "... [Message truncated for display]",
+    "truncatedJson": "... [JSON truncated for display]"
+  }
+}

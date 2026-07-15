@@ -1,0 +1,32 @@
+{
+  "title": "Welcome to Kiji Privacy Proxy",
+  "role": {
+    "question": "How are you using Kiji?",
+    "admin": {
+      "title": "I'm an admin",
+      "desc": "Setting up Kiji for others"
+    },
+    "user": {
+      "title": "I'm a user",
+      "desc": "Using Kiji myself"
+    }
+  },
+  "welcome": {
+    "intro": "Kiji masks personal data in your prompts before they reach any AI provider — all on your device.",
+    "getStarted": "Get Started"
+  },
+  "promises": {
+    "local": {
+      "title": "100% local",
+      "desc": "PII detection runs on your device."
+    },
+    "thirdParty": {
+      "title": "No 3rd-party",
+      "desc": "Data only goes to your chosen AI."
+    },
+    "openSource": {
+      "title": "Open source",
+      "desc": "Inspect and verify every claim."
+    }
+  }
+}

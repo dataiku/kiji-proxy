@@ -114,6 +114,10 @@ jobs:
         working-directory: src/frontend
         run: npm run type-check
 
+      - name: Check i18n translation parity
+        working-directory: src/frontend
+        run: npm run i18n:check
+
   actionlint:
     runs-on: ubuntu-latest
     name: Workflow Lint (actionlint)

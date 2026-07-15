@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   X,
   Shield,
@@ -24,24 +25,13 @@ interface WelcomeModalProps {
 export const ADMIN_ROLE_CHOSEN_EVENT = "kiji:admin-role-chosen";
 
 const promises = [
-  {
-    icon: Lock,
-    title: "100% local",
-    desc: "PII detection runs on your device.",
-  },
-  {
-    icon: Ban,
-    title: "No 3rd-party",
-    desc: "Data only goes to your chosen AI.",
-  },
-  {
-    icon: Code2,
-    title: "Open source",
-    desc: "Inspect and verify every claim.",
-  },
-];
+  { icon: Lock, key: "local" },
+  { icon: Ban, key: "thirdParty" },
+  { icon: Code2, key: "openSource" },
+] as const;
 
 export default function WelcomeModal({ isOpen, onClose }: WelcomeModalProps) {
+  const { t } = useTranslation("onboarding");
   // "role" = ask whether the user is an admin; "welcome" = show the explainer.
   const [step, setStep] = useState<"role" | "welcome">("role");
 
@@ -83,13 +73,13 @@ export default function WelcomeModal({ isOpen, onClose }: WelcomeModalProps) {
               <Shield className="w-5 h-5" />
             </div>
             <h2 className="text-base font-semibold text-brand-900 tracking-tight">
-              Welcome to Kiji Privacy Proxy
+              {t("title")}
             </h2>
           </div>
           <button
             onClick={dismiss}
             className="p-1 text-stone-400 hover:text-stone-600 transition-colors"
-            aria-label="Close"
+            aria-label={t("common:actions.close")}
           >
             <X className="w-5 h-5" />
           </button>
@@ -99,7 +89,9 @@ export default function WelcomeModal({ isOpen, onClose }: WelcomeModalProps) {
         <div className="p-6">
           {step === "role" ? (
             <div className="space-y-4">
-              <p className="text-[13px] text-stone-500">How are you using Kiji?</p>
+              <p className="text-[13px] text-stone-500">
+                {t("role.question")}
+              </p>
               <button
                 onClick={handleAdmin}
                 className="group w-full flex items-center gap-3 text-left p-4 rounded-xl ring-1 ring-stone-200 hover:bg-stone-50 hover:ring-brand-200 transition-colors"
@@ -109,10 +101,10 @@ export default function WelcomeModal({ isOpen, onClose }: WelcomeModalProps) {
                 </div>
                 <div className="flex-1">
                   <div className="text-sm font-semibold text-stone-900">
-                    I'm an admin
+                    {t("role.admin.title")}
                   </div>
                   <div className="text-[13px] text-stone-500">
-                    Setting up Kiji for others
+                    {t("role.admin.desc")}
                   </div>
                 </div>
                 <ChevronRight className="w-4 h-4 text-stone-300 group-hover:text-brand-500 transition-colors" />
@@ -126,10 +118,10 @@ export default function WelcomeModal({ isOpen, onClose }: WelcomeModalProps) {
                 </div>
                 <div className="flex-1">
                   <div className="text-sm font-semibold text-stone-900">
-                    I'm a user
+                    {t("role.user.title")}
                   </div>
                   <div className="text-[13px] text-stone-500">
-                    Using Kiji myself
+                    {t("role.user.desc")}
                   </div>
                 </div>
                 <ChevronRight className="w-4 h-4 text-stone-300 group-hover:text-brand-500 transition-colors" />
@@ -138,23 +130,22 @@ export default function WelcomeModal({ isOpen, onClose }: WelcomeModalProps) {
           ) : (
             <div className="space-y-5">
               <p className="text-sm text-stone-600 leading-relaxed">
-                Kiji masks personal data in your prompts before they reach any
-                AI provider — all on your device.
+                {t("welcome.intro")}
               </p>
               <div className="grid grid-cols-3 gap-3">
-                {promises.map(({ icon: Icon, title, desc }) => (
+                {promises.map(({ icon: Icon, key }) => (
                   <div
-                    key={title}
+                    key={key}
                     className="rounded-xl ring-1 ring-stone-200 p-3.5"
                   >
                     <div className="w-8 h-8 rounded-lg bg-brand-50 ring-1 ring-brand-100 flex items-center justify-center text-brand-600 mb-2.5">
                       <Icon className="w-4 h-4" />
                     </div>
                     <div className="text-[13px] font-semibold text-stone-900">
-                      {title}
+                      {t(`promises.${key}.title`)}
                     </div>
                     <div className="text-[11px] text-stone-500 leading-snug mt-0.5">
-                      {desc}
+                      {t(`promises.${key}.desc`)}
                     </div>
                   </div>
                 ))}
@@ -163,7 +154,7 @@ export default function WelcomeModal({ isOpen, onClose }: WelcomeModalProps) {
                 onClick={dismiss}
                 className="btn-brand inline-flex w-full items-center justify-center gap-2 px-5 py-2.5 text-white rounded-xl text-sm font-medium tracking-tight"
               >
-                Get Started
+                {t("welcome.getStarted")}
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>

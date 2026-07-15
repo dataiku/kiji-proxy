@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import {
   ShieldCheck,
   Shield,
@@ -9,47 +11,27 @@ import {
 } from "lucide-react";
 import { apiUrl, isElectron } from "../../utils/providerHelpers";
 
-// Friendly display names for the model's raw entity labels. Unknown labels
-// (e.g. from a custom model) fall back to a capitalized form.
-const ENTITY_LABEL_NAMES: Record<string, string> = {
-  SURNAME: "Surname",
-  FIRSTNAME: "First Name",
-  BUILDINGNUM: "Building Number",
-  DATEOFBIRTH: "Date of Birth",
-  EMAIL: "Email",
-  PHONENUMBER: "Phone Number",
-  CITY: "City",
-  URL: "URL",
-  COMPANYNAME: "Company Name",
-  STATE: "State",
-  ZIP: "ZIP Code",
-  STREET: "Street",
-  COUNTRY: "Country",
-  SSN: "SSN",
-  DRIVERLICENSENUM: "Driver License Number",
-  PASSPORTID: "Passport ID",
-  NATIONALID: "National ID",
-  IDCARDNUM: "ID Card Number",
-  TAXNUM: "Tax Number",
-  LICENSEPLATENUM: "License Plate Number",
-  PASSWORD: "Password",
-  IBAN: "IBAN",
-  AGE: "Age",
-  SECURITYTOKEN: "Security Token",
-  CREDITCARDNUMBER: "Credit Card Number",
-  USERNAME: "Username",
-};
-
-const humanizeEntity = (label: string): string =>
-  ENTITY_LABEL_NAMES[label] ??
-  label.charAt(0).toUpperCase() + label.slice(1).toLowerCase();
+// Friendly display names for the model's raw entity labels come from the
+// `settings` locale (pii.entityLabels). Unknown labels (e.g. from a custom
+// model) fall back to a capitalized form.
+const humanizeEntity = (label: string, t: TFunction): string =>
+  t(`pii.entityLabels.${label}`, {
+    defaultValue:
+      label.charAt(0).toUpperCase() + label.slice(1).toLowerCase(),
+  });
 
 function SavedHint({ show }: { show: boolean }) {
+  const { t } = useTranslation("settings");
   if (!show) return null;
-  return <span className="text-xs text-brand-600 font-medium">Saved</span>;
+  return (
+    <span className="text-xs text-brand-600 font-medium">
+      {t("pii.saved")}
+    </span>
+  );
 }
 
 export default function PIISection() {
+  const { t } = useTranslation("settings");
   // PII detection confidence state
   const [entityConfidence, setEntityConfidence] = useState(0.25);
   const [confidenceSaved, setConfidenceSaved] = useState(false);
@@ -195,16 +177,14 @@ export default function PIISection() {
       if (!res.ok) {
         // The backend rejects invalid patterns with a 400; surface a friendly
         // hint rather than the low-level transport error.
-        setRegexError(
-          "Failed to save patterns. Check that each name and pattern is a valid RE2 expression."
-        );
+        setRegexError(t("pii.regex.saveFailedInvalid"));
         return;
       }
       setRegexesSaved(true);
       setTimeout(() => setRegexesSaved(false), 2000);
     } catch (error) {
       console.error("Error saving custom regexes:", error);
-      setRegexError("Failed to save patterns.");
+      setRegexError(t("pii.regex.saveFailed"));
     }
   };
 
@@ -236,9 +216,9 @@ export default function PIISection() {
   // catches more (higher sensitivity), so "High" sensitivity maps to 0.1 and
   // "Low" to 0.5. Medium (0.25) stays the default.
   const SENSITIVITY = [
-    { label: "Low", value: 0.5 },
-    { label: "Medium", value: 0.25 },
-    { label: "High", value: 0.1 },
+    { key: "low", value: 0.5 },
+    { key: "medium", value: 0.25 },
+    { key: "high", value: 0.1 },
   ] as const;
 
   return (
@@ -250,11 +230,9 @@ export default function PIISection() {
         </div>
         <div>
           <h2 className="text-base font-semibold text-brand-900 tracking-tight">
-            PII Detection
+            {t("pii.title")}
           </h2>
-          <p className="text-[13px] text-stone-500">
-            Tune how aggressively data is detected and what gets masked.
-          </p>
+          <p className="text-[13px] text-stone-500">{t("pii.subtitle")}</p>
         </div>
       </div>
 
@@ -263,11 +241,11 @@ export default function PIISection() {
         <div>
           <label className="text-sm font-semibold text-stone-700 mb-2 flex items-center gap-2">
             <Shield className="w-4 h-4" />
-            Detection sensitivity
+            {t("pii.sensitivity.label")}
             <SavedHint show={confidenceSaved} />
           </label>
           <div className="inline-flex w-full p-1 rounded-xl bg-stone-100 ring-1 ring-stone-200/70">
-            {SENSITIVITY.map(({ label, value }) => (
+            {SENSITIVITY.map(({ key, value }) => (
               <button
                 key={value}
                 onClick={() => handleSetEntityConfidence(value)}
@@ -277,14 +255,12 @@ export default function PIISection() {
                     : "text-stone-500 hover:text-stone-700"
                 }`}
               >
-                {label}
+                {t(`pii.sensitivity.${key}`)}
               </button>
             ))}
           </div>
           <p className="text-xs text-stone-500 mt-2">
-            Controls how aggressively PII is detected. High catches more
-            potential PII but may have false positives. Low is more precise but
-            may miss some PII.
+            {t("pii.sensitivity.help")}
           </p>
         </div>
 
@@ -293,7 +269,7 @@ export default function PIISection() {
           <div className="flex items-center justify-between mb-2">
             <label className="text-sm font-semibold text-stone-700 flex items-center gap-2">
               <ListChecks className="w-4 h-4" />
-              Entities to mask
+              {t("pii.entities.label")}
               <SavedHint show={entitiesSaved} />
             </label>
             <div className="flex items-center gap-2 text-xs">
@@ -302,7 +278,7 @@ export default function PIISection() {
                 disabled={availableEntities.length === 0}
                 className="text-brand-600 hover:text-brand-700 disabled:opacity-40 disabled:cursor-not-allowed font-medium"
               >
-                Select all
+                {t("pii.entities.selectAll")}
               </button>
               <span className="text-stone-300">|</span>
               <button
@@ -310,16 +286,13 @@ export default function PIISection() {
                 disabled={availableEntities.length === 0}
                 className="text-brand-600 hover:text-brand-700 disabled:opacity-40 disabled:cursor-not-allowed font-medium"
               >
-                Deselect all
+                {t("pii.entities.deselectAll")}
               </button>
             </div>
           </div>
 
           {availableEntities.length === 0 ? (
-            <p className="text-xs text-stone-500">
-              No entity types available. Load a healthy PII model to configure
-              masking.
-            </p>
+            <p className="text-xs text-stone-500">{t("pii.entities.none")}</p>
           ) : (
             <div className="grid grid-cols-2 gap-1 max-h-56 overflow-y-auto rounded-xl ring-1 ring-stone-200 p-2">
               {availableEntities.map((label) => (
@@ -334,7 +307,7 @@ export default function PIISection() {
                     className="rounded border-stone-300 text-brand-600 focus:ring-brand-500"
                   />
                   <span className="text-sm text-stone-700">
-                    {humanizeEntity(label)}
+                    {humanizeEntity(label, t)}
                   </span>
                 </label>
               ))}
@@ -342,7 +315,7 @@ export default function PIISection() {
           )}
 
           <p className="text-xs text-stone-500 mt-2">
-            Unchecked types are left unmasked and sent to the AI provider as-is.
+            {t("pii.entities.help")}
           </p>
         </div>
 
@@ -350,22 +323,22 @@ export default function PIISection() {
         <div>
           <label className="text-sm font-semibold text-stone-700 mb-2 flex items-center gap-2">
             <Regex className="w-4 h-4" />
-            Custom regex patterns
+            {t("pii.regex.label")}
             <SavedHint show={regexesSaved} />
           </label>
 
           <div className="rounded-xl ring-1 ring-stone-200 overflow-hidden">
             {/* Column headers */}
             <div className="flex items-center gap-2 px-2 py-1.5 bg-stone-50 border-b border-stone-200 text-xs font-semibold text-stone-600">
-              <span className="flex-1">Name</span>
-              <span className="flex-[2]">Pattern</span>
+              <span className="flex-1">{t("pii.regex.nameColumn")}</span>
+              <span className="flex-[2]">{t("pii.regex.patternColumn")}</span>
             </div>
 
             {/* Rows */}
             <div className="max-h-48 overflow-y-auto">
               {customRegexes.length === 0 ? (
                 <p className="text-xs text-stone-500 px-3 py-3">
-                  No custom patterns. Use the + button below to add one.
+                  {t("pii.regex.none")}
                 </p>
               ) : (
                 customRegexes.map((row, index) => (
@@ -409,7 +382,7 @@ export default function PIISection() {
             <div className="flex items-center gap-1 px-2 py-1.5 bg-stone-50 border-t border-stone-200">
               <button
                 onClick={handleAddRegex}
-                title="Add pattern"
+                title={t("pii.regex.addTitle")}
                 className="w-7 h-7 flex items-center justify-center rounded-lg border border-stone-300 bg-white text-stone-700 hover:bg-stone-100 transition-colors"
               >
                 <Plus className="w-4 h-4" />
@@ -417,7 +390,7 @@ export default function PIISection() {
               <button
                 onClick={handleRemoveRegex}
                 disabled={selectedRegexIndex === null}
-                title="Remove selected pattern"
+                title={t("pii.regex.removeTitle")}
                 className="w-7 h-7 flex items-center justify-center rounded-lg border border-stone-300 bg-white text-stone-700 hover:bg-stone-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 <Minus className="w-4 h-4" />
@@ -425,10 +398,7 @@ export default function PIISection() {
             </div>
           </div>
 
-          <p className="text-xs text-stone-500 mt-2">
-            Each pattern's name is used as the detected PII type. Patterns use
-            RE2 (Go) syntax and are matched against request content.
-          </p>
+          <p className="text-xs text-stone-500 mt-2">{t("pii.regex.help")}</p>
           {regexError && (
             <p className="text-xs text-red-600 mt-1">{regexError}</p>
           )}

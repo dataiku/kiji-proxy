@@ -1,0 +1,46 @@
+{
+  "title": "Mappings",
+  "subtitle": "Every detected PII value and the fake token Kiji swapped in to protect it.",
+  "entryCount_one": "{{count}} entry",
+  "entryCount_other": "{{count}} entries",
+  "clearAll": "Clear All",
+  "clearAllTitle": "Clear all mappings",
+  "confirm": {
+    "title": "Clear All Mappings?",
+    "body_one": "This will permanently delete all {{count}} PII mapping. This action cannot be undone.",
+    "body_other": "This will permanently delete all {{count}} PII mappings. This action cannot be undone.",
+    "cancel": "Cancel",
+    "clearing": "Clearing...",
+    "clearAll": "Clear All Mappings"
+  },
+  "error": {
+    "label": "Error:",
+    "retry": "Retry"
+  },
+  "empty": "No PII mappings found",
+  "table": {
+    "entityType": "Entity Type",
+    "original": "Original",
+    "masked": "Masked",
+    "date": "Date of first entity",
+    "actions": "Actions"
+  },
+  "sort": {
+    "ascending": "Sort {{label}} ascending",
+    "descending": "Sort {{label}} descending"
+  },
+  "delete": {
+    "confirm": "Delete?",
+    "confirmLabel": "Confirm delete",
+    "cancelLabel": "Cancel delete",
+    "label": "Delete mapping",
+    "title": "Delete mapping"
+  },
+  "loadMore": "Load More Mappings",
+  "loadingMore": "Loading more...",
+  "footer": {
+    "showing_one": "Showing {{shown}} of {{count}} mapping",
+    "showing_other": "Showing {{shown}} of {{count}} mappings",
+    "moreAvailable": "(more available)"
+  }
+}

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   FileText,
   ArrowDownCircle,
@@ -54,6 +55,7 @@ function getDirectionIcon(direction: string) {
  * not depend on the Playground.
  */
 export default function ActivityView({ modelSignature }: ActivityViewProps) {
+  const { t } = useTranslation("activity");
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showFullJson, setShowFullJson] = useState(false);
 
@@ -82,12 +84,11 @@ export default function ActivityView({ modelSignature }: ActivityViewProps) {
                 <AlertTriangle className="w-6 h-6 text-red-600" />
               </div>
               <h3 className="text-xl font-bold text-stone-800">
-                Clear All Logs?
+                {t("confirm.title")}
               </h3>
             </div>
             <p className="text-stone-600 mb-6">
-              This will permanently delete all {total} log entries. This action
-              cannot be undone.
+              {t("confirm.body", { count: total })}
             </p>
             <div className="flex gap-3 justify-end">
               <button
@@ -95,7 +96,7 @@ export default function ActivityView({ modelSignature }: ActivityViewProps) {
                 disabled={isClearing}
                 className="px-4 py-2 border-2 border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 transition-colors font-medium disabled:opacity-50"
               >
-                Cancel
+                {t("confirm.cancel")}
               </button>
               <button
                 onClick={async () => {
@@ -108,12 +109,12 @@ export default function ActivityView({ modelSignature }: ActivityViewProps) {
                 {isClearing ? (
                   <>
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Clearing...
+                    {t("confirm.clearing")}
                   </>
                 ) : (
                   <>
                     <Trash2 className="w-4 h-4" />
-                    Clear All Logs
+                    {t("confirm.clearAll")}
                   </>
                 )}
               </button>
@@ -126,27 +127,24 @@ export default function ActivityView({ modelSignature }: ActivityViewProps) {
       <div className="flex items-start justify-between mb-6 gap-4">
         <div>
           <h1 className="text-[23px] font-semibold tracking-tight text-stone-900">
-            Activity
+            {t("title")}
           </h1>
-          <p className="text-stone-500 text-[13px] mt-0.5">
-            Every request intercepted by Kiji, with the PII it detected and
-            masked.
-          </p>
+          <p className="text-stone-500 text-[13px] mt-0.5">{t("subtitle")}</p>
         </div>
         <div className="flex items-center gap-2.5 shrink-0">
           {total > 0 && (
             <span className="inline-flex items-center text-[13px] font-medium text-stone-600 bg-white border border-brand-900/10 rounded-lg px-3 py-2 shadow-soft">
-              {total} {total === 1 ? "entry" : "entries"}
+              {t("entryCount", { count: total })}
             </span>
           )}
           {total > 0 && (
             <button
               onClick={() => setShowClearConfirm(true)}
               className="inline-flex items-center gap-2 px-3 py-2 text-[13px] font-medium text-red-600 bg-white border border-red-200 rounded-lg shadow-soft hover:bg-red-50 transition-colors"
-              title="Clear all logs"
+              title={t("clearLogsTitle")}
             >
               <Trash2 className="w-4 h-4" />
-              Clear Logs
+              {t("clearLogs")}
             </button>
           )}
         </div>
@@ -158,7 +156,7 @@ export default function ActivityView({ modelSignature }: ActivityViewProps) {
             <div className="flex items-center gap-3">
               <MessageSquare className="w-4 h-4 text-stone-600" />
               <span className="text-sm font-medium text-stone-700">
-                Messages Only
+                {t("toggle.messagesOnly")}
               </span>
             </div>
             <button
@@ -177,14 +175,14 @@ export default function ActivityView({ modelSignature }: ActivityViewProps) {
             </button>
             <div className="flex items-center gap-3">
               <span className="text-sm font-medium text-stone-700">
-                Full JSON
+                {t("toggle.fullJson")}
               </span>
               <Code className="w-4 h-4 text-stone-600" />
             </div>
             <span className="text-sm text-stone-500 ml-2">
               {showFullJson
-                ? "Showing complete request/response"
-                : "Showing message content only"}
+                ? t("toggle.showingFull")
+                : t("toggle.showingMessages")}
             </span>
           </div>
 
@@ -192,13 +190,13 @@ export default function ActivityView({ modelSignature }: ActivityViewProps) {
           {error && (
             <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
               <div className="text-red-600 text-sm flex-1">
-                <strong>Error loading logs:</strong> {error}
+                <strong>{t("error.loading")}</strong> {error}
               </div>
               <button
                 onClick={retry}
                 className="text-red-600 hover:text-red-800 text-sm font-medium"
               >
-                Retry
+                {t("error.retry")}
               </button>
             </div>
           )}
@@ -213,29 +211,29 @@ export default function ActivityView({ modelSignature }: ActivityViewProps) {
               ) : logs.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 text-stone-500">
                   <FileText className="w-12 h-12 mb-4 opacity-50" />
-                  <p className="text-lg">No log entries found</p>
+                  <p className="text-lg">{t("empty")}</p>
                 </div>
               ) : (
                 <table className="border-collapse w-full">
                   <thead className="bg-stone-100 sticky top-0">
                     <tr>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-stone-700 border-b border-stone-200">
-                        Direction
+                        {t("table.direction")}
                       </th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-stone-700 border-b border-stone-200">
-                        Model
+                        {t("table.model")}
                       </th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-stone-700 border-b border-stone-200 w-full">
-                        Message
+                        {t("table.message")}
                       </th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-stone-700 border-b border-stone-200">
-                        Detected PII
+                        {t("table.detectedPII")}
                       </th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-stone-700 border-b border-stone-200">
-                        Blocked
+                        {t("table.blocked")}
                       </th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-stone-700 border-b border-stone-200">
-                        Time Stamp
+                        {t("table.timestamp")}
                       </th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-stone-700 border-b border-stone-200">
                         <Flag className="w-4 h-4" />
@@ -254,7 +252,7 @@ export default function ActivityView({ modelSignature }: ActivityViewProps) {
                           <div className="flex items-center gap-2">
                             {getDirectionIcon(log.direction)}
                             <span className="font-medium">
-                              {getDirectionLabel(log.direction, log.model)}
+                              {getDirectionLabel(log.direction, log.model, t)}
                             </span>
                           </div>
                         </td>
@@ -271,8 +269,9 @@ export default function ActivityView({ modelSignature }: ActivityViewProps) {
                           <div className="relative">
                             {log.messages && log.messages.length > 0 && (
                               <div className="absolute -top-1 -right-1 px-2 py-0.5 bg-brand-100 text-brand-700 text-xs rounded-full font-medium">
-                                {log.messages.length} message
-                                {log.messages.length !== 1 ? "s" : ""}
+                                {t("messageCount", {
+                                  count: log.messages.length,
+                                })}
                               </div>
                             )}
                             <pre
@@ -286,7 +285,7 @@ export default function ActivityView({ modelSignature }: ActivityViewProps) {
                                   : ""
                               }`}
                             >
-                              {formatMessage(log, showFullJson)}
+                              {formatMessage(log, showFullJson, t)}
                             </pre>
                           </div>
                         </td>
@@ -303,7 +302,7 @@ export default function ActivityView({ modelSignature }: ActivityViewProps) {
                                 : "bg-brand-100 text-brand-700"
                             }`}
                           >
-                            {log.blocked ? "Yes" : "No"}
+                            {log.blocked ? t("blocked.yes") : t("blocked.no")}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-sm text-stone-600">
@@ -329,12 +328,14 @@ export default function ActivityView({ modelSignature }: ActivityViewProps) {
                                 }`}
                                 title={
                                   !hasPII
-                                    ? "No PII detected in this log"
-                                    : "Report misclassification"
+                                    ? t("report.noPII")
+                                    : t("report.report")
                                 }
                               >
                                 <Flag className="w-4 h-4" />
-                                <span className="text-xs">Report</span>
+                                <span className="text-xs">
+                                  {t("report.label")}
+                                </span>
                               </button>
                             );
                           })()}
@@ -352,7 +353,7 @@ export default function ActivityView({ modelSignature }: ActivityViewProps) {
                     onClick={handleLoadMore}
                     className="px-6 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors font-medium"
                   >
-                    Load More Logs
+                    {t("loadMore")}
                   </button>
                 </div>
               )}
@@ -362,7 +363,7 @@ export default function ActivityView({ modelSignature }: ActivityViewProps) {
                 <div className="flex justify-center py-4 border-t border-stone-200">
                   <div className="w-6 h-6 border-3 border-brand-600 border-t-transparent rounded-full animate-spin" />
                   <span className="ml-3 text-sm text-stone-600">
-                    Loading more...
+                    {t("loadingMore")}
                   </span>
                 </div>
               )}
@@ -373,17 +374,17 @@ export default function ActivityView({ modelSignature }: ActivityViewProps) {
           {logs.length > 0 && (
             <div className="mt-4 flex flex-col gap-1">
               <p className="text-sm text-stone-500">
-                Showing {logs.length} of {total} log{" "}
-                {total === 1 ? "entry" : "entries"}
+                {t("footer.showing", { shown: logs.length, count: total })}
                 {hasMore && (
-                  <span className="ml-2 text-stone-400">(more available)</span>
+                  <span className="ml-2 text-stone-400">
+                    {t("footer.moreAvailable")}
+                  </span>
                 )}
               </p>
               {total > MAX_PAGE_SIZE && (
                 <p className="text-xs text-amber-600 flex items-center gap-1">
                   <AlertTriangle className="w-3 h-3" />
-                  Large log count detected. Consider clearing old logs to improve
-                  performance.
+                  {t("footer.largeCount")}
                 </p>
               )}
             </div>

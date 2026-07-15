@@ -1,0 +1,71 @@
+{
+  "title": "Activité",
+  "subtitle": "Chaque requête interceptée par Kiji, avec les renseignements personnels qu’il a détectés et masqués.",
+  "entryCount_one": "{{count}} entrée",
+  "entryCount_many": "{{count}} entrées",
+  "entryCount_other": "{{count}} entrées",
+  "clearLogs": "Effacer les journaux",
+  "clearLogsTitle": "Effacer tous les journaux",
+  "confirm": {
+    "title": "Effacer tous les journaux ?",
+    "body_one": "Cela supprimera définitivement {{count}} entrée de journal. Cette action est irréversible.",
+    "body_many": "Cela supprimera définitivement les {{count}} entrées de journal. Cette action est irréversible.",
+    "body_other": "Cela supprimera définitivement les {{count}} entrées de journal. Cette action est irréversible.",
+    "cancel": "Annuler",
+    "clearing": "Effacement...",
+    "clearAll": "Effacer tous les journaux"
+  },
+  "toggle": {
+    "messagesOnly": "Messages uniquement",
+    "fullJson": "JSON complet",
+    "showingFull": "Affichage de la requête/réponse complète",
+    "showingMessages": "Affichage du contenu des messages uniquement"
+  },
+  "error": {
+    "loading": "Erreur lors du chargement des journaux :",
+    "retry": "Réessayer"
+  },
+  "table": {
+    "direction": "Direction",
+    "model": "Modèle",
+    "message": "Message",
+    "detectedPII": "Renseignements personnels détectés",
+    "blocked": "Bloqué",
+    "timestamp": "Horodatage"
+  },
+  "empty": "Aucune entrée de journal trouvée",
+  "messageCount_one": "{{count}} message",
+  "messageCount_many": "{{count}} messages",
+  "messageCount_other": "{{count}} messages",
+  "blocked": {
+    "yes": "Oui",
+    "no": "Non"
+  },
+  "report": {
+    "label": "Signaler",
+    "noPII": "Aucun renseignement personnel détecté dans ce journal",
+    "report": "Signaler une erreur de classification"
+  },
+  "loadMore": "Charger plus de journaux",
+  "loadingMore": "Chargement...",
+  "footer": {
+    "showing_one": "Affichage de {{shown}} sur {{count}} entrée de journal",
+    "showing_many": "Affichage de {{shown}} sur {{count}} entrées de journal",
+    "showing_other": "Affichage de {{shown}} sur {{count}} entrées de journal",
+    "moreAvailable": "(plus disponibles)",
+    "largeCount": "Nombre élevé de journaux détecté. Envisagez d’effacer les anciens journaux pour améliorer les performances."
+  },
+  "direction": {
+    "requestOriginal": "Requête (originale)",
+    "requestMasked": "Requête (vers {{provider}})",
+    "responseMasked": "Réponse (de {{provider}})",
+    "responseOriginal": "Réponse (restaurée)",
+    "request": "Requête",
+    "response": "Réponse"
+  },
+  "message": {
+    "noContent": "Aucun contenu de message",
+    "truncated": "... [Message tronqué pour l’affichage]",
+    "truncatedJson": "... [JSON tronqué pour l’affichage]"
+  }
+}

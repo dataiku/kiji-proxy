@@ -1,0 +1,103 @@
+{
+  "appName": "Kiji Privacy Proxy",
+  "tagline": "PII detection & masking proxy",
+  "language": {
+    "label": "Language",
+    "subtitle": "Choose the language for the Kiji interface.",
+    "en": "English",
+    "fr": "French"
+  },
+  "actions": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "close": "Close",
+    "confirm": "Confirm",
+    "retry": "Retry",
+    "reset": "Reset",
+    "settings": "Settings",
+    "about": "About Kiji Privacy Proxy"
+  },
+  "menu": {
+    "label": "Menu"
+  },
+  "badges": {
+    "localProxy": "Local proxy",
+    "onDeviceDetection": "On-device detection"
+  },
+  "modelHealth": {
+    "unhealthy": "Model is unhealthy",
+    "checkConfig": "Check the model configuration in <settingsAction>Settings</settingsAction>"
+  },
+  "apiKey": {
+    "notConfigured": "{{provider}} API key not configured.",
+    "configureInSettings": "Configure in Settings"
+  },
+  "playground": {
+    "loadingOverlay": "Protecting your data…",
+    "mascotAlt": "Kiji mascot",
+    "logoAlt": "Kiji logo",
+    "yourRequest": "Your request",
+    "sendTo": "Send to",
+    "inputPlaceholder": "Type a message that contains sensitive information…\n\nExample: Hi, my name is John Smith and my email is john.smith@email.com. My phone is 555-123-4567.\n\nKiji detects and masks the PII before it ever leaves your machine.",
+    "backendOffline": "Backend server is offline",
+    "processing": "Processing…",
+    "processData": "Process data",
+    "tabs": {
+      "sentToProvider": "Sent to {{provider}}",
+      "sentToLLM": "Sent to the LLM",
+      "returnedByProvider": "Returned by {{provider}}",
+      "returnedByLLM": "Returned by the LLM"
+    },
+    "request": {
+      "submitted": "Request submitted",
+      "piiExposed": "PII exposed",
+      "piiDetected_one": "{{count}} PII detected",
+      "piiDetected_other": "{{count}} PII detected",
+      "avgConfidence": "{{value}}% avg confidence",
+      "masked": "masked",
+      "personalInfoRemoved": "Personal information removed",
+      "piiProtected": "PII protected",
+      "fakePiiReceived_one": "{{count}} fake PII received",
+      "fakePiiReceived_other": "{{count}} fake PIIs received"
+    },
+    "response": {
+      "received": "Response received",
+      "fromProvider": "From {{provider}}",
+      "restored": "restored",
+      "personalInfoRestored": "Personal information restored",
+      "restoredBadge": "Restored",
+      "piiRestored_one": "{{count}} PII restored",
+      "piiRestored_other": "{{count}} PII restored"
+    },
+    "reportMisclassification": "Report misclassification",
+    "reportMisclassificationTitle": "Report incorrect PII classification"
+  },
+  "footer": {
+    "builtBy": "Kiji Privacy Proxy · built by <labLink>575 Lab</labLink>, Dataiku's Open Source Office",
+    "version": "v{{version}}"
+  },
+  "status": {
+    "serverOnline": "Server online",
+    "serverOffline": "Server offline",
+    "serverOfflineDetail": "Server offline — start the Go backend at localhost:{{port}}",
+    "model": "Model",
+    "modelSignature": "Model signature",
+    "modelSignatureLabel": "Model signature {{signature}}",
+    "verifiedModelSignature": "Verified model signature"
+  },
+  "error": {
+    "title": "Oops! Something went wrong",
+    "subtitle": "The application encountered an unexpected error",
+    "messageLabel": "Error Message:",
+    "stackTrace": "Stack Trace (click to expand)",
+    "tryAgain": "Try Again",
+    "reload": "Reload Application",
+    "whatCanYouDo": "What can you do?",
+    "help": {
+      "tryAgain": "Click \"Try Again\" to reset the component",
+      "reload": "Click \"Reload Application\" to refresh the entire app",
+      "console": "If the problem persists, check the browser console for more details",
+      "report": "Consider reporting this issue to the development team"
+    }
+  }
+}

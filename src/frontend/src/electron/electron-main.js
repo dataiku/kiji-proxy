@@ -11,6 +11,7 @@ const path = require("path");
 const fs = require("fs");
 const { spawn } = require("child_process");
 const { registerIpcHandlers } = require("./ipc-handlers");
+const { setMenuLanguage, mt } = require("./menu-i18n");
 const isDev = process.env.NODE_ENV === "development";
 
 // Telemetry (Sentry error reporting) is OPT-IN. It is only initialized when the
@@ -686,13 +687,13 @@ function updateTrayMenu() {
 
   const menuItems = [
     {
-      label: "Open Kiji Privacy Proxy",
+      label: mt("openApp", { name: app.getName() }),
       click: () => {
         showMainWindow();
       },
     },
     {
-      label: "About Kiji Privacy Proxy",
+      label: mt("aboutApp", { name: app.getName() }),
       click: () => {
         showMainWindow();
         setTimeout(() => {
@@ -703,7 +704,7 @@ function updateTrayMenu() {
       },
     },
     {
-      label: "Settings",
+      label: mt("settings"),
       click: () => {
         showMainWindow();
         setTimeout(() => {
@@ -716,35 +717,35 @@ function updateTrayMenu() {
 
     { type: "separator" },
     {
-      label: "Documentation",
+      label: mt("documentation"),
       click: () =>
         shell.openExternal(
           "https://github.com/dataiku/kiji-proxy/blob/main/docs/README.md"
         ),
     },
     {
-      label: "Kiji Chrome Extension",
+      label: mt("chromeExtension"),
       click: () =>
         shell.openExternal(
           "https://chromewebstore.google.com/detail/kiji-privacy-proxy-extens/knnjemahdeioghdgcpeikepmlajfihin"
         ),
     },
     {
-      label: "File a Bug Report",
+      label: mt("bugReport"),
       click: () =>
         shell.openExternal(
           "https://github.com/dataiku/kiji-proxy/issues/new?template=10_bug_report.yml"
         ),
     },
     {
-      label: "Request a Feature",
+      label: mt("featureRequest"),
       click: () =>
         shell.openExternal(
           "https://github.com/dataiku/kiji-proxy/discussions/new/choose"
         ),
     },
     {
-      label: "Email us",
+      label: mt("emailUs"),
       click: () =>
         shell.openExternal(
           "mailto:opensource@dataiku.com?subject=[Yaak Proxy User]"
@@ -754,13 +755,13 @@ function updateTrayMenu() {
     ...(updateDownloaded
       ? [
           {
-            label: "Restart to Update",
+            label: mt("restartToUpdate"),
             click: () => autoUpdater.quitAndInstall(),
           },
         ]
       : []),
     {
-      label: "Quit Kiji Privacy Proxy",
+      label: mt("quitApp", { name: app.getName() }),
       click: () => {
         app.quit();
       },
@@ -844,6 +845,9 @@ function createWindow() {
 
   // Show window when ready to prevent visual flash
   mainWindow.once("ready-to-show", () => {
+    // Build the menu in the last-used language before showing the window. The
+    // renderer re-asserts its detected language over set-language once it loads.
+    setMenuLanguage(readConfig().language);
     // Create menu before showing window to ensure it's ready
     createMenu();
 
@@ -932,10 +936,10 @@ function createWindow() {
 function createMenu() {
   const template = [
     {
-      label: "File",
+      label: mt("file"),
       submenu: [
         {
-          label: "Quit",
+          label: mt("quit"),
           accelerator: process.platform === "darwin" ? "Cmd+Q" : "Ctrl+Q",
           click: () => {
             app.quit();
@@ -944,43 +948,43 @@ function createMenu() {
       ],
     },
     {
-      label: "Edit",
+      label: mt("edit"),
       submenu: [
-        { role: "undo", label: "Undo" },
-        { role: "redo", label: "Redo" },
+        { role: "undo", label: mt("undo") },
+        { role: "redo", label: mt("redo") },
         { type: "separator" },
-        { role: "cut", label: "Cut" },
-        { role: "copy", label: "Copy" },
-        { role: "paste", label: "Paste" },
-        { role: "selectAll", label: "Select All" },
+        { role: "cut", label: mt("cut") },
+        { role: "copy", label: mt("copy") },
+        { role: "paste", label: mt("paste") },
+        { role: "selectAll", label: mt("selectAll") },
       ],
     },
     {
-      label: "View",
+      label: mt("view"),
       submenu: [
-        { role: "reload", label: "Reload" },
-        { role: "forceReload", label: "Force Reload" },
-        { role: "toggleDevTools", label: "Toggle Developer Tools" },
+        { role: "reload", label: mt("reload") },
+        { role: "forceReload", label: mt("forceReload") },
+        { role: "toggleDevTools", label: mt("toggleDevTools") },
         { type: "separator" },
-        { role: "resetZoom", label: "Actual Size" },
-        { role: "zoomIn", label: "Zoom In" },
-        { role: "zoomOut", label: "Zoom Out" },
+        { role: "resetZoom", label: mt("actualSize") },
+        { role: "zoomIn", label: mt("zoomIn") },
+        { role: "zoomOut", label: mt("zoomOut") },
         { type: "separator" },
-        { role: "togglefullscreen", label: "Toggle Fullscreen" },
+        { role: "togglefullscreen", label: mt("toggleFullscreen") },
       ],
     },
     {
-      label: "Window",
+      label: mt("window"),
       submenu: [
-        { role: "minimize", label: "Minimize" },
-        { role: "close", label: "Close" },
+        { role: "minimize", label: mt("minimize") },
+        { role: "close", label: mt("close") },
       ],
     },
     {
-      label: "Settings",
+      label: mt("settings"),
       submenu: [
         {
-          label: "Preferences...",
+          label: mt("preferences"),
           accelerator: process.platform === "darwin" ? "Cmd+," : "Ctrl+,",
           click: () => {
             if (mainWindow) {
@@ -991,10 +995,10 @@ function createMenu() {
       ],
     },
     {
-      label: "Help",
+      label: mt("help"),
       submenu: [
         {
-          label: "About Kiji Privacy Proxy",
+          label: mt("aboutApp", { name: app.getName() }),
           click: () => {
             if (mainWindow) {
               mainWindow.webContents.send("open-about");
@@ -1011,7 +1015,7 @@ function createMenu() {
       label: app.getName(),
       submenu: [
         {
-          label: "About " + app.getName(),
+          label: mt("aboutApp", { name: app.getName() }),
           click: () => {
             if (mainWindow) {
               mainWindow.webContents.send("open-about");
@@ -1019,36 +1023,49 @@ function createMenu() {
           },
         },
         { type: "separator" },
-        { role: "services", label: "Services" },
+        { role: "services", label: mt("services") },
         { type: "separator" },
-        { role: "hide", label: "Hide " + app.getName() },
-        { role: "hideOthers", label: "Hide Others" },
-        { role: "unhide", label: "Show All" },
+        { role: "hide", label: mt("hideApp", { name: app.getName() }) },
+        { role: "hideOthers", label: mt("hideOthers") },
+        { role: "unhide", label: mt("showAll") },
         { type: "separator" },
         ...(updateDownloaded
           ? [
               {
-                label: "Restart to Update",
+                label: mt("restartToUpdate"),
                 click: () => autoUpdater.quitAndInstall(),
               },
             ]
           : []),
-        { role: "quit", label: "Quit " + app.getName() },
+        { role: "quit", label: mt("quitApp", { name: app.getName() }) },
       ],
     });
 
     // Window menu
     template[4].submenu = [
-      { role: "close", label: "Close" },
-      { role: "minimize", label: "Minimize" },
-      { role: "zoom", label: "Zoom" },
+      { role: "close", label: mt("close") },
+      { role: "minimize", label: mt("minimize") },
+      { role: "zoom", label: mt("zoom") },
       { type: "separator" },
-      { role: "front", label: "Bring All to Front" },
+      { role: "front", label: mt("bringAllToFront") },
     ];
   }
 
   const menu = Menu.buildFromTemplate(template);
   Menu.setApplicationMenu(menu);
+}
+
+// Switch the language of the native application and tray menus and rebuild them.
+// Called at startup from the persisted config and at runtime when the renderer
+// changes the language (over the set-language IPC channel).
+function applyLanguage(language) {
+  setMenuLanguage(language);
+  if (mainWindow) {
+    createMenu();
+  }
+  if (tray) {
+    updateTrayMenu();
+  }
 }
 
 // This method will be called when Electron has finished initialization
@@ -1223,6 +1240,8 @@ registerIpcHandlers({
   restartGoBinary,
   waitForBackend,
   getMainWindow: () => mainWindow,
+  // Rebuild the native menus whenever the renderer changes the UI language.
+  onLanguageChange: applyLanguage,
 });
 
 // Security: Prevent new window creation

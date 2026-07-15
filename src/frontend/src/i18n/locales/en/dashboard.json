@@ -1,0 +1,95 @@
+{
+  "title": "Overview",
+  "subtitle": "Everything routed through Kiji, masked before it leaves your machine.",
+  "status": {
+    "intercepting": "Intercepting",
+    "idle": "Idle"
+  },
+  "range": {
+    "selectLabel": "Last {{label}}",
+    "chartSuffix": "last {{label}}",
+    "24h": "24 hours",
+    "7d": "7 days",
+    "30d": "30 days",
+    "90d": "90 days"
+  },
+  "serverError": "Couldn’t reach the Kiji server: {{error}}. Make sure the proxy is running on localhost:8080.",
+  "kpi": {
+    "piiProtected": "PII items protected",
+    "piiProtectedDelta": "in the last {{window}}",
+    "windowUnit": {
+      "h": "h",
+      "d": "d",
+      "w": "w",
+      "mo": "mo"
+    },
+    "requestsProxied": "Requests proxied",
+    "requestsToday": "{{value}} today",
+    "avgLatency": "Avg added latency",
+    "latencyUnit": "ms",
+    "latencyCaption": "privacy, no slowdown"
+  },
+  "chart": {
+    "title": "PII masked over time",
+    "notEnough": "Not enough activity yet to chart.",
+    "readyTitle": "Kiji is running and ready.",
+    "readyBody": "Route your first request through the proxy to start protecting data."
+  },
+  "composition": {
+    "title": "What we masked",
+    "thisPeriod": "this period",
+    "entities": "entities",
+    "empty": "Nothing masked yet."
+  },
+  "providers": {
+    "title": "Traffic by provider",
+    "requests": "requests",
+    "empty": "No traffic yet."
+  },
+  "highlights": {
+    "peakToday": "Peak today",
+    "reqPerMin": "req/min",
+    "busiestSource": "Busiest source",
+    "detectionConfidence": "Detection conf.",
+    "avgSuffix": "% avg"
+  },
+  "recent": {
+    "title": "Recent intercepts",
+    "live": "live",
+    "requestFallback": "request",
+    "maskedLabel": "masked",
+    "piiCount": "{{count}} PII",
+    "empty": "No requests intercepted yet.",
+    "viewAll": "View all activity"
+  },
+  "time": {
+    "justNow": "just now",
+    "secondsAgo": "{{count}}s ago",
+    "minutesAgo": "{{count}}m ago",
+    "hoursAgo": "{{count}}h ago",
+    "daysAgo": "{{count}}d ago"
+  },
+  "empty": "—",
+  "sidebar": {
+    "brandSuffix": "Proxy",
+    "sectionWorkspace": "Workspace",
+    "sectionConfigure": "Configure",
+    "nav": {
+      "dashboard": "Dashboard",
+      "playground": "Playground",
+      "playgroundBadge": "mask",
+      "activity": "Activity",
+      "mappings": "Mappings",
+      "settings": "Settings",
+      "about": "About Kiji"
+    },
+    "server": {
+      "online": "Server online",
+      "degraded": "Model degraded",
+      "offline": "Server offline",
+      "uptime": "uptime",
+      "port": "port",
+      "model": "model"
+    }
+  }
+}

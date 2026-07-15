@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation, Trans } from "react-i18next";
 import {
   X,
   ShieldCheck,
@@ -16,10 +17,24 @@ interface CACertSetupModalProps {
   onClose: () => void;
 }
 
+// Inline-markup tags shared by the instruction strings rendered via <Trans>.
+// Provided to every step so each translation can use whichever it needs.
+const STEP_COMPONENTS = {
+  code: <code className="bg-stone-100 px-1.5 py-0.5 rounded text-xs" />,
+  b: <strong />,
+  accent: <strong className="text-brand-600" />,
+  amber: <strong className="text-amber-600" />,
+};
+
+const SYSTEM_STEP_KEYS = ["s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9"];
+const FIREFOX_STEP_KEYS = ["s1", "s2", "s3", "s4", "s5"];
+const CHROME_STEP_KEYS = ["s1", "s2", "s3"];
+
 export default function CACertSetupModal({
   isOpen,
   onClose,
 }: CACertSetupModalProps) {
+  const { t } = useTranslation("modals");
   const [dontShowAgain, setDontShowAgain] = useState(false);
   const [currentTab, setCurrentTab] = useState<"system" | "browsers">("system");
   const [revealError, setRevealError] = useState<string | null>(null);
@@ -58,12 +73,12 @@ export default function CACertSetupModal({
   const handleRevealCert = async () => {
     setRevealError(null);
     if (!isElectron || !window.electronAPI) {
-      setRevealError("Reveal in Finder is only available in the desktop app.");
+      setRevealError(t("caCert.revealDesktopOnly"));
       return;
     }
     const result = await window.electronAPI.revealCACert();
     if (!result.success) {
-      setRevealError(result.error || "Failed to open the certificate folder.");
+      setRevealError(result.error || t("caCert.revealFailed"));
     }
   };
 
@@ -77,13 +92,13 @@ export default function CACertSetupModal({
               <ShieldCheck className="w-5 h-5" />
             </div>
             <h2 className="text-lg font-semibold text-brand-900 tracking-tight">
-              CA Certificate Setup Required
+              {t("caCert.title")}
             </h2>
           </div>
           <button
             onClick={onClose}
             className="p-1.5 text-stone-400 hover:text-stone-600 hover:bg-stone-100 rounded-lg transition-colors"
-            aria-label="Close"
+            aria-label={t("common:actions.close")}
           >
             <X className="w-5 h-5" />
           </button>
@@ -93,11 +108,7 @@ export default function CACertSetupModal({
         <div className="p-6 space-y-6">
           {/* Introduction */}
           <div className="bg-brand-50 ring-1 ring-brand-200 rounded-xl p-4">
-            <p className="text-sm text-brand-900">
-              To intercept and analyze HTTPS traffic, Kiji Privacy Proxy uses a
-              self-signed Certificate Authority (CA). You must trust this
-              certificate on your system and/or browsers.
-            </p>
+            <p className="text-sm text-brand-900">{t("caCert.intro")}</p>
           </div>
 
           {/* Reveal in Finder shortcut */}
@@ -109,8 +120,8 @@ export default function CACertSetupModal({
               >
                 <FolderOpen className="w-4 h-4" />
                 {window.electronAPI?.platform === "darwin"
-                  ? "Reveal CA cert in Finder"
-                  : "Show CA cert in Explorer"}
+                  ? t("caCert.revealFinder")
+                  : t("caCert.revealExplorer")}
               </button>
               {revealError && (
                 <p className="text-xs text-red-600 mt-2">{revealError}</p>
@@ -129,7 +140,7 @@ export default function CACertSetupModal({
               }`}
             >
               <Terminal className="w-4 h-4" />
-              System-Wide Trust
+              {t("caCert.tabs.system")}
             </button>
             <button
               onClick={() => setCurrentTab("browsers")}
@@ -140,7 +151,7 @@ export default function CACertSetupModal({
               }`}
             >
               <Globe className="w-4 h-4" />
-              Browser-Specific
+              {t("caCert.tabs.browsers")}
             </button>
           </div>
 
@@ -149,7 +160,7 @@ export default function CACertSetupModal({
             <div className="space-y-4">
               <div>
                 <h3 className="text-sm font-semibold text-stone-700 mb-2">
-                  Option 1: Command Line (Recommended)
+                  {t("caCert.system.option1Title")}
                 </h3>
                 <div className="relative bg-brand-950 rounded-xl p-4 text-sm font-mono text-stone-100 overflow-x-auto">
                   <button
@@ -157,20 +168,24 @@ export default function CACertSetupModal({
                     className="absolute top-2 right-2 inline-flex items-center gap-1 px-2 py-1 text-xs text-stone-300 hover:text-white hover:bg-stone-700 rounded transition-colors"
                     aria-label={
                       commandCopied
-                        ? "Command copied to clipboard"
-                        : "Copy command to clipboard"
+                        ? t("caCert.system.copiedAria")
+                        : t("caCert.system.copyAria")
                     }
-                    title={commandCopied ? "Copied!" : "Copy to clipboard"}
+                    title={
+                      commandCopied
+                        ? t("caCert.system.copiedTitle")
+                        : t("caCert.system.copyTitle")
+                    }
                   >
                     {commandCopied ? (
                       <>
                         <Check className="w-3.5 h-3.5 text-brand-400" />
-                        <span>Copied</span>
+                        <span>{t("caCert.system.copiedLabel")}</span>
                       </>
                     ) : (
                       <>
                         <Copy className="w-3.5 h-3.5" />
-                        <span>Copy</span>
+                        <span>{t("caCert.system.copyLabel")}</span>
                       </>
                     )}
                   </button>
@@ -179,121 +194,49 @@ export default function CACertSetupModal({
                   </pre>
                 </div>
                 <p className="text-xs text-stone-600 mt-2">
-                  This command requires administrator privileges and will
-                  install the certificate system-wide.
+                  {t("caCert.system.commandHelp")}
                 </p>
               </div>
 
               <div>
                 <h3 className="text-sm font-semibold text-stone-700 mb-2">
-                  Option 2: Keychain Access GUI
+                  {t("caCert.system.option2Title")}
                 </h3>
                 <ol className="space-y-2 text-sm text-stone-700">
-                  <li className="flex gap-2">
-                    <span className="font-semibold text-brand-600 min-w-[20px]">
-                      1.
-                    </span>
-                    <span>
-                      Double-click the certificate file:{" "}
-                      <code className="bg-stone-100 px-1.5 py-0.5 rounded text-xs">
-                        ~/Library/Application Support/Kiji Privacy
-                        Proxy/certs/ca.crt
-                      </code>
-                    </span>
-                  </li>
-                  <li className="flex gap-2">
-                    <span className="font-semibold text-brand-600 min-w-[20px]">
-                      2.
-                    </span>
-                    <span>
-                      This opens <strong>Keychain Access</strong> - click{" "}
-                      <strong>Add</strong> to install
-                    </span>
-                  </li>
-                  <li className="flex gap-2">
-                    <span className="font-semibold text-brand-600 min-w-[20px]">
-                      3.
-                    </span>
-                    <span>
-                      In Keychain Access, select <strong>System</strong>{" "}
-                      keychain in the left sidebar
-                    </span>
-                  </li>
-                  <li className="flex gap-2">
-                    <span className="font-semibold text-brand-600 min-w-[20px]">
-                      4.
-                    </span>
-                    <span>
-                      Search for <strong>"Kiji Privacy Proxy CA"</strong> and
-                      double-click it
-                    </span>
-                  </li>
-                  <li className="flex gap-2">
-                    <span className="font-semibold text-brand-600 min-w-[20px]">
-                      5.
-                    </span>
-                    <span>
-                      Click the <strong>▶ triangle next to "Trust"</strong> to
-                      expand the section
-                    </span>
-                  </li>
-                  <li className="flex gap-2">
-                    <span className="font-semibold text-brand-600 min-w-[20px]">
-                      6.
-                    </span>
-                    <span>
-                      Set <strong>"When using this certificate"</strong> to{" "}
-                      <strong className="text-brand-600">"Always Trust"</strong>
-                    </span>
-                  </li>
-                  <li className="flex gap-2">
-                    <span className="font-semibold text-brand-600 min-w-[20px]">
-                      7.
-                    </span>
-                    <span>
-                      Set <strong>"Secure Sockets Layer (SSL)"</strong> to{" "}
-                      <strong className="text-brand-600">"Always Trust"</strong>
-                    </span>
-                  </li>
-                  <li className="flex gap-2">
-                    <span className="font-semibold text-brand-600 min-w-[20px]">
-                      8.
-                    </span>
-                    <span>
-                      <strong>Close the window</strong> and enter your password
-                      when prompted
-                    </span>
-                  </li>
-                  <li className="flex gap-2">
-                    <span className="font-semibold text-brand-600 min-w-[20px]">
-                      9.
-                    </span>
-                    <span>
-                      <strong className="text-amber-600">
-                        Restart your browser completely
-                      </strong>{" "}
-                      (Cmd+Q, then reopen)
-                    </span>
-                  </li>
+                  {SYSTEM_STEP_KEYS.map((key, i) => (
+                    <li key={key} className="flex gap-2">
+                      <span className="font-semibold text-brand-600 min-w-[20px]">
+                        {i + 1}.
+                      </span>
+                      <span>
+                        <Trans
+                          t={t}
+                          i18nKey={`caCert.system.steps.${key}`}
+                          components={STEP_COMPONENTS}
+                        />
+                      </span>
+                    </li>
+                  ))}
                 </ol>
               </div>
 
               <div className="bg-amber-50 ring-1 ring-amber-200 rounded-xl p-4">
                 <p className="text-xs text-amber-900">
-                  <strong>Important:</strong> You must restart your browser
-                  after trusting the certificate. System-wide trust works for
-                  Safari and Chrome. Firefox requires separate configuration
-                  (see Browser-Specific tab).
+                  <Trans
+                    t={t}
+                    i18nKey="caCert.system.important"
+                    components={STEP_COMPONENTS}
+                  />
                 </p>
               </div>
 
               <div className="bg-red-50 ring-1 ring-red-200 rounded-xl p-4">
                 <p className="text-xs text-red-900">
-                  <strong>⚠️ Common Issue:</strong> If the certificate shows
-                  "Number of trust settings: 0" in terminal, it means you
-                  haven't set it to "Always Trust" in steps 6-7 above. The
-                  certificate must be marked as trusted for SSL, not just
-                  installed.
+                  <Trans
+                    t={t}
+                    i18nKey="caCert.system.commonIssue"
+                    components={STEP_COMPONENTS}
+                  />
                 </p>
               </div>
             </div>
@@ -304,99 +247,55 @@ export default function CACertSetupModal({
             <div className="space-y-4">
               <div>
                 <h3 className="text-sm font-semibold text-stone-700 mb-3">
-                  Firefox
+                  {t("caCert.browsers.firefox")}
                 </h3>
                 <ol className="space-y-2 text-sm text-stone-700">
-                  <li className="flex gap-2">
-                    <span className="font-semibold text-brand-600 min-w-[20px]">
-                      1.
-                    </span>
-                    <span>
-                      Settings → <strong>Privacy & Security</strong>
-                    </span>
-                  </li>
-                  <li className="flex gap-2">
-                    <span className="font-semibold text-brand-600 min-w-[20px]">
-                      2.
-                    </span>
-                    <span>
-                      Certificates → <strong>View Certificates</strong>
-                    </span>
-                  </li>
-                  <li className="flex gap-2">
-                    <span className="font-semibold text-brand-600 min-w-[20px]">
-                      3.
-                    </span>
-                    <span>
-                      Authorities → <strong>Import</strong>
-                    </span>
-                  </li>
-                  <li className="flex gap-2">
-                    <span className="font-semibold text-brand-600 min-w-[20px]">
-                      4.
-                    </span>
-                    <span>
-                      Select{" "}
-                      <code className="bg-stone-100 px-1.5 py-0.5 rounded text-xs">
-                        ~/Library/Application Support/Kiji Privacy
-                        Proxy/certs/ca.crt
-                      </code>
-                    </span>
-                  </li>
-                  <li className="flex gap-2">
-                    <span className="font-semibold text-brand-600 min-w-[20px]">
-                      5.
-                    </span>
-                    <span>
-                      Check <strong>"Trust for websites"</strong>
-                    </span>
-                  </li>
+                  {FIREFOX_STEP_KEYS.map((key, i) => (
+                    <li key={key} className="flex gap-2">
+                      <span className="font-semibold text-brand-600 min-w-[20px]">
+                        {i + 1}.
+                      </span>
+                      <span>
+                        <Trans
+                          t={t}
+                          i18nKey={`caCert.browsers.firefoxSteps.${key}`}
+                          components={STEP_COMPONENTS}
+                        />
+                      </span>
+                    </li>
+                  ))}
                 </ol>
               </div>
 
               <div className="border-t border-stone-200 pt-4">
                 <h3 className="text-sm font-semibold text-stone-700 mb-3">
-                  Chrome/Chromium
+                  {t("caCert.browsers.chrome")}
                 </h3>
                 <ol className="space-y-2 text-sm text-stone-700">
-                  <li className="flex gap-2">
-                    <span className="font-semibold text-brand-600 min-w-[20px]">
-                      1.
-                    </span>
-                    <span>
-                      Settings → <strong>Privacy and Security</strong> →{" "}
-                      <strong>Security</strong>
-                    </span>
-                  </li>
-                  <li className="flex gap-2">
-                    <span className="font-semibold text-brand-600 min-w-[20px]">
-                      2.
-                    </span>
-                    <span>
-                      <strong>Manage certificates</strong> → Authorities
-                    </span>
-                  </li>
-                  <li className="flex gap-2">
-                    <span className="font-semibold text-brand-600 min-w-[20px]">
-                      3.
-                    </span>
-                    <span>
-                      <strong>Import</strong> CA certificate (
-                      <code className="bg-stone-100 px-1.5 py-0.5 rounded text-xs">
-                        ~/Library/Application Support/Kiji Privacy
-                        Proxy/certs/ca.crt
-                      </code>
-                      )
-                    </span>
-                  </li>
+                  {CHROME_STEP_KEYS.map((key, i) => (
+                    <li key={key} className="flex gap-2">
+                      <span className="font-semibold text-brand-600 min-w-[20px]">
+                        {i + 1}.
+                      </span>
+                      <span>
+                        <Trans
+                          t={t}
+                          i18nKey={`caCert.browsers.chromeSteps.${key}`}
+                          components={STEP_COMPONENTS}
+                        />
+                      </span>
+                    </li>
+                  ))}
                 </ol>
               </div>
 
               <div className="bg-brand-50 ring-1 ring-brand-200 rounded-xl p-4">
                 <p className="text-xs text-brand-900">
-                  <strong>Tip:</strong> Chrome on macOS typically uses the
-                  system keychain, so system-wide trust (see other tab) should
-                  be sufficient.
+                  <Trans
+                    t={t}
+                    i18nKey="caCert.browsers.chromeTip"
+                    components={STEP_COMPONENTS}
+                  />
                 </p>
               </div>
             </div>
@@ -411,7 +310,7 @@ export default function CACertSetupModal({
               className="inline-flex items-center gap-2 text-sm text-brand-600 hover:text-brand-700 hover:underline"
             >
               <ExternalLink className="w-4 h-4" />
-              View full documentation
+              {t("caCert.docLink")}
             </a>
           </div>
         </div>
@@ -427,7 +326,7 @@ export default function CACertSetupModal({
               className="w-4 h-4 rounded border-stone-300 text-brand-600 focus:ring-brand-500 cursor-pointer"
             />
             <span className="text-sm text-stone-600">
-              Don't show this message again
+              {t("caCert.dontShowAgain")}
             </span>
           </label>
 
@@ -436,7 +335,7 @@ export default function CACertSetupModal({
             onClick={handleConfirm}
             className="btn-brand w-full px-4 py-3 text-white rounded-xl font-medium tracking-tight"
           >
-            I Understand
+            {t("caCert.confirm")}
           </button>
         </div>
       </div>

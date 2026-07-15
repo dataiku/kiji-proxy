@@ -74,6 +74,17 @@ contextBridge.exposeInMainWorld("electronAPI", {
     return await ipcRenderer.invoke("reveal-ca-cert");
   },
 
+  // UI language (persisted in the main-process config so the native menu can
+  // be built in the right language). The renderer pushes its detected/chosen
+  // language here; the main process rebuilds the app and tray menus.
+  getLanguage: async () => {
+    return await ipcRenderer.invoke("get-language");
+  },
+
+  setLanguage: async (language) => {
+    return await ipcRenderer.invoke("set-language", language);
+  },
+
   // Platform information
   platform: process.platform,
 

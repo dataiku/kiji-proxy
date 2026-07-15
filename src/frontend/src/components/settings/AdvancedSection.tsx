@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Settings2,
   Server,
@@ -15,6 +16,7 @@ interface AdvancedSectionProps {
 }
 
 export default function AdvancedSection({ onOpenCACert }: AdvancedSectionProps) {
+  const { t } = useTranslation("settings");
   // Model directory state
   const [modelDirectory, setModelDirectory] = useState("");
   const [_hasModelDirectory, setHasModelDirectory] = useState(false);
@@ -147,7 +149,8 @@ export default function AdvancedSection({ onOpenCACert }: AdvancedSectionProps) 
       if (!saveResult.success) {
         setReloadMessage({
           type: "error",
-          text: saveResult.error || "Failed to save model directory",
+          text:
+            saveResult.error || t("advanced.model.messages.saveDirFailed"),
         });
         setIsReloading(false);
         return;
@@ -161,20 +164,23 @@ export default function AdvancedSection({ onOpenCACert }: AdvancedSectionProps) 
       if (result.success) {
         setReloadMessage({
           type: "success",
-          text: "Model saved and reloaded successfully!",
+          text: t("advanced.model.messages.reloadSuccess"),
         });
         await loadModelInfo();
       } else {
         setReloadMessage({
           type: "error",
-          text: result.error || "Failed to reload model",
+          text: result.error || t("advanced.model.messages.reloadFailed"),
         });
       }
     } catch (error) {
       console.error("Error reloading model:", error);
       setReloadMessage({
         type: "error",
-        text: error instanceof Error ? error.message : "Unknown error",
+        text:
+          error instanceof Error
+            ? error.message
+            : t("advanced.model.messages.unknownError"),
       });
     } finally {
       setIsReloading(false);
@@ -193,7 +199,7 @@ export default function AdvancedSection({ onOpenCACert }: AdvancedSectionProps) 
       console.error("Error selecting model directory:", error);
       setReloadMessage({
         type: "error",
-        text: "Failed to open folder selector",
+        text: t("advanced.model.messages.folderSelectorFailed"),
       });
     }
   };
@@ -207,10 +213,10 @@ export default function AdvancedSection({ onOpenCACert }: AdvancedSectionProps) 
         </div>
         <div>
           <h2 className="text-base font-semibold text-brand-900 tracking-tight">
-            Advanced
+            {t("advanced.title")}
           </h2>
           <p className="text-[13px] text-stone-500">
-            System-wide interception and custom PII models.
+            {t("advanced.subtitle")}
           </p>
         </div>
       </div>
@@ -221,7 +227,7 @@ export default function AdvancedSection({ onOpenCACert }: AdvancedSectionProps) 
           <div className="flex items-center justify-between">
             <label className="text-sm font-semibold text-stone-700 flex items-center gap-2">
               <Shield className="w-4 h-4" />
-              Transparent Proxy
+              {t("advanced.transparentProxy.label")}
             </label>
             <button
               onClick={handleToggleTransparentProxy}
@@ -238,14 +244,14 @@ export default function AdvancedSection({ onOpenCACert }: AdvancedSectionProps) 
             </button>
           </div>
           <p className="text-xs text-stone-500 mt-2">
-            Intercept HTTPS traffic system-wide for automatic PII protection.
+            {t("advanced.transparentProxy.help")}
           </p>
           <div className="mt-3 p-3 rounded-lg bg-amber-50 ring-1 ring-amber-200">
             <div className="flex items-start gap-2">
               <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
               <p className="text-xs text-amber-800">
-                <strong>Experimental:</strong> This feature requires CA
-                certificate installation and may affect system network settings.
+                <strong>{t("advanced.transparentProxy.experimentalLabel")}</strong>{" "}
+                {t("advanced.transparentProxy.experimentalHelp")}
               </p>
             </div>
           </div>
@@ -256,7 +262,7 @@ export default function AdvancedSection({ onOpenCACert }: AdvancedSectionProps) 
           <div className="flex items-center justify-between">
             <label className="text-sm font-semibold text-stone-700 flex items-center gap-2">
               <BarChart3 className="w-4 h-4" />
-              Crash &amp; Error Reporting
+              {t("advanced.telemetry.label")}
             </label>
             <button
               onClick={handleToggleTelemetry}
@@ -273,16 +279,12 @@ export default function AdvancedSection({ onOpenCACert }: AdvancedSectionProps) 
             </button>
           </div>
           <p className="text-xs text-stone-500 mt-2">
-            Off by default. When enabled, anonymous crash and error reports are
-            sent to help improve Kiji. Your prompts and the original (unmasked)
-            text are never sent — only masked text and technical error details.
-            Enabling this also lets you submit PII misclassification reports.
+            {t("advanced.telemetry.help")}
           </p>
           {telemetryNeedsRestart && (
             <div className="mt-3 p-3 rounded-lg bg-brand-50 ring-1 ring-brand-200">
               <p className="text-xs text-brand-800">
-                Restart the app for this change to fully take effect across all
-                components.
+                {t("advanced.telemetry.restartNotice")}
               </p>
             </div>
           )}
@@ -292,7 +294,7 @@ export default function AdvancedSection({ onOpenCACert }: AdvancedSectionProps) 
         <div className="rounded-xl ring-1 ring-stone-200 p-4">
           <label className="text-sm font-semibold text-stone-700 mb-3 flex items-center gap-2">
             <Server className="w-4 h-4" />
-            Load Custom Kiji PII Model
+            {t("advanced.model.label")}
           </label>
 
           {/* Current Model Info */}
@@ -310,16 +312,22 @@ export default function AdvancedSection({ onOpenCACert }: AdvancedSectionProps) 
                     modelInfo.healthy ? "text-brand-700" : "text-red-700"
                   }`}
                 >
-                  Status: {modelInfo.healthy ? "Healthy" : "Unhealthy"}
+                  {t("advanced.model.statusLine", {
+                    status: modelInfo.healthy
+                      ? t("advanced.model.statusHealthy")
+                      : t("advanced.model.statusUnhealthy"),
+                  })}
                 </span>
                 {modelInfo.directory && (
                   <div className="text-stone-600 mt-1 break-all font-mono">
-                    Current: {modelInfo.directory}
+                    {t("advanced.model.currentLine", {
+                      directory: modelInfo.directory,
+                    })}
                   </div>
                 )}
                 {modelInfo.error && (
                   <div className="text-red-700 mt-1 break-all">
-                    Error: {modelInfo.error}
+                    {t("advanced.model.errorLine", { error: modelInfo.error })}
                   </div>
                 )}
               </div>
@@ -331,22 +339,21 @@ export default function AdvancedSection({ onOpenCACert }: AdvancedSectionProps) 
               type="text"
               value={modelDirectory}
               onChange={(e) => setModelDirectory(e.target.value)}
-              placeholder="/path/to/model/directory"
+              placeholder={t("advanced.model.pathPlaceholder")}
               className="flex-1 px-3 py-2 rounded-lg border border-stone-200 bg-white font-mono text-sm transition-shadow focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 placeholder:text-stone-400"
             />
             <button
               onClick={handleBrowseModelDirectory}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-stone-600 bg-white ring-1 ring-stone-200 hover:bg-stone-50 hover:text-stone-800 transition-colors"
-              title="Browse for folder"
+              title={t("advanced.model.browseTitle")}
             >
               <FolderOpen className="w-4 h-4" />
-              Browse
+              {t("advanced.model.browse")}
             </button>
           </div>
 
           <p className="text-xs text-stone-500 mt-2">
-            Directory must contain: model.onnx, tokenizer.json,
-            label_mappings.json
+            {t("advanced.model.requirements")}
           </p>
 
           {/* Action Button */}
@@ -355,7 +362,9 @@ export default function AdvancedSection({ onOpenCACert }: AdvancedSectionProps) 
             disabled={isReloading || !modelDirectory.trim()}
             className="btn-brand mt-3 inline-flex items-center justify-center gap-2 px-5 py-2.5 text-white rounded-xl text-sm font-medium tracking-tight disabled:opacity-50 disabled:cursor-not-allowed w-full"
           >
-            {isReloading ? "Reloading…" : "Reload Model"}
+            {isReloading
+              ? t("advanced.model.reloading")
+              : t("advanced.model.reload")}
           </button>
 
           {/* Reload Message */}

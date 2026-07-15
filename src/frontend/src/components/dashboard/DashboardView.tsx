@@ -1,5 +1,8 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { Shield, TrendingUp, Send, ArrowRight } from "lucide-react";
+import i18n from "../../i18n";
 import { isElectron } from "../../utils/providerHelpers";
 import { useDashboardData } from "../../hooks/useDashboardData";
 import type {
@@ -9,12 +12,7 @@ import type {
   RecentIntercept,
 } from "../../types/dashboard";
 
-const RANGES: { id: DashboardRange; label: string }[] = [
-  { id: "24h", label: "24 hours" },
-  { id: "7d", label: "7 days" },
-  { id: "30d", label: "30 days" },
-  { id: "90d", label: "90 days" },
-];
+const RANGE_IDS: DashboardRange[] = ["24h", "7d", "30d", "90d"];
 
 const SEGMENT_COLORS = ["#1f8568", "#5dc1a6", "#ecaa4f", "#195545", "#d6d3d1"];
 
@@ -22,21 +20,43 @@ const SEGMENT_COLORS = ["#1f8568", "#5dc1a6", "#ecaa4f", "#195545", "#d6d3d1"];
 // users to the Activity tab for the full, paginated history.
 const RECENT_LIMIT = 5;
 
+// Format numbers in the active UI locale so grouping matches the language
+// (e.g. "1,051" in English, "1 051" in French).
 function fmt(n: number): string {
-  return n.toLocaleString("en-US");
+  return n.toLocaleString(i18n.resolvedLanguage ?? "en");
 }
 
-function relativeTime(ts: string): string {
+// Same, with one fixed decimal place (e.g. detection confidence "79.0" / "79,0").
+function fmt1(n: number): string {
+  return n.toLocaleString(i18n.resolvedLanguage ?? "en", {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  });
+}
+
+// The backend sends the delta window as a "<number><unit>" string (e.g. "7d").
+// Localize just the unit suffix so French shows "7j" rather than "7d"; unknown
+// formats fall through unchanged.
+function formatDeltaWindow(window: string, t: TFunction<"dashboard">): string {
+  const match = window.match(/^(\d+)\s*([a-zA-Z]+)$/);
+  if (!match) return window;
+  const [, count, unit] = match;
+  return `${count}${t(`kpi.windowUnit.${unit.toLowerCase()}`, {
+    defaultValue: unit,
+  })}`;
+}
+
+function relativeTime(ts: string, t: TFunction<"dashboard">): string {
   const diff = Date.now() - new Date(ts).getTime();
   if (Number.isNaN(diff)) return "";
   const s = Math.max(0, Math.floor(diff / 1000));
-  if (s < 5) return "just now";
-  if (s < 60) return `${s}s ago`;
+  if (s < 5) return t("time.justNow");
+  if (s < 60) return t("time.secondsAgo", { count: s });
   const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
+  if (m < 60) return t("time.minutesAgo", { count: m });
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
+  if (h < 24) return t("time.hoursAgo", { count: h });
+  return t("time.daysAgo", { count: Math.floor(h / 24) });
 }
 
 /* ---- tiny inline charts (no chart dependency) ---- */
@@ -64,10 +84,11 @@ function Sparkline({ values }: { values: number[] }) {
 }
 
 function AreaChart({ points }: { points: TimeseriesPoint[] }) {
+  const { t } = useTranslation("dashboard");
   if (!points || points.length < 2) {
     return (
       <div className="h-[200px] flex items-center justify-center text-sm text-stone-400">
-        Not enough activity yet to chart.
+        {t("chart.notEnough")}
       </div>
     );
   }
@@ -133,6 +154,10 @@ function Donut({
   total: number;
   byType: CompositionEntry[];
 }) {
+  const { t } = useTranslation("dashboard");
+  // Some locales (e.g. French "renseignements détectés") are too long for the
+  // small donut center; those translate the label to an empty string to hide it.
+  const centerLabel = t("composition.entities");
   const segments: string[] = [];
   let acc = 0;
   byType.forEach((e, i) => {
@@ -153,9 +178,11 @@ function Donut({
       >
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center">
           <b className="font-mono text-xl text-brand-900">{fmt(total)}</b>
-          <small className="text-[10px] tracking-[0.1em] uppercase text-stone-400">
-            entities
-          </small>
+          {centerLabel && (
+            <small className="text-[10px] tracking-[0.1em] uppercase text-stone-400">
+              {centerLabel}
+            </small>
+          )}
         </div>
       </div>
       <div className="flex-1 flex flex-col gap-2.5 text-[13px]">
@@ -177,6 +204,7 @@ function Donut({
 }
 
 function FeedRow({ item }: { item: RecentIntercept }) {
+  const { t } = useTranslation("dashboard");
   return (
     <div className="grid grid-cols-[auto_1fr_auto] gap-3 items-center py-3 border-b border-brand-900/[0.06] last:border-0">
       <div className="w-[34px] h-[34px] rounded-[9px] bg-brand-50 border border-brand-100 grid place-items-center text-brand-600">
@@ -187,16 +215,19 @@ function FeedRow({ item }: { item: RecentIntercept }) {
           {item.source} <span className="text-stone-500 font-medium">&rarr; {item.provider}</span>
         </div>
         <div className="text-xs text-stone-400 font-mono mt-0.5 truncate">
-          {item.preview ?? "request"} &middot; masked{" "}
+          {item.preview ?? t("recent.requestFallback")} &middot;{" "}
+          {t("recent.maskedLabel")}{" "}
           <span className="bg-brand-900 text-brand-100 rounded-[3px] px-1.5 tracking-widest">
             ██████
           </span>
         </div>
       </div>
       <div className="text-right text-xs">
-        <div className="font-bold text-brand-700">{item.pii_count} PII</div>
+        <div className="font-bold text-brand-700">
+          {t("recent.piiCount", { count: item.pii_count })}
+        </div>
         <div className="text-stone-400 text-[11px] mt-0.5">
-          {relativeTime(item.ts)}
+          {relativeTime(item.ts, t)}
         </div>
       </div>
     </div>
@@ -210,6 +241,7 @@ export default function DashboardView({
 }: {
   onShowActivity?: () => void;
 }) {
+  const { t } = useTranslation("dashboard");
   const [range, setRange] = useState<DashboardRange>("30d");
   const { data, loading, error } = useDashboardData(range, isElectron);
 
@@ -222,11 +254,9 @@ export default function DashboardView({
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-[23px] font-semibold tracking-tight text-stone-900">
-            Overview
+            {t("title")}
           </h1>
-          <p className="text-stone-500 text-[13px] mt-0.5">
-            Everything routed through Kiji, masked before it leaves your machine.
-          </p>
+          <p className="text-stone-500 text-[13px] mt-0.5">{t("subtitle")}</p>
         </div>
         <div className="flex items-center gap-2.5">
           <select
@@ -234,9 +264,9 @@ export default function DashboardView({
             onChange={(e) => setRange(e.target.value as DashboardRange)}
             className="text-[13px] font-medium text-stone-700 bg-white border border-brand-900/10 rounded-lg px-3 py-2 shadow-soft focus:outline-none focus:border-brand-500"
           >
-            {RANGES.map((r) => (
-              <option key={r.id} value={r.id}>
-                Last {r.label}
+            {RANGE_IDS.map((id) => (
+              <option key={id} value={id}>
+                {t("range.selectLabel", { label: t(`range.${id}`) })}
               </option>
             ))}
           </select>
@@ -250,15 +280,14 @@ export default function DashboardView({
                 intercepting ? "bg-brand-500" : "bg-stone-300"
               }`}
             />
-            {intercepting ? "Intercepting" : "Idle"}
+            {intercepting ? t("status.intercepting") : t("status.idle")}
           </span>
         </div>
       </div>
 
       {error && !data && (
         <div className="card p-5 text-sm text-red-700 bg-red-50 ring-1 ring-red-200 border-0">
-          Couldn&rsquo;t reach the Kiji server: {error}. Make sure the proxy is
-          running on localhost:8080.
+          {t("serverError", { error })}
         </div>
       )}
 
@@ -281,7 +310,7 @@ export default function DashboardView({
               <div className="flex justify-between items-end">
                 <div>
                   <div className="text-[11px] font-semibold tracking-[0.13em] uppercase text-stone-400">
-                    PII items protected
+                    {t("kpi.piiProtected")}
                   </div>
                   <div className="font-mono text-[34px] font-semibold text-brand-700 mt-2 leading-none">
                     {fmt(data.kpis.pii_protected.total)}
@@ -291,7 +320,12 @@ export default function DashboardView({
                       <TrendingUp className="w-3.5 h-3.5" /> +
                       {fmt(data.kpis.pii_protected.delta)}
                     </span>
-                    in the last {data.kpis.pii_protected.delta_window}
+                    {t("kpi.piiProtectedDelta", {
+                      window: formatDeltaWindow(
+                        data.kpis.pii_protected.delta_window,
+                        t
+                      ),
+                    })}
                   </div>
                 </div>
                 <Sparkline values={data.kpis.pii_protected.spark} />
@@ -300,26 +334,31 @@ export default function DashboardView({
 
             <div className="card p-5">
               <div className="text-[11px] font-semibold tracking-[0.13em] uppercase text-stone-400">
-                Requests proxied
+                {t("kpi.requestsProxied")}
               </div>
               <div className="font-mono text-[34px] font-semibold text-brand-900 mt-2 leading-none">
                 {fmt(data.kpis.requests_proxied.total)}
               </div>
               <div className="text-xs text-stone-500 mt-2.5">
-                {fmt(data.kpis.requests_proxied.today)} today
+                {t("kpi.requestsToday", {
+                  value: fmt(data.kpis.requests_proxied.today),
+                })}
               </div>
             </div>
 
             <div className="card p-5">
               <div className="text-[11px] font-semibold tracking-[0.13em] uppercase text-stone-400">
-                Avg added latency
+                {t("kpi.avgLatency")}
               </div>
               <div className="font-mono text-[34px] font-semibold text-brand-900 mt-2 leading-none">
-                {data.kpis.latency_ms.avg_added}
-                <span className="text-lg text-stone-500">ms</span>
+                {fmt(data.kpis.latency_ms.avg_added)}
+                <span className="text-lg text-stone-500">
+                  {" "}
+                  {t("kpi.latencyUnit")}
+                </span>
               </div>
               <div className="text-xs text-stone-500 mt-2.5">
-                privacy, no slowdown
+                {t("kpi.latencyCaption")}
               </div>
             </div>
           </div>
@@ -328,20 +367,19 @@ export default function DashboardView({
           <div className="grid grid-cols-[1.55fr_1fr] gap-4 mb-4 items-stretch">
             <div className="card p-5">
               <h3 className="text-sm font-bold flex items-center justify-between">
-                PII masked over time
+                {t("chart.title")}
                 <span className="text-xs text-stone-400 font-medium">
-                  last {RANGES.find((r) => r.id === range)?.label}
+                  {t("range.chartSuffix", { label: t(`range.${range}`) })}
                 </span>
               </h3>
               <div className="mt-3.5">
                 {isEmpty ? (
                   <div className="h-[200px] flex flex-col items-center justify-center text-center gap-1">
                     <p className="text-sm font-medium text-stone-600">
-                      Kiji is running and ready.
+                      {t("chart.readyTitle")}
                     </p>
                     <p className="text-xs text-stone-400">
-                      Route your first request through the proxy to start
-                      protecting data.
+                      {t("chart.readyBody")}
                     </p>
                   </div>
                 ) : (
@@ -352,9 +390,9 @@ export default function DashboardView({
 
             <div className="card p-5 flex flex-col">
               <h3 className="text-sm font-bold flex items-center justify-between">
-                What we masked
+                {t("composition.title")}
                 <span className="text-xs text-stone-400 font-medium">
-                  this period
+                  {t("composition.thisPeriod")}
                 </span>
               </h3>
               <div className="flex-1 flex flex-col justify-center">
@@ -365,7 +403,7 @@ export default function DashboardView({
                   />
                 ) : (
                   <div className="h-[138px] flex items-center justify-center text-sm text-stone-400">
-                    Nothing masked yet.
+                    {t("composition.empty")}
                   </div>
                 )}
               </div>
@@ -376,8 +414,10 @@ export default function DashboardView({
           <div className="grid grid-cols-2 gap-4 items-start">
             <div className="card p-5">
               <h3 className="text-sm font-bold flex items-center justify-between">
-                Traffic by provider
-                <span className="text-xs text-stone-400 font-medium">requests</span>
+                {t("providers.title")}
+                <span className="text-xs text-stone-400 font-medium">
+                  {t("providers.requests")}
+                </span>
               </h3>
               <div className="flex flex-col gap-3.5 mt-4">
                 {data.by_provider.map((p) => (
@@ -398,7 +438,7 @@ export default function DashboardView({
                 ))}
                 {data.by_provider.length === 0 && (
                   <p className="text-sm text-stone-400 py-6 text-center">
-                    No traffic yet.
+                    {t("providers.empty")}
                   </p>
                 )}
               </div>
@@ -406,31 +446,31 @@ export default function DashboardView({
                 <div className="flex gap-2.5 mt-4 pt-4 border-t border-brand-900/[0.06]">
                   <div className="flex-1 bg-stone-50 border border-brand-900/[0.06] rounded-[10px] px-3 py-2.5">
                     <div className="text-[10px] tracking-[0.12em] uppercase text-stone-400 font-semibold">
-                      Peak today
+                      {t("highlights.peakToday")}
                     </div>
                     <div className="text-[15px] font-semibold text-brand-900 mt-1">
-                      {data.highlights.peak_rpm_today ?? "—"}{" "}
+                      {data.highlights.peak_rpm_today ?? t("empty")}{" "}
                       <span className="font-mono font-normal text-stone-500 text-xs">
-                        req/min
+                        {t("highlights.reqPerMin")}
                       </span>
                     </div>
                   </div>
                   <div className="flex-1 bg-stone-50 border border-brand-900/[0.06] rounded-[10px] px-3 py-2.5">
                     <div className="text-[10px] tracking-[0.12em] uppercase text-stone-400 font-semibold">
-                      Busiest source
+                      {t("highlights.busiestSource")}
                     </div>
                     <div className="text-[15px] font-semibold text-brand-900 mt-1 truncate">
-                      {data.highlights.busiest_source ?? "—"}
+                      {data.highlights.busiest_source ?? t("empty")}
                     </div>
                   </div>
                   <div className="flex-1 bg-stone-50 border border-brand-900/[0.06] rounded-[10px] px-3 py-2.5">
                     <div className="text-[10px] tracking-[0.12em] uppercase text-stone-400 font-semibold">
-                      Detection conf.
+                      {t("highlights.detectionConfidence")}
                     </div>
                     <div className="text-[15px] font-semibold text-brand-900 mt-1">
-                      {(data.kpis.detection_confidence.avg * 100).toFixed(1)}
+                      {fmt1(data.kpis.detection_confidence.avg * 100)}
                       <span className="font-mono font-normal text-stone-500 text-xs">
-                        % avg
+                        {t("highlights.avgSuffix")}
                       </span>
                     </div>
                   </div>
@@ -440,8 +480,10 @@ export default function DashboardView({
 
             <div className="card p-5">
               <h3 className="text-sm font-bold flex items-center justify-between">
-                Recent intercepts
-                <span className="text-xs text-stone-400 font-medium">live</span>
+                {t("recent.title")}
+                <span className="text-xs text-stone-400 font-medium">
+                  {t("recent.live")}
+                </span>
               </h3>
               <div className="flex flex-col mt-2">
                 {data.recent.slice(0, RECENT_LIMIT).map((item) => (
@@ -451,7 +493,7 @@ export default function DashboardView({
                   <div className="flex flex-col items-center justify-center text-center gap-2 py-10">
                     <Send className="w-5 h-5 text-stone-300" />
                     <p className="text-sm text-stone-400">
-                      No requests intercepted yet.
+                      {t("recent.empty")}
                     </p>
                   </div>
                 )}
@@ -462,7 +504,7 @@ export default function DashboardView({
                   onClick={onShowActivity}
                   className="mt-3 w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-brand-700 hover:text-brand-800"
                 >
-                  View all activity
+                  {t("recent.viewAll")}
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               )}

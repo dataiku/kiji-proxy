@@ -1,0 +1,106 @@
+{
+  "appName": "Kiji Privacy Proxy",
+  "tagline": "Proxy de détection et de masquage des renseignements personnels",
+  "language": {
+    "label": "Langue",
+    "subtitle": "Choisissez la langue de l’interface Kiji.",
+    "en": "Anglais",
+    "fr": "Français"
+  },
+  "actions": {
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "close": "Fermer",
+    "confirm": "Confirmer",
+    "retry": "Réessayer",
+    "reset": "Réinitialiser",
+    "settings": "Paramètres",
+    "about": "À propos de Kiji Privacy Proxy"
+  },
+  "menu": {
+    "label": "Menu"
+  },
+  "badges": {
+    "localProxy": "Proxy local",
+    "onDeviceDetection": "Détection sur l'appareil"
+  },
+  "modelHealth": {
+    "unhealthy": "Le modèle est défaillant",
+    "checkConfig": "Vérifiez la configuration du modèle dans <settingsAction>Paramètres</settingsAction>"
+  },
+  "apiKey": {
+    "notConfigured": "Clé API {{provider}} non configurée.",
+    "configureInSettings": "Configurer dans les Paramètres"
+  },
+  "playground": {
+    "loadingOverlay": "Protection de vos données…",
+    "mascotAlt": "Mascotte Kiji",
+    "logoAlt": "Logo Kiji",
+    "yourRequest": "Votre requête",
+    "sendTo": "Envoyer à",
+    "inputPlaceholder": "Saisissez un message contenant des informations sensibles…\n\nExemple : Bonjour, je m'appelle John Smith et mon adresse e-mail est john.smith@email.com. Mon numéro de téléphone est le 555-123-4567.\n\nKiji détecte et masque les renseignements personnels avant qu'ils ne quittent votre machine.",
+    "backendOffline": "Le serveur backend est hors ligne",
+    "processing": "Traitement…",
+    "processData": "Traiter les données",
+    "tabs": {
+      "sentToProvider": "Envoyée à {{provider}}",
+      "sentToLLM": "Envoyée au LLM",
+      "returnedByProvider": "Réponse de {{provider}}",
+      "returnedByLLM": "Réponse du LLM"
+    },
+    "request": {
+      "submitted": "Requête envoyée",
+      "piiExposed": "Renseignements personnels exposés",
+      "piiDetected_one": "{{count}} renseignement personnel détecté",
+      "piiDetected_many": "{{count}} renseignements personnels détectés",
+      "piiDetected_other": "{{count}} renseignements personnels détectés",
+      "avgConfidence": "{{value}} % de confiance moyenne",
+      "masked": "masqué",
+      "personalInfoRemoved": "Renseignements personnels masqués",
+      "piiProtected": "Renseignements personnels protégés",
+      "fakePiiReceived_one": "{{count}} renseignement personnel fictif reçu",
+      "fakePiiReceived_many": "{{count}} renseignements personnels fictifs reçus",
+      "fakePiiReceived_other": "{{count}} renseignements personnels fictifs reçus"
+    },
+    "response": {
+      "received": "Réponse reçue",
+      "fromProvider": "De {{provider}}",
+      "restored": "restauré",
+      "personalInfoRestored": "Renseignements personnels restaurés",
+      "restoredBadge": "Restauré",
+      "piiRestored_one": "{{count}} renseignement personnel restauré",
+      "piiRestored_many": "{{count}} renseignements personnels restaurés",
+      "piiRestored_other": "{{count}} renseignements personnels restaurés"
+    },
+    "reportMisclassification": "Signaler une erreur de classification",
+    "reportMisclassificationTitle": "Signaler une erreur de classification des renseignements personnels"
+  },
+  "footer": {
+    "builtBy": "Kiji Privacy Proxy · développé par <labLink>575 Lab</labLink>, le bureau Open Source de Dataiku",
+    "version": "v{{version}}"
+  },
+  "status": {
+    "serverOnline": "Serveur en ligne",
+    "serverOffline": "Serveur hors ligne",
+    "serverOfflineDetail": "Serveur hors ligne — démarrez le backend Go sur localhost:{{port}}",
+    "model": "Modèle",
+    "modelSignature": "Signature du modèle",
+    "modelSignatureLabel": "Signature du modèle {{signature}}",
+    "verifiedModelSignature": "Signature du modèle vérifiée"
+  },
+  "error": {
+    "title": "Oups ! Une erreur s'est produite",
+    "subtitle": "L'application a rencontré une erreur inattendue",
+    "messageLabel": "Message d'erreur :",
+    "stackTrace": "Trace de la pile (cliquez pour développer)",
+    "tryAgain": "Réessayer",
+    "reload": "Recharger l'application",
+    "whatCanYouDo": "Que pouvez-vous faire ?",
+    "help": {
+      "tryAgain": "Cliquez sur « Réessayer » pour réinitialiser le composant",
+      "reload": "Cliquez sur « Recharger l'application » pour actualiser toute l'application",
+      "console": "Si le problème persiste, consultez la console du navigateur pour plus de détails",
+      "report": "Envisagez de signaler ce problème à l'équipe de développement"
+    }
+  }
+}

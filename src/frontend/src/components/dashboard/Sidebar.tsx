@@ -6,6 +6,7 @@ import {
   Settings as SettingsIcon,
   Info,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import logoImage from "../../../assets/kiji-dark.svg";
 
 export type ViewId =
@@ -39,9 +40,9 @@ function formatUptime(seconds?: number): string {
 }
 
 const STATUS = {
-  online: { label: "Server online", dot: "#7fe8c8", glow: true },
-  degraded: { label: "Model degraded", dot: "#ecaa4f", glow: true },
-  offline: { label: "Server offline", dot: "#ff7c6c", glow: false },
+  online: { dot: "#7fe8c8", glow: true },
+  degraded: { dot: "#ecaa4f", glow: true },
+  offline: { dot: "#ff7c6c", glow: false },
 } as const;
 
 export default function Sidebar({
@@ -50,6 +51,7 @@ export default function Sidebar({
   server,
   counts,
 }: SidebarProps) {
+  const { t } = useTranslation("dashboard");
   const status = STATUS[server.status];
 
   return (
@@ -57,31 +59,35 @@ export default function Sidebar({
       <div className="flex items-center gap-3 px-2 pb-6 pt-1">
         <img src={logoImage} alt="" className="w-9 h-9" />
         <div className="text-[16px] font-bold text-white">
-          Kiji <span className="font-medium text-brand-400">Proxy</span>
+          Kiji{" "}
+          <span className="font-medium text-brand-400">
+            {t("sidebar.brandSuffix")}
+          </span>
         </div>
       </div>
 
       <nav className="flex flex-col gap-0.5">
         <span className="px-2.5 pt-3 pb-2 text-[10px] font-semibold tracking-[0.18em] uppercase text-brand-400/70">
-          Workspace
+          {t("sidebar.sectionWorkspace")}
         </span>
         <button
           className={`kiji-navitem${active === "dashboard" ? " is-active" : ""}`}
           onClick={() => onNavigate("dashboard")}
         >
-          <LayoutDashboard /> Dashboard
+          <LayoutDashboard /> {t("sidebar.nav.dashboard")}
         </button>
         <button
           className={`kiji-navitem${active === "playground" ? " is-active" : ""}`}
           onClick={() => onNavigate("playground")}
         >
-          <Wand2 /> Playground <span className="cnt">mask</span>
+          <Wand2 /> {t("sidebar.nav.playground")}{" "}
+          <span className="cnt">{t("sidebar.nav.playgroundBadge")}</span>
         </button>
         <button
           className={`kiji-navitem${active === "activity" ? " is-active" : ""}`}
           onClick={() => onNavigate("activity")}
         >
-          <List /> Activity
+          <List /> {t("sidebar.nav.activity")}
           {counts?.activity != null && (
             <span className="cnt">{counts.activity}</span>
           )}
@@ -90,24 +96,24 @@ export default function Sidebar({
           className={`kiji-navitem${active === "mappings" ? " is-active" : ""}`}
           onClick={() => onNavigate("mappings")}
         >
-          <Database /> Mappings
+          <Database /> {t("sidebar.nav.mappings")}
           {counts?.mappings && <span className="cnt">{counts.mappings}</span>}
         </button>
 
         <span className="px-2.5 pt-4 pb-2 text-[10px] font-semibold tracking-[0.18em] uppercase text-brand-400/70">
-          Configure
+          {t("sidebar.sectionConfigure")}
         </span>
         <button
           className={`kiji-navitem${active === "settings" ? " is-active" : ""}`}
           onClick={() => onNavigate("settings")}
         >
-          <SettingsIcon /> Settings
+          <SettingsIcon /> {t("sidebar.nav.settings")}
         </button>
         <button
           className={`kiji-navitem${active === "about" ? " is-active" : ""}`}
           onClick={() => onNavigate("about")}
         >
-          <Info /> About Kiji
+          <Info /> {t("sidebar.nav.about")}
         </button>
       </nav>
 
@@ -121,15 +127,16 @@ export default function Sidebar({
               animation: status.glow ? "pulse 2.4s ease-in-out infinite" : "none",
             }}
           />
-          {status.label}
+          {t(`sidebar.server.${server.status}`)}
         </div>
         <div className="mt-2 font-mono text-[11px] leading-relaxed text-brand-400/80">
-          uptime&nbsp;&nbsp;{formatUptime(server.uptimeSeconds)}
+          {t("sidebar.server.uptime")}&nbsp;&nbsp;
+          {formatUptime(server.uptimeSeconds)}
           <br />
-          port&nbsp;&nbsp;&nbsp;&nbsp;
+          {t("sidebar.server.port")}&nbsp;&nbsp;&nbsp;&nbsp;
           <span className="text-[#a9cdc1]">localhost:{server.port ?? 8080}</span>
           <br />
-          model&nbsp;&nbsp;
+          {t("sidebar.server.model")}&nbsp;&nbsp;
           <span className="text-[#a9cdc1]">{server.model ?? "—"}</span>
           {server.version && (
             <>

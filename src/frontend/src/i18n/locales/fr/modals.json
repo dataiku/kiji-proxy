@@ -1,0 +1,68 @@
+{
+  "caCert": {
+    "title": "Configuration du certificat racine requise",
+    "intro": "Pour intercepter et analyser le trafic HTTPS, Kiji Privacy Proxy utilise une autorité de certification (CA) auto-signée. Vous devez approuver ce certificat sur votre système et/ou vos navigateurs.",
+    "revealFinder": "Afficher le certificat racine dans le Finder",
+    "revealExplorer": "Afficher le certificat racine dans l’Explorateur",
+    "revealDesktopOnly": "L’affichage dans le Finder n’est disponible que dans l’application de bureau.",
+    "revealFailed": "Échec de l’ouverture du dossier du certificat.",
+    "tabs": {
+      "system": "Approbation à l’échelle du système",
+      "browsers": "Spécifique au navigateur"
+    },
+    "system": {
+      "option1Title": "Option 1 : ligne de commande (recommandé)",
+      "copiedAria": "Commande copiée dans le presse-papiers",
+      "copyAria": "Copier la commande dans le presse-papiers",
+      "copiedTitle": "Copié !",
+      "copyTitle": "Copier dans le presse-papiers",
+      "copiedLabel": "Copié",
+      "copyLabel": "Copier",
+      "commandHelp": "Cette commande nécessite des privilèges d’administrateur et installera le certificat à l’échelle du système.",
+      "option2Title": "Option 2 : interface Trousseau d’accès",
+      "steps": {
+        "s1": "Double-cliquez sur le fichier du certificat : <code>~/Library/Application Support/Kiji Privacy Proxy/certs/ca.crt</code>",
+        "s2": "Cela ouvre <b>Trousseau d’accès</b> - cliquez sur <b>Ajouter</b> pour installer",
+        "s3": "Dans Trousseau d’accès, sélectionnez le trousseau <b>Système</b> dans la barre latérale gauche",
+        "s4": "Recherchez <b>« Kiji Privacy Proxy CA »</b> et double-cliquez dessus",
+        "s5": "Cliquez sur le <b>▶ triangle à côté de « Confiance »</b> pour développer la section",
+        "s6": "Réglez <b>« Lors de l’utilisation de ce certificat »</b> sur <accent>« Toujours approuver »</accent>",
+        "s7": "Réglez <b>« Secure Sockets Layer (SSL) »</b> sur <accent>« Toujours approuver »</accent>",
+        "s8": "<b>Fermez la fenêtre</b> et saisissez votre mot de passe lorsqu’il est demandé",
+        "s9": "<amber>Redémarrez complètement votre navigateur</amber> (Cmd+Q, puis rouvrez)"
+      },
+      "important": "<b>Important :</b> vous devez redémarrer votre navigateur après avoir approuvé le certificat. L’approbation à l’échelle du système fonctionne pour Safari et Chrome. Firefox nécessite une configuration distincte (voir l’onglet Spécifique au navigateur).",
+      "commonIssue": "<b>⚠️ Problème courant :</b> si le certificat affiche « Number of trust settings: 0 » dans le terminal, cela signifie que vous ne l’avez pas réglé sur « Toujours approuver » aux étapes 6-7 ci-dessus. Le certificat doit être marqué comme approuvé pour SSL, et pas seulement installé."
+    },
+    "browsers": {
+      "firefox": "Firefox",
+      "firefoxSteps": {
+        "s1": "Paramètres → <b>Vie privée et sécurité</b>",
+        "s2": "Certificats → <b>Voir les certificats</b>",
+        "s3": "Autorités → <b>Importer</b>",
+        "s4": "Sélectionnez <code>~/Library/Application Support/Kiji Privacy Proxy/certs/ca.crt</code>",
+        "s5": "Cochez <b>« Confirmer cette AC pour identifier des sites web »</b>"
+      },
+      "chrome": "Chrome/Chromium",
+      "chromeSteps": {
+        "s1": "Paramètres → <b>Confidentialité et sécurité</b> → <b>Sécurité</b>",
+        "s2": "<b>Gérer les certificats</b> → Autorités",
+        "s3": "<b>Importer</b> le certificat racine (<code>~/Library/Application Support/Kiji Privacy Proxy/certs/ca.crt</code>)"
+      },
+      "chromeTip": "<b>Astuce :</b> Chrome sur macOS utilise généralement le trousseau système, l’approbation à l’échelle du système (voir l’autre onglet) devrait donc suffire."
+    },
+    "docLink": "Voir la documentation complète",
+    "dontShowAgain": "Ne plus afficher ce message",
+    "confirm": "J’ai compris"
+  },
+  "misclassification": {
+    "title": "Signaler une erreur de classification",
+    "detectedEntities": "Entités détectées ({{num}})",
+    "confidence": "{{value}} % de confiance",
+    "originalInputLabel": "Entrée d’origine",
+    "feedbackLabel": "Votre retour",
+    "feedbackHelp": "Veuillez décrire ce qui a été mal classé. Votre retour nous aide à améliorer le modèle de détection des renseignements personnels.",
+    "feedbackPlaceholder": "Exemple : « John Smith » a été détecté comme nom de personne, mais c’est en fait un nom d’entreprise...",
+    "submit": "Envoyer le signalement"
+  }
+}

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useTranslation, Trans } from "react-i18next";
 import {
   Send,
   AlertCircle,
@@ -58,6 +59,8 @@ export default function PrivacyProxyUI({
   onRequestSettings,
   onRequestAbout,
 }: PrivacyProxyUIProps = {}) {
+  const { t, i18n } = useTranslation("common");
+
   // UI toggle state (simple enough to stay in the component)
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
@@ -150,13 +153,13 @@ export default function PrivacyProxyUI({
           <div className="flex flex-col items-center gap-5">
             <img
               src={kijiMascot}
-              alt="Kiji mascot"
+              alt={t("playground.mascotAlt")}
               className="w-28 h-28 animate-bounce-slow drop-shadow-2xl"
             />
             <div className="flex items-center gap-3 bg-white/95 px-6 py-3 rounded-full shadow-lift ring-1 ring-brand-900/5">
               <div className="w-4 h-4 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
               <span className="text-sm font-medium text-stone-700 tracking-tight">
-                Protecting your data…
+                {t("playground.loadingOverlay")}
               </span>
             </div>
           </div>
@@ -181,7 +184,7 @@ export default function PrivacyProxyUI({
                 <button
                   onClick={() => setIsMenuOpen(!isMenuOpen)}
                   className="p-2 text-stone-500 hover:text-brand-700 hover:bg-stone-100 rounded-lg transition-colors"
-                  title="Menu"
+                  title={t("menu.label")}
                 >
                   <Menu className="w-6 h-6" />
                 </button>
@@ -195,7 +198,7 @@ export default function PrivacyProxyUI({
                       className="w-full text-left px-3 py-2.5 text-sm text-stone-700 hover:bg-brand-50 hover:text-brand-800 rounded-lg transition-colors flex items-center gap-2.5"
                     >
                       <Settings className="w-4 h-4 text-stone-400" />
-                      Settings
+                      {t("actions.settings")}
                     </button>
                     <button
                       onClick={() => {
@@ -205,7 +208,7 @@ export default function PrivacyProxyUI({
                       className="w-full text-left px-3 py-2.5 text-sm text-stone-700 hover:bg-brand-50 hover:text-brand-800 rounded-lg transition-colors flex items-center gap-2.5"
                     >
                       <Info className="w-4 h-4 text-stone-400" />
-                      About Kiji Privacy Proxy
+                      {t("actions.about")}
                     </button>
                   </div>
                 )}
@@ -219,7 +222,7 @@ export default function PrivacyProxyUI({
               <div className="flex items-center justify-center gap-3">
                 <img
                   src={logoImage}
-                  alt="Kiji logo"
+                  alt={t("playground.logoAlt")}
                   className={`transition-all duration-300 ${
                     isScrolled ? "w-8 h-8" : "w-12 h-12"
                   }`}
@@ -235,15 +238,15 @@ export default function PrivacyProxyUI({
               {!isScrolled && (
                 <div className="mt-3 flex flex-col items-center gap-3 animate-fade-in">
                   <p className="text-stone-500 text-base tracking-tight">
-                    PII detection &amp; masking proxy
+                    {t("tagline")}
                   </p>
                   <div className="flex items-center gap-2 text-xs">
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-50 text-brand-700 ring-1 ring-brand-200 px-3 py-1 font-medium">
                       <span className="w-1.5 h-1.5 rounded-full bg-brand-500" />
-                      Local proxy
+                      {t("badges.localProxy")}
                     </span>
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-white text-stone-500 ring-1 ring-stone-200 px-3 py-1 font-medium">
-                      On-device detection
+                      {t("badges.onDeviceDetection")}
                     </span>
                   </div>
                 </div>
@@ -256,7 +259,7 @@ export default function PrivacyProxyUI({
             <div className="mt-5 p-4 bg-red-50 ring-1 ring-red-200 rounded-xl block mx-auto max-w-2xl text-left">
               <p className="text-sm text-red-900 flex items-center gap-2">
                 <AlertCircle className="w-5 h-5" />
-                <span className="font-semibold">Model is unhealthy</span>
+                <span className="font-semibold">{t("modelHealth.unhealthy")}</span>
               </p>
               {serverHealth.modelError && (
                 <p className="text-xs text-red-700 mt-2 break-all">
@@ -264,17 +267,20 @@ export default function PrivacyProxyUI({
                 </p>
               )}
               <p className="text-xs text-red-700 mt-2">
-                Check the model configuration in{" "}
-                {isElectron ? (
-                  <button
-                    onClick={() => onRequestSettings?.()}
-                    className="underline font-semibold"
-                  >
-                    Settings
-                  </button>
-                ) : (
-                  "Settings"
-                )}
+                <Trans
+                  i18nKey="modelHealth.checkConfig"
+                  ns="common"
+                  components={{
+                    settingsAction: isElectron ? (
+                      <button
+                        onClick={() => onRequestSettings?.()}
+                        className="underline font-semibold"
+                      />
+                    ) : (
+                      <span />
+                    ),
+                  }}
+                />
               </p>
             </div>
           )}
@@ -284,14 +290,15 @@ export default function PrivacyProxyUI({
               <p className="text-xs text-amber-800 flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 shrink-0" />
                 <span>
-                  {PROVIDER_NAMES[settings.activeProvider]} API key not
-                  configured.{" "}
+                  {t("apiKey.notConfigured", {
+                    provider: PROVIDER_NAMES[settings.activeProvider],
+                  })}{" "}
                 </span>
                 <button
                   onClick={() => onRequestSettings?.()}
                   className="underline font-semibold"
                 >
-                  Configure in Settings
+                  {t("apiKey.configureInSettings")}
                 </button>
               </p>
             </div>
@@ -302,9 +309,13 @@ export default function PrivacyProxyUI({
         {/* Input Section */}
         <div className="card p-6 md:p-7 mb-6 animate-rise-in">
           <div className="flex items-center justify-between mb-4">
-            <span className="eyebrow text-stone-400">Your request</span>
+            <span className="eyebrow text-stone-400">
+              {t("playground.yourRequest")}
+            </span>
             <div className="flex items-center gap-2">
-              <label className="text-sm text-stone-500">Send to</label>
+              <label className="text-sm text-stone-500">
+                {t("playground.sendTo")}
+              </label>
               <select
                 value={settings.activeProvider}
                 onChange={(e) =>
@@ -335,7 +346,7 @@ export default function PrivacyProxyUI({
           <textarea
             value={inputData}
             onChange={(e) => setInputData(e.target.value)}
-            placeholder="Type a message that contains sensitive information…&#10;&#10;Example: Hi, my name is John Smith and my email is john.smith@email.com. My phone is 555-123-4567.&#10;&#10;Kiji detects and masks the PII before it ever leaves your machine."
+            placeholder={t("playground.inputPlaceholder")}
             className={`w-full h-36 p-4 border rounded-xl focus:outline-none resize-none font-mono text-sm leading-relaxed transition-shadow ${
               serverStatus === "offline"
                 ? "border-red-200 bg-red-50 cursor-not-allowed opacity-60"
@@ -351,18 +362,20 @@ export default function PrivacyProxyUI({
               }
               className="btn-brand flex items-center gap-2 px-6 py-3 text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed font-medium tracking-tight"
               title={
-                serverStatus === "offline" ? "Backend server is offline" : ""
+                serverStatus === "offline"
+                  ? t("playground.backendOffline")
+                  : ""
               }
             >
               {isProcessing ? (
                 <>
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Processing…
+                  {t("playground.processing")}
                 </>
               ) : (
                 <>
                   <Send className="w-5 h-5" />
-                  Process data
+                  {t("playground.processData")}
                 </>
               )}
             </button>
@@ -370,7 +383,7 @@ export default function PrivacyProxyUI({
               onClick={handleReset}
               className="px-5 py-3 text-stone-500 rounded-xl hover:bg-stone-100 hover:text-stone-700 transition-colors font-medium"
             >
-              Reset
+              {t("actions.reset")}
             </button>
           </div>
         </div>
@@ -392,8 +405,10 @@ export default function PrivacyProxyUI({
                 >
                   <Eye className="w-4 h-4" />
                   {isElectron
-                    ? `Sent to ${PROVIDER_NAMES[displayedProvider]}`
-                    : "Sent to the LLM"}
+                    ? t("playground.tabs.sentToProvider", {
+                        provider: PROVIDER_NAMES[displayedProvider],
+                      })
+                    : t("playground.tabs.sentToLLM")}
                 </button>
                 <button
                   onClick={() => setActiveResultTab("response")}
@@ -405,8 +420,10 @@ export default function PrivacyProxyUI({
                 >
                   <CornerDownLeft className="w-4 h-4" />
                   {isElectron
-                    ? `Returned by ${PROVIDER_NAMES[displayedProvider]}`
-                    : "Returned by the LLM"}
+                    ? t("playground.tabs.returnedByProvider", {
+                        provider: PROVIDER_NAMES[displayedProvider],
+                      })
+                    : t("playground.tabs.returnedByLLM")}
                 </button>
               </div>
 
@@ -415,9 +432,9 @@ export default function PrivacyProxyUI({
                 <div className="grid md:grid-cols-[1fr_auto_1fr] gap-4 md:gap-3 items-stretch">
                   <div className="flex flex-col">
                     <div className="text-sm font-medium text-stone-600 mb-2 flex items-center gap-2">
-                      <span>Request submitted</span>
+                      <span>{t("playground.request.submitted")}</span>
                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-red-50 text-red-700 ring-1 ring-red-200 text-[11px] font-semibold">
-                        PII exposed
+                        {t("playground.request.piiExposed")}
                       </span>
                     </div>
                     <div
@@ -428,7 +445,9 @@ export default function PrivacyProxyUI({
                     />
                     <div className="flex justify-between items-center mt-2.5">
                       <p className="text-sm font-semibold text-stone-700">
-                        {detectedEntities.length} PII detected
+                        {t("playground.request.piiDetected", {
+                          count: detectedEntities.length,
+                        })}
                       </p>
                       <p
                         className="text-sm font-semibold"
@@ -436,7 +455,15 @@ export default function PrivacyProxyUI({
                           color: getConfidenceColor(averageConfidence),
                         }}
                       >
-                        {(averageConfidence * 100).toFixed(1)}% avg confidence
+                        {t("playground.request.avgConfidence", {
+                          value: (averageConfidence * 100).toLocaleString(
+                            i18n.resolvedLanguage ?? "en",
+                            {
+                              minimumFractionDigits: 1,
+                              maximumFractionDigits: 1,
+                            }
+                          ),
+                        })}
                       </p>
                     </div>
                   </div>
@@ -446,15 +473,17 @@ export default function PrivacyProxyUI({
                     <div className="w-9 h-9 rounded-full bg-brand-50 ring-1 ring-brand-200 flex items-center justify-center text-brand-600">
                       <ArrowRight className="w-4 h-4" />
                     </div>
-                    <span className="eyebrow text-stone-400">masked</span>
+                    <span className="eyebrow text-stone-400">
+                      {t("playground.request.masked")}
+                    </span>
                   </div>
 
                   <div className="flex flex-col">
                     <div className="text-sm font-medium text-stone-600 mb-2 flex items-center gap-2">
-                      <span>Personal information removed</span>
+                      <span>{t("playground.request.personalInfoRemoved")}</span>
                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-brand-50 text-brand-700 ring-1 ring-brand-200 text-[11px] font-semibold">
                         <ShieldCheck className="w-3 h-3" />
-                        PII protected
+                        {t("playground.request.piiProtected")}
                       </span>
                     </div>
                     <div
@@ -465,7 +494,9 @@ export default function PrivacyProxyUI({
                     />
                     <div className="mt-2.5">
                       <p className="text-sm font-semibold text-brand-700">
-                        {responseDetectedEntities.length} fake PIIs received
+                        {t("playground.request.fakePiiReceived", {
+                          count: responseDetectedEntities.length,
+                        })}
                       </p>
                     </div>
                   </div>
@@ -477,9 +508,11 @@ export default function PrivacyProxyUI({
                 <div className="grid md:grid-cols-[1fr_auto_1fr] gap-4 md:gap-3 items-stretch">
                   <div className="flex flex-col">
                     <div className="text-sm font-medium text-stone-600 mb-2 flex items-center gap-2">
-                      <span>Response received</span>
+                      <span>{t("playground.response.received")}</span>
                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-stone-100 text-stone-600 ring-1 ring-stone-200 text-[11px] font-semibold">
-                        From {PROVIDER_NAMES[displayedProvider]}
+                        {t("playground.response.fromProvider", {
+                          provider: PROVIDER_NAMES[displayedProvider],
+                        })}
                       </span>
                     </div>
                     <div
@@ -490,7 +523,9 @@ export default function PrivacyProxyUI({
                     />
                     <div className="mt-2.5">
                       <p className="text-sm font-semibold text-stone-700">
-                        {detectedEntities.length} fake PIIs received
+                        {t("playground.request.fakePiiReceived", {
+                          count: detectedEntities.length,
+                        })}
                       </p>
                     </div>
                   </div>
@@ -500,15 +535,17 @@ export default function PrivacyProxyUI({
                     <div className="w-9 h-9 rounded-full bg-brand-50 ring-1 ring-brand-200 flex items-center justify-center text-brand-600">
                       <ArrowRight className="w-4 h-4" />
                     </div>
-                    <span className="eyebrow text-stone-400">restored</span>
+                    <span className="eyebrow text-stone-400">
+                      {t("playground.response.restored")}
+                    </span>
                   </div>
 
                   <div className="flex flex-col">
                     <div className="text-sm font-medium text-stone-600 mb-2 flex items-center gap-2">
-                      <span>Personal information restored</span>
+                      <span>{t("playground.response.personalInfoRestored")}</span>
                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-brand-50 text-brand-700 ring-1 ring-brand-200 text-[11px] font-semibold">
                         <ShieldCheck className="w-3 h-3" />
-                        Restored
+                        {t("playground.response.restoredBadge")}
                       </span>
                     </div>
                     <div
@@ -519,7 +556,9 @@ export default function PrivacyProxyUI({
                     />
                     <div className="mt-2.5">
                       <p className="text-sm font-semibold text-brand-700">
-                        {responseDetectedEntities.length} PII restored
+                        {t("playground.response.piiRestored", {
+                          count: responseDetectedEntities.length,
+                        })}
                       </p>
                     </div>
                   </div>
@@ -538,10 +577,10 @@ export default function PrivacyProxyUI({
                     )
                   }
                   className="flex items-center gap-2 px-3.5 py-2 text-sm text-amber-700 hover:text-amber-800 hover:bg-amber-50 rounded-lg transition-colors font-medium ring-1 ring-amber-200"
-                  title="Report incorrect PII classification"
+                  title={t("playground.reportMisclassificationTitle")}
                 >
                   <Flag className="w-4 h-4" />
-                  Report misclassification
+                  {t("playground.reportMisclassification")}
                 </button>
               </div>
             </div>
@@ -613,18 +652,24 @@ export default function PrivacyProxyUI({
         {/* Info Footer */}
         <div className="mt-10 text-center text-sm text-stone-400">
           <p>
-            Kiji Privacy Proxy · built by{" "}
-            <a
-              href="https://www.dataiku.com/company/dataiku-for-the-future/open-source/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-brand-700 hover:text-brand-800 font-medium hover:underline underline-offset-2"
-            >
-              575 Lab
-            </a>
-            , Dataiku's Open Source Office
+            <Trans
+              i18nKey="footer.builtBy"
+              ns="common"
+              components={{
+                labLink: (
+                  <a
+                    href="https://www.dataiku.com/company/dataiku-for-the-future/open-source/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-brand-700 hover:text-brand-800 font-medium hover:underline underline-offset-2"
+                  />
+                ),
+              }}
+            />
             {version && (
-              <span className="ml-2 text-xs text-stone-300">v{version}</span>
+              <span className="ml-2 text-xs text-stone-300">
+                {t("footer.version", { version })}
+              </span>
             )}
           </p>
         </div>
@@ -639,16 +684,17 @@ export default function PrivacyProxyUI({
               serverStatus === "online" ? "bg-brand-400 shadow-[0_0_8px_rgba(93,193,166,0.7)]" : "bg-red-500"
             } ${serverStatus === "online" ? "animate-pulse" : ""}`}
             title={
-              serverStatus === "online" ? "Server online" : "Server offline"
+              serverStatus === "online"
+                ? t("status.serverOnline")
+                : t("status.serverOffline")
             }
           />
           <span className="text-sm">
             {serverStatus === "online" ? (
-              "Server online"
+              t("status.serverOnline")
             ) : (
               <span className="flex items-center gap-2 text-red-200">
-                Server offline — start the Go backend at localhost:
-                {GO_SERVER_PORT}
+                {t("status.serverOfflineDetail", { port: GO_SERVER_PORT })}
               </span>
             )}
           </span>
@@ -658,21 +704,25 @@ export default function PrivacyProxyUI({
             <div
               className="flex items-center gap-2 cursor-help"
               role="status"
-              aria-label="Model signature"
+              aria-label={t("status.modelSignature")}
               onMouseEnter={() => setShowModelTooltip(true)}
               onMouseLeave={() => setShowModelTooltip(false)}
             >
-              <span className="text-xs text-brand-300/80">Model</span>
+              <span className="text-xs text-brand-300/80">
+                {t("status.model")}
+              </span>
               <code
                 className="text-xs font-mono text-brand-100 bg-brand-950/50 px-1.5 py-0.5 rounded"
-                aria-label={`Model signature ${modelSignature}`}
+                aria-label={t("status.modelSignatureLabel", {
+                  signature: modelSignature,
+                })}
               >
                 {modelSignature}
               </code>
             </div>
             {showModelTooltip && (
               <div className="absolute bottom-full right-0 mb-2 px-2 py-1 text-xs text-white bg-brand-950 border border-brand-800 rounded shadow-lg whitespace-nowrap z-50">
-                Verified model signature
+                {t("status.verifiedModelSignature")}
                 <div className="absolute top-full right-2 border-l-4 border-r-4 border-t-4 border-transparent border-t-brand-950"></div>
               </div>
             )}

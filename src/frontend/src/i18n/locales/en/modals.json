@@ -1,0 +1,68 @@
+{
+  "caCert": {
+    "title": "CA Certificate Setup Required",
+    "intro": "To intercept and analyze HTTPS traffic, Kiji Privacy Proxy uses a self-signed Certificate Authority (CA). You must trust this certificate on your system and/or browsers.",
+    "revealFinder": "Reveal CA cert in Finder",
+    "revealExplorer": "Show CA cert in Explorer",
+    "revealDesktopOnly": "Reveal in Finder is only available in the desktop app.",
+    "revealFailed": "Failed to open the certificate folder.",
+    "tabs": {
+      "system": "System-Wide Trust",
+      "browsers": "Browser-Specific"
+    },
+    "system": {
+      "option1Title": "Option 1: Command Line (Recommended)",
+      "copiedAria": "Command copied to clipboard",
+      "copyAria": "Copy command to clipboard",
+      "copiedTitle": "Copied!",
+      "copyTitle": "Copy to clipboard",
+      "copiedLabel": "Copied",
+      "copyLabel": "Copy",
+      "commandHelp": "This command requires administrator privileges and will install the certificate system-wide.",
+      "option2Title": "Option 2: Keychain Access GUI",
+      "steps": {
+        "s1": "Double-click the certificate file: <code>~/Library/Application Support/Kiji Privacy Proxy/certs/ca.crt</code>",
+        "s2": "This opens <b>Keychain Access</b> - click <b>Add</b> to install",
+        "s3": "In Keychain Access, select <b>System</b> keychain in the left sidebar",
+        "s4": "Search for <b>\"Kiji Privacy Proxy CA\"</b> and double-click it",
+        "s5": "Click the <b>▶ triangle next to \"Trust\"</b> to expand the section",
+        "s6": "Set <b>\"When using this certificate\"</b> to <accent>\"Always Trust\"</accent>",
+        "s7": "Set <b>\"Secure Sockets Layer (SSL)\"</b> to <accent>\"Always Trust\"</accent>",
+        "s8": "<b>Close the window</b> and enter your password when prompted",
+        "s9": "<amber>Restart your browser completely</amber> (Cmd+Q, then reopen)"
+      },
+      "important": "<b>Important:</b> You must restart your browser after trusting the certificate. System-wide trust works for Safari and Chrome. Firefox requires separate configuration (see Browser-Specific tab).",
+      "commonIssue": "<b>⚠️ Common Issue:</b> If the certificate shows \"Number of trust settings: 0\" in terminal, it means you haven't set it to \"Always Trust\" in steps 6-7 above. The certificate must be marked as trusted for SSL, not just installed."
+    },
+    "browsers": {
+      "firefox": "Firefox",
+      "firefoxSteps": {
+        "s1": "Settings → <b>Privacy & Security</b>",
+        "s2": "Certificates → <b>View Certificates</b>",
+        "s3": "Authorities → <b>Import</b>",
+        "s4": "Select <code>~/Library/Application Support/Kiji Privacy Proxy/certs/ca.crt</code>",
+        "s5": "Check <b>\"Trust for websites\"</b>"
+      },
+      "chrome": "Chrome/Chromium",
+      "chromeSteps": {
+        "s1": "Settings → <b>Privacy and Security</b> → <b>Security</b>",
+        "s2": "<b>Manage certificates</b> → Authorities",
+        "s3": "<b>Import</b> CA certificate (<code>~/Library/Application Support/Kiji Privacy Proxy/certs/ca.crt</code>)"
+      },
+      "chromeTip": "<b>Tip:</b> Chrome on macOS typically uses the system keychain, so system-wide trust (see other tab) should be sufficient."
+    },
+    "docLink": "View full documentation",
+    "dontShowAgain": "Don't show this message again",
+    "confirm": "I Understand"
+  },
+  "misclassification": {
+    "title": "Report Misclassification",
+    "detectedEntities": "Detected Entities ({{num}})",
+    "confidence": "{{value}}% confidence",
+    "originalInputLabel": "Original Input",
+    "feedbackLabel": "Your Feedback",
+    "feedbackHelp": "Please describe what was incorrectly classified. Your feedback helps us improve the PII detection model.",
+    "feedbackPlaceholder": "Example: 'John Smith' was detected as a person name but it's actually a company name...",
+    "submit": "Submit Report"
+  }
+}

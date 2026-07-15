@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import "./src/styles/styles.css";
+import "./src/i18n";
 import AppShell from "./src/components/AppShell.tsx";
 import ErrorBoundary from "./src/components/ErrorBoundary.tsx";
 import * as Sentry from "@sentry/electron/renderer";

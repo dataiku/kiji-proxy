@@ -1,0 +1,26 @@
+{
+  "title": "About Kiji",
+  "subtitle": "Version, resources, and licensing for Kiji Privacy Proxy™.",
+  "logoAlt": "Kiji logo",
+  "productName": "Kiji Privacy Proxy™",
+  "tagline": "PII Detection and Masking Proxy",
+  "versionLabel": "Version",
+  "versionLoading": "Loading…",
+  "versionUnknown": "Unknown",
+  "description": "Kiji Privacy Proxy™ automatically detects and masks personally identifiable information (PII) in your API requests, ensuring data privacy when interacting with external services.",
+  "resources": "Resources",
+  "links": {
+    "github": "View on GitHub",
+    "docs": "Documentation",
+    "extension": "Kiji Chrome Extension",
+    "bug": "File a Bug Report",
+    "feature": "Request a Feature",
+    "email": "Email us",
+    "license": "Apache 2.0 License"
+  },
+  "noSupport": {
+    "title": "No Support Obligations",
+    "body": "The authors and contributors are under no obligation to provide support, maintenance, updates, enhancements, or modifications to this software."
+  },
+  "copyright": "© {{year}} - <labLink>575 Lab</labLink> - Dataiku's Open Source Office. Licensed under Apache 2.0."
+}

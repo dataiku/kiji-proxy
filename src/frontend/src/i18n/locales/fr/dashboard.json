@@ -1,0 +1,95 @@
+{
+  "title": "Vue d’ensemble",
+  "subtitle": "Tout ce qui transite par Kiji est masqué avant de quitter votre machine.",
+  "status": {
+    "intercepting": "Interception",
+    "idle": "Inactif"
+  },
+  "range": {
+    "selectLabel": "{{label}}",
+    "chartSuffix": "{{label}}",
+    "24h": "24 dernières heures",
+    "7d": "7 derniers jours",
+    "30d": "30 derniers jours",
+    "90d": "90 derniers jours"
+  },
+  "serverError": "Impossible de joindre le serveur Kiji : {{error}}. Vérifiez que le proxy tourne sur localhost:8080.",
+  "kpi": {
+    "piiProtected": "Renseignements personnels protégés",
+    "piiProtectedDelta": "sur {{window}}",
+    "windowUnit": {
+      "h": " h",
+      "d": " j",
+      "w": " sem",
+      "mo": " mois"
+    },
+    "requestsProxied": "Requêtes relayées",
+    "requestsToday": "{{value}} aujourd’hui",
+    "avgLatency": "Latence ajoutée moyenne",
+    "latencyUnit": "ms",
+    "latencyCaption": "La confidentialité, sans ralentir vos requêtes."
+  },
+  "chart": {
+    "title": "Renseignements personnels masqués au fil du temps",
+    "notEnough": "Pas encore assez d’activité pour un graphique.",
+    "readyTitle": "Kiji est lancé et prêt.",
+    "readyBody": "Faites passer votre première requête par le proxy pour commencer à protéger vos données."
+  },
+  "composition": {
+    "title": "Types de renseignements masqués",
+    "thisPeriod": "Période sélectionnée",
+    "entities": "",
+    "empty": "Rien de masqué pour l’instant."
+  },
+  "providers": {
+    "title": "Requêtes par fournisseur",
+    "requests": "requêtes",
+    "empty": "Aucun trafic pour l’instant."
+  },
+  "highlights": {
+    "peakToday": "Pic aujourd’hui",
+    "reqPerMin": "req./min",
+    "busiestSource": "Source la plus active",
+    "detectionConfidence": "Score de détection",
+    "avgSuffix": " % en moy."
+  },
+  "recent": {
+    "title": "Interceptions récentes",
+    "live": "en direct",
+    "requestFallback": "requête",
+    "maskedLabel": "masquée",
+    "piiCount": "{{count}} renseignements",
+    "empty": "Aucune requête interceptée pour l’instant.",
+    "viewAll": "Voir toute l’activité"
+  },
+  "time": {
+    "justNow": "à l’instant",
+    "secondsAgo": "il y a {{count}} s",
+    "minutesAgo": "il y a {{count}} min",
+    "hoursAgo": "il y a {{count}} h",
+    "daysAgo": "il y a {{count}} j"
+  },
+  "empty": "—",
+  "sidebar": {
+    "brandSuffix": "Proxy",
+    "sectionWorkspace": "Espace de travail",
+    "sectionConfigure": "Configurer",
+    "nav": {
+      "dashboard": "Tableau de bord",
+      "playground": "Zone d’essai",
+      "playgroundBadge": "masquage",
+      "activity": "Activité",
+      "mappings": "Correspondances",
+      "settings": "Paramètres",
+      "about": "À propos de Kiji"
+    },
+    "server": {
+      "online": "Serveur en ligne",
+      "degraded": "Modèle dégradé",
+      "offline": "Serveur hors ligne",
+      "uptime": "activité",
+      "port": "port",
+      "model": "modèle"
+    }
+  }
+}

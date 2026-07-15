@@ -1,0 +1,157 @@
+{
+  "title": "Paramètres",
+  "subtitle": "Configurez les fournisseurs, la détection des renseignements personnels et les paramètres avancés du proxy.",
+  "serverNote": "Les clés des fournisseurs, le répertoire du modèle et l'installation des certificats se configurent via des variables d'environnement et l'application de bureau sur les déploiements serveur.",
+  "providers": {
+    "title": "Fournisseurs",
+    "subtitle": "Clés API et identifiants de modèles pour chaque fournisseur d'IA.",
+    "customName": "Fournisseur personnalisé",
+    "status": {
+      "configured": "Configuré",
+      "keyOptional": "Clé facultative",
+      "notSet": "Non défini"
+    },
+    "apiKeyLabel": "Clé API {{provider}}",
+    "apiKeyOptionalSuffix": " (facultatif)",
+    "lockTitle": "Verrouiller la clé API",
+    "unlockTitle": "Déverrouiller pour modifier",
+    "clearKey": "Effacer ma clé",
+    "apiKeyPlaceholder": {
+      "update": "Saisissez une nouvelle clé API pour la mettre à jour",
+      "locked": "La clé API est configurée (déverrouillez pour modifier)",
+      "optional": "Clé API {{provider}} facultative ({{example}})",
+      "enter": "Saisissez votre clé API {{provider}} ({{example}})"
+    },
+    "howToGetKey": "Comment obtenir votre clé API {{provider}} ?",
+    "modelIdLabel": "Identifiant du modèle",
+    "modelDefault": "Par défaut : {{model}}",
+    "customModelHelp": "Utilisez l'identifiant de modèle exact attendu par votre fournisseur.",
+    "customEndpointLabel": "URL de point de terminaison personnalisé",
+    "customEndpointHelp": "Votre fournisseur personnalisé doit prendre en charge une API de complétion de chat compatible avec OpenAI.",
+    "endpointOverrideHelp": "Remplacez pour utiliser un point de terminaison personnalisé.",
+    "keychainNote": "Vos clés API sont stockées de façon sécurisée à l'aide du trousseau du système.",
+    "saving": "Enregistrement…",
+    "save": "Enregistrer les paramètres des fournisseurs",
+    "messages": {
+      "loadFailed": "Échec du chargement des paramètres",
+      "saveApiKeyFailed": "Échec de l'enregistrement de la clé API {{provider}}",
+      "saveModelFailed": "Échec de l'enregistrement du modèle {{provider}}",
+      "saveEndpointFailed": "Échec de l'enregistrement de l'URL du point de terminaison {{provider}}",
+      "restarting": "Enregistré. Redémarrage du backend…",
+      "restartFailed": "Paramètres enregistrés, mais le redémarrage du backend a échoué. Redémarrez l'application pour appliquer.",
+      "savedApplied": "Paramètres enregistrés et appliqués !",
+      "saveFailed": "Échec de l'enregistrement des paramètres",
+      "keyCleared": "Clé API {{provider}} effacée",
+      "clearKeyFailed": "Échec de l'effacement de la clé API"
+    }
+  },
+  "pii": {
+    "title": "Détection des renseignements personnels",
+    "subtitle": "Ajustez le degré de détection des renseignements personnels et ce qui est masqué.",
+    "saved": "Enregistré",
+    "sensitivity": {
+      "label": "Sensibilité de détection",
+      "low": "Faible",
+      "medium": "Moyenne",
+      "high": "Élevée",
+      "help": "Contrôle le degré de détection des renseignements personnels. Un réglage élevé détecte davantage de renseignements potentiels mais peut générer des faux positifs. Un réglage faible est plus précis mais peut manquer certains renseignements."
+    },
+    "entities": {
+      "label": "Entités à masquer",
+      "selectAll": "Tout sélectionner",
+      "deselectAll": "Tout désélectionner",
+      "none": "Aucun type d'entité disponible. Chargez un modèle de détection fonctionnel pour configurer le masquage.",
+      "help": "Les types non cochés ne sont pas masqués et sont envoyés tels quels au fournisseur d'IA."
+    },
+    "regex": {
+      "label": "Motifs regex personnalisés",
+      "nameColumn": "Nom",
+      "patternColumn": "Motif",
+      "none": "Aucun motif personnalisé. Utilisez le bouton + ci-dessous pour en ajouter un.",
+      "addTitle": "Ajouter un motif",
+      "removeTitle": "Supprimer le motif sélectionné",
+      "help": "Le nom de chaque motif est utilisé comme type de renseignement personnel détecté. Les motifs utilisent la syntaxe RE2 (Go) et sont comparés au contenu de la requête.",
+      "saveFailedInvalid": "Échec de l'enregistrement des motifs. Vérifiez que chaque nom et motif est une expression RE2 valide.",
+      "saveFailed": "Échec de l'enregistrement des motifs."
+    },
+    "entityLabels": {
+      "SURNAME": "Nom",
+      "FIRSTNAME": "Prénom",
+      "BUILDINGNUM": "Numéro de bâtiment",
+      "DATEOFBIRTH": "Date de naissance",
+      "EMAIL": "Courriel",
+      "PHONENUMBER": "Numéro de téléphone",
+      "CITY": "Ville",
+      "URL": "URL",
+      "COMPANYNAME": "Nom de l'entreprise",
+      "STATE": "État/Région",
+      "ZIP": "Code postal",
+      "STREET": "Rue",
+      "COUNTRY": "Pays",
+      "SSN": "Numéro de sécurité sociale",
+      "DRIVERLICENSENUM": "Numéro de permis de conduire",
+      "PASSPORTID": "Numéro de passeport",
+      "NATIONALID": "Identifiant national",
+      "IDCARDNUM": "Numéro de carte d'identité",
+      "TAXNUM": "Numéro fiscal",
+      "LICENSEPLATENUM": "Numéro de plaque d'immatriculation",
+      "PASSWORD": "Mot de passe",
+      "IBAN": "IBAN",
+      "AGE": "Âge",
+      "SECURITYTOKEN": "Jeton de sécurité",
+      "CREDITCARDNUMBER": "Numéro de carte bancaire",
+      "USERNAME": "Nom d'utilisateur"
+    }
+  },
+  "advanced": {
+    "title": "Avancé",
+    "subtitle": "Interception à l'échelle du système et modèles de détection personnalisés.",
+    "transparentProxy": {
+      "label": "Proxy transparent",
+      "help": "Interceptez le trafic HTTPS à l'échelle du système pour une protection automatique des renseignements personnels.",
+      "experimentalLabel": "Expérimental :",
+      "experimentalHelp": "Cette fonctionnalité nécessite l'installation d'un certificat racine et peut affecter les paramètres réseau du système."
+    },
+    "telemetry": {
+      "label": "Rapports de plantage et d'erreur",
+      "help": "Désactivé par défaut. Lorsque cette option est activée, des rapports anonymes de plantage et d'erreur sont envoyés pour aider à améliorer Kiji. Vos requêtes et le texte original (non masqué) ne sont jamais envoyés — uniquement le texte masqué et des détails techniques sur l'erreur. L'activation vous permet également de signaler des erreurs de classification des renseignements personnels.",
+      "restartNotice": "Redémarrez l'application pour que ce changement prenne pleinement effet dans tous les composants."
+    },
+    "model": {
+      "label": "Charger un modèle de détection Kiji personnalisé",
+      "statusHealthy": "Opérationnel",
+      "statusUnhealthy": "Défaillant",
+      "statusLine": "État : {{status}}",
+      "currentLine": "Actuel : {{directory}}",
+      "errorLine": "Erreur : {{error}}",
+      "pathPlaceholder": "/chemin/vers/le/répertoire/du/modèle",
+      "browse": "Parcourir",
+      "browseTitle": "Rechercher un dossier",
+      "requirements": "Le répertoire doit contenir : model.onnx, tokenizer.json, label_mappings.json",
+      "reloading": "Rechargement…",
+      "reload": "Recharger le modèle",
+      "messages": {
+        "saveDirFailed": "Échec de l'enregistrement du répertoire du modèle",
+        "reloadSuccess": "Modèle enregistré et rechargé avec succès !",
+        "reloadFailed": "Échec du rechargement du modèle",
+        "unknownError": "Erreur inconnue",
+        "folderSelectorFailed": "Échec de l'ouverture du sélecteur de dossier"
+      }
+    }
+  },
+  "certificates": {
+    "title": "Certificats",
+    "subtitle": "Installez le certificat racine de Kiji pour permettre l'interception du trafic HTTPS.",
+    "setup": {
+      "title": "Configurer le certificat racine",
+      "help": "Instructions étape par étape pour faire confiance au certificat au niveau du système ou dans le navigateur."
+    },
+    "revealFinder": "Afficher le certificat racine dans le Finder",
+    "revealExplorer": "Afficher le certificat racine dans l'Explorateur",
+    "revealHelp": "Ouvre le dossier contenant le certificat racine du proxy.",
+    "messages": {
+      "revealDesktopOnly": "L'affichage dans le Finder n'est disponible que dans l'application de bureau.",
+      "openFolderFailed": "Échec de l'ouverture du dossier de certificats."
+    }
+  }
+}

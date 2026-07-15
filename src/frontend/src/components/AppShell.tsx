@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { apiUrl, isElectron } from "../utils/providerHelpers";
+import { isElectron } from "../utils/providerHelpers";
+import { useIsAdmin } from "../hooks/useIsAdmin";
 import { useServerHealth } from "../hooks/useServerHealth";
 import Sidebar, { ViewId } from "./dashboard/Sidebar";
 import DashboardView from "./dashboard/DashboardView";
@@ -22,43 +23,21 @@ import { ADMIN_ROLE_CHOSEN_EVENT } from "./onboarding/WelcomeModal";
  * load their data fresh.
  */
 export default function AppShell() {
-  // The launch screen is role-dependent. `admin` is read async over IPC, so the
-  // view starts unresolved (null) and the workspace stays empty until the role
-  // arrives — this avoids briefly flashing the wrong screen on first paint.
+  // The launch screen is role-dependent. `isAdmin` is read async (IPC on the
+  // desktop, /api/auth/status on the web), so it starts unresolved (null) and
+  // the view stays empty until the role arrives — this avoids briefly flashing
+  // the wrong screen on first paint.
+  const isAdmin = useIsAdmin();
   const [view, setView] = useState<ViewId | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    const resolveInitialView = async () => {
-      let isAdmin = false;
-      if (isElectron && window.electronAPI) {
-        // Desktop: the role chosen during onboarding.
-        try {
-          isAdmin = await window.electronAPI.getAdmin();
-        } catch (error) {
-          console.error("Failed to read admin preference:", error);
-        }
-      } else {
-        // Web: a configured username + password (HTTP Basic Auth) is the admin
-        // signal — whoever set the credentials and can load the gated UI is the
-        // admin. /api/auth/status exposes only this boolean, never the secrets.
-        try {
-          const res = await fetch(apiUrl("/api/auth/status", isElectron));
-          if (res.ok) {
-            const data = await res.json();
-            isAdmin = data.basicAuthActive === true;
-          }
-        } catch (error) {
-          console.error("Failed to read auth status:", error);
-        }
-      }
-      if (!cancelled) setView(isAdmin ? "dashboard" : "playground");
-    };
-    resolveInitialView();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  // Once the role resolves, admins default to the Dashboard and everyone else to
+  // the Playground. This default is derived during render rather than synced via
+  // an effect, so an explicit `view` — set by the user or the onboarding event
+  // below — always wins and we never clobber a view already navigated to. Until
+  // the role arrives (`isAdmin === null`) the view stays empty, which avoids
+  // briefly flashing the wrong screen on first paint.
+  const resolvedView: ViewId | null =
+    view ?? (isAdmin === null ? null : isAdmin ? "dashboard" : "playground");
 
   // The initial view is resolved once on mount, but onboarding can choose the
   // admin role afterwards (WelcomeModal lives under the Playground). When that
@@ -93,23 +72,23 @@ export default function AppShell() {
 
   return (
     <div className="kiji-shell">
-      <Sidebar active={view} onNavigate={setView} server={server} />
+      <Sidebar active={resolvedView} onNavigate={setView} server={server} />
       <main className="kiji-main">
-        {view === "dashboard" && (
+        {resolvedView === "dashboard" && (
           <DashboardView onShowActivity={() => setView("activity")} />
         )}
-        {view === "activity" && (
+        {resolvedView === "activity" && (
           <ActivityView modelSignature={modelSignature} />
         )}
-        {view === "mappings" && <MappingsView />}
-        {view === "settings" && (
+        {resolvedView === "mappings" && <MappingsView />}
+        {resolvedView === "settings" && (
           <SettingsView
             onProvidersSaved={() => setSettingsReloadN((n) => n + 1)}
           />
         )}
-        {view === "about" && <AboutView />}
+        {resolvedView === "about" && <AboutView />}
         {/* Kept mounted so Playground state persists across navigation */}
-        <div hidden={view !== "playground"}>
+        <div hidden={resolvedView !== "playground"}>
           <PrivacyProxyUI
             embedded
             onRequestSettings={() => setView("settings")}

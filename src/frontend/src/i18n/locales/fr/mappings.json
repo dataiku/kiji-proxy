@@ -1,0 +1,49 @@
+{
+  "title": "Correspondances",
+  "subtitle": "Chaque renseignement personnel détecté, avec la valeur fictive utilisée pour le remplacer.",
+  "entryCount_one": "{{count}} entrée",
+  "entryCount_many": "{{count}} entrées",
+  "entryCount_other": "{{count}} entrées",
+  "clearAll": "Tout effacer",
+  "clearAllTitle": "Effacer toutes les correspondances",
+  "confirm": {
+    "title": "Effacer toutes les correspondances ?",
+    "body_one": "Cela supprimera définitivement {{count}} correspondance de renseignements personnels. Cette action est irréversible.",
+    "body_many": "Cela supprimera définitivement les {{count}} correspondances de renseignements personnels. Cette action est irréversible.",
+    "body_other": "Cela supprimera définitivement les {{count}} correspondances de renseignements personnels. Cette action est irréversible.",
+    "cancel": "Annuler",
+    "clearing": "Effacement...",
+    "clearAll": "Effacer toutes les correspondances"
+  },
+  "error": {
+    "label": "Erreur :",
+    "retry": "Réessayer"
+  },
+  "empty": "Aucune correspondance de renseignements personnels trouvée",
+  "table": {
+    "entityType": "Type de renseignement",
+    "original": "Valeur originale",
+    "masked": "Remplacement",
+    "date": "Première détection",
+    "actions": "Actions"
+  },
+  "sort": {
+    "ascending": "Trier {{label}} par ordre croissant",
+    "descending": "Trier {{label}} par ordre décroissant"
+  },
+  "delete": {
+    "confirm": "Supprimer ?",
+    "confirmLabel": "Confirmer la suppression",
+    "cancelLabel": "Annuler la suppression",
+    "label": "Supprimer la correspondance",
+    "title": "Supprimer la correspondance"
+  },
+  "loadMore": "Charger plus de correspondances",
+  "loadingMore": "Chargement...",
+  "footer": {
+    "showing_one": "Affichage de {{shown}} sur {{count}} correspondance",
+    "showing_many": "Affichage de {{shown}} sur {{count}} correspondances",
+    "showing_other": "Affichage de {{shown}} sur {{count}} correspondances",
+    "moreAvailable": "(plus disponibles)"
+  }
+}

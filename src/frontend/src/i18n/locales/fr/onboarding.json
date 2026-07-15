@@ -1,0 +1,32 @@
+{
+  "title": "Bienvenue dans Kiji Privacy Proxy",
+  "role": {
+    "question": "Comment utilisez-vous Kiji ?",
+    "admin": {
+      "title": "Je suis administrateur",
+      "desc": "Je configure Kiji pour d’autres"
+    },
+    "user": {
+      "title": "Je suis utilisateur",
+      "desc": "J’utilise Kiji moi-même"
+    }
+  },
+  "welcome": {
+    "intro": "Kiji masque les renseignements personnels de vos requêtes avant qu’ils n’atteignent un fournisseur d’IA — le tout sur votre appareil.",
+    "getStarted": "Commencer"
+  },
+  "promises": {
+    "local": {
+      "title": "100 % local",
+      "desc": "La détection des renseignements personnels s’exécute sur votre appareil."
+    },
+    "thirdParty": {
+      "title": "Aucun tiers",
+      "desc": "Les données ne vont qu’à l’IA que vous choisissez."
+    },
+    "openSource": {
+      "title": "Open source",
+      "desc": "Inspectez et vérifiez chaque affirmation."
+    }
+  }
+}

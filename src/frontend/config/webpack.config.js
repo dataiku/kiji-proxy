@@ -77,6 +77,17 @@ module.exports = (env, argv) => {
     },
     resolve: {
       extensions: [".tsx", ".ts", ".jsx", ".js", ".md"],
+      // Force a single copy of React/React-DOM into the bundle. This is an npm
+      // workspace: hoisting can leave an older React at the repo-root
+      // node_modules (resolved by hoisted deps like lucide-react/react-i18next)
+      // while react-dom and app code resolve React 19 from
+      // src/frontend/node_modules. Two React instances break hooks ("Invalid
+      // hook call" / null useContext), so pin every react/react-dom request
+      // (including subpaths like react/jsx-runtime) to the workspace copy.
+      alias: {
+        react: path.resolve(__dirname, "../node_modules/react"),
+        "react-dom": path.resolve(__dirname, "../node_modules/react-dom"),
+      },
     },
     plugins: [
       new HtmlWebpackPlugin({
