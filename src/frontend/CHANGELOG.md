@@ -1,5 +1,11 @@
 # kiji-privacy-proxy
 
+## 1.6.0
+
+### Minor Changes
+
+- 96ac0a5: Added internationalization, sentry reporting is optional, general dependency updates
+
 ## 1.5.0
 
 ### Minor Changes
