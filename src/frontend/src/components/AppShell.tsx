@@ -30,13 +30,14 @@ export default function AppShell() {
   const isAdmin = useIsAdmin();
   const [view, setView] = useState<ViewId | null>(null);
 
-  // Once the role resolves, send admins to the Dashboard and everyone else to
-  // the Playground. `prev ?? …` so we never clobber a view the user (or the
-  // onboarding event below) already navigated to.
-  useEffect(() => {
-    if (isAdmin === null) return;
-    setView((prev) => prev ?? (isAdmin ? "dashboard" : "playground"));
-  }, [isAdmin]);
+  // Once the role resolves, admins default to the Dashboard and everyone else to
+  // the Playground. This default is derived during render rather than synced via
+  // an effect, so an explicit `view` — set by the user or the onboarding event
+  // below — always wins and we never clobber a view already navigated to. Until
+  // the role arrives (`isAdmin === null`) the view stays empty, which avoids
+  // briefly flashing the wrong screen on first paint.
+  const resolvedView: ViewId | null =
+    view ?? (isAdmin === null ? null : isAdmin ? "dashboard" : "playground");
 
   // The initial view is resolved once on mount, but onboarding can choose the
   // admin role afterwards (WelcomeModal lives under the Playground). When that
@@ -71,23 +72,23 @@ export default function AppShell() {
 
   return (
     <div className="kiji-shell">
-      <Sidebar active={view} onNavigate={setView} server={server} />
+      <Sidebar active={resolvedView} onNavigate={setView} server={server} />
       <main className="kiji-main">
-        {view === "dashboard" && (
+        {resolvedView === "dashboard" && (
           <DashboardView onShowActivity={() => setView("activity")} />
         )}
-        {view === "activity" && (
+        {resolvedView === "activity" && (
           <ActivityView modelSignature={modelSignature} />
         )}
-        {view === "mappings" && <MappingsView />}
-        {view === "settings" && (
+        {resolvedView === "mappings" && <MappingsView />}
+        {resolvedView === "settings" && (
           <SettingsView
             onProvidersSaved={() => setSettingsReloadN((n) => n + 1)}
           />
         )}
-        {view === "about" && <AboutView />}
+        {resolvedView === "about" && <AboutView />}
         {/* Kept mounted so Playground state persists across navigation */}
-        <div hidden={view !== "playground"}>
+        <div hidden={resolvedView !== "playground"}>
           <PrivacyProxyUI
             embedded
             onRequestSettings={() => setView("settings")}
