@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { apiUrl, isElectron } from "../utils/providerHelpers";
+import { isElectron } from "../utils/providerHelpers";
+import { useIsAdmin } from "../hooks/useIsAdmin";
 import { useServerHealth } from "../hooks/useServerHealth";
 import Sidebar, { ViewId } from "./dashboard/Sidebar";
 import DashboardView from "./dashboard/DashboardView";
@@ -22,43 +23,20 @@ import { ADMIN_ROLE_CHOSEN_EVENT } from "./onboarding/WelcomeModal";
  * load their data fresh.
  */
 export default function AppShell() {
-  // The launch screen is role-dependent. `admin` is read async over IPC, so the
-  // view starts unresolved (null) and the workspace stays empty until the role
-  // arrives — this avoids briefly flashing the wrong screen on first paint.
+  // The launch screen is role-dependent. `isAdmin` is read async (IPC on the
+  // desktop, /api/auth/status on the web), so it starts unresolved (null) and
+  // the view stays empty until the role arrives — this avoids briefly flashing
+  // the wrong screen on first paint.
+  const isAdmin = useIsAdmin();
   const [view, setView] = useState<ViewId | null>(null);
 
+  // Once the role resolves, send admins to the Dashboard and everyone else to
+  // the Playground. `prev ?? …` so we never clobber a view the user (or the
+  // onboarding event below) already navigated to.
   useEffect(() => {
-    let cancelled = false;
-    const resolveInitialView = async () => {
-      let isAdmin = false;
-      if (isElectron && window.electronAPI) {
-        // Desktop: the role chosen during onboarding.
-        try {
-          isAdmin = await window.electronAPI.getAdmin();
-        } catch (error) {
-          console.error("Failed to read admin preference:", error);
-        }
-      } else {
-        // Web: a configured username + password (HTTP Basic Auth) is the admin
-        // signal — whoever set the credentials and can load the gated UI is the
-        // admin. /api/auth/status exposes only this boolean, never the secrets.
-        try {
-          const res = await fetch(apiUrl("/api/auth/status", isElectron));
-          if (res.ok) {
-            const data = await res.json();
-            isAdmin = data.basicAuthActive === true;
-          }
-        } catch (error) {
-          console.error("Failed to read auth status:", error);
-        }
-      }
-      if (!cancelled) setView(isAdmin ? "dashboard" : "playground");
-    };
-    resolveInitialView();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    if (isAdmin === null) return;
+    setView((prev) => prev ?? (isAdmin ? "dashboard" : "playground"));
+  }, [isAdmin]);
 
   // The initial view is resolved once on mount, but onboarding can choose the
   // admin role afterwards (WelcomeModal lives under the Playground). When that

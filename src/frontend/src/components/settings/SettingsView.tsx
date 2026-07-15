@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { isElectron } from "../../utils/providerHelpers";
+import { useIsAdmin } from "../../hooks/useIsAdmin";
 import LanguageSection from "./LanguageSection";
 import ProvidersSection from "./ProvidersSection";
 import PIISection from "./PIISection";
@@ -20,6 +21,13 @@ export default function SettingsView({ onProvidersSaved }: SettingsViewProps) {
   const [isCACertOpen, setIsCACertOpen] = useState(false);
   const openCACert = () => setIsCACertOpen(true);
 
+  // Access policy: the desktop app grants every user all features. On a web
+  // deployment, backend-configuration sections are admin-only. `isAdmin` is null
+  // until it resolves, so web users see nothing gated until then; on the desktop
+  // `isElectron` short-circuits so there's no wait or flash.
+  const isAdmin = useIsAdmin();
+  const canConfigureServer = isElectron || isAdmin === true;
+
   return (
     <div className="w-full max-w-3xl mx-auto">
       {/* Page header */}
@@ -32,15 +40,17 @@ export default function SettingsView({ onProvidersSaved }: SettingsViewProps) {
 
       <div className="space-y-4 animate-rise-in">
         {/* Language is a universal UI preference (renderer-only, persisted via
-            i18next's localStorage cache), so it is shown everywhere. */}
+            i18next's localStorage cache), so it is shown to every user —
+            including non-admins and web-mode users. */}
         <LanguageSection />
-        {/* PII detection is configurable everywhere (talks to the backend over
-            HTTP). The remaining sections rely on the desktop app's native
-            integration — provider keys come from env vars on a server, the model
-            directory uses a native picker, and certificate install is OS-level —
-            so they are only shown in the desktop app. */}
+        {/* PII detection talks to the backend over HTTP, but the rules are
+            server-wide, so on a web deployment only admins may change them; the
+            desktop app shows it to everyone. The remaining sections rely on the
+            desktop app's native integration — provider keys come from env vars
+            on a server, the model directory uses a native picker, and
+            certificate install is OS-level — so they are desktop-only. */}
         {isElectron && <ProvidersSection onSaved={onProvidersSaved} />}
-        <PIISection />
+        {canConfigureServer && <PIISection />}
         {isElectron ? (
           <>
             <AdvancedSection onOpenCACert={openCACert} />
