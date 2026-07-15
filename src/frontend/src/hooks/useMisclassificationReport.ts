@@ -110,7 +110,8 @@ export function useMisclassificationReport() {
         } else {
           // Telemetry is opt-in and currently disabled, so nothing was sent.
           alert(
-            "Crash & error reporting is turned off, so this report was not sent. Enable it in Settings to submit misclassification reports."
+            "We value your privacy. Crash & error reporting is opt-in and turned off at the moment.\n" +
+              "Enable it in Settings to submit misclassification reports."
           );
         }
 
