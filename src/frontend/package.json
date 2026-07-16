@@ -1,7 +1,7 @@
 {
   "name": "kiji-privacy-proxy",
   "productName": "Kiji Privacy Proxy",
-  "version": "1.6.3",
+  "version": "1.6.4",
   "description": "Dataiku's Kiji Privacy Proxy",
   "author": "Dataiku - Open Source Lab",
   "_comment_electronVersion": "build.electronVersion must stay in sync with the electron devDependency by hand. It can't be omitted: npm workspaces hoist electron to the repo-root node_modules, so electron-builder (run from src/frontend) can't auto-detect it and rejects the '^' range. Keep this note at the top level — electron-builder strictly validates the build object and rejects unknown keys inside it.",
