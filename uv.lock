@@ -1646,7 +1646,7 @@ wheels = [
 
 [[package]]
 name = "kiji-proxy"
-version = "1.6.0"
+version = "1.6.3"
 source = { editable = "." }
 dependencies = [
     { name = "absl-py" },

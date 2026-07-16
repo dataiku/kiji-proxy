@@ -38,7 +38,18 @@ module.exports = (env, argv) => {
                   "@babel/preset-env",
                   { targets: { browsers: ["last 2 versions"] } },
                 ],
-                ["@babel/preset-react", { runtime: "automatic" }],
+                // Tie preset-react's dev flag to the build mode. Babel 8's
+                // preset-react defaults `development` from NODE_ENV/BABEL_ENV,
+                // which the npm scripts leave unset — so a `--mode production`
+                // build would otherwise emit dev `jsxDEV()` calls while webpack
+                // bundles React's PRODUCTION jsx-dev-runtime (where jsxDEV is
+                // undefined), throwing "jsxDEV is not a function" and rendering
+                // a white screen. Keying off isProduction keeps the two halves
+                // of the build in agreement.
+                [
+                  "@babel/preset-react",
+                  { runtime: "automatic", development: !isProduction },
+                ],
                 "@babel/preset-typescript",
               ],
             },
