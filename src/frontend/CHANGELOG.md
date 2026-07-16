@@ -1,5 +1,11 @@
 # kiji-privacy-proxy
 
+## 1.6.3
+
+### Patch Changes
+
+- 522c98c: build fix
+
 ## 1.6.2
 
 ### Patch Changes
