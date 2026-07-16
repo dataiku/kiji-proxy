@@ -61,6 +61,16 @@ jobs:
         with:
           toolchain: stable
 
+      # The almalinux:9 base image ships Node.js 18 via dnf, but
+      # @tailwindcss/oxide's native binding declares engines.node ">= 20".
+      # Under Node 18 npm silently skips that optional dependency during
+      # `npm ci`, and the webpack build then fails with "Cannot find native
+      # binding". Pin Node 20 to match the other workflows.
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: "20"
+
       - name: Cache LFS objects
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
