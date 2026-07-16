@@ -14,6 +14,23 @@ const { registerIpcHandlers } = require("./ipc-handlers");
 const { setMenuLanguage, mt } = require("./menu-i18n");
 const isDev = process.env.NODE_ENV === "development";
 
+// Global safety net: log (and, if telemetry is on, report) any promise
+// rejection or exception that escaped a local handler instead of letting Node
+// crash the process. Registered before any async startup work runs. Notably
+// this catches rejections from the auto-updater (Squirrel.Mac) code paths.
+process.on("unhandledRejection", (reason) => {
+  console.error("[Main] Unhandled promise rejection:", reason);
+  if (typeof Sentry !== "undefined" && isTelemetryEnabled()) {
+    Sentry.captureException(reason);
+  }
+});
+process.on("uncaughtException", (error) => {
+  console.error("[Main] Uncaught exception:", error);
+  if (typeof Sentry !== "undefined" && isTelemetryEnabled()) {
+    Sentry.captureException(error);
+  }
+});
+
 // Telemetry (Sentry error reporting) is OPT-IN. It is only initialized when the
 // user turned on "Crash & error reporting" in Settings (persisted as
 // `telemetryEnabled` in the Electron config). See initTelemetryMain().
@@ -78,6 +95,16 @@ autoUpdater.on("update-downloaded", (info) => {
 autoUpdater.on("error", (err) => {
   console.error("[AutoUpdater] Error:", err);
 });
+
+// Trigger the installer relaunch. This is the Squirrel.Mac crash site, so guard
+// it: a synchronous throw here must not take down the click handler / process.
+const quitAndInstall = () => {
+  try {
+    autoUpdater.quitAndInstall();
+  } catch (err) {
+    console.error("[AutoUpdater] quitAndInstall failed:", err);
+  }
+};
 
 let mainWindow;
 let splashWindow = null;
@@ -756,7 +783,7 @@ function updateTrayMenu() {
       ? [
           {
             label: mt("restartToUpdate"),
-            click: () => autoUpdater.quitAndInstall(),
+            click: () => quitAndInstall(),
           },
         ]
       : []),
@@ -1033,7 +1060,7 @@ function createMenu() {
           ? [
               {
                 label: mt("restartToUpdate"),
-                click: () => autoUpdater.quitAndInstall(),
+                click: () => quitAndInstall(),
               },
             ]
           : []),
@@ -1087,28 +1114,41 @@ app.whenReady().then(async () => {
   createWindow();
 
   // Check for updates after launch
-  autoUpdater.checkForUpdatesAndNotify();
+  autoUpdater.checkForUpdatesAndNotify().catch((err) => {
+    console.error("[AutoUpdater] checkForUpdatesAndNotify failed:", err);
+  });
 
   // Re-check for updates every hour for long-running sessions
-  setInterval(() => autoUpdater.checkForUpdates(), 60 * 60 * 1000);
+  setInterval(() => {
+    autoUpdater.checkForUpdates().catch((err) => {
+      console.error("[AutoUpdater] periodic checkForUpdates failed:", err);
+    });
+  }, 60 * 60 * 1000);
 
   app.on("activate", async () => {
-    // On macOS, re-create a window when the dock icon is clicked
-    if (BrowserWindow.getAllWindows().length === 0) {
-      // Ensure backend is running
-      if (!goProcess) {
-        launchGoBinary();
-        await waitForBackend();
-      } else {
-        // Process exists but might not be listening yet
-        await waitForBackend(10, 500);
+    // On macOS, re-create a window when the dock icon is clicked. Electron
+    // discards the promise returned by this async listener, so guard it here.
+    try {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        // Ensure backend is running
+        if (!goProcess) {
+          launchGoBinary();
+          await waitForBackend();
+        } else {
+          // Process exists but might not be listening yet
+          await waitForBackend(10, 500);
+        }
+        createWindow();
+      } else if (mainWindow) {
+        // If window exists but is hidden, show it
+        showMainWindow();
       }
-      createWindow();
-    } else if (mainWindow) {
-      // If window exists but is hidden, show it
-      showMainWindow();
+    } catch (err) {
+      console.error("[Main] activate handler failed:", err);
     }
   });
+}).catch((err) => {
+  console.error("[Main] Startup (whenReady) failed:", err);
 });
 
 // Keep app running in menu bar even when all windows are closed

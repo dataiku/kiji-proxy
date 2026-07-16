@@ -2,7 +2,7 @@
 .PHONY: format lint lint-go lint-frontend lint-frontend-fix lint-all typecheck typecheck-frontend check check-all ruff-fix ruff-all
 .PHONY: test test-go test-all test-e2e test-e2e-dataset
 .PHONY: clean clean-venv clean-all
-.PHONY: build-dmg build-linux verify-linux
+.PHONY: build-dmg build-linux verify-linux build-go build-go-embed
 .PHONY: setup-onnx setup-tokenizers
 .PHONY: electron-build electron-run electron electron-dev electron-install
 .PHONY: list show shell jupyter info quickstart
@@ -273,6 +273,32 @@ build-go: ## Build Go binary for development
 	  -o build/kiji-proxy \
 	  ./src/backend
 	@echo "$(GREEN)✅ Go binary built at build/kiji-proxy (version $(VERSION))$(NC)"
+
+build-go-embed: ## Build PRODUCTION Go binary with embedded UI + model (-tags embed)
+	@echo "$(BLUE)Building production Go binary (embedded UI + model)...$(NC)"
+	@echo "$(BLUE)  → Building frontend (webpack production)...$(NC)"
+	@cd src/frontend && npm run build:electron
+	@if [ ! -d "src/frontend/dist" ]; then \
+		echo "$(YELLOW)❌ src/frontend/dist not found after build — aborting$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(BLUE)  → Staging embed assets into src/backend/ (go:embed can't use ../ paths)...$(NC)"
+	@rm -rf src/backend/frontend/dist && mkdir -p src/backend/frontend/dist
+	@cp -R src/frontend/dist/. src/backend/frontend/dist/
+	@rm -rf src/backend/model/quantized && mkdir -p src/backend/model/quantized
+	@cp -R model/quantized/. src/backend/model/quantized/
+	@echo "$(BLUE)  → Compiling with -tags embed...$(NC)"
+	@mkdir -p build src/frontend/resources
+	@CGO_ENABLED=1 \
+	CGO_LDFLAGS="$(CGO_LDFLAGS)" \
+	go build \
+	  -tags embed \
+	  -ldflags="-s -w -X main.version=$(VERSION) -extldflags '$(CGO_LDFLAGS)'" \
+	  -o build/kiji-proxy \
+	  ./src/backend
+	@cp build/kiji-proxy src/frontend/resources/kiji-proxy
+	@chmod +x src/frontend/resources/kiji-proxy
+	@echo "$(GREEN)✅ Embedded Go binary built (version $(VERSION)) and copied to src/frontend/resources/$(NC)"
 
 electron-build: ## Build Electron app for production
 	@echo "$(BLUE)Building Electron app...$(NC)"

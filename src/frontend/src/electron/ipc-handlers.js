@@ -453,18 +453,23 @@ const registerIpcHandlers = ({
   // ---- Model directory management ----
 
   ipcMain.handle("select-model-directory", async () => {
-    const { dialog } = require("electron");
-    const result = await dialog.showOpenDialog(getMainWindow(), {
-      properties: ["openDirectory"],
-      title: "Select Model Directory",
-      message: "Choose the directory containing your PII model files",
-    });
+    try {
+      const { dialog } = require("electron");
+      const result = await dialog.showOpenDialog(getMainWindow(), {
+        properties: ["openDirectory"],
+        title: "Select Model Directory",
+        message: "Choose the directory containing your PII model files",
+      });
 
-    if (result.canceled || result.filePaths.length === 0) {
+      if (result.canceled || result.filePaths.length === 0) {
+        return null;
+      }
+
+      return result.filePaths[0];
+    } catch (error) {
+      console.error("[IPC] select-model-directory failed:", error);
       return null;
     }
-
-    return result.filePaths[0];
   });
 
   defineConfigField(

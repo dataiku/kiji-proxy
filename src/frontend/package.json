@@ -13,7 +13,7 @@
     "start": "node server.js",
     "electron": "npm run build:electron && electron .",
     "electron:dev": "NODE_ENV=development electron .",
-    "electron:pack": "npm run build:electron && electron-builder",
+    "electron:pack": "(cd ../.. && make build-go-embed) && electron-builder",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "type-check": "tsc --noEmit",

@@ -154,18 +154,12 @@ else
 fi
 
 echo ""
-echo "📦 Step 5: Building Electron app..."
-echo "-----------------------------------"
-
-npm run build:electron
-
-if [ $? -ne 0 ]; then
-    echo "❌ Electron app build failed!"
-    exit 1
-fi
-
-echo "✅ Electron app built successfully"
-
+echo "📦 Step 5: Returning to project root..."
+echo "---------------------------------------"
+# NOTE: the frontend (webpack) build now happens inside `make build-go-embed`
+# (Step 7-8 below) so the exact same command produces the UI that gets embedded
+# into the Go binary. This keeps the embed build and `npm run electron:pack`
+# from drifting. A second frontend build for the asar still runs in Step 10.
 cd "$PROJECT_ROOT"
 
 echo ""
@@ -227,71 +221,26 @@ for file in model.onnx.data tokenizer.json vocab.txt model_manifest.json; do
 done
 
 echo ""
-echo "📦 Step 7: Preparing files for Go embedding..."
-echo "----------------------------------------------"
+echo "📦 Step 7-8: Building embedded Go binary (UI + model)..."
+echo "--------------------------------------------------------"
 
-# Copy frontend/dist files to src/backend/frontend/dist/ for embedding
-# Go embed cannot use ../ paths, so we need the files under src/backend/
-if [ -d "src/frontend/dist" ]; then
-    mkdir -p src/backend/frontend/dist
-    # Use rsync for faster copying (handles incremental updates)
-    if command -v rsync >/dev/null 2>&1; then
-        rsync -a --delete src/frontend/dist/ src/backend/frontend/dist/
-        echo "✅ Frontend files synced to src/backend/frontend/dist/ for embedding (rsync)"
-    else
-        cp -r src/frontend/dist/* src/backend/frontend/dist/
-        echo "✅ Frontend files copied to src/backend/frontend/dist/ for embedding"
-    fi
-else
-    echo "❌ Frontend dist directory not found: src/frontend/dist"
-    exit 1
-fi
-
-# Copy model files to src/backend/model/quantized/ for embedding
-if [ -d "model/quantized" ]; then
-    mkdir -p src/backend/model/quantized
-    # Use rsync for faster copying if available
-    if command -v rsync >/dev/null 2>&1; then
-        rsync -a --delete model/quantized/ src/backend/model/quantized/
-    else
-        cp -r model/quantized/* src/backend/model/quantized/
-    fi
-
-    # Verify model files after copying
-    COPIED_MODEL_SIZE=$(stat -f%z "src/backend/model/quantized/model.onnx" 2>/dev/null || stat -c%s "src/backend/model/quantized/model.onnx" 2>/dev/null || wc -c < "src/backend/model/quantized/model.onnx" 2>/dev/null || echo "0")
-    echo "✅ Model files copied to src/backend/model/quantized/ for embedding (${COPIED_MODEL_SIZE} bytes)"
-else
-    echo "❌ Model directory not found: model/quantized"
-    echo "   This will cause runtime errors - the app needs the model files"
-    exit 1
-fi
-
-echo ""
-echo "📦 Step 8: Building Go binary..."
-echo "--------------------------------"
-
-# Extract version from package.json
-VERSION=$(cd src/frontend && node -p "require('./package.json').version" 2>/dev/null || echo "0.0.0")
-echo "Building version: $VERSION"
-
-# Build the Go binary with embedded files and version injection
-mkdir -p build
-
-# Use parallel compilation with version injection
-CGO_ENABLED=1 \
-GOMAXPROCS=$PARALLEL_JOBS \
-go build \
-  -tags embed \
-  -ldflags="-s -w -X main.version=$VERSION -extldflags '-L./build/tokenizers'" \
-  -o build/kiji-proxy \
-  ./src/backend
+# Single source of truth for the embedded backend binary: `make build-go-embed`
+# builds the frontend, stages src/frontend/dist + model/quantized into
+# src/backend/ for //go:embed (Go embed can't use ../ paths), compiles with
+# `-tags embed`, and copies the binary into src/frontend/resources/. The same
+# target backs `npm run electron:pack`, so the DMG/CI build and local packing
+# can never diverge on the embed step (the root cause of the white-screen bug).
+#
+# NOTE: model LFS verification (Step 6 above) must run before this so the staged
+# model files are the real binaries, not LFS pointers.
+make build-go-embed
 
 if [ $? -ne 0 ]; then
-    echo "❌ Go binary build failed!"
+    echo "❌ Embedded Go binary build failed!"
     exit 1
 fi
 
-echo "✅ Go binary created: build/kiji-proxy"
+echo "✅ Go binary created: build/kiji-proxy (embedded UI + model)"
 
 echo ""
 echo "📦 Step 9: Preparing Electron resources..."
