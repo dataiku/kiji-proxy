@@ -93,6 +93,7 @@
     "files": [
       "dist/**/*",
       "src/electron/*.js",
+      "src/telemetry/*.js",
       "package.json",
       "assets/icon.png",
       "assets/icon-16.png",
