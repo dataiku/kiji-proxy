@@ -91,11 +91,14 @@ func PhoneGenerator(rng *rand.Rand, original string) string {
 
 // SSNGenerator generates dummy SSN numbers (SOCIALNUM). The area number is
 // drawn from 900-999, which the SSA has never issued and has reserved against
-// future issuance, so the output looks real but can never collide with an
-// actual person's SSN.
+// future issuance (every issued prefix, including everything in the SSA high
+// group list, lies in 001-899), so the output looks real but can never
+// collide with an actual person's SSN. The group number stays in 10-49
+// because IRS ITINs also start with 9 and use group ranges 50-65, 70-88,
+// 90-92, and 94-99; staying below 50 avoids colliding with those too.
 func SSNGenerator(rng *rand.Rand, original string) string {
-	area := 900 + rng.Intn(100)     // 900-999: never issued
-	group := 10 + rng.Intn(90)      // 10-99
+	area := 900 + rng.Intn(100)     // 900-999: never issued as SSNs
+	group := 10 + rng.Intn(40)      // 10-49: outside all ITIN group ranges
 	serial := 1000 + rng.Intn(9000) // 1000-9999
 
 	return fmt.Sprintf("%d-%d-%d", area, group, serial)

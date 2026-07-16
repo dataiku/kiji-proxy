@@ -448,7 +448,9 @@ func TestPhoneGeneratorFictionalRange(t *testing.T) {
 }
 
 // The area number must fall in 900-999, which the SSA has never issued, so a
-// generated SSN can never collide with a real person's.
+// generated SSN can never collide with a real person's. The group number must
+// stay in 10-49: IRS ITINs also start with 9 and use groups 50-65, 70-88,
+// 90-92, and 94-99, so anything 50+ risks colliding with a real ITIN.
 func TestSSNGeneratorNeverIssuedArea(t *testing.T) {
 	for seed := int64(0); seed < 50; seed++ {
 		result := SSNGenerator(getTestRand(seed), "")
@@ -458,6 +460,9 @@ func TestSSNGeneratorNeverIssuedArea(t *testing.T) {
 		}
 		if area < 900 || area > 999 {
 			t.Errorf("SSNGenerator returned area %d, expected never-issued range 900-999: %s", area, result)
+		}
+		if group < 10 || group > 49 {
+			t.Errorf("SSNGenerator returned group %d, expected 10-49 to avoid ITIN ranges: %s", group, result)
 		}
 	}
 }
