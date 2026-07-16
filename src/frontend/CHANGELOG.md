@@ -1,5 +1,11 @@
 # kiji-privacy-proxy
 
+## 1.6.1
+
+### Patch Changes
+
+- 8eb7bcb: Bump node version on the Linux build
+
 ## 1.6.0
 
 ### Minor Changes
