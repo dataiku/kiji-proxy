@@ -1,5 +1,11 @@
 # kiji-privacy-proxy
 
+## 1.6.2
+
+### Patch Changes
+
+- fa31385: Fixed missing sentry js dependency
+
 ## 1.6.1
 
 ### Patch Changes
