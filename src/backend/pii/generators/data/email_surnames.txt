@@ -1,0 +1,80 @@
+# Dummy email local-part surnames for EmailGenerator.
+# One value per line. Blank lines and lines starting with '#' are ignored.
+# Must stay lowercase single ASCII words (no spaces, apostrophes, or accents):
+# the local part is formatted as first.last and is checked against [a-z]+.
+
+# Western
+doe
+smith
+johnson
+brown
+davis
+wilson
+moore
+taylor
+anderson
+thomas
+jackson
+white
+harris
+martin
+thompson
+clark
+lewis
+walker
+young
+
+# Asian
+chen
+wang
+kim
+nguyen
+tanaka
+yamamoto
+patel
+singh
+kumar
+sharma
+
+# African
+okonkwo
+diallo
+mensah
+osei
+abebe
+adeyemi
+owusu
+
+# Middle Eastern
+mohammed
+ahmed
+hassan
+khan
+ali
+ibrahim
+malik
+
+# Latin American
+garcia
+rodriguez
+martinez
+lopez
+gonzalez
+hernandez
+perez
+torres
+
+# Eastern European
+ivanov
+petrov
+kowalski
+novak
+horvat
+popov
+
+# Celtic
+obrien
+murphy
+kelly
+sullivan
+walsh

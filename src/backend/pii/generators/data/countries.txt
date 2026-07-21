@@ -1,0 +1,78 @@
+# Dummy country pool for CountryGenerator.
+# One value per line. Blank lines and lines starting with '#' are ignored.
+
+# North America
+United States
+Canada
+Mexico
+
+# Europe
+United Kingdom
+Germany
+France
+Italy
+Spain
+Netherlands
+Belgium
+Switzerland
+Austria
+Sweden
+Norway
+Denmark
+Finland
+Ireland
+Poland
+Portugal
+Greece
+Czech Republic
+Hungary
+Romania
+Iceland
+Croatia
+
+# Asia
+Japan
+China
+South Korea
+India
+Singapore
+Thailand
+Vietnam
+Indonesia
+Malaysia
+Philippines
+Taiwan
+Hong Kong
+Nepal
+Sri Lanka
+
+# Oceania
+Australia
+New Zealand
+
+# South America
+Brazil
+Argentina
+Chile
+Colombia
+Peru
+Uruguay
+Ecuador
+
+# Africa
+South Africa
+Nigeria
+Kenya
+Egypt
+Morocco
+Ghana
+Tanzania
+Senegal
+
+# Middle East
+United Arab Emirates
+Israel
+Saudi Arabia
+Turkey
+Jordan
+Qatar

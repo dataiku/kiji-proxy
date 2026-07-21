@@ -1,0 +1,54 @@
+# Dummy street-name pool for StreetGenerator.
+# One value per line. Blank lines and lines starting with '#' are ignored.
+
+# US style streets
+Main St
+Oak Ave
+Maple Dr
+Park Blvd
+Elm Street
+Pine Road
+Cedar Lane
+Washington St
+Broadway
+Market St
+Church St
+Mill Road
+School Lane
+Lake Ave
+River Road
+Highland Ave
+Forest Dr
+Valley Road
+Sunset Blvd
+Spring St
+Garden Way
+Lincoln Ave
+Jefferson St
+Franklin Blvd
+Madison Ave
+Monroe Dr
+Adams St
+Willow Way
+Birch Lane
+Hillcrest Dr
+
+# UK/Canada style streets
+High Street
+Station Road
+Church Lane
+Victoria Road
+Queens Road
+King Street
+Manor Road
+Park Lane
+The Crescent
+Green Lane
+Mill Lane
+New Road
+Chapel Street
+West End
+North Terrace
+Kingsway
+Meadow Lane
+Orchard Close
