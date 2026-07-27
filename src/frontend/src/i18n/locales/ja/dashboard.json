@@ -1,0 +1,95 @@
+{
+  "title": "概要",
+  "subtitle": "Kiji を経由するすべての通信を、マシンから出る前にマスクします。",
+  "status": {
+    "intercepting": "傍受中",
+    "idle": "待機中"
+  },
+  "range": {
+    "selectLabel": "過去{{label}}",
+    "chartSuffix": "過去{{label}}",
+    "24h": "24 時間",
+    "7d": "7 日間",
+    "30d": "30 日間",
+    "90d": "90 日間"
+  },
+  "serverError": "Kiji サーバーに接続できませんでした: {{error}}。プロキシが localhost:8080 で動作していることを確認してください。",
+  "kpi": {
+    "piiProtected": "保護した個人情報",
+    "piiProtectedDelta": "過去{{window}}",
+    "windowUnit": {
+      "h": "時間",
+      "d": "日",
+      "w": "週",
+      "mo": "か月"
+    },
+    "requestsProxied": "中継したリクエスト",
+    "requestsToday": "本日 {{value}} 件",
+    "avgLatency": "平均追加レイテンシ",
+    "latencyUnit": "ms",
+    "latencyCaption": "速度を落とさずにプライバシーを保護"
+  },
+  "chart": {
+    "title": "マスクした個人情報の推移",
+    "notEnough": "グラフを表示するにはデータが不足しています。",
+    "readyTitle": "Kiji は起動して準備完了です。",
+    "readyBody": "最初のリクエストをプロキシ経由で送信して、データの保護を始めましょう。"
+  },
+  "composition": {
+    "title": "マスクした内容",
+    "thisPeriod": "この期間",
+    "entities": "件",
+    "empty": "まだマスクした情報はありません。"
+  },
+  "providers": {
+    "title": "プロバイダー別のトラフィック",
+    "requests": "リクエスト",
+    "empty": "まだトラフィックはありません。"
+  },
+  "highlights": {
+    "peakToday": "本日のピーク",
+    "reqPerMin": "件/分",
+    "busiestSource": "最も多い送信元",
+    "detectionConfidence": "検出確信度",
+    "avgSuffix": "% 平均"
+  },
+  "recent": {
+    "title": "最近の傍受",
+    "live": "ライブ",
+    "requestFallback": "リクエスト",
+    "maskedLabel": "マスク済み",
+    "piiCount": "個人情報 {{count}} 件",
+    "empty": "まだ傍受したリクエストはありません。",
+    "viewAll": "すべてのアクティビティを表示"
+  },
+  "time": {
+    "justNow": "たった今",
+    "secondsAgo": "{{count}} 秒前",
+    "minutesAgo": "{{count}} 分前",
+    "hoursAgo": "{{count}} 時間前",
+    "daysAgo": "{{count}} 日前"
+  },
+  "empty": "—",
+  "sidebar": {
+    "brandSuffix": "Proxy",
+    "sectionWorkspace": "ワークスペース",
+    "sectionConfigure": "設定",
+    "nav": {
+      "dashboard": "ダッシュボード",
+      "playground": "プレイグラウンド",
+      "playgroundBadge": "マスク",
+      "activity": "アクティビティ",
+      "mappings": "マッピング",
+      "settings": "設定",
+      "about": "Kiji について"
+    },
+    "server": {
+      "online": "サーバー稼働中",
+      "degraded": "モデルが低下",
+      "offline": "サーバー停止中",
+      "uptime": "稼働時間",
+      "port": "ポート",
+      "model": "モデル"
+    }
+  }
+}

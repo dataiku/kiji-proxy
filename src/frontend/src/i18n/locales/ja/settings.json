@@ -1,0 +1,157 @@
+{
+  "title": "設定",
+  "subtitle": "プロバイダー、個人情報の検出、および高度なプロキシ構成。",
+  "serverNote": "サーバー環境では、プロバイダーのキー、モデルディレクトリ、証明書のインストールは環境変数とデスクトップアプリで設定します。",
+  "providers": {
+    "title": "プロバイダー",
+    "subtitle": "各 AI プロバイダーの API キーとモデル ID。",
+    "customName": "カスタムプロバイダー",
+    "status": {
+      "configured": "設定済み",
+      "keyOptional": "キーは任意",
+      "notSet": "未設定"
+    },
+    "apiKeyLabel": "{{provider}} の API キー",
+    "apiKeyOptionalSuffix": "（任意）",
+    "lockTitle": "API キーをロック",
+    "unlockTitle": "ロックを解除して編集",
+    "clearKey": "キーを削除",
+    "apiKeyPlaceholder": {
+      "update": "更新する新しい API キーを入力",
+      "locked": "API キーは設定済みです（編集するにはロックを解除）",
+      "optional": "{{provider}} の API キー（任意、{{example}}）",
+      "enter": "{{provider}} の API キーを入力（{{example}}）"
+    },
+    "howToGetKey": "{{provider}} の API キーを取得するには？",
+    "modelIdLabel": "モデル ID",
+    "modelDefault": "既定: {{model}}",
+    "customModelHelp": "プロバイダーが想定する正確なモデル ID を使用してください。",
+    "customEndpointLabel": "カスタムエンドポイント URL",
+    "customEndpointHelp": "カスタムプロバイダーは OpenAI 互換の chat completions API に対応している必要があります。",
+    "endpointOverrideHelp": "カスタムエンドポイントを使用するには上書きします。",
+    "keychainNote": "API キーはシステムキーチェーンの暗号化により安全に保存されます。",
+    "saving": "保存中…",
+    "save": "プロバイダーを保存",
+    "messages": {
+      "loadFailed": "設定の読み込みに失敗しました",
+      "saveApiKeyFailed": "{{provider}} の API キーの保存に失敗しました",
+      "saveModelFailed": "{{provider}} のモデルの保存に失敗しました",
+      "saveEndpointFailed": "{{provider}} のエンドポイント URL の保存に失敗しました",
+      "restarting": "保存しました。バックエンドを再起動しています…",
+      "restartFailed": "設定は保存されましたが、バックエンドの再起動に失敗しました。アプリを再起動して適用してください。",
+      "savedApplied": "設定を保存して適用しました。",
+      "saveFailed": "設定の保存に失敗しました",
+      "keyCleared": "{{provider}} の API キーを削除しました",
+      "clearKeyFailed": "API キーの削除に失敗しました"
+    }
+  },
+  "pii": {
+    "title": "個人情報の検出",
+    "subtitle": "データ検出の積極性とマスクする対象を調整します。",
+    "saved": "保存しました",
+    "sensitivity": {
+      "label": "検出感度",
+      "low": "低",
+      "medium": "中",
+      "high": "高",
+      "help": "個人情報をどの程度積極的に検出するかを制御します。「高」はより多くの個人情報候補を捕捉しますが、誤検出が増える可能性があります。「低」はより正確ですが、一部を見逃す可能性があります。"
+    },
+    "entities": {
+      "label": "マスクする項目",
+      "selectAll": "すべて選択",
+      "deselectAll": "すべて解除",
+      "none": "利用できる項目タイプがありません。マスキングを設定するには、正常な個人情報検出モデルを読み込んでください。",
+      "help": "チェックを外したタイプはマスクされず、そのまま AI プロバイダーに送信されます。"
+    },
+    "regex": {
+      "label": "カスタム正規表現パターン",
+      "nameColumn": "名前",
+      "patternColumn": "パターン",
+      "none": "カスタムパターンはありません。下の + ボタンで追加してください。",
+      "addTitle": "パターンを追加",
+      "removeTitle": "選択したパターンを削除",
+      "help": "各パターンの名前が検出される個人情報のタイプとして使われます。パターンは RE2（Go）構文で記述し、リクエストの内容と照合されます。",
+      "saveFailedInvalid": "パターンの保存に失敗しました。各名前とパターンが有効な RE2 式であることを確認してください。",
+      "saveFailed": "パターンの保存に失敗しました。"
+    },
+    "entityLabels": {
+      "SURNAME": "姓",
+      "FIRSTNAME": "名",
+      "BUILDINGNUM": "建物番号",
+      "DATEOFBIRTH": "生年月日",
+      "EMAIL": "メールアドレス",
+      "PHONENUMBER": "電話番号",
+      "CITY": "市区町村",
+      "URL": "URL",
+      "COMPANYNAME": "会社名",
+      "STATE": "都道府県・州",
+      "ZIP": "郵便番号",
+      "STREET": "番地",
+      "COUNTRY": "国",
+      "SSN": "社会保障番号",
+      "DRIVERLICENSENUM": "運転免許証番号",
+      "PASSPORTID": "パスポート番号",
+      "NATIONALID": "国民識別番号",
+      "IDCARDNUM": "ID カード番号",
+      "TAXNUM": "納税者番号",
+      "LICENSEPLATENUM": "車両ナンバー",
+      "PASSWORD": "パスワード",
+      "IBAN": "IBAN",
+      "AGE": "年齢",
+      "SECURITYTOKEN": "セキュリティトークン",
+      "CREDITCARDNUMBER": "クレジットカード番号",
+      "USERNAME": "ユーザー名"
+    }
+  },
+  "advanced": {
+    "title": "詳細設定",
+    "subtitle": "システム全体の傍受とカスタム個人情報モデル。",
+    "transparentProxy": {
+      "label": "透過プロキシ",
+      "help": "システム全体の HTTPS トラフィックを傍受し、個人情報を自動的に保護します。",
+      "experimentalLabel": "実験的機能:",
+      "experimentalHelp": "この機能には CA 証明書のインストールが必要で、システムのネットワーク設定に影響する場合があります。"
+    },
+    "telemetry": {
+      "label": "クラッシュ・エラーレポート",
+      "help": "既定ではオフです。有効にすると、Kiji の改善に役立てるため匿名のクラッシュおよびエラーレポートが送信されます。プロンプトやマスク前の元テキストが送信されることはありません。送信されるのはマスク済みテキストと技術的なエラー情報のみです。これを有効にすると、個人情報の誤分類レポートも送信できるようになります。",
+      "restartNotice": "この変更をすべてのコンポーネントに完全に反映するには、アプリを再起動してください。"
+    },
+    "model": {
+      "label": "カスタム Kiji 個人情報モデルを読み込む",
+      "statusHealthy": "正常",
+      "statusUnhealthy": "異常",
+      "statusLine": "ステータス: {{status}}",
+      "currentLine": "現在: {{directory}}",
+      "errorLine": "エラー: {{error}}",
+      "pathPlaceholder": "/path/to/model/directory",
+      "browse": "参照",
+      "browseTitle": "フォルダーを参照",
+      "requirements": "ディレクトリには model.onnx、tokenizer.json、label_mappings.json が必要です",
+      "reloading": "再読み込み中…",
+      "reload": "モデルを再読み込み",
+      "messages": {
+        "saveDirFailed": "モデルディレクトリの保存に失敗しました",
+        "reloadSuccess": "モデルを保存して再読み込みしました。",
+        "reloadFailed": "モデルの再読み込みに失敗しました",
+        "unknownError": "不明なエラー",
+        "folderSelectorFailed": "フォルダー選択画面を開けませんでした"
+      }
+    }
+  },
+  "certificates": {
+    "title": "証明書",
+    "subtitle": "HTTPS トラフィックを傍受するには、Kiji のルート証明書を信頼します。",
+    "setup": {
+      "title": "CA 証明書をセットアップ",
+      "help": "システム全体またはブラウザーごとに証明書を信頼する手順を順を追って説明します。"
+    },
+    "revealFinder": "Finder で CA 証明書を表示",
+    "revealExplorer": "エクスプローラーで CA 証明書を表示",
+    "revealHelp": "プロキシのルート証明書が入ったフォルダーを開きます。",
+    "messages": {
+      "revealDesktopOnly": "Finder で表示できるのはデスクトップアプリのみです。",
+      "openFolderFailed": "証明書フォルダーを開けませんでした。"
+    }
+  }
+}
