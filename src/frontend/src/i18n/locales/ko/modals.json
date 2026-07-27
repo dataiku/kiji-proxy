@@ -1,0 +1,68 @@
+{
+  "caCert": {
+    "title": "CA 인증서 설정이 필요합니다",
+    "intro": "HTTPS 트래픽을 가로채 분석하기 위해 Kiji Privacy Proxy는 자체 서명된 인증 기관(CA)을 사용합니다. 이 인증서를 시스템 및/또는 브라우저에서 신뢰하도록 설정해야 합니다.",
+    "revealFinder": "Finder에서 CA 인증서 표시",
+    "revealExplorer": "탐색기에서 CA 인증서 표시",
+    "revealDesktopOnly": "Finder에서 표시하기는 데스크톱 앱에서만 사용할 수 있습니다.",
+    "revealFailed": "인증서 폴더를 열지 못했습니다.",
+    "tabs": {
+      "system": "시스템 전체 신뢰",
+      "browsers": "브라우저별"
+    },
+    "system": {
+      "option1Title": "방법 1: 명령줄 (권장)",
+      "copiedAria": "명령을 클립보드에 복사했습니다",
+      "copyAria": "명령을 클립보드에 복사",
+      "copiedTitle": "복사했습니다",
+      "copyTitle": "클립보드에 복사",
+      "copiedLabel": "복사됨",
+      "copyLabel": "복사",
+      "commandHelp": "이 명령은 관리자 권한이 필요하며 인증서를 시스템 전체에 설치합니다.",
+      "option2Title": "방법 2: 키체인 접근 GUI",
+      "steps": {
+        "s1": "인증서 파일을 두 번 클릭하세요: <code>~/Library/Application Support/Kiji Privacy Proxy/certs/ca.crt</code>",
+        "s2": "<b>키체인 접근</b>이 열립니다. <b>추가</b>를 클릭해 설치하세요",
+        "s3": "키체인 접근의 왼쪽 사이드바에서 <b>시스템</b> 키체인을 선택하세요",
+        "s4": "<b>\"Kiji Privacy Proxy CA\"</b>를 검색해 두 번 클릭하세요",
+        "s5": "<b>\"신뢰\" 옆의 ▶ 삼각형</b>을 클릭해 섹션을 펼치세요",
+        "s6": "<b>\"이 인증서 사용 시\"</b>를 <accent>\"항상 신뢰\"</accent>로 설정하세요",
+        "s7": "<b>\"Secure Sockets Layer (SSL)\"</b>을 <accent>\"항상 신뢰\"</accent>로 설정하세요",
+        "s8": "<b>창을 닫고</b> 비밀번호를 입력하라는 메시지가 나오면 입력하세요",
+        "s9": "<amber>브라우저를 완전히 다시 시작하세요</amber> (Cmd+Q 후 다시 열기)"
+      },
+      "important": "<b>중요:</b> 인증서를 신뢰한 후에는 반드시 브라우저를 다시 시작해야 합니다. 시스템 전체 신뢰는 Safari와 Chrome에 적용됩니다. Firefox는 별도 설정이 필요합니다(브라우저별 탭 참고).",
+      "commonIssue": "<b>⚠️ 자주 발생하는 문제:</b> 터미널에서 인증서에 \"Number of trust settings: 0\"이 표시되면 위 6~7단계에서 \"항상 신뢰\"로 설정하지 않은 것입니다. 인증서는 설치만으로는 부족하며 SSL용으로 신뢰됨 표시가 되어 있어야 합니다."
+    },
+    "browsers": {
+      "firefox": "Firefox",
+      "firefoxSteps": {
+        "s1": "설정 → <b>개인 정보 및 보안</b>",
+        "s2": "인증서 → <b>인증서 보기</b>",
+        "s3": "인증 기관 → <b>가져오기</b>",
+        "s4": "<code>~/Library/Application Support/Kiji Privacy Proxy/certs/ca.crt</code> 선택",
+        "s5": "<b>\"이 인증서로 웹 사이트를 식별\"</b>에 체크"
+      },
+      "chrome": "Chrome/Chromium",
+      "chromeSteps": {
+        "s1": "설정 → <b>개인 정보 보호 및 보안</b> → <b>보안</b>",
+        "s2": "<b>인증서 관리</b> → 인증 기관",
+        "s3": "CA 인증서 <b>가져오기</b> (<code>~/Library/Application Support/Kiji Privacy Proxy/certs/ca.crt</code>)"
+      },
+      "chromeTip": "<b>팁:</b> macOS의 Chrome은 일반적으로 시스템 키체인을 사용하므로 시스템 전체 신뢰(다른 탭 참고)만으로 충분합니다."
+    },
+    "docLink": "전체 문서 보기",
+    "dontShowAgain": "이 메시지를 다시 표시하지 않기",
+    "confirm": "확인했습니다"
+  },
+  "misclassification": {
+    "title": "오분류 신고",
+    "detectedEntities": "탐지된 항목 ({{num}})",
+    "confidence": "신뢰도 {{value}}%",
+    "originalInputLabel": "원본 입력",
+    "feedbackLabel": "의견",
+    "feedbackHelp": "무엇이 잘못 분류되었는지 설명해 주세요. 보내주신 의견은 개인정보 탐지 모델 개선에 사용됩니다.",
+    "feedbackPlaceholder": "예: 'John Smith'가 사람 이름으로 탐지되었지만 실제로는 회사명입니다…",
+    "submit": "신고 제출"
+  }
+}

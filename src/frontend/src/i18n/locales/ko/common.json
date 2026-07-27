@@ -1,0 +1,102 @@
+{
+  "appName": "Kiji Privacy Proxy",
+  "tagline": "개인정보 탐지 및 마스킹 프록시",
+  "language": {
+    "label": "언어",
+    "subtitle": "Kiji 인터페이스에 사용할 언어를 선택하세요.",
+    "en": "영어",
+    "fr": "프랑스어",
+    "ja": "일본어",
+    "ko": "한국어"
+  },
+  "actions": {
+    "save": "저장",
+    "cancel": "취소",
+    "close": "닫기",
+    "confirm": "확인",
+    "retry": "다시 시도",
+    "reset": "초기화",
+    "settings": "설정",
+    "about": "Kiji Privacy Proxy 정보"
+  },
+  "menu": {
+    "label": "메뉴"
+  },
+  "badges": {
+    "localProxy": "로컬 프록시",
+    "onDeviceDetection": "온디바이스 탐지"
+  },
+  "modelHealth": {
+    "unhealthy": "모델이 정상적으로 작동하지 않습니다",
+    "checkConfig": "<settingsAction>설정</settingsAction>에서 모델 구성을 확인하세요"
+  },
+  "apiKey": {
+    "notConfigured": "{{provider}} API 키가 구성되지 않았습니다.",
+    "configureInSettings": "설정에서 구성"
+  },
+  "playground": {
+    "loadingOverlay": "데이터를 보호하는 중…",
+    "mascotAlt": "Kiji 마스코트",
+    "logoAlt": "Kiji 로고",
+    "yourRequest": "요청",
+    "sendTo": "전송 대상",
+    "inputPlaceholder": "민감한 정보가 포함된 메시지를 입력하세요…\n\n예: Hi, my name is John Smith and my email is john.smith@email.com. My phone is 555-123-4567.\n\nKiji는 개인정보가 기기를 떠나기 전에 탐지하고 마스킹합니다.",
+    "backendOffline": "백엔드 서버가 오프라인입니다",
+    "processing": "처리 중…",
+    "processData": "데이터 처리",
+    "tabs": {
+      "sentToProvider": "{{provider}}에 전송",
+      "sentToLLM": "LLM에 전송",
+      "returnedByProvider": "{{provider}}의 응답",
+      "returnedByLLM": "LLM의 응답"
+    },
+    "request": {
+      "submitted": "요청을 전송했습니다",
+      "piiExposed": "개인정보 노출",
+      "piiDetected_other": "개인정보 {{count}}건 탐지",
+      "avgConfidence": "평균 신뢰도 {{value}}%",
+      "masked": "마스킹됨",
+      "personalInfoRemoved": "개인정보를 제거했습니다",
+      "piiProtected": "개인정보를 보호했습니다",
+      "fakePiiReceived_other": "가짜 개인정보 {{count}}건 수신"
+    },
+    "response": {
+      "received": "응답을 받았습니다",
+      "fromProvider": "{{provider}}에서",
+      "restored": "복원됨",
+      "personalInfoRestored": "개인정보를 복원했습니다",
+      "restoredBadge": "복원됨",
+      "piiRestored_other": "개인정보 {{count}}건 복원"
+    },
+    "reportMisclassification": "오분류 신고",
+    "reportMisclassificationTitle": "개인정보 오분류 신고"
+  },
+  "footer": {
+    "builtBy": "Kiji Privacy Proxy · Dataiku의 오픈 소스 오피스 <labLink>575 Lab</labLink> 제작",
+    "version": "v{{version}}"
+  },
+  "status": {
+    "serverOnline": "서버 온라인",
+    "serverOffline": "서버 오프라인",
+    "serverOfflineDetail": "서버 오프라인 — localhost:{{port}}에서 Go 백엔드를 실행하세요",
+    "model": "모델",
+    "modelSignature": "모델 서명",
+    "modelSignatureLabel": "모델 서명 {{signature}}",
+    "verifiedModelSignature": "검증된 모델 서명"
+  },
+  "error": {
+    "title": "문제가 발생했습니다",
+    "subtitle": "애플리케이션에서 예기치 않은 오류가 발생했습니다",
+    "messageLabel": "오류 메시지:",
+    "stackTrace": "스택 트레이스(클릭하여 펼치기)",
+    "tryAgain": "다시 시도",
+    "reload": "애플리케이션 다시 불러오기",
+    "whatCanYouDo": "무엇을 할 수 있나요?",
+    "help": {
+      "tryAgain": "\"다시 시도\"를 클릭해 컴포넌트를 초기화하세요",
+      "reload": "\"애플리케이션 다시 불러오기\"를 클릭해 앱 전체를 새로 고치세요",
+      "console": "문제가 계속되면 브라우저 콘솔에서 자세한 내용을 확인하세요",
+      "report": "이 문제를 개발팀에 신고하는 것도 고려해 보세요"
+    }
+  }
+}

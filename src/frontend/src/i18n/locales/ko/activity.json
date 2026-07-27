@@ -1,0 +1,63 @@
+{
+  "title": "활동",
+  "subtitle": "Kiji가 가로챈 모든 요청과 탐지·마스킹한 개인정보입니다.",
+  "entryCount_other": "{{count}}건",
+  "clearLogs": "로그 지우기",
+  "clearLogsTitle": "모든 로그 지우기",
+  "confirm": {
+    "title": "모든 로그를 지울까요?",
+    "body_other": "로그 {{count}}건이 모두 영구적으로 삭제됩니다. 이 작업은 취소할 수 없습니다.",
+    "cancel": "취소",
+    "clearing": "지우는 중...",
+    "clearAll": "모든 로그 지우기"
+  },
+  "toggle": {
+    "messagesOnly": "메시지만",
+    "fullJson": "전체 JSON",
+    "showingFull": "전체 요청/응답을 표시 중",
+    "showingMessages": "메시지 내용만 표시 중"
+  },
+  "error": {
+    "loading": "로그를 불러오는 중 오류:",
+    "retry": "다시 시도"
+  },
+  "table": {
+    "direction": "방향",
+    "model": "모델",
+    "message": "메시지",
+    "detectedPII": "탐지된 개인정보",
+    "blocked": "차단됨",
+    "timestamp": "시각"
+  },
+  "empty": "로그를 찾을 수 없습니다",
+  "messageCount_other": "메시지 {{count}}개",
+  "blocked": {
+    "yes": "예",
+    "no": "아니요"
+  },
+  "report": {
+    "label": "신고",
+    "noPII": "이 로그에서 탐지된 개인정보가 없습니다",
+    "report": "오분류 신고"
+  },
+  "loadMore": "로그 더 불러오기",
+  "loadingMore": "더 불러오는 중...",
+  "footer": {
+    "showing_other": "로그 {{count}}건 중 {{shown}}건 표시",
+    "moreAvailable": "(더 있음)",
+    "largeCount": "로그 수가 많습니다. 성능을 높이려면 오래된 로그를 지우는 것을 고려하세요."
+  },
+  "direction": {
+    "requestOriginal": "요청(원본)",
+    "requestMasked": "요청({{provider}}에게)",
+    "responseMasked": "응답({{provider}}에서)",
+    "responseOriginal": "응답(복원됨)",
+    "request": "요청",
+    "response": "응답"
+  },
+  "message": {
+    "noContent": "메시지 내용이 없습니다",
+    "truncated": "... [표시를 위해 메시지를 줄였습니다]",
+    "truncatedJson": "... [표시를 위해 JSON을 줄였습니다]"
+  }
+}
