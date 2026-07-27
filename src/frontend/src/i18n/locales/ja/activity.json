@@ -1,0 +1,63 @@
+{
+  "title": "アクティビティ",
+  "subtitle": "Kiji が傍受したすべてのリクエストと、検出・マスクした個人情報。",
+  "entryCount_other": "{{count}} 件",
+  "clearLogs": "ログを消去",
+  "clearLogsTitle": "すべてのログを消去",
+  "confirm": {
+    "title": "すべてのログを消去しますか？",
+    "body_other": "{{count}} 件のログをすべて完全に削除します。この操作は取り消せません。",
+    "cancel": "キャンセル",
+    "clearing": "消去中...",
+    "clearAll": "すべてのログを消去"
+  },
+  "toggle": {
+    "messagesOnly": "メッセージのみ",
+    "fullJson": "JSON 全体",
+    "showingFull": "リクエスト／レスポンス全体を表示中",
+    "showingMessages": "メッセージ本文のみ表示中"
+  },
+  "error": {
+    "loading": "ログの読み込みエラー:",
+    "retry": "再試行"
+  },
+  "table": {
+    "direction": "方向",
+    "model": "モデル",
+    "message": "メッセージ",
+    "detectedPII": "検出した個人情報",
+    "blocked": "ブロック",
+    "timestamp": "日時"
+  },
+  "empty": "ログが見つかりません",
+  "messageCount_other": "{{count}} 件のメッセージ",
+  "blocked": {
+    "yes": "はい",
+    "no": "いいえ"
+  },
+  "report": {
+    "label": "報告",
+    "noPII": "このログで個人情報は検出されていません",
+    "report": "誤分類を報告"
+  },
+  "loadMore": "さらにログを読み込む",
+  "loadingMore": "読み込み中...",
+  "footer": {
+    "showing_other": "{{count}} 件中 {{shown}} 件を表示",
+    "moreAvailable": "（さらにあります）",
+    "largeCount": "ログの件数が多くなっています。パフォーマンス向上のため、古いログの消去をご検討ください。"
+  },
+  "direction": {
+    "requestOriginal": "リクエスト（元データ）",
+    "requestMasked": "リクエスト（{{provider}} 宛）",
+    "responseMasked": "レスポンス（{{provider}} から）",
+    "responseOriginal": "レスポンス（復元済み）",
+    "request": "リクエスト",
+    "response": "レスポンス"
+  },
+  "message": {
+    "noContent": "メッセージ本文がありません",
+    "truncated": "...［表示のためメッセージを省略しました］",
+    "truncatedJson": "...［表示のため JSON を省略しました］"
+  }
+}

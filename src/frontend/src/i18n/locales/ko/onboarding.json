@@ -1,0 +1,32 @@
+{
+  "title": "Kiji Privacy Proxy에 오신 것을 환영합니다",
+  "role": {
+    "question": "Kiji를 어떻게 사용하시나요?",
+    "admin": {
+      "title": "관리자입니다",
+      "desc": "다른 사용자를 위해 Kiji를 설정합니다"
+    },
+    "user": {
+      "title": "사용자입니다",
+      "desc": "직접 Kiji를 사용합니다"
+    }
+  },
+  "welcome": {
+    "intro": "Kiji는 프롬프트에 담긴 개인정보가 AI 공급자에 도달하기 전에 기기에서 모두 마스킹합니다.",
+    "getStarted": "시작하기"
+  },
+  "promises": {
+    "local": {
+      "title": "100% 로컬",
+      "desc": "개인정보 탐지는 기기에서 실행됩니다."
+    },
+    "thirdParty": {
+      "title": "제3자 전송 없음",
+      "desc": "데이터는 선택한 AI에만 전달됩니다."
+    },
+    "openSource": {
+      "title": "오픈 소스",
+      "desc": "모든 주장을 직접 확인하고 검증할 수 있습니다."
+    }
+  }
+}

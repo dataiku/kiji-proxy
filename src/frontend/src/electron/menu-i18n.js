@@ -6,7 +6,7 @@
 // the menus can be rebuilt in the user's language. Keep the keys here in sync
 // with what createMenu()/updateTrayMenu() reference in electron-main.js.
 
-const SUPPORTED_LANGUAGES = ["en", "fr"];
+const SUPPORTED_LANGUAGES = ["en", "fr", "ja", "ko"];
 const DEFAULT_LANGUAGE = "en";
 
 const STRINGS = {
@@ -103,6 +103,100 @@ const STRINGS = {
     bugReport: "Signaler un bogue",
     featureRequest: "Proposer une fonctionnalité",
     emailUs: "Nous écrire",
+  },
+  ja: {
+    // File
+    file: "ファイル",
+    quit: "終了",
+    // Edit
+    edit: "編集",
+    undo: "取り消す",
+    redo: "やり直す",
+    cut: "カット",
+    copy: "コピー",
+    paste: "ペースト",
+    selectAll: "すべてを選択",
+    // View
+    view: "表示",
+    reload: "再読み込み",
+    forceReload: "強制的に再読み込み",
+    toggleDevTools: "デベロッパーツールを表示/非表示",
+    actualSize: "実際のサイズ",
+    zoomIn: "拡大",
+    zoomOut: "縮小",
+    toggleFullscreen: "フルスクリーンを切り替え",
+    // Window
+    window: "ウインドウ",
+    minimize: "しまう",
+    close: "閉じる",
+    zoom: "拡大/縮小",
+    bringAllToFront: "すべてを手前に移動",
+    // Settings / Help
+    settings: "設定",
+    preferences: "環境設定...",
+    help: "ヘルプ",
+    // macOS app menu
+    services: "サービス",
+    hideOthers: "ほかを隠す",
+    showAll: "すべてを表示",
+    restartToUpdate: "再起動して更新",
+    aboutApp: "{{name}} について",
+    hideApp: "{{name}} を隠す",
+    quitApp: "{{name}} を終了",
+    openApp: "{{name}} を開く",
+    // Tray / links
+    documentation: "ドキュメント",
+    chromeExtension: "Kiji Chrome 拡張機能",
+    bugReport: "不具合を報告",
+    featureRequest: "機能をリクエスト",
+    emailUs: "メールで問い合わせる",
+  },
+  ko: {
+    // File
+    file: "파일",
+    quit: "종료",
+    // Edit
+    edit: "편집",
+    undo: "실행 취소",
+    redo: "다시 실행",
+    cut: "오려두기",
+    copy: "복사하기",
+    paste: "붙여넣기",
+    selectAll: "전체 선택",
+    // View
+    view: "보기",
+    reload: "다시 불러오기",
+    forceReload: "강제로 다시 불러오기",
+    toggleDevTools: "개발자 도구 표시/숨기기",
+    actualSize: "실제 크기",
+    zoomIn: "확대",
+    zoomOut: "축소",
+    toggleFullscreen: "전체 화면 전환",
+    // Window
+    window: "윈도우",
+    minimize: "최소화",
+    close: "닫기",
+    zoom: "확대/축소",
+    bringAllToFront: "모두 앞으로 가져오기",
+    // Settings / Help
+    settings: "설정",
+    preferences: "환경설정...",
+    help: "도움말",
+    // macOS app menu
+    services: "서비스",
+    hideOthers: "나머지 가리기",
+    showAll: "모두 보기",
+    restartToUpdate: "다시 시작하여 업데이트",
+    aboutApp: "{{name}} 정보",
+    hideApp: "{{name}} 가리기",
+    quitApp: "{{name}} 종료",
+    openApp: "{{name}} 열기",
+    // Tray / links
+    documentation: "문서",
+    chromeExtension: "Kiji Chrome 확장 프로그램",
+    bugReport: "버그 신고",
+    featureRequest: "기능 요청",
+    emailUs: "이메일 보내기",
   },
 };
 

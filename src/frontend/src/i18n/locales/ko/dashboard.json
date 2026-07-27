@@ -1,0 +1,95 @@
+{
+  "title": "개요",
+  "subtitle": "Kiji를 거치는 모든 요청을 기기에서 나가기 전에 마스킹합니다.",
+  "status": {
+    "intercepting": "가로채는 중",
+    "idle": "대기 중"
+  },
+  "range": {
+    "selectLabel": "최근 {{label}}",
+    "chartSuffix": "최근 {{label}}",
+    "24h": "24시간",
+    "7d": "7일",
+    "30d": "30일",
+    "90d": "90일"
+  },
+  "serverError": "Kiji 서버에 연결할 수 없습니다: {{error}}. 프록시가 localhost:8080에서 실행 중인지 확인하세요.",
+  "kpi": {
+    "piiProtected": "보호한 개인정보",
+    "piiProtectedDelta": "최근 {{window}}",
+    "windowUnit": {
+      "h": "시간",
+      "d": "일",
+      "w": "주",
+      "mo": "개월"
+    },
+    "requestsProxied": "중계한 요청",
+    "requestsToday": "오늘 {{value}}건",
+    "avgLatency": "평균 추가 지연 시간",
+    "latencyUnit": "ms",
+    "latencyCaption": "속도 저하 없는 프라이버시"
+  },
+  "chart": {
+    "title": "시간별 마스킹된 개인정보",
+    "notEnough": "차트를 표시하기에 활동이 아직 충분하지 않습니다.",
+    "readyTitle": "Kiji가 실행 중이며 준비되었습니다.",
+    "readyBody": "첫 요청을 프록시로 보내 데이터 보호를 시작하세요."
+  },
+  "composition": {
+    "title": "마스킹한 항목",
+    "thisPeriod": "이 기간",
+    "entities": "건",
+    "empty": "아직 마스킹한 항목이 없습니다."
+  },
+  "providers": {
+    "title": "공급자별 트래픽",
+    "requests": "요청",
+    "empty": "아직 트래픽이 없습니다."
+  },
+  "highlights": {
+    "peakToday": "오늘 최고치",
+    "reqPerMin": "요청/분",
+    "busiestSource": "가장 많은 출처",
+    "detectionConfidence": "탐지 신뢰도",
+    "avgSuffix": "% 평균"
+  },
+  "recent": {
+    "title": "최근 가로챈 요청",
+    "live": "실시간",
+    "requestFallback": "요청",
+    "maskedLabel": "마스킹됨",
+    "piiCount": "개인정보 {{count}}건",
+    "empty": "아직 가로챈 요청이 없습니다.",
+    "viewAll": "모든 활동 보기"
+  },
+  "time": {
+    "justNow": "방금 전",
+    "secondsAgo": "{{count}}초 전",
+    "minutesAgo": "{{count}}분 전",
+    "hoursAgo": "{{count}}시간 전",
+    "daysAgo": "{{count}}일 전"
+  },
+  "empty": "—",
+  "sidebar": {
+    "brandSuffix": "Proxy",
+    "sectionWorkspace": "작업 공간",
+    "sectionConfigure": "구성",
+    "nav": {
+      "dashboard": "대시보드",
+      "playground": "플레이그라운드",
+      "playgroundBadge": "마스킹",
+      "activity": "활동",
+      "mappings": "매핑",
+      "settings": "설정",
+      "about": "Kiji 정보"
+    },
+    "server": {
+      "online": "서버 온라인",
+      "degraded": "모델 성능 저하",
+      "offline": "서버 오프라인",
+      "uptime": "가동 시간",
+      "port": "포트",
+      "model": "모델"
+    }
+  }
+}

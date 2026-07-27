@@ -1,0 +1,43 @@
+{
+  "title": "매핑",
+  "subtitle": "탐지된 모든 개인정보 값과 Kiji가 보호를 위해 대체한 가짜 토큰입니다.",
+  "entryCount_other": "{{count}}건",
+  "clearAll": "모두 지우기",
+  "clearAllTitle": "모든 매핑 지우기",
+  "confirm": {
+    "title": "모든 매핑을 지울까요?",
+    "body_other": "개인정보 매핑 {{count}}건이 모두 영구적으로 삭제됩니다. 이 작업은 취소할 수 없습니다.",
+    "cancel": "취소",
+    "clearing": "지우는 중...",
+    "clearAll": "모든 매핑 지우기"
+  },
+  "error": {
+    "label": "오류:",
+    "retry": "다시 시도"
+  },
+  "empty": "개인정보 매핑을 찾을 수 없습니다",
+  "table": {
+    "entityType": "항목 유형",
+    "original": "원본",
+    "masked": "마스킹된 값",
+    "date": "최초 탐지 일시",
+    "actions": "작업"
+  },
+  "sort": {
+    "ascending": "{{label}} 오름차순 정렬",
+    "descending": "{{label}} 내림차순 정렬"
+  },
+  "delete": {
+    "confirm": "삭제할까요?",
+    "confirmLabel": "삭제 확인",
+    "cancelLabel": "삭제 취소",
+    "label": "매핑 삭제",
+    "title": "매핑 삭제"
+  },
+  "loadMore": "매핑 더 불러오기",
+  "loadingMore": "더 불러오는 중...",
+  "footer": {
+    "showing_other": "매핑 {{count}}건 중 {{shown}}건 표시",
+    "moreAvailable": "(더 있음)"
+  }
+}

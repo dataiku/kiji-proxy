@@ -1,0 +1,157 @@
+{
+  "title": "설정",
+  "subtitle": "공급자, 개인정보 탐지 및 고급 프록시 구성.",
+  "serverNote": "서버 배포 환경에서는 공급자 키, 모델 디렉터리, 인증서 설치를 환경 변수와 데스크톱 앱으로 구성합니다.",
+  "providers": {
+    "title": "공급자",
+    "subtitle": "각 AI 공급자의 API 키와 모델 ID.",
+    "customName": "사용자 지정 공급자",
+    "status": {
+      "configured": "구성됨",
+      "keyOptional": "키 선택 사항",
+      "notSet": "설정되지 않음"
+    },
+    "apiKeyLabel": "{{provider}} API 키",
+    "apiKeyOptionalSuffix": " (선택 사항)",
+    "lockTitle": "API 키 잠금",
+    "unlockTitle": "잠금을 해제하여 편집",
+    "clearKey": "내 키 삭제",
+    "apiKeyPlaceholder": {
+      "update": "업데이트할 새 API 키를 입력하세요",
+      "locked": "API 키가 구성되어 있습니다(편집하려면 잠금 해제)",
+      "optional": "{{provider}} API 키 (선택 사항, {{example}})",
+      "enter": "{{provider}} API 키를 입력하세요 ({{example}})"
+    },
+    "howToGetKey": "{{provider}} API 키는 어떻게 발급받나요?",
+    "modelIdLabel": "모델 ID",
+    "modelDefault": "기본값: {{model}}",
+    "customModelHelp": "공급자가 요구하는 정확한 모델 ID를 사용하세요.",
+    "customEndpointLabel": "사용자 지정 엔드포인트 URL",
+    "customEndpointHelp": "사용자 지정 공급자는 OpenAI 호환 chat completions API를 지원해야 합니다.",
+    "endpointOverrideHelp": "사용자 지정 엔드포인트를 사용하려면 재정의하세요.",
+    "keychainNote": "API 키는 시스템 키체인 암호화를 통해 안전하게 저장됩니다.",
+    "saving": "저장 중…",
+    "save": "공급자 저장",
+    "messages": {
+      "loadFailed": "설정을 불러오지 못했습니다",
+      "saveApiKeyFailed": "{{provider}} API 키를 저장하지 못했습니다",
+      "saveModelFailed": "{{provider}} 모델을 저장하지 못했습니다",
+      "saveEndpointFailed": "{{provider}} 엔드포인트 URL을 저장하지 못했습니다",
+      "restarting": "저장했습니다. 백엔드를 다시 시작하는 중…",
+      "restartFailed": "설정은 저장되었지만 백엔드 재시작에 실패했습니다. 앱을 다시 시작해 적용하세요.",
+      "savedApplied": "설정을 저장하고 적용했습니다.",
+      "saveFailed": "설정을 저장하지 못했습니다",
+      "keyCleared": "{{provider}} API 키를 삭제했습니다",
+      "clearKeyFailed": "API 키를 삭제하지 못했습니다"
+    }
+  },
+  "pii": {
+    "title": "개인정보 탐지",
+    "subtitle": "데이터를 얼마나 적극적으로 탐지하고 무엇을 마스킹할지 조정합니다.",
+    "saved": "저장됨",
+    "sensitivity": {
+      "label": "탐지 민감도",
+      "low": "낮음",
+      "medium": "보통",
+      "high": "높음",
+      "help": "개인정보를 얼마나 적극적으로 탐지할지 제어합니다. '높음'은 더 많은 개인정보를 잡아내지만 오탐이 늘어날 수 있습니다. '낮음'은 더 정확하지만 일부를 놓칠 수 있습니다."
+    },
+    "entities": {
+      "label": "마스킹할 항목",
+      "selectAll": "모두 선택",
+      "deselectAll": "모두 해제",
+      "none": "사용할 수 있는 항목 유형이 없습니다. 마스킹을 구성하려면 정상 상태의 개인정보 탐지 모델을 불러오세요.",
+      "help": "선택하지 않은 유형은 마스킹되지 않고 그대로 AI 공급자에게 전송됩니다."
+    },
+    "regex": {
+      "label": "사용자 지정 정규식 패턴",
+      "nameColumn": "이름",
+      "patternColumn": "패턴",
+      "none": "사용자 지정 패턴이 없습니다. 아래 + 버튼으로 추가하세요.",
+      "addTitle": "패턴 추가",
+      "removeTitle": "선택한 패턴 제거",
+      "help": "각 패턴의 이름이 탐지된 개인정보 유형으로 사용됩니다. 패턴은 RE2(Go) 문법을 사용하며 요청 내용과 대조됩니다.",
+      "saveFailedInvalid": "패턴을 저장하지 못했습니다. 각 이름과 패턴이 유효한 RE2 표현식인지 확인하세요.",
+      "saveFailed": "패턴을 저장하지 못했습니다."
+    },
+    "entityLabels": {
+      "SURNAME": "성",
+      "FIRSTNAME": "이름",
+      "BUILDINGNUM": "건물 번호",
+      "DATEOFBIRTH": "생년월일",
+      "EMAIL": "이메일",
+      "PHONENUMBER": "전화번호",
+      "CITY": "도시",
+      "URL": "URL",
+      "COMPANYNAME": "회사명",
+      "STATE": "시·도",
+      "ZIP": "우편번호",
+      "STREET": "도로명 주소",
+      "COUNTRY": "국가",
+      "SSN": "사회보장번호",
+      "DRIVERLICENSENUM": "운전면허번호",
+      "PASSPORTID": "여권 번호",
+      "NATIONALID": "국가 신분증 번호",
+      "IDCARDNUM": "신분증 번호",
+      "TAXNUM": "납세자 번호",
+      "LICENSEPLATENUM": "차량 번호판",
+      "PASSWORD": "비밀번호",
+      "IBAN": "IBAN",
+      "AGE": "나이",
+      "SECURITYTOKEN": "보안 토큰",
+      "CREDITCARDNUMBER": "신용카드 번호",
+      "USERNAME": "사용자 이름"
+    }
+  },
+  "advanced": {
+    "title": "고급",
+    "subtitle": "시스템 전체 트래픽 가로채기 및 사용자 지정 개인정보 모델.",
+    "transparentProxy": {
+      "label": "투명 프록시",
+      "help": "시스템 전체의 HTTPS 트래픽을 가로채 개인정보를 자동으로 보호합니다.",
+      "experimentalLabel": "실험 기능:",
+      "experimentalHelp": "이 기능은 CA 인증서 설치가 필요하며 시스템 네트워크 설정에 영향을 줄 수 있습니다."
+    },
+    "telemetry": {
+      "label": "오류 및 크래시 보고",
+      "help": "기본적으로 꺼져 있습니다. 활성화하면 Kiji 개선에 도움이 되도록 익명의 크래시 및 오류 보고가 전송됩니다. 프롬프트와 마스킹 전 원본 텍스트는 절대 전송되지 않으며, 마스킹된 텍스트와 기술적 오류 정보만 전송됩니다. 이 기능을 켜면 개인정보 오분류 신고도 제출할 수 있습니다.",
+      "restartNotice": "이 변경을 모든 구성 요소에 완전히 적용하려면 앱을 다시 시작하세요."
+    },
+    "model": {
+      "label": "사용자 지정 Kiji 개인정보 모델 불러오기",
+      "statusHealthy": "정상",
+      "statusUnhealthy": "비정상",
+      "statusLine": "상태: {{status}}",
+      "currentLine": "현재: {{directory}}",
+      "errorLine": "오류: {{error}}",
+      "pathPlaceholder": "/path/to/model/directory",
+      "browse": "찾아보기",
+      "browseTitle": "폴더 찾아보기",
+      "requirements": "디렉터리에는 model.onnx, tokenizer.json, label_mappings.json이 있어야 합니다",
+      "reloading": "다시 불러오는 중…",
+      "reload": "모델 다시 불러오기",
+      "messages": {
+        "saveDirFailed": "모델 디렉터리를 저장하지 못했습니다",
+        "reloadSuccess": "모델을 저장하고 다시 불러왔습니다.",
+        "reloadFailed": "모델을 다시 불러오지 못했습니다",
+        "unknownError": "알 수 없는 오류",
+        "folderSelectorFailed": "폴더 선택 창을 열지 못했습니다"
+      }
+    }
+  },
+  "certificates": {
+    "title": "인증서",
+    "subtitle": "HTTPS 트래픽을 가로채려면 Kiji의 루트 인증서를 신뢰하세요.",
+    "setup": {
+      "title": "CA 인증서 설정",
+      "help": "시스템 전체 또는 브라우저별로 인증서를 신뢰하는 단계별 안내입니다."
+    },
+    "revealFinder": "Finder에서 CA 인증서 표시",
+    "revealExplorer": "탐색기에서 CA 인증서 표시",
+    "revealHelp": "프록시의 루트 인증서가 있는 폴더를 엽니다.",
+    "messages": {
+      "revealDesktopOnly": "Finder에서 표시하기는 데스크톱 앱에서만 사용할 수 있습니다.",
+      "openFolderFailed": "인증서 폴더를 열지 못했습니다."
+    }
+  }
+}

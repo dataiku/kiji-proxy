@@ -1,0 +1,102 @@
+{
+  "appName": "Kiji Privacy Proxy",
+  "tagline": "個人情報の検出・マスキングプロキシ",
+  "language": {
+    "label": "言語",
+    "subtitle": "Kiji のインターフェースで使用する言語を選択します。",
+    "en": "英語",
+    "fr": "フランス語",
+    "ja": "日本語",
+    "ko": "韓国語"
+  },
+  "actions": {
+    "save": "保存",
+    "cancel": "キャンセル",
+    "close": "閉じる",
+    "confirm": "確定",
+    "retry": "再試行",
+    "reset": "リセット",
+    "settings": "設定",
+    "about": "Kiji Privacy Proxy について"
+  },
+  "menu": {
+    "label": "メニュー"
+  },
+  "badges": {
+    "localProxy": "ローカルプロキシ",
+    "onDeviceDetection": "デバイス上で検出"
+  },
+  "modelHealth": {
+    "unhealthy": "モデルが正常に動作していません",
+    "checkConfig": "<settingsAction>設定</settingsAction>でモデルの構成を確認してください"
+  },
+  "apiKey": {
+    "notConfigured": "{{provider}} の API キーが設定されていません。",
+    "configureInSettings": "設定で構成する"
+  },
+  "playground": {
+    "loadingOverlay": "データを保護しています…",
+    "mascotAlt": "Kiji マスコット",
+    "logoAlt": "Kiji ロゴ",
+    "yourRequest": "リクエスト",
+    "sendTo": "送信先",
+    "inputPlaceholder": "機密情報を含むメッセージを入力してください…\n\n例: Hi, my name is John Smith and my email is john.smith@email.com. My phone is 555-123-4567.\n\nKiji は個人情報がマシンの外に出る前に検出してマスクします。",
+    "backendOffline": "バックエンドサーバーがオフラインです",
+    "processing": "処理中…",
+    "processData": "データを処理",
+    "tabs": {
+      "sentToProvider": "{{provider}} に送信",
+      "sentToLLM": "LLM に送信",
+      "returnedByProvider": "{{provider}} からの応答",
+      "returnedByLLM": "LLM からの応答"
+    },
+    "request": {
+      "submitted": "リクエストを送信しました",
+      "piiExposed": "個人情報が露出",
+      "piiDetected_other": "個人情報を {{count}} 件検出",
+      "avgConfidence": "平均確信度 {{value}}%",
+      "masked": "マスク済み",
+      "personalInfoRemoved": "個人情報を削除しました",
+      "piiProtected": "個人情報を保護しました",
+      "fakePiiReceived_other": "ダミーの個人情報を {{count}} 件受信"
+    },
+    "response": {
+      "received": "応答を受信しました",
+      "fromProvider": "{{provider}} より",
+      "restored": "復元済み",
+      "personalInfoRestored": "個人情報を復元しました",
+      "restoredBadge": "復元済み",
+      "piiRestored_other": "個人情報を {{count}} 件復元"
+    },
+    "reportMisclassification": "誤検出を報告",
+    "reportMisclassificationTitle": "個人情報の誤分類を報告する"
+  },
+  "footer": {
+    "builtBy": "Kiji Privacy Proxy · <labLink>575 Lab</labLink>（Dataiku のオープンソースオフィス）が開発",
+    "version": "v{{version}}"
+  },
+  "status": {
+    "serverOnline": "サーバー稼働中",
+    "serverOffline": "サーバー停止中",
+    "serverOfflineDetail": "サーバー停止中 — localhost:{{port}} で Go バックエンドを起動してください",
+    "model": "モデル",
+    "modelSignature": "モデル署名",
+    "modelSignatureLabel": "モデル署名 {{signature}}",
+    "verifiedModelSignature": "検証済みのモデル署名"
+  },
+  "error": {
+    "title": "エラーが発生しました",
+    "subtitle": "アプリケーションで予期しないエラーが発生しました",
+    "messageLabel": "エラーメッセージ:",
+    "stackTrace": "スタックトレース（クリックで展開）",
+    "tryAgain": "再試行",
+    "reload": "アプリケーションを再読み込み",
+    "whatCanYouDo": "対処方法",
+    "help": {
+      "tryAgain": "「再試行」をクリックしてコンポーネントをリセットします",
+      "reload": "「アプリケーションを再読み込み」をクリックしてアプリ全体を更新します",
+      "console": "問題が解決しない場合は、ブラウザーのコンソールで詳細を確認してください",
+      "report": "この問題を開発チームに報告することもご検討ください"
+    }
+  }
+}

@@ -5,7 +5,9 @@
     "label": "Language",
     "subtitle": "Choose the language for the Kiji interface.",
     "en": "English",
-    "fr": "French"
+    "fr": "French",
+    "ja": "Japanese",
+    "ko": "Korean"
   },
   "actions": {
     "save": "Save",

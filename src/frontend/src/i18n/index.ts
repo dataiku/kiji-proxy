@@ -2,8 +2,8 @@ import i18next from "i18next";
 import { initReactI18next } from "react-i18next";
 import LanguageDetector from "i18next-browser-languagedetector";
 
-// Namespaced English base + French draft translations.
-// French files start as machine-drafted strings pending native review.
+// Namespaced English base + French, Japanese, and Korean draft translations.
+// Non-English files start as machine-drafted strings pending native review.
 import enCommon from "./locales/en/common.json";
 import enSettings from "./locales/en/settings.json";
 import enDashboard from "./locales/en/dashboard.json";
@@ -22,7 +22,25 @@ import frMappings from "./locales/fr/mappings.json";
 import frAbout from "./locales/fr/about.json";
 import frModals from "./locales/fr/modals.json";
 
-export const SUPPORTED_LANGUAGES = ["en", "fr"] as const;
+import jaCommon from "./locales/ja/common.json";
+import jaSettings from "./locales/ja/settings.json";
+import jaDashboard from "./locales/ja/dashboard.json";
+import jaOnboarding from "./locales/ja/onboarding.json";
+import jaActivity from "./locales/ja/activity.json";
+import jaMappings from "./locales/ja/mappings.json";
+import jaAbout from "./locales/ja/about.json";
+import jaModals from "./locales/ja/modals.json";
+
+import koCommon from "./locales/ko/common.json";
+import koSettings from "./locales/ko/settings.json";
+import koDashboard from "./locales/ko/dashboard.json";
+import koOnboarding from "./locales/ko/onboarding.json";
+import koActivity from "./locales/ko/activity.json";
+import koMappings from "./locales/ko/mappings.json";
+import koAbout from "./locales/ko/about.json";
+import koModals from "./locales/ko/modals.json";
+
+export const SUPPORTED_LANGUAGES = ["en", "fr", "ja", "ko"] as const;
 export type SupportedLanguage = (typeof SUPPORTED_LANGUAGES)[number];
 
 export const NAMESPACES = [
@@ -59,6 +77,26 @@ const resources = {
     about: frAbout,
     modals: frModals,
   },
+  ja: {
+    common: jaCommon,
+    settings: jaSettings,
+    dashboard: jaDashboard,
+    onboarding: jaOnboarding,
+    activity: jaActivity,
+    mappings: jaMappings,
+    about: jaAbout,
+    modals: jaModals,
+  },
+  ko: {
+    common: koCommon,
+    settings: koSettings,
+    dashboard: koDashboard,
+    onboarding: koOnboarding,
+    activity: koActivity,
+    mappings: koMappings,
+    about: koAbout,
+    modals: koModals,
+  },
 } as const;
 
 i18next
@@ -67,8 +105,8 @@ i18next
   .init({
     resources,
     // Detect from navigator.language (and persisted choice, once #577 wires
-    // localStorage), falling back to English. Region subtags like "fr-FR"
-    // resolve to the "fr" base via load: "languageOnly".
+    // localStorage), falling back to English. Region subtags like "fr-FR" and
+    // script subtags like "ja-JP" resolve to their base via load: "languageOnly".
     fallbackLng: "en",
     supportedLngs: SUPPORTED_LANGUAGES as unknown as string[],
     load: "languageOnly",

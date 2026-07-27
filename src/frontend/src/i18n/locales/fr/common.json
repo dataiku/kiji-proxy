@@ -5,7 +5,9 @@
     "label": "Langue",
     "subtitle": "Choisissez la langue de l’interface Kiji.",
     "en": "Anglais",
-    "fr": "Français"
+    "fr": "Français",
+    "ja": "Japonais",
+    "ko": "Coréen"
   },
   "actions": {
     "save": "Enregistrer",
