@@ -57,18 +57,29 @@ type Provider interface {
 	SetAddlHeaders(req *http.Request)
 }
 
-// `defaultProviders` struct sets the default provider to use when there is a subpath clash,
-// e.g. OpenAI and Mistral use the same '/v1/chat/completions' subpath.
+// `defaultProviders` sets the provider to use when compatible APIs share paths.
 type defaultProviders struct {
-	OpenAISubpath ProviderType // only "openai" or "mistral"
+	OpenAISubpath    ProviderType
+	AnthropicSubpath ProviderType
 }
 
-func NewDefaultProviders(defaultOpenAIProvider ProviderType) (*defaultProviders, error) {
-	if defaultOpenAIProvider == ProviderTypeOpenAI || defaultOpenAIProvider == ProviderTypeMistral {
-		return &defaultProviders{OpenAISubpath: defaultOpenAIProvider}, nil
-	} else {
-		return nil, fmt.Errorf("defaultOpenAIProvider must be 'openai' or 'mistral'")
+func NewDefaultProviders(defaultOpenAIProvider ProviderType, defaultAnthropicProvider ProviderType) (*defaultProviders, error) {
+	switch defaultOpenAIProvider {
+	case ProviderTypeOpenAI, ProviderTypeMistral, ProviderTypeMiniMax:
+	default:
+		return nil, fmt.Errorf("unsupported default provider for shared chat completions subpath: %q", defaultOpenAIProvider)
 	}
+
+	switch defaultAnthropicProvider {
+	case ProviderTypeAnthropic, ProviderTypeMiniMax:
+	default:
+		return nil, fmt.Errorf("unsupported default provider for shared messages subpath: %q", defaultAnthropicProvider)
+	}
+
+	return &defaultProviders{
+		OpenAISubpath:    defaultOpenAIProvider,
+		AnthropicSubpath: defaultAnthropicProvider,
+	}, nil
 }
 
 // `Providers` struct is a container for all provider objects + the default provider struct
@@ -78,6 +89,7 @@ type Providers struct {
 	AnthropicProvider *AnthropicProvider
 	GeminiProvider    *GeminiProvider
 	MistralProvider   *MistralProvider
+	MiniMaxProvider   *MiniMaxProvider
 	CustomProvider    *CustomProvider
 }
 
@@ -118,6 +130,8 @@ func (p *Providers) GetProviderFromPath(host string, path string, body *[]byte, 
 				provider = p.GeminiProvider
 			case ProviderTypeMistral:
 				provider = p.MistralProvider
+			case ProviderTypeMiniMax:
+				provider = p.MiniMaxProvider
 			case ProviderTypeCustom:
 				provider = p.CustomProvider
 			default:
@@ -148,11 +162,18 @@ func (p *Providers) GetProviderFromPath(host string, path string, body *[]byte, 
 			provider = p.OpenAIProvider
 		case ProviderTypeMistral:
 			provider = p.MistralProvider
+		case ProviderTypeMiniMax:
+			provider = p.MiniMaxProvider
 		}
 	case path == ProviderSubpathOpenAIResp:
 		provider = p.OpenAIProvider
 	case path == ProviderSubpathAnthropic:
-		provider = p.AnthropicProvider
+		switch p.DefaultProviders.AnthropicSubpath {
+		case ProviderTypeAnthropic:
+			provider = p.AnthropicProvider
+		case ProviderTypeMiniMax:
+			provider = p.MiniMaxProvider
+		}
 	case strings.HasPrefix(path, ProviderSubpathGemini):
 		provider = p.GeminiProvider
 	default:
@@ -184,6 +205,8 @@ func (p *Providers) GetProviderFromHost(host string, logPrefix string) (*Provide
 		provider = p.GeminiProvider
 	case p.MistralProvider != nil && providerHostMatches(host, p.MistralProvider.apiDomain):
 		provider = p.MistralProvider
+	case p.MiniMaxProvider != nil && providerHostMatches(host, p.MiniMaxProvider.apiDomain):
+		provider = p.MiniMaxProvider
 	case p.CustomProvider != nil && providerHostMatches(host, p.CustomProvider.apiDomain):
 		provider = p.CustomProvider
 	default:

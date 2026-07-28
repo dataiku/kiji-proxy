@@ -44,6 +44,7 @@ export function buildRequestBody(
   switch (provider) {
     case "openai":
     case "mistral":
+    case "minimax":
     case "custom":
       return {
         ...baseFields,
@@ -94,7 +95,7 @@ export function buildHeaders(
     case "gemini":
       headers["x-goog-api-key"] = providerApiKey;
       break;
-    default: // openai, mistral, custom
+    default: // openai, mistral, minimax, custom
       headers["Authorization"] = `Bearer ${providerApiKey}`;
   }
 
@@ -108,6 +109,7 @@ export function getProviderEndpoint(
   switch (provider) {
     case "openai":
     case "mistral":
+    case "minimax":
     case "custom":
       return "/v1/chat/completions";
     case "anthropic":
@@ -127,6 +129,7 @@ export function extractAssistantMessage(
     switch (provider) {
       case "openai":
       case "mistral":
+      case "minimax":
       case "custom":
         return data.choices?.[0]?.message?.content || "";
 

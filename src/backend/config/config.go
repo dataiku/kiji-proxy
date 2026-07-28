@@ -40,7 +40,8 @@ type DatabaseConfig struct {
 
 // Provider config structs
 type DefaultProvidersConfig struct {
-	OpenAISubpath providers.ProviderType `json:"openai_subpath"`
+	OpenAISubpath    providers.ProviderType `json:"openai_subpath"`
+	AnthropicSubpath providers.ProviderType `json:"anthropic_subpath"`
 }
 
 type ProviderConfig struct {
@@ -55,6 +56,7 @@ type ProvidersConfig struct {
 	AnthropicProviderConfig ProviderConfig         `json:"anthropic_provider_config"`
 	GeminiProviderConfig    ProviderConfig         `json:"gemini_provider_config"`
 	MistralProviderConfig   ProviderConfig         `json:"mistral_provider_config"`
+	MiniMaxProviderConfig   ProviderConfig         `json:"minimax_provider_config"`
 	CustomProviderConfig    ProviderConfig         `json:"custom_provider_config"`
 }
 
@@ -184,6 +186,9 @@ func (c *Config) ValidateConfig() error {
 	if err := validateProviderConfig(c.Providers.MistralProviderConfig, "Mistral"); err != nil {
 		errs = append(errs, err.Error())
 	}
+	if err := validateProviderConfig(c.Providers.MiniMaxProviderConfig, "MiniMax"); err != nil {
+		errs = append(errs, err.Error())
+	}
 	if err := validateProviderConfig(c.Providers.CustomProviderConfig, "Custom"); err != nil {
 		errs = append(errs, err.Error())
 	}
@@ -268,7 +273,8 @@ func validateAdditionalHeaders(headers map[string]string, fieldName string) erro
 func DefaultConfig() *Config {
 	// Provider parameters
 	defaultProvidersConfig := DefaultProvidersConfig{
-		OpenAISubpath: providers.ProviderTypeOpenAI,
+		OpenAISubpath:    providers.ProviderTypeOpenAI,
+		AnthropicSubpath: providers.ProviderTypeAnthropic,
 	}
 
 	defaultOpenAIProviderConfig := ProviderConfig{
@@ -285,6 +291,10 @@ func DefaultConfig() *Config {
 	}
 	defaultMistralProviderConfig := ProviderConfig{
 		APIDomain:         providers.ProviderAPIDomainMistral,
+		AdditionalHeaders: map[string]string{},
+	}
+	defaultMiniMaxProviderConfig := ProviderConfig{
+		APIDomain:         providers.ProviderAPIDomainMiniMax,
 		AdditionalHeaders: map[string]string{},
 	}
 	defaultCustomProviderConfig := ProviderConfig{
@@ -305,6 +315,7 @@ func DefaultConfig() *Config {
 			AnthropicProviderConfig: defaultAnthropicProviderConfig,
 			GeminiProviderConfig:    defaultGeminiProviderConfig,
 			MistralProviderConfig:   defaultMistralProviderConfig,
+			MiniMaxProviderConfig:   defaultMiniMaxProviderConfig,
 			CustomProviderConfig:    defaultCustomProviderConfig,
 		},
 		ProxyPort:          DefaultForwardProxyPort,
@@ -348,6 +359,7 @@ func (pc ProvidersConfig) GetInterceptDomains() []string {
 		interceptDomain(pc.OpenAIProviderConfig.APIDomain),
 		interceptDomain(pc.GeminiProviderConfig.APIDomain),
 		interceptDomain(pc.MistralProviderConfig.APIDomain),
+		interceptDomain(pc.MiniMaxProviderConfig.APIDomain),
 		interceptDomain(pc.CustomProviderConfig.APIDomain),
 	}
 	// ChatGPT-login Codex talks to chatgpt.com instead of the configured OpenAI

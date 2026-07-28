@@ -523,6 +523,8 @@ func providerFromModel(model string) string {
 		return "gemini"
 	case strings.Contains(m, "mistral"), strings.Contains(m, "mixtral"):
 		return "mistral"
+	case strings.Contains(m, "abab"), strings.Contains(m, "minimax"):
+		return "minimax"
 	case strings.Contains(m, "gpt"), strings.Contains(m, "davinci"),
 		strings.HasPrefix(m, "o1"), strings.HasPrefix(m, "o3"), strings.HasPrefix(m, "o4"):
 		return "openai"
@@ -822,7 +824,13 @@ func (h *Handler) createAndSendProxyRequest(r *http.Request, body []byte, provid
 // reasoning-model routing from /v1/chat/completions to /v1/responses).
 func (h *Handler) buildTargetURL(r *http.Request, provider *providers.Provider, requestPath string) (string, error) {
 	useHttps := true
-	baseURL := strings.TrimSuffix((*provider).GetBaseURL(useHttps), "/")
+	baseURL := (*provider).GetBaseURL(useHttps)
+	if pathAware, ok := (*provider).(interface {
+		GetBaseURLForPath(bool, string) string
+	}); ok {
+		baseURL = pathAware.GetBaseURLForPath(useHttps, requestPath)
+	}
+	baseURL = strings.TrimSuffix(baseURL, "/")
 
 	// Parse the base URL to extract any path prefix (e.g. "/v1" from "https://api.openai.com/v1")
 	parsed, err := url.Parse(baseURL)
@@ -964,6 +972,11 @@ func NewHandler(cfg *config.Config) (*Handler, error) {
 		cfg.Providers.MistralProviderConfig.APIKey,
 		cfg.Providers.MistralProviderConfig.AdditionalHeaders,
 	)
+	miniMaxProvider := providers.NewMiniMaxProvider(
+		cfg.Providers.MiniMaxProviderConfig.APIDomain,
+		cfg.Providers.MiniMaxProviderConfig.APIKey,
+		cfg.Providers.MiniMaxProviderConfig.AdditionalHeaders,
+	)
 	customProvider := providers.NewCustomProvider(
 		cfg.Providers.CustomProviderConfig.APIDomain,
 		cfg.Providers.CustomProviderConfig.APIKey,
@@ -972,6 +985,7 @@ func NewHandler(cfg *config.Config) (*Handler, error) {
 
 	defaultProviders, err := providers.NewDefaultProviders(
 		cfg.Providers.DefaultProvidersConfig.OpenAISubpath,
+		cfg.Providers.DefaultProvidersConfig.AnthropicSubpath,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to set default providers: %w", err)
@@ -983,6 +997,7 @@ func NewHandler(cfg *config.Config) (*Handler, error) {
 		AnthropicProvider: anthropicProvider,
 		GeminiProvider:    geminiProvider,
 		MistralProvider:   mistralProvider,
+		MiniMaxProvider:   miniMaxProvider,
 		CustomProvider:    customProvider,
 	}
 
