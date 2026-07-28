@@ -1,0 +1,21 @@
+[project]
+name = "geap-pipelines-proxy"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Davidnet", email = "david.cardozo@dataiku.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "google-cloud-aiplatform>=1.162.0",
+    "kfp>=2,<3",
+]
+
+[project.scripts]
+geap-pipelines-proxy = "geap_pipelines_proxy:main"
+geap-pipelines-submit = "geap_pipelines_proxy.submit:main"
+
+[build-system]
+requires = ["uv_build>=0.11.17,<0.12.0"]
+build-backend = "uv_build"

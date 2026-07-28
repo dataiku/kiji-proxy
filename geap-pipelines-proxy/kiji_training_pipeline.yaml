@@ -1,0 +1,342 @@
+# PIPELINE DEFINITION
+# Name: kiji-pii-model-training
+# Description: Train, evaluate, export and sign the Kiji PII detection model.
+# Inputs:
+#    audit_allowlist_uri: str [Default: '']
+#    auxiliary_ce_loss_weight: float [Default: 0.2]
+#    balanced_validation_split: bool [Default: True]
+#    batch_size: int [Default: 128.0]
+#    bf16: bool [Default: True]
+#    early_stopping_enabled: bool [Default: True]
+#    early_stopping_patience: int [Default: 3.0]
+#    early_stopping_threshold: float [Default: 0.005]
+#    learning_rate: float [Default: 2e-05]
+#    max_eval_samples: int [Default: 0.0]
+#    model_name: str [Default: 'microsoft/deberta-v3-base']
+#    num_ai4privacy_samples: int [Default: -1.0]
+#    num_epochs: int [Default: 30.0]
+#    skip_quantization: bool [Default: True]
+#    skip_signing: bool [Default: False]
+#    subsample_count: int [Default: 0.0]
+#    training_samples_uri: str
+#    warmup_steps: int [Default: 500.0]
+#    weight_decay: float [Default: 0.01]
+components:
+  comp-render-training-config:
+    executorLabel: exec-render-training-config
+    inputDefinitions:
+      parameters:
+        audit_allowlist_uri:
+          parameterType: STRING
+        auxiliary_ce_loss_weight:
+          parameterType: NUMBER_DOUBLE
+        balanced_validation_split:
+          parameterType: BOOLEAN
+        batch_size:
+          parameterType: NUMBER_INTEGER
+        bf16:
+          parameterType: BOOLEAN
+        early_stopping_enabled:
+          parameterType: BOOLEAN
+        early_stopping_patience:
+          parameterType: NUMBER_INTEGER
+        early_stopping_threshold:
+          parameterType: NUMBER_DOUBLE
+        learning_rate:
+          parameterType: NUMBER_DOUBLE
+        max_eval_samples:
+          parameterType: NUMBER_INTEGER
+        model_name:
+          parameterType: STRING
+        num_ai4privacy_samples:
+          parameterType: NUMBER_INTEGER
+        num_epochs:
+          parameterType: NUMBER_INTEGER
+        skip_quantization:
+          parameterType: BOOLEAN
+        skip_signing:
+          parameterType: BOOLEAN
+        subsample_count:
+          parameterType: NUMBER_INTEGER
+        trained_dir:
+          parameterType: STRING
+        training_samples_uri:
+          parameterType: STRING
+        warmup_steps:
+          parameterType: NUMBER_INTEGER
+        weight_decay:
+          parameterType: NUMBER_DOUBLE
+    outputDefinitions:
+      artifacts:
+        config_file:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+  comp-train-pii-model:
+    executorLabel: exec-train-pii-model
+    inputDefinitions:
+      artifacts:
+        config_file:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+    outputDefinitions:
+      artifacts:
+        onnx_model:
+          artifactType:
+            schemaTitle: system.Model
+            schemaVersion: 0.0.1
+        trained_model:
+          artifactType:
+            schemaTitle: system.Model
+            schemaVersion: 0.0.1
+deploymentSpec:
+  executors:
+    exec-render-training-config:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - render_training_config
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.17.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"\
+          $0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef render_training_config(\n    config_file: dsl.Output[dsl.Artifact],\n\
+          \    training_samples_uri: str,\n    model_name: str,\n    num_epochs: int,\n\
+          \    batch_size: int,\n    learning_rate: float,\n    warmup_steps: int,\n\
+          \    weight_decay: float,\n    auxiliary_ce_loss_weight: float,\n    bf16:\
+          \ bool,\n    early_stopping_enabled: bool,\n    early_stopping_patience:\
+          \ int,\n    early_stopping_threshold: float,\n    max_eval_samples: int,\n\
+          \    balanced_validation_split: bool,\n    subsample_count: int,\n    num_ai4privacy_samples:\
+          \ int,\n    audit_allowlist_uri: str,\n    skip_quantization: bool,\n  \
+          \  skip_signing: bool,\n    trained_dir: str,\n) -> None:\n    \"\"\"Render\
+          \ training_config.toml from pipeline parameters.\n\n    Emitting the config\
+          \ as its own artifact means the exact hyperparameters of a\n    run are\
+          \ recorded in Vertex lineage, rather than being buried in a container\n\
+          \    command line.\n    \"\"\"\n\n    def gcs_path(uri: str) -> str:\n \
+          \       \"\"\"gs://bucket/key -> /gcs/bucket/key, the Vertex AI gcsfuse\
+          \ mount.\"\"\"\n        if uri.startswith(\"gs://\"):\n            return\
+          \ \"/gcs/\" + uri[len(\"gs://\") :]\n        return uri\n\n    def toml_str(value:\
+          \ str) -> str:\n        escaped = value.replace(\"\\\\\", \"\\\\\\\\\").replace('\"\
+          ', '\\\\\"')\n        return f'\"{escaped}\"'\n\n    def toml_bool(value:\
+          \ bool) -> str:\n        return \"true\" if value else \"false\"\n\n   \
+          \ lines = [\n        \"# Generated by geap-pipelines-proxy. Do not edit\
+          \ by hand.\",\n        \"\",\n        \"[model]\",\n        f\"name = {toml_str(model_name)}\"\
+          ,\n        \"\",\n        \"[training]\",\n        f\"num_epochs = {num_epochs}\"\
+          ,\n        f\"batch_size = {batch_size}\",\n        f\"learning_rate = {learning_rate}\"\
+          ,\n        f\"bf16 = {toml_bool(bf16)}\",\n        \"torch_compile = false\"\
+          ,\n        f\"warmup_steps = {warmup_steps}\",\n        f\"weight_decay\
+          \ = {weight_decay}\",\n        f\"auxiliary_ce_loss_weight = {auxiliary_ce_loss_weight}\"\
+          ,\n        f\"max_eval_samples = {max_eval_samples}\",\n        f\"balanced_validation_split\
+          \ = {toml_bool(balanced_validation_split)}\",\n        f\"early_stopping_enabled\
+          \ = {toml_bool(early_stopping_enabled)}\",\n        f\"early_stopping_patience\
+          \ = {early_stopping_patience}\",\n        f\"early_stopping_threshold =\
+          \ {early_stopping_threshold}\",\n        \"\",\n        \"[paths]\",\n \
+          \       f\"training_samples_dir = {toml_str(gcs_path(training_samples_uri))}\"\
+          ,\n        f\"output_dir = {toml_str(trained_dir)}\",\n        \"\",\n \
+          \       \"[data]\",\n        f\"subsample_count = {subsample_count}\",\n\
+          \        f\"num_ai4privacy_samples = {num_ai4privacy_samples}\",\n     \
+          \   f\"audit_allowlist = {toml_str(gcs_path(audit_allowlist_uri))}\",\n\
+          \        \"\",\n        \"[pipeline]\",\n        # Label Studio is not reachable\
+          \ from a Vertex worker pool; datasets are\n        # staged to GCS ahead\
+          \ of the run instead.\n        \"skip_export = true\",\n        f\"skip_quantization\
+          \ = {toml_bool(skip_quantization)}\",\n        f\"skip_signing = {toml_bool(skip_signing)}\"\
+          ,\n        \"\",\n    ]\n\n    rendered = \"\\n\".join(lines)\n    print(rendered)\n\
+          \    with open(config_file.path, \"w\") as handle:\n        handle.write(rendered)\n\
+          \n"
+        image: python:3.13-slim
+    exec-train-pii-model:
+      container:
+        args:
+        - '{"Concat": ["config=\"", "{{$.inputs.artifacts[''config_file''].path}}",
+          "\"\n", "trained_out=\"", "{{$.outputs.artifacts[''trained_model''].path}}",
+          "\"\n", "onnx_out=\"", "{{$.outputs.artifacts[''onnx_model''].path}}", "\"\n",
+          "\n", "cd \"", "/workspace", "\"\n", "python model/flows/training_pipeline.py
+          --config config-file \"$config\" run\n", "\n", "# The flow writes to container-local
+          disk; publish to the\n", "# gcsfuse-backed artifact paths once, at the end.\n",
+          "mkdir -p \"$trained_out\" \"$onnx_out\"\n", "cp -R \"", "/workspace/model/trained",
+          "/.\" \"$trained_out/\"\n", "if [ -d \"", "/workspace/model/quantized",
+          "\" ]; then\n", "  cp -R \"", "/workspace/model/quantized", "/.\" \"$onnx_out/\"\n",
+          "else\n", "  echo \"no ONNX export produced at ", "/workspace/model/quantized",
+          "\" >&2\n", "fi\n"]}'
+        command:
+        - /bin/sh
+        - -ec
+        env:
+        - name: TOKENIZERS_PARALLELISM
+          value: 'false'
+        image: 575lab/kiji-proxy:dev
+        resources:
+          accelerator:
+            count: '1'
+            resourceCount: '1'
+            resourceType: NVIDIA_TESLA_A100
+            type: NVIDIA_TESLA_A100
+          cpuLimit: 12.0
+          memoryLimit: 85.0
+          resourceCpuLimit: '12'
+          resourceMemoryLimit: 85G
+pipelineInfo:
+  description: Train, evaluate, export and sign the Kiji PII detection model.
+  name: kiji-pii-model-training
+root:
+  dag:
+    tasks:
+      render-training-config:
+        cachingOptions: {}
+        componentRef:
+          name: comp-render-training-config
+        inputs:
+          parameters:
+            audit_allowlist_uri:
+              componentInputParameter: audit_allowlist_uri
+            auxiliary_ce_loss_weight:
+              componentInputParameter: auxiliary_ce_loss_weight
+            balanced_validation_split:
+              componentInputParameter: balanced_validation_split
+            batch_size:
+              componentInputParameter: batch_size
+            bf16:
+              componentInputParameter: bf16
+            early_stopping_enabled:
+              componentInputParameter: early_stopping_enabled
+            early_stopping_patience:
+              componentInputParameter: early_stopping_patience
+            early_stopping_threshold:
+              componentInputParameter: early_stopping_threshold
+            learning_rate:
+              componentInputParameter: learning_rate
+            max_eval_samples:
+              componentInputParameter: max_eval_samples
+            model_name:
+              componentInputParameter: model_name
+            num_ai4privacy_samples:
+              componentInputParameter: num_ai4privacy_samples
+            num_epochs:
+              componentInputParameter: num_epochs
+            skip_quantization:
+              componentInputParameter: skip_quantization
+            skip_signing:
+              componentInputParameter: skip_signing
+            subsample_count:
+              componentInputParameter: subsample_count
+            trained_dir:
+              runtimeValue:
+                constant: /workspace/model/trained
+            training_samples_uri:
+              componentInputParameter: training_samples_uri
+            warmup_steps:
+              componentInputParameter: warmup_steps
+            weight_decay:
+              componentInputParameter: weight_decay
+        taskInfo:
+          name: render-training-config
+      train-pii-model:
+        cachingOptions: {}
+        componentRef:
+          name: comp-train-pii-model
+        dependentTasks:
+        - render-training-config
+        inputs:
+          artifacts:
+            config_file:
+              taskOutputArtifact:
+                outputArtifactKey: config_file
+                producerTask: render-training-config
+        taskInfo:
+          name: train-pii-model
+  inputDefinitions:
+    parameters:
+      audit_allowlist_uri:
+        defaultValue: ''
+        isOptional: true
+        parameterType: STRING
+      auxiliary_ce_loss_weight:
+        defaultValue: 0.2
+        isOptional: true
+        parameterType: NUMBER_DOUBLE
+      balanced_validation_split:
+        defaultValue: true
+        isOptional: true
+        parameterType: BOOLEAN
+      batch_size:
+        defaultValue: 128.0
+        isOptional: true
+        parameterType: NUMBER_INTEGER
+      bf16:
+        defaultValue: true
+        isOptional: true
+        parameterType: BOOLEAN
+      early_stopping_enabled:
+        defaultValue: true
+        isOptional: true
+        parameterType: BOOLEAN
+      early_stopping_patience:
+        defaultValue: 3.0
+        isOptional: true
+        parameterType: NUMBER_INTEGER
+      early_stopping_threshold:
+        defaultValue: 0.005
+        isOptional: true
+        parameterType: NUMBER_DOUBLE
+      learning_rate:
+        defaultValue: 2.0e-05
+        isOptional: true
+        parameterType: NUMBER_DOUBLE
+      max_eval_samples:
+        defaultValue: 0.0
+        isOptional: true
+        parameterType: NUMBER_INTEGER
+      model_name:
+        defaultValue: microsoft/deberta-v3-base
+        isOptional: true
+        parameterType: STRING
+      num_ai4privacy_samples:
+        defaultValue: -1.0
+        isOptional: true
+        parameterType: NUMBER_INTEGER
+      num_epochs:
+        defaultValue: 30.0
+        isOptional: true
+        parameterType: NUMBER_INTEGER
+      skip_quantization:
+        defaultValue: true
+        isOptional: true
+        parameterType: BOOLEAN
+      skip_signing:
+        defaultValue: false
+        isOptional: true
+        parameterType: BOOLEAN
+      subsample_count:
+        defaultValue: 0.0
+        isOptional: true
+        parameterType: NUMBER_INTEGER
+      training_samples_uri:
+        parameterType: STRING
+      warmup_steps:
+        defaultValue: 500.0
+        isOptional: true
+        parameterType: NUMBER_INTEGER
+      weight_decay:
+        defaultValue: 0.01
+        isOptional: true
+        parameterType: NUMBER_DOUBLE
+schemaVersion: 2.1.0
+sdkVersion: kfp-2.17.0
