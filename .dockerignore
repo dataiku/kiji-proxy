@@ -1,0 +1,41 @@
+# Build context exclusions for images built from the repository root
+# (model/Dockerfile, src/scripts/docker/Dockerfile).
+
+.git
+.github
+.changeset
+
+# Dependency trees and build output — reinstalled or rebuilt inside the image
+node_modules
+**/node_modules
+.venv
+build
+release
+dist
+packaging
+
+# Local caches and editor state
+.metaflow
+.cache
+.claude
+.vscode
+.zed
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.ruff_cache
+.mypy_cache
+
+# Model artifacts — mounted at run time, never baked into the image
+model/trained
+model/quantized
+model/keys
+model/dataset/data_samples
+
+# Frontend / desktop app sources unrelated to the trainer or proxy images
+chrome-extension
+src/frontend
+
+*.log
+.env
+.DS_Store

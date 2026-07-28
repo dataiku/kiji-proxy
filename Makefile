@@ -1,6 +1,7 @@
 .PHONY: help install install-dev venv
 .PHONY: format lint lint-go lint-frontend lint-frontend-fix lint-all typecheck typecheck-frontend check check-all ruff-fix ruff-all
 .PHONY: test test-go test-all test-e2e test-e2e-dataset
+.PHONY: docker-train-build docker-train
 .PHONY: clean clean-venv clean-all
 .PHONY: build-dmg build-linux verify-linux build-go build-go-embed
 .PHONY: setup-onnx setup-tokenizers
@@ -23,6 +24,9 @@ CGO_LDFLAGS := -L./build/tokenizers
 
 # Version from package.json
 VERSION := $(shell cd src/frontend && node -p "require('./package.json').version" 2>/dev/null || echo "0.0.0")
+
+# Model trainer image (model/Dockerfile)
+TRAINER_IMAGE ?= kiji-model-trainer
 
 ##@ General
 
@@ -193,6 +197,27 @@ test-e2e-dataset: ## Regenerate the e2e evaluation dataset (idempotent, seeded)
 	@echo "$(BLUE)Regenerating e2e dataset...$(NC)"
 	uv run python tests/e2e/dataset/generate.py
 	@echo "$(GREEN)✅ Dataset written to tests/e2e/dataset/samples.jsonl$(NC)"
+
+##@ Model Training
+
+docker-train-build: ## Build the model trainer image (kiji-model-trainer)
+	@echo "$(BLUE)Building trainer image $(TRAINER_IMAGE)...$(NC)"
+	docker build -f model/Dockerfile -t $(TRAINER_IMAGE) .
+	@echo "$(GREEN)✅ Built $(TRAINER_IMAGE)$(NC)"
+
+docker-train: docker-train-build ## Run the training pipeline in Docker (GPU=1 to use NVIDIA GPUs, ARGS="..." for extra flags)
+	@echo "$(BLUE)Running training pipeline in Docker...$(NC)"
+	@mkdir -p model/trained model/quantized
+	docker run --rm $(if $(shell tty -s && echo 1),-it,) $(if $(filter 1 true yes,$(GPU)),--gpus all --shm-size=2g,) \
+		--user $(shell id -u):$(shell id -g) \
+		-v "$(CURDIR)/model/dataset/data_samples:/workspace/model/dataset/data_samples:ro" \
+		-v "$(CURDIR)/model/trained:/workspace/model/trained" \
+		-v "$(CURDIR)/model/quantized:/workspace/model/quantized" \
+		$(if $(HF_TOKEN),-e HF_TOKEN=$(HF_TOKEN),) \
+		$(if $(NUM_SAMPLES),-e NUM_SAMPLES=$(NUM_SAMPLES),) \
+		$(if $(NUM_AI4PRIVACY_SAMPLES),-e NUM_AI4PRIVACY_SAMPLES=$(NUM_AI4PRIVACY_SAMPLES),) \
+		$(TRAINER_IMAGE) run $(ARGS)
+	@echo "$(GREEN)✅ Training complete — artifacts in model/trained and model/quantized$(NC)"
 
 ##@ Cleanup
 
