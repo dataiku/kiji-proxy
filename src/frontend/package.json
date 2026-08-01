@@ -70,12 +70,12 @@
     "webpack-dev-server": "^6.0.0"
   },
   "optionalDependencies": {
-    "@tailwindcss/oxide-darwin-arm64": "4.3.2",
-    "@tailwindcss/oxide-darwin-x64": "4.3.2",
-    "@tailwindcss/oxide-linux-x64-gnu": "4.3.2",
-    "lightningcss-darwin-arm64": "1.32.0",
-    "lightningcss-darwin-x64": "1.32.0",
-    "lightningcss-linux-x64-gnu": "1.32.0"
+    "@tailwindcss/oxide-darwin-arm64": "4.3.3",
+    "@tailwindcss/oxide-darwin-x64": "4.3.3",
+    "@tailwindcss/oxide-linux-x64-gnu": "4.3.3",
+    "lightningcss-darwin-arm64": "1.33.0",
+    "lightningcss-darwin-x64": "1.33.0",
+    "lightningcss-linux-x64-gnu": "1.33.0"
   },
   "build": {
     "appId": "com.kiji.proxy",
