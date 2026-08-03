@@ -6,3 +6,8 @@ model/quantized/tokenizer_config.json filter= diff= merge= text
 model/quantized/special_tokens_map.json filter= diff= merge= text
 model/quantized/added_tokens.json filter= diff= merge= text
 *.onnx filter=lfs diff=lfs merge=lfs -text
+
+# PII generator word pools are embedded via //go:embed and parsed line by line.
+# Pin them to LF so the bytes embedded into the binary are identical regardless
+# of the build platform's checkout settings.
+src/backend/pii/generators/data/*.txt text eol=lf

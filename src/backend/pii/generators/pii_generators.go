@@ -29,43 +29,11 @@ func pickExcluding(rng *rand.Rand, choices []string, original string) string {
 
 // EmailGenerator generates dummy email addresses
 func EmailGenerator(rng *rand.Rand, original string) string {
-	firstNames := []string{
-		// Western names
-		"jane", "john", "alex", "sam", "taylor", "casey", "jordan", "riley",
-		"michael", "sarah", "david", "emily", "james", "emma", "robert", "olivia",
-		// Asian names
-		"wei", "mei", "hiroshi", "yuki", "jin", "min", "raj", "priya",
-		// African names
-		"amara", "kofi", "zara", "kwame", "nia", "jelani",
-		// Middle Eastern names
-		"yusuf", "fatima", "omar", "layla", "ali", "nadia",
-		// Latin American names
-		"carlos", "maria", "diego", "sofia", "miguel", "lucia",
-		// Eastern European names
-		"dmitri", "anna", "ivan", "katya", "alexei", "elena",
-	}
-	lastNames := []string{
-		// Western surnames
-		"doe", "smith", "johnson", "brown", "davis", "wilson", "moore", "taylor",
-		"anderson", "thomas", "jackson", "white", "harris", "martin", "thompson",
-		// Asian surnames
-		"chen", "wang", "kim", "nguyen", "tanaka", "yamamoto", "patel", "singh",
-		// African surnames
-		"okonkwo", "diallo", "mensah", "osei", "abebe",
-		// Middle Eastern surnames
-		"mohammed", "ahmed", "hassan", "khan", "ali",
-		// Latin American surnames
-		"garcia", "rodriguez", "martinez", "lopez", "gonzalez", "hernandez",
-		// Eastern European surnames
-		"ivanov", "petrov", "kowalski", "novak", "horvat",
-		// Celtic surnames
-		"obrien", "murphy", "kelly", "sullivan",
-	}
 	// RFC 2606 / RFC 6761 reserved domains only
 	domains := []string{"example.com", "example.org", "example.net", "test.com", "test.org", "test.net", "invalid.com", "invalid.org"}
 
-	firstName := firstNames[rng.Intn(len(firstNames))]
-	lastName := lastNames[rng.Intn(len(lastNames))]
+	firstName := emailFirstNames[rng.Intn(len(emailFirstNames))]
+	lastName := emailSurnames[rng.Intn(len(emailSurnames))]
 	domain := domains[rng.Intn(len(domains))]
 
 	return fmt.Sprintf("%s.%s@%s", firstName, lastName, domain)
@@ -181,18 +149,7 @@ func DateOfBirthGenerator(rng *rand.Rand, original string) string {
 
 // StreetGenerator generates dummy street addresses
 func StreetGenerator(rng *rand.Rand, original string) string {
-	streetNames := []string{
-		// US style streets
-		"Main St", "Oak Ave", "Maple Dr", "Park Blvd", "Elm Street", "Pine Road", "Cedar Lane", "Washington St",
-		"Broadway", "Market St", "Church St", "Mill Road", "School Lane", "Lake Ave", "River Road",
-		"Highland Ave", "Forest Dr", "Valley Road", "Sunset Blvd", "Spring St", "Garden Way",
-		"Lincoln Ave", "Jefferson St", "Franklin Blvd", "Madison Ave", "Monroe Dr",
-		// UK/Canada style streets
-		"High Street", "Station Road", "Church Lane", "Victoria Road", "Queens Road",
-		"King Street", "Manor Road", "Park Lane", "The Crescent", "Green Lane",
-		"Mill Lane", "New Road", "Chapel Street", "West End", "North Terrace",
-	}
-	return pickExcluding(rng, streetNames, original)
+	return pickExcluding(rng, streets, original)
 }
 
 // ZipCodeGenerator generates dummy zip codes
@@ -211,19 +168,6 @@ func ZipCodeGenerator(rng *rand.Rand, original string) string {
 
 // CityGenerator generates dummy city names
 func CityGenerator(rng *rand.Rand, original string) string {
-	cities := []string{
-		// US cities
-		"Springfield", "Riverside", "Greenville", "Fairview", "Madison", "Georgetown", "Salem", "Arlington",
-		"Franklin", "Clinton", "Bristol", "Chester", "Dayton", "Kingston", "Newport", "Oakland",
-		"Plymouth", "Burlington", "Manchester", "Lexington", "Milton", "Ashland", "Clayton",
-		// Canadian cities
-		"Toronto", "Vancouver", "Calgary", "Ottawa", "Edmonton", "Winnipeg", "Halifax",
-		"Victoria", "Regina", "Saskatoon", "Hamilton", "Kitchener", "London", "Windsor",
-		// UK cities
-		"Birmingham", "Edinburgh", "Liverpool", "Leeds", "Sheffield", "Newcastle",
-		"Nottingham", "Southampton", "Portsmouth", "Oxford", "Cambridge", "York", "Bath",
-		"Brighton", "Cardiff", "Belfast", "Glasgow", "Aberdeen", "Dundee", "Swansea",
-	}
 	return pickExcluding(rng, cities, original)
 }
 
@@ -242,56 +186,11 @@ func BuildingNumGenerator(rng *rand.Rand, original string) string {
 
 // FirstNameGenerator generates dummy first names
 func FirstNameGenerator(rng *rand.Rand, original string) string {
-	names := []string{
-		// Western names
-		"John", "Jane", "Michael", "Sarah", "David", "Emily", "James", "Emma", "Robert", "Olivia",
-		"William", "Elizabeth", "Richard", "Jennifer", "Thomas", "Jessica", "Charles", "Amanda",
-		"Christopher", "Ashley", "Daniel", "Stephanie", "Matthew", "Nicole", "Anthony", "Melissa",
-		// Asian names
-		"Wei", "Mei", "Hiroshi", "Yuki", "Jin", "Min", "Raj", "Priya",
-		"Kenji", "Sakura", "Chen", "Li", "Aiko", "Takeshi", "Ananya", "Arjun",
-		// African names
-		"Amara", "Kofi", "Zara", "Kwame", "Nia", "Jelani", "Amina", "Chioma",
-		"Oluwaseun", "Aisha", "Tariq", "Imani", "Sekou", "Adaeze",
-		// Middle Eastern names
-		"Yusuf", "Fatima", "Omar", "Layla", "Ali", "Nadia", "Hassan", "Mariam",
-		"Khalid", "Zahra", "Ahmed", "Leila", "Ibrahim", "Yasmin",
-		// Latin American names
-		"Carlos", "Maria", "Diego", "Sofia", "Miguel", "Lucia", "Alejandro", "Valentina",
-		"Fernando", "Camila", "Ricardo", "Isabella", "Andres", "Gabriela",
-		// Eastern European names
-		"Dmitri", "Anna", "Ivan", "Katya", "Alexei", "Elena", "Nikolai", "Olga",
-		"Sergei", "Natasha", "Vladimir", "Irina", "Mikhail", "Tatiana",
-	}
-	return pickExcluding(rng, names, original)
+	return pickExcluding(rng, firstNames, original)
 }
 
 // SurnameGenerator generates dummy last names
 func SurnameGenerator(rng *rand.Rand, original string) string {
-	surnames := []string{
-		// Western surnames
-		"Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Martinez", "Wilson",
-		"Anderson", "Taylor", "Thomas", "Moore", "Jackson", "Martin", "Lee", "Thompson", "White", "Harris",
-		"Clark", "Lewis", "Robinson", "Walker", "Hall", "Young", "King", "Wright", "Hill", "Scott",
-		// Asian surnames
-		"Chen", "Wang", "Li", "Zhang", "Liu", "Kim", "Park", "Choi", "Nguyen", "Tran",
-		"Tanaka", "Yamamoto", "Suzuki", "Watanabe", "Patel", "Singh", "Sharma", "Kumar",
-		// African surnames
-		"Okonkwo", "Diallo", "Mensah", "Osei", "Abebe", "Adeyemi", "Nkosi", "Mbeki",
-		"Kamara", "Toure", "Dlamini", "Ndlovu",
-		// Middle Eastern surnames
-		"Mohammed", "Ahmed", "Hassan", "Khan", "Ali", "Ibrahim", "Hussein", "Malik",
-		"Nazari", "Hosseini", "Rahman", "Begum",
-		// Latin American surnames
-		"Rodriguez", "Lopez", "Gonzalez", "Hernandez", "Perez", "Sanchez", "Ramirez", "Torres",
-		"Flores", "Rivera", "Gomez", "Diaz", "Reyes", "Morales", "Cruz", "Ortiz",
-		// Eastern European surnames
-		"Ivanov", "Petrov", "Kowalski", "Novak", "Horvat", "Popov", "Volkov", "Kozlov",
-		"Nowak", "Kovalenko", "Bondarenko", "Shevchenko",
-		// Celtic surnames
-		"O'Brien", "Murphy", "Kelly", "Sullivan", "O'Connor", "Walsh", "Ryan", "Byrne",
-		"MacDonald", "Campbell", "Stewart", "Murray", "Fraser", "MacLeod",
-	}
 	return pickExcluding(rng, surnames, original)
 }
 
@@ -342,76 +241,19 @@ func UrlGenerator(rng *rand.Rand, original string) string {
 
 // CompanyNameGenerator generates dummy company names
 func CompanyNameGenerator(rng *rand.Rand, original string) string {
-	prefixes := []string{
-		"Acme", "Global", "United", "Pacific", "Atlantic", "Northern", "Summit", "Horizon", "Apex", "Vanguard",
-		"Pinnacle", "Premier", "Elite", "Prime", "Sterling", "Meridian", "Coastal", "Central", "National", "Continental",
-		"Metro", "Allied", "Dynamic", "Synergy", "Fusion", "Vertex", "Quantum", "Nova", "Titan", "Omega",
-		"Pioneer", "Frontier", "Legacy", "Heritage", "Keystone", "Benchmark", "Catalyst", "Spectrum", "Nexus", "Compass",
-	}
-	suffixes := []string{
-		// US/International
-		"Inc", "LLC", "Corp", "Industries", "Solutions", "Group", "Holdings", "Partners", "Enterprises", "Co",
-		"Technologies", "Systems", "Services", "Consulting", "Associates", "International", "Worldwide",
-		// UK
-		"Ltd", "PLC", "Limited",
-		// German
-		"GmbH", "AG",
-		// French/Spanish
-		"SA", "SL",
-		// Australian
-		"Pty Ltd",
-	}
-
-	prefix := prefixes[rng.Intn(len(prefixes))]
-	suffix := suffixes[rng.Intn(len(suffixes))]
+	prefix := companyPrefixes[rng.Intn(len(companyPrefixes))]
+	suffix := companySuffixes[rng.Intn(len(companySuffixes))]
 
 	return fmt.Sprintf("%s %s", prefix, suffix)
 }
 
 // StateGenerator generates dummy state names
 func StateGenerator(rng *rand.Rand, original string) string {
-	states := []string{
-		// US States
-		"Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado", "Connecticut", "Delaware",
-		"Florida", "Georgia", "Hawaii", "Idaho", "Illinois", "Indiana", "Iowa", "Kansas",
-		"Kentucky", "Louisiana", "Maine", "Maryland", "Massachusetts", "Michigan", "Minnesota", "Mississippi",
-		"Missouri", "Montana", "Nebraska", "Nevada", "New Hampshire", "New Jersey", "New Mexico", "New York",
-		"North Carolina", "North Dakota", "Ohio", "Oklahoma", "Oregon", "Pennsylvania", "Rhode Island", "South Carolina",
-		"South Dakota", "Tennessee", "Texas", "Utah", "Vermont", "Virginia", "Washington", "West Virginia",
-		"Wisconsin", "Wyoming",
-		// Canadian Provinces
-		"Ontario", "Quebec", "British Columbia", "Alberta", "Manitoba", "Saskatchewan",
-		"Nova Scotia", "New Brunswick", "Newfoundland and Labrador", "Prince Edward Island",
-		// UK Regions/Nations
-		"England", "Scotland", "Wales", "Northern Ireland",
-		// UK Counties
-		"Yorkshire", "Kent", "Essex", "Hampshire", "Surrey", "Lancashire", "Devon", "Cornwall",
-		"Oxfordshire", "Cambridgeshire", "Berkshire", "Somerset", "Dorset", "Wiltshire", "Norfolk", "Suffolk",
-	}
 	return pickExcluding(rng, states, original)
 }
 
 // CountryGenerator generates dummy country names
 func CountryGenerator(rng *rand.Rand, original string) string {
-	countries := []string{
-		// North America
-		"United States", "Canada", "Mexico",
-		// Europe
-		"United Kingdom", "Germany", "France", "Italy", "Spain", "Netherlands", "Belgium",
-		"Switzerland", "Austria", "Sweden", "Norway", "Denmark", "Finland", "Ireland",
-		"Poland", "Portugal", "Greece", "Czech Republic", "Hungary", "Romania",
-		// Asia
-		"Japan", "China", "South Korea", "India", "Singapore", "Thailand", "Vietnam",
-		"Indonesia", "Malaysia", "Philippines", "Taiwan", "Hong Kong",
-		// Oceania
-		"Australia", "New Zealand",
-		// South America
-		"Brazil", "Argentina", "Chile", "Colombia", "Peru",
-		// Africa
-		"South Africa", "Nigeria", "Kenya", "Egypt", "Morocco", "Ghana",
-		// Middle East
-		"United Arab Emirates", "Israel", "Saudi Arabia", "Turkey",
-	}
 	return pickExcluding(rng, countries, original)
 }
 
