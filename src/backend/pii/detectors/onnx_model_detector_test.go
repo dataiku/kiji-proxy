@@ -9,16 +9,32 @@ import (
 	"github.com/daulet/tokenizers"
 )
 
-func TestAppendVersionedONNXPaths(t *testing.T) {
+func TestAppendUniqueVersionedONNXPaths(t *testing.T) {
 	dir := t.TempDir()
 	versioned := filepath.Join(dir, "libonnxruntime."+strings.Join([]string{"1", "2", "3"}, ".")+".dylib")
 	if err := os.WriteFile(versioned, nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
 
-	paths := appendVersionedONNXPaths([]string{"libonnxruntime.dylib"}, filepath.Join(dir, "libonnxruntime.*.dylib"))
+	pattern := filepath.Join(dir, "libonnxruntime.*.dylib")
+	paths, ambiguous := appendUniqueVersionedONNXPaths([]string{"libonnxruntime.dylib"}, pattern)
 	if len(paths) != 2 || paths[1] != versioned {
 		t.Fatalf("expected stable alias and versioned fallback, got %v", paths)
+	}
+	if len(ambiguous) != 0 {
+		t.Fatalf("expected no ambiguity, got %v", ambiguous)
+	}
+
+	second := filepath.Join(dir, "libonnxruntime."+strings.Join([]string{"2", "0", "0"}, ".")+".dylib")
+	if err := os.WriteFile(second, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	paths, ambiguous = appendUniqueVersionedONNXPaths([]string{"libonnxruntime.dylib"}, pattern)
+	if len(paths) != 1 {
+		t.Fatalf("ambiguous versioned libraries must be skipped, got %v", paths)
+	}
+	if len(ambiguous) != 1 || ambiguous[0] != pattern {
+		t.Fatalf("expected ambiguous pattern %q, got %v", pattern, ambiguous)
 	}
 }
 

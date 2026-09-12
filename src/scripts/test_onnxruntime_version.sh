@@ -24,7 +24,6 @@ write_manifest() {
         printf 'ONNXRUNTIME_VERSION=%s\n' "$version"
         printf 'ONNXRUNTIME_LINUX_X64_SHA256=%064d\n' 0
         printf 'ONNXRUNTIME_LINUX_X64_LIBRARY_SHA256=%064d\n' 0
-        printf 'ONNXRUNTIME_OSX_ARM64_SHA256=%064d\n' 0
     } > "$FIXTURE_ROOT/.onnxruntime-version"
 }
 write_manifest "$PINNED_VERSION"

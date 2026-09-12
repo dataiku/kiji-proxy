@@ -56,12 +56,17 @@ type ONNXModelDetectorSimple struct {
 	crf                       *crfParams // nil if crf_transitions.json not found
 }
 
-func appendVersionedONNXPaths(paths []string, patterns ...string) []string {
+func appendUniqueVersionedONNXPaths(paths []string, patterns ...string) ([]string, []string) {
+	ambiguous := make([]string, 0)
 	for _, pattern := range patterns {
 		matches, _ := filepath.Glob(pattern)
-		paths = append(paths, matches...)
+		if len(matches) == 1 {
+			paths = append(paths, matches[0])
+		} else if len(matches) > 1 {
+			ambiguous = append(ambiguous, pattern)
+		}
 	}
-	return paths
+	return paths, ambiguous
 }
 
 // NewONNXModelDetectorSimple creates a new ONNX model detector
@@ -90,7 +95,8 @@ func NewONNXModelDetectorSimple(modelPath string, tokenizerPath string) (*ONNXMo
 		}
 		// Preserve discovery for existing installs created before the stable
 		// aliases were introduced. New setup and packaging always create aliases.
-		onnxPaths = appendVersionedONNXPaths(onnxPaths,
+		var ambiguousPatterns []string
+		onnxPaths, ambiguousPatterns = appendUniqueVersionedONNXPaths(onnxPaths,
 			"./libonnxruntime.*.dylib",
 			"./resources/libonnxruntime.*.dylib",
 			"./build/libonnxruntime.*.dylib",
@@ -99,6 +105,9 @@ func NewONNXModelDetectorSimple(modelPath string, tokenizerPath string) (*ONNXMo
 			"./build/libonnxruntime.so.*",
 			"./libonnxruntime.so.*",
 		)
+		if len(ambiguousPatterns) > 0 {
+			fmt.Fprintf(os.Stderr, "Multiple versioned ONNX Runtime libraries match %v; create the stable library alias or set ONNXRUNTIME_SHARED_LIBRARY_PATH explicitly\n", ambiguousPatterns)
+		}
 
 		for _, p := range onnxPaths {
 			if _, err := os.Stat(p); err == nil {
