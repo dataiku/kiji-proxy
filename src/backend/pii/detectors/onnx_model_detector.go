@@ -7,13 +7,17 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
+	"slices"
 	"sort"
 	"strings"
 
 	"github.com/daulet/tokenizers"
 	onnxruntime "github.com/yalue/onnxruntime_go"
 )
+
+var versionedONNXLibraryName = regexp.MustCompile(`^libonnxruntime(?:\.so)?\.\d+\.\d+\.\d+(?:\.dylib)?$`)
 
 // Chunking constants for processing long texts
 const (
@@ -60,6 +64,9 @@ func appendUniqueVersionedONNXPaths(paths []string, patterns ...string) ([]strin
 	ambiguous := make([]string, 0)
 	for _, pattern := range patterns {
 		matches, _ := filepath.Glob(pattern)
+		matches = slices.DeleteFunc(matches, func(path string) bool {
+			return !versionedONNXLibraryName.MatchString(filepath.Base(path))
+		})
 		if len(matches) == 1 {
 			paths = append(paths, matches[0])
 		} else if len(matches) > 1 {

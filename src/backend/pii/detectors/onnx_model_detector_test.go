@@ -15,6 +15,9 @@ func TestAppendUniqueVersionedONNXPaths(t *testing.T) {
 	if err := os.WriteFile(versioned, nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(dir, "libonnxruntime.backup.dylib"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
 
 	pattern := filepath.Join(dir, "libonnxruntime.*.dylib")
 	paths, ambiguous := appendUniqueVersionedONNXPaths([]string{"libonnxruntime.dylib"}, pattern)

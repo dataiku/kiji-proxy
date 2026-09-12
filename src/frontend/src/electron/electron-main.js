@@ -1119,63 +1119,60 @@ function applyLanguage(language) {
 }
 
 // This method will be called when Electron has finished initialization
-app
-  .whenReady()
-  .then(async () => {
-    // Initialize telemetry first (opt-in) so early startup errors can be reported.
-    initTelemetryMain();
+app.whenReady().then(async () => {
+  // Initialize telemetry first (opt-in) so early startup errors can be reported.
+  initTelemetryMain();
 
-    // Launch the Go binary backend first
-    launchGoBinary();
+  // Launch the Go binary backend first
+  launchGoBinary();
 
-    // Create the system tray icon
-    createTray();
+  // Create the system tray icon
+  createTray();
 
-    // Show splash screen while backend starts up
-    createSplashWindow();
+  // Show splash screen while backend starts up
+  createSplashWindow();
 
-    // Wait for backend to be ready before creating window
-    await waitForBackend();
-    createWindow();
+  // Wait for backend to be ready before creating window
+  await waitForBackend();
+  createWindow();
 
-    // Check for updates after launch
-    autoUpdater.checkForUpdatesAndNotify().catch((err) => {
-      console.error("[AutoUpdater] checkForUpdatesAndNotify failed:", err);
-    });
-
-    // Re-check for updates every hour for long-running sessions
-    setInterval(() => {
-      autoUpdater.checkForUpdates().catch((err) => {
-        console.error("[AutoUpdater] periodic checkForUpdates failed:", err);
-      });
-    }, 60 * 60 * 1000);
-
-    app.on("activate", async () => {
-      // On macOS, re-create a window when the dock icon is clicked. Electron
-      // discards the promise returned by this async listener, so guard it here.
-      try {
-        if (BrowserWindow.getAllWindows().length === 0) {
-          // Ensure backend is running
-          if (!goProcess) {
-            launchGoBinary();
-            await waitForBackend();
-          } else {
-            // Process exists but might not be listening yet
-            await waitForBackend(10, 500);
-          }
-          createWindow();
-        } else if (mainWindow) {
-          // If window exists but is hidden, show it
-          showMainWindow();
-        }
-      } catch (err) {
-        console.error("[Main] activate handler failed:", err);
-      }
-    });
-  })
-  .catch((err) => {
-    console.error("[Main] Startup (whenReady) failed:", err);
+  // Check for updates after launch
+  autoUpdater.checkForUpdatesAndNotify().catch((err) => {
+    console.error("[AutoUpdater] checkForUpdatesAndNotify failed:", err);
   });
+
+  // Re-check for updates every hour for long-running sessions
+  setInterval(() => {
+    autoUpdater.checkForUpdates().catch((err) => {
+      console.error("[AutoUpdater] periodic checkForUpdates failed:", err);
+    });
+  }, 60 * 60 * 1000);
+
+  app.on("activate", async () => {
+    // On macOS, re-create a window when the dock icon is clicked. Electron
+    // discards the promise returned by this async listener, so guard it here.
+    try {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        // Ensure backend is running
+        if (!goProcess) {
+          launchGoBinary();
+          await waitForBackend();
+        } else {
+          // Process exists but might not be listening yet
+          await waitForBackend(10, 500);
+        }
+        createWindow();
+      } else if (mainWindow) {
+        // If window exists but is hidden, show it
+        showMainWindow();
+      }
+    } catch (err) {
+      console.error("[Main] activate handler failed:", err);
+    }
+  });
+}).catch((err) => {
+  console.error("[Main] Startup (whenReady) failed:", err);
+});
 
 // Keep app running in menu bar even when all windows are closed
 app.on("window-all-closed", () => {
