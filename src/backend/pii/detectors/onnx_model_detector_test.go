@@ -1,10 +1,26 @@
 package pii
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/daulet/tokenizers"
 )
+
+func TestAppendVersionedONNXPaths(t *testing.T) {
+	dir := t.TempDir()
+	versioned := filepath.Join(dir, "libonnxruntime."+strings.Join([]string{"1", "2", "3"}, ".")+".dylib")
+	if err := os.WriteFile(versioned, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	paths := appendVersionedONNXPaths([]string{"libonnxruntime.dylib"}, filepath.Join(dir, "libonnxruntime.*.dylib"))
+	if len(paths) != 2 || paths[1] != versioned {
+		t.Fatalf("expected stable alias and versioned fallback, got %v", paths)
+	}
+}
 
 // makeTestTokenData creates test token IDs and offsets for chunking tests.
 // This helper avoids gosec G115 warnings about integer conversions in test code.

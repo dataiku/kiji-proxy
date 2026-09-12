@@ -56,6 +56,14 @@ type ONNXModelDetectorSimple struct {
 	crf                       *crfParams // nil if crf_transitions.json not found
 }
 
+func appendVersionedONNXPaths(paths []string, patterns ...string) []string {
+	for _, pattern := range patterns {
+		matches, _ := filepath.Glob(pattern)
+		paths = append(paths, matches...)
+	}
+	return paths
+}
+
 // NewONNXModelDetectorSimple creates a new ONNX model detector
 func NewONNXModelDetectorSimple(modelPath string, tokenizerPath string) (*ONNXModelDetectorSimple, error) {
 	// Set the ONNX Runtime shared library path.
@@ -71,15 +79,26 @@ func NewONNXModelDetectorSimple(modelPath string, tokenizerPath string) (*ONNXMo
 	if onnxLibPath == "" {
 		onnxPaths := []string{
 			// macOS paths (.dylib)
-			"./libonnxruntime.1.24.2.dylib",           // CWD (legacy)
-			"./resources/libonnxruntime.1.24.2.dylib", // Production DMG: CWD is Contents/Resources
-			"./build/libonnxruntime.1.24.2.dylib",     // Development: in build directory
-			"../libonnxruntime.1.24.2.dylib",          // Alternative location
+			"./libonnxruntime.dylib",           // CWD (legacy)
+			"./resources/libonnxruntime.dylib", // Production DMG: CWD is Contents/Resources
+			"./build/libonnxruntime.dylib",     // Development: in build directory
+			"../libonnxruntime.dylib",          // Alternative location
 			// Linux paths (.so)
-			"./lib/libonnxruntime.so.1.24.2",   // Linux release tarball layout
-			"./build/libonnxruntime.so.1.24.2", // Development: in build directory
-			"./libonnxruntime.so.1.24.2",       // CWD
+			"./lib/libonnxruntime.so",   // Linux release tarball layout
+			"./build/libonnxruntime.so", // Development: in build directory
+			"./libonnxruntime.so",       // CWD
 		}
+		// Preserve discovery for existing installs created before the stable
+		// aliases were introduced. New setup and packaging always create aliases.
+		onnxPaths = appendVersionedONNXPaths(onnxPaths,
+			"./libonnxruntime.*.dylib",
+			"./resources/libonnxruntime.*.dylib",
+			"./build/libonnxruntime.*.dylib",
+			"../libonnxruntime.*.dylib",
+			"./lib/libonnxruntime.so.*",
+			"./build/libonnxruntime.so.*",
+			"./libonnxruntime.so.*",
+		)
 
 		for _, p := range onnxPaths {
 			if _, err := os.Stat(p); err == nil {
@@ -94,9 +113,9 @@ func NewONNXModelDetectorSimple(modelPath string, tokenizerPath string) (*ONNXMo
 	} else {
 		// Fall back to default path, might work if library is in system path
 		if runtime.GOOS == "linux" {
-			onnxruntime.SetSharedLibraryPath("./lib/libonnxruntime.so.1.24.2")
+			onnxruntime.SetSharedLibraryPath("./lib/libonnxruntime.so")
 		} else {
-			onnxruntime.SetSharedLibraryPath("./build/libonnxruntime.1.24.2.dylib")
+			onnxruntime.SetSharedLibraryPath("./build/libonnxruntime.dylib")
 		}
 	}
 
