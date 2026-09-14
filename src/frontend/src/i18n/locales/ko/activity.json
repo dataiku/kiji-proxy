@@ -49,7 +49,7 @@
   },
   "direction": {
     "requestOriginal": "요청(원본)",
-    "requestMasked": "요청({{provider}}에게)",
+    "requestMasked": "요청({{provider}}에)",
     "responseMasked": "응답({{provider}}에서)",
     "responseOriginal": "응답(복원됨)",
     "request": "요청",

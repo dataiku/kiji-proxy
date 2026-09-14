@@ -85,7 +85,7 @@
     },
     "server": {
       "online": "サーバー稼働中",
-      "degraded": "モデルが低下",
+      "degraded": "モデル性能が低下",
       "offline": "サーバー停止中",
       "uptime": "稼働時間",
       "port": "ポート",

@@ -6,7 +6,6 @@
 // the menus can be rebuilt in the user's language. Keep the keys here in sync
 // with what createMenu()/updateTrayMenu() reference in electron-main.js.
 
-const SUPPORTED_LANGUAGES = ["en", "fr", "ja", "ko"];
 const DEFAULT_LANGUAGE = "en";
 
 const STRINGS = {
@@ -199,6 +198,9 @@ const STRINGS = {
     emailUs: "이메일 보내기",
   },
 };
+
+// Derived from the table so a locale cannot be added to one without the other.
+const SUPPORTED_LANGUAGES = Object.keys(STRINGS);
 
 /**
  * Normalize an arbitrary language input to a supported base language.

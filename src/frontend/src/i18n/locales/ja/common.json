@@ -68,7 +68,7 @@
       "restoredBadge": "復元済み",
       "piiRestored_other": "個人情報を {{count}} 件復元"
     },
-    "reportMisclassification": "誤検出を報告",
+    "reportMisclassification": "誤分類を報告",
     "reportMisclassificationTitle": "個人情報の誤分類を報告する"
   },
   "footer": {

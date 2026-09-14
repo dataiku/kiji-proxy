@@ -86,7 +86,7 @@
       "COMPANYNAME": "会社名",
       "STATE": "都道府県・州",
       "ZIP": "郵便番号",
-      "STREET": "番地",
+      "STREET": "通り名",
       "COUNTRY": "国",
       "SSN": "社会保障番号",
       "DRIVERLICENSENUM": "運転免許証番号",

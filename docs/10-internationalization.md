@@ -1,7 +1,8 @@
 # Chapter 10: Internationalization (i18n)
 
 The desktop/renderer UI is localized with [react-i18next](https://react.i18next.com/).
-English (`en`) is the base language and French (`fr`) is the first translation.
+English (`en`) is the base language; French (`fr`), Japanese (`ja`), and Korean
+(`ko`) are the translations.
 This chapter covers how the translation system is wired and how to add or change
 strings.
 
@@ -14,7 +15,10 @@ strings.
   language from `localStorage` (falling back to `navigator.language`) and caches
   the choice back to `localStorage`. Region subtags collapse to the base
   language (`fr-FR` → `fr`) via `load: "languageOnly"`.
-- **Supported languages:** declared in `SUPPORTED_LANGUAGES` (`["en", "fr"]`).
+- **Supported languages:** declared in `SUPPORTED_LANGUAGES`
+  (`["en", "fr", "ja", "ko"]`) in `src/i18n/index.ts`. The Electron main process
+  keeps its own copy in `src/electron/menu-i18n.js`, derived from the keys of its
+  `STRINGS` table (see below).
 - **Bundled resources:** all locale JSON is imported statically and initialized
   synchronously, so `react: { useSuspense: false }` is safe (the class-based
   `ErrorBoundary` renders translations without an async gate).
@@ -35,9 +39,9 @@ Translations are namespaced JSON under
 | `onboarding` | Welcome / first-run modal                                     |
 | `modals`     | CA-certificate setup and misclassification-report dialogs     |
 
-Every namespace exists in both `en/` and `fr/`. To add a namespace, create the
-JSON in both locales and register it in `NAMESPACES` + `resources` in
-`src/i18n/index.ts`.
+Every namespace exists in every locale (`en/`, `fr/`, `ja/`, `ko/`). To add a
+namespace, create the JSON in all locales and register it in `NAMESPACES` +
+`resources` in `src/i18n/index.ts`.
 
 ## Using translations in components
 
@@ -54,7 +58,8 @@ return <h1>{t("title")}</h1>;
   formatting is preserved; avoid the reserved `count` var unless you want
   pluralization.
 - **Pluralization:** use `key_one` / `key_other` (English) with `{{count}}`:
-  `t("entryCount", { count: total })`. See the plural note below for French.
+  `t("entryCount", { count: total })`. See the plural note below for the other
+  locales.
 - **Embedded markup** (links, bold): use `<Trans>` with a `components` map, e.g.
   the CA-cert instructions in `modals.json` render `<b>`, `<code>`, `<accent>`,
   and `<amber>` tags. Keep the tag pairs balanced in every locale.
@@ -64,13 +69,23 @@ return <h1>{t("title")}</h1>;
 Brand names (`Kiji`, `OpenAI`, …), shell commands, certificate paths, and other
 technical literals are intentionally left untranslated.
 
-### Plurals and the French `many` category
+### Plural categories per locale
 
-English needs only `one` and `other`. French cardinal rules add a `many`
-category (triggered by multiples of 1,000,000), and **i18next does not fall back
-from `many` to `other`** — a missing `_many` renders the raw key. So every
-pluralized French key must provide `_one`, `_many`, and `_other`. The parity
-check (below) enforces exactly the categories each locale's CLDR rules require.
+i18next resolves plural suffixes with `Intl.PluralRules`, so each locale needs
+exactly the cardinal categories its CLDR rules define, and **i18next does not
+fall back from a missing category to `other`** — a missing suffix renders the
+raw key. The parity check (below) enforces exactly the categories each locale's
+CLDR rules require:
+
+| Locale | Required suffixes         | Note                                              |
+| ------ | ------------------------ | ------------------------------------------------- |
+| `en`   | `_one`, `_other`         |                                                   |
+| `fr`   | `_one`, `_many`, `_other`| `many` triggers on multiples of 1,000,000         |
+| `ja`   | `_other` only            | No singular/plural distinction; a `_one` key fails |
+| `ko`   | `_other` only            | Same as `ja`                                      |
+
+Do not copy `_one` keys from `en` into an `other`-only locale: the parity check
+rejects categories the locale's rules never produce.
 
 ## Language selector and the Electron menu
 
@@ -84,18 +99,24 @@ check (below) enforces exactly the categories each locale's CLDR rules require.
   main process over the `set-language` IPC channel (on init and on every
   `languageChanged`); the main process persists it and rebuilds the menus, and
   seeds the menu language from the persisted config at startup.
+- `menu-i18n.js` derives its `SUPPORTED_LANGUAGES` from the keys of its
+  `STRINGS` table. A locale that exists in the renderer but not in `STRINGS`
+  falls back to English menus with no error, so **every new locale must add a
+  `STRINGS` entry in `menu-i18n.js`** in the same PR.
 
 ## Adding or changing strings
 
 1. Add the key to the **English** namespace JSON (the base/source of truth).
-2. Add the same key to the **French** JSON with the translation. French drafts
-   are machine-translated pending native review — flag anything uncertain.
+2. Add the same key to the **French**, **Japanese**, and **Korean** JSON with
+   translations, using only the plural suffixes each locale requires (table
+   above). Drafts are machine-translated pending native review — flag anything
+   uncertain.
 3. Reference it from the component with `t(...)` (or `<Trans>` for markup).
 4. Run the checks:
 
    ```bash
    cd src/frontend
-   npm run i18n:check   # plural-aware en↔fr parity (hard gate, CI)
+   npm run i18n:check   # plural-aware parity across all locales (hard gate, CI)
    npm run lint         # includes an advisory no-literal-string warning
    npm run type-check
    ```

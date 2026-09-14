@@ -41,7 +41,7 @@
         "s2": "証明書 → <b>証明書を表示</b>",
         "s3": "認証局 → <b>インポート</b>",
         "s4": "<code>~/Library/Application Support/Kiji Privacy Proxy/certs/ca.crt</code> を選択",
-        "s5": "<b>「この CA を信頼して、ウェブサイトを識別する」</b>にチェックを入れる"
+        "s5": "<b>「この認証局によるウェブサイトの識別を信頼する」</b>にチェックを入れる"
       },
       "chrome": "Chrome / Chromium",
       "chromeSteps": {
