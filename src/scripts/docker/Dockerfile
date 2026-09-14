@@ -32,7 +32,7 @@ RUN set -eux; \
     chmod +x /opt/kiji-proxy/bin/kiji-proxy /opt/kiji-proxy/run.sh
 
 ENV LD_LIBRARY_PATH="/opt/kiji-proxy/lib"
-ENV ONNXRUNTIME_SHARED_LIBRARY_PATH="/opt/kiji-proxy/lib/libonnxruntime.so.1.24.2"
+ENV ONNXRUNTIME_SHARED_LIBRARY_PATH="/opt/kiji-proxy/lib/libonnxruntime.so"
 
 EXPOSE 8080
 

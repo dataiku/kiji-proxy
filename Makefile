@@ -23,6 +23,11 @@ CGO_LDFLAGS := -L./build/tokenizers
 
 # Version from package.json
 VERSION := $(shell cd src/frontend && node -p "require('./package.json').version" 2>/dev/null || echo "0.0.0")
+ONNXRUNTIME_VERSION := $(shell ./src/scripts/onnxruntime-version.sh)
+ifeq ($(ONNXRUNTIME_VERSION),)
+$(error Could not read .onnxruntime-version)
+endif
+ONNXRUNTIME_DARWIN_LIBRARY := libonnxruntime.$(ONNXRUNTIME_VERSION).dylib
 
 ##@ General
 
@@ -221,25 +226,27 @@ electron-install: ## Install Electron UI dependencies
 setup-onnx: ## Set up ONNX Runtime library for development
 	@echo "$(BLUE)Setting up ONNX Runtime library...$(NC)"
 	@mkdir -p build
-	@if [ -f "build/libonnxruntime.1.24.2.dylib" ]; then \
+	@if [ -f "build/$(ONNXRUNTIME_DARWIN_LIBRARY)" ]; then \
 		echo "$(GREEN)✅ ONNX library already exists$(NC)"; \
-	elif [ -f "src/frontend/resources/libonnxruntime.1.24.2.dylib" ]; then \
-		ln -sf ../src/frontend/resources/libonnxruntime.1.24.2.dylib build/libonnxruntime.1.24.2.dylib; \
+	elif [ -f "src/frontend/resources/$(ONNXRUNTIME_DARWIN_LIBRARY)" ]; then \
+		ln -sf ../src/frontend/resources/$(ONNXRUNTIME_DARWIN_LIBRARY) build/$(ONNXRUNTIME_DARWIN_LIBRARY); \
 		echo "$(GREEN)✅ Linked existing ONNX library from resources$(NC)"; \
 	else \
 		if [ ! -d ".venv" ]; then \
 			echo "$(YELLOW)Creating virtual environment with Python 3.13...$(NC)"; \
 			uv venv --python 3.13; \
 		fi; \
-		uv pip install --quiet onnxruntime==1.24.2; \
+		uv pip install --quiet onnxruntime==$(ONNXRUNTIME_VERSION); \
 		ONNX_LIB=$$(find .venv -name "libonnxruntime*.dylib" | head -1); \
 		if [ -n "$$ONNX_LIB" ]; then \
-			cp "$$ONNX_LIB" build/libonnxruntime.1.24.2.dylib; \
+			cp "$$ONNX_LIB" build/$(ONNXRUNTIME_DARWIN_LIBRARY); \
 			echo "$(GREEN)✅ ONNX library installed$(NC)"; \
 		else \
-			echo "$(YELLOW)⚠️  Could not find ONNX library, continuing anyway$(NC)"; \
+			echo "$(YELLOW)❌ Could not find the pinned ONNX library$(NC)"; \
+			exit 1; \
 		fi; \
 	fi
+	@ln -sf "$(ONNXRUNTIME_DARWIN_LIBRARY)" build/libonnxruntime.dylib
 
 setup-tokenizers: ## Download pre-built tokenizers library for development
 	@echo "$(BLUE)Setting up tokenizers library...$(NC)"
@@ -310,11 +317,12 @@ electron-run: setup-onnx build-go electron-build ## Run Electron app (builds Go 
 	@mkdir -p src/frontend/resources
 	@cp build/kiji-proxy src/frontend/resources/kiji-proxy
 	@chmod +x src/frontend/resources/kiji-proxy
-	@if [ -f "build/libonnxruntime.1.24.2.dylib" ]; then \
-		cp build/libonnxruntime.1.24.2.dylib src/frontend/resources/libonnxruntime.1.24.2.dylib; \
+	@if [ -f "build/$(ONNXRUNTIME_DARWIN_LIBRARY)" ]; then \
+		cp build/$(ONNXRUNTIME_DARWIN_LIBRARY) src/frontend/resources/$(ONNXRUNTIME_DARWIN_LIBRARY); \
+		ln -sf "$(ONNXRUNTIME_DARWIN_LIBRARY)" src/frontend/resources/libonnxruntime.dylib; \
 		echo "$(GREEN)✅ ONNX library copied to resources$(NC)"; \
 	else \
-		echo "$(YELLOW)⚠️  ONNX library not found at build/libonnxruntime.1.24.2.dylib$(NC)"; \
+		echo "$(YELLOW)⚠️  ONNX library not found at build/$(ONNXRUNTIME_DARWIN_LIBRARY)$(NC)"; \
 	fi
 	@echo "$(GREEN)✅ Resources prepared$(NC)"
 	@echo "$(BLUE)Starting Electron app...$(NC)"

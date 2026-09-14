@@ -23,6 +23,8 @@ PARALLEL_JOBS=$(sysctl -n hw.ncpu 2>/dev/null || echo 4)
 # Get the script directory and project root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+ONNX_VERSION="$("$SCRIPT_DIR/onnxruntime-version.sh")"
+ONNX_DARWIN_LIBRARY="libonnxruntime.${ONNX_VERSION}.dylib"
 
 cd "$PROJECT_ROOT"
 
@@ -68,13 +70,13 @@ if [ ! -d ".venv" ]; then
     fi
 fi
 
-# Check if onnxruntime is already installed (cache check)
-if .venv/bin/python -c "import onnxruntime" 2>/dev/null; then
-    echo "✅ onnxruntime already installed (using cache)"
+# Check whether the exact pinned onnxruntime version is already installed.
+if .venv/bin/python -c "import onnxruntime, sys; sys.exit(onnxruntime.__version__ != '${ONNX_VERSION}')" 2>/dev/null; then
+    echo "✅ onnxruntime ${ONNX_VERSION} already installed (using cache)"
 else
     # Install onnxruntime if not already installed
     echo "Installing Python dependencies with uv..."
-    uv pip install onnxruntime==1.24.2
+    uv pip install "onnxruntime==${ONNX_VERSION}"
 fi
 
 echo ""
@@ -82,16 +84,17 @@ echo "📦 Step 2: Finding and preparing ONNX Runtime library..."
 echo "--------------------------------------------------------"
 
 # Check if ONNX library already exists (cache check)
-if [ -f "./build/libonnxruntime.1.24.2.dylib" ]; then
+if [ -f "./build/${ONNX_DARWIN_LIBRARY}" ]; then
     echo "✅ ONNX Runtime library already exists (using cache)"
 else
     # Find and copy ONNX Runtime library
     ONNX_LIB=$(find .venv -name "libonnxruntime*.dylib" | head -1)
     if [ -n "$ONNX_LIB" ]; then
-        cp "$ONNX_LIB" ./build/libonnxruntime.1.24.2.dylib
+        cp "$ONNX_LIB" "./build/${ONNX_DARWIN_LIBRARY}"
         echo "✅ ONNX Runtime library copied from Python environment"
     else
-        echo "⚠️  ONNX Runtime library not found in Python environment, continuing..."
+        echo "❌ ONNX Runtime library not found in Python environment"
+        exit 1
     fi
 fi
 
@@ -251,40 +254,42 @@ cp build/kiji-proxy src/frontend/resources/kiji-proxy
 chmod +x src/frontend/resources/kiji-proxy
 
 # Copy ONNX library if it exists (to root of resources for easier access)
-if [ -f "build/libonnxruntime.1.24.2.dylib" ] || [ -L "build/libonnxruntime.1.24.2.dylib" ]; then
+if [ -f "build/${ONNX_DARWIN_LIBRARY}" ] || [ -L "build/${ONNX_DARWIN_LIBRARY}" ]; then
     # Check if it's a symlink
-    if [ -L "build/libonnxruntime.1.24.2.dylib" ]; then
+    if [ -L "build/${ONNX_DARWIN_LIBRARY}" ]; then
         # It's a symlink - check if target is already in resources
-        ONNX_TARGET=$(readlink "build/libonnxruntime.1.24.2.dylib")
+        ONNX_TARGET=$(readlink "build/${ONNX_DARWIN_LIBRARY}")
         # Convert to absolute path if relative
         if [[ "$ONNX_TARGET" != /* ]]; then
-            ONNX_TARGET="$(cd "$(dirname "build/libonnxruntime.1.24.2.dylib")" && cd "$(dirname "$ONNX_TARGET")" && pwd)/$(basename "$ONNX_TARGET")"
+            ONNX_TARGET="$(cd "$(dirname "build/${ONNX_DARWIN_LIBRARY}")" && cd "$(dirname "$ONNX_TARGET")" && pwd)/$(basename "$ONNX_TARGET")"
         fi
-        RESOURCES_LIB="$(cd "$(dirname "src/frontend/resources/libonnxruntime.1.24.2.dylib")" 2>/dev/null && pwd)/$(basename "src/frontend/resources/libonnxruntime.1.24.2.dylib")"
+        RESOURCES_LIB="$(cd "$(dirname "src/frontend/resources/${ONNX_DARWIN_LIBRARY}")" 2>/dev/null && pwd)/$(basename "src/frontend/resources/${ONNX_DARWIN_LIBRARY}")"
 
         if [ "$ONNX_TARGET" = "$RESOURCES_LIB" ]; then
             echo "✅ ONNX library already in resources/ (symlink points there)"
         elif [ -f "$ONNX_TARGET" ]; then
-            cp -f "$ONNX_TARGET" src/frontend/resources/libonnxruntime.1.24.2.dylib
+            cp -f "$ONNX_TARGET" "src/frontend/resources/${ONNX_DARWIN_LIBRARY}"
             echo "✅ ONNX library copied to resources/ (from symlink)"
         else
             echo "⚠️  Symlink target not found: $ONNX_TARGET"
         fi
-    elif [ -f "src/frontend/resources/libonnxruntime.1.24.2.dylib" ]; then
+    elif [ -f "src/frontend/resources/${ONNX_DARWIN_LIBRARY}" ]; then
         # Check if files are identical
-        if cmp -s "build/libonnxruntime.1.24.2.dylib" "src/frontend/resources/libonnxruntime.1.24.2.dylib"; then
+        if cmp -s "build/${ONNX_DARWIN_LIBRARY}" "src/frontend/resources/${ONNX_DARWIN_LIBRARY}"; then
             echo "✅ ONNX library already in resources/ (identical)"
         else
-            cp -f build/libonnxruntime.1.24.2.dylib src/frontend/resources/libonnxruntime.1.24.2.dylib
+            cp -f "build/${ONNX_DARWIN_LIBRARY}" "src/frontend/resources/${ONNX_DARWIN_LIBRARY}"
             echo "✅ ONNX library copied to resources/"
         fi
     else
-        cp build/libonnxruntime.1.24.2.dylib src/frontend/resources/libonnxruntime.1.24.2.dylib
+        cp "build/${ONNX_DARWIN_LIBRARY}" "src/frontend/resources/${ONNX_DARWIN_LIBRARY}"
         echo "✅ ONNX library copied to resources/"
     fi
 else
-    echo "⚠️  ONNX library not found at build/libonnxruntime.1.24.2.dylib"
+    echo "❌ ONNX library not found at build/${ONNX_DARWIN_LIBRARY}"
+    exit 1
 fi
+ln -sf "$ONNX_DARWIN_LIBRARY" src/frontend/resources/libonnxruntime.dylib
 
 # Copy model files to quantized directory (matches what Go binary expects after extraction)
 # NOTE: Since files are embedded in Go binary, we only need ONE copy in resources

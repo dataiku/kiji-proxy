@@ -83,6 +83,10 @@ jobs:
         id: deps
         uses: ./.github/actions/extract-tokenizers-version
 
+      - name: Extract ONNX Runtime version
+        id: onnx
+        uses: ./.github/actions/extract-onnxruntime-version
+
       - name: Cache Go modules
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
@@ -103,9 +107,9 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: |
-            build/libonnxruntime.so.1.24.2
+            build/libonnxruntime.so.${{ steps.onnx.outputs.version }}
             build/libonnxruntime.so
-          key: ${{ runner.os }}-almalinux9-onnx-1.24.2
+          key: ${{ runner.os }}-almalinux9-onnx-${{ steps.onnx.outputs.version }}
 
       - name: Extract Version
         id: version
@@ -125,7 +129,7 @@ jobs:
           GLIBC_REPORT="$(
             ./src/scripts/report_glibc_requirements.sh \
               build/kiji-proxy \
-              build/libonnxruntime.so.1.24.2
+              build/libonnxruntime.so.${{ steps.onnx.outputs.version }}
           )"
           echo "$GLIBC_REPORT"
 

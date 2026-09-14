@@ -19,6 +19,7 @@
     "lint:fix": "eslint . --fix",
     "type-check": "tsc --noEmit",
     "i18n:check": "node scripts/check-i18n-parity.js",
+    "test:onnx-paths": "node tests/onnx-library-paths.test.cjs",
     "changeset": "changeset",
     "version": "changeset version",
     "release": "changeset publish"

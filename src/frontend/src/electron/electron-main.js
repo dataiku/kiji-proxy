@@ -12,6 +12,7 @@ const fs = require("fs");
 const { spawn } = require("child_process");
 const { registerIpcHandlers } = require("./ipc-handlers");
 const { setMenuLanguage, mt } = require("./menu-i18n");
+const { appendUniqueVersionedOnnxPaths } = require("./onnx-library-paths");
 const isDev = process.env.NODE_ENV === "development";
 
 // Global safety net: log (and, if telemetry is on, report) any promise
@@ -287,16 +288,32 @@ const launchGoBinary = () => {
   // In development mode, set ONNX Runtime library path
   // Try multiple locations relative to project root
   const onnxPaths = [
-    path.join(projectRoot, "build", "libonnxruntime.1.24.2.dylib"), // build/libonnxruntime.1.24.2.dylib
+    path.join(projectRoot, "build", "libonnxruntime.dylib"), // build/libonnxruntime.dylib
     path.join(
       projectRoot,
       "src",
       "frontend",
       "resources",
-      "libonnxruntime.1.24.2.dylib"
-    ), // src/frontend/resources/libonnxruntime.1.24.2.dylib
-    path.join(projectRoot, "libonnxruntime.1.24.2.dylib"), // root/libonnxruntime.1.24.2.dylib
+      "libonnxruntime.dylib"
+    ), // src/frontend/resources/libonnxruntime.dylib
+    path.join(projectRoot, "libonnxruntime.dylib"), // root/libonnxruntime.dylib
   ];
+
+  // Preserve versioned-only libraries created by older setup commands.
+  appendUniqueVersionedOnnxPaths(fs, onnxPaths, [
+    path.join(projectRoot, "build"),
+    path.join(projectRoot, "src", "frontend", "resources"),
+    path.join(
+      projectRoot,
+      ".venv",
+      "lib",
+      "python3.13",
+      "site-packages",
+      "onnxruntime",
+      "capi"
+    ),
+    projectRoot,
+  ]);
 
   // Also try to find in Python venv
   if (fs.existsSync(path.join(projectRoot, ".venv"))) {
@@ -308,7 +325,7 @@ const launchGoBinary = () => {
       "site-packages",
       "onnxruntime",
       "capi",
-      "libonnxruntime.1.24.2.dylib"
+      "libonnxruntime.dylib"
     );
     if (fs.existsSync(venvLib)) {
       onnxPaths.unshift(venvLib); // Check venv first

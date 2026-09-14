@@ -18,6 +18,7 @@ Thank you to everyone who has contributed to Kiji Privacy Proxy!
 - **Youssef Jouini** ([@yjouini](https://github.com/yjouini))
 - **Pierre Porée** ([@Pharell](https://github.com/Ph4rell))
 - **Rhianna Litchfield** ([@rhiannalitchfield](https://github.com/rhiannalitchfield))
+- **Divyam Talwar** ([@divyamtalwar0](https://github.com/divyamtalwar0))
 
 ---
 
