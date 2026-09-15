@@ -110,6 +110,10 @@ jobs:
         working-directory: src/frontend
         run: npm run lint
 
+      - name: Verify helper lint coverage
+        working-directory: src/frontend
+        run: npm run test:lint
+
       - name: Run TypeScript type check
         working-directory: src/frontend
         run: npm run type-check

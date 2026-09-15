@@ -190,6 +190,7 @@ The model evaluation harnesses (`make test-e2e`, `make test-benchmark`) are opti
 
 - **Go:** `gofmt` formatting, `golangci-lint` clean. Run `make lint-go`.
 - **TypeScript / React:** ESLint + Prettier conventions enforced by `npm run lint`. Type-check with `npm run type-check`. Run `make lint-frontend-fix` to auto-fix.
+- **Node helper scripts:** `npm run lint` also checks `src/scripts/**/*.js` with its own CommonJS/Node configuration. Run `npm run test:lint --workspace=src/frontend` to verify lint coverage with temporary invalid helper fixtures.
 - **Python:** `ruff` for both linting and formatting. Run `make format` and `make lint`. **Always use `uv run python`** instead of bare `python` / `python3` — the project's Python env is managed by `uv`.
 - **Rust:** `cargo fmt`, fix `cargo clippy` warnings.
 
