@@ -5,6 +5,7 @@ export type ProviderType =
   | "anthropic"
   | "gemini"
   | "mistral"
+  | "minimax"
   | "custom";
 
 export interface ProviderSettings {
@@ -24,6 +25,7 @@ export const DEFAULT_MODELS: Record<ProviderType, string> = {
   anthropic: "claude-haiku-4-5",
   gemini: "gemini-flash-latest",
   mistral: "mistral-small-latest",
+  minimax: "MiniMax-M3",
   custom: "",
 };
 
@@ -33,6 +35,7 @@ export const PROVIDER_NAMES: Record<ProviderType, string> = {
   anthropic: "Anthropic",
   gemini: "Gemini",
   mistral: "Mistral",
+  minimax: "MiniMax",
   custom: "Custom Provider",
 };
 

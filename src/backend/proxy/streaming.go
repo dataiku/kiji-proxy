@@ -394,12 +394,11 @@ func streamSSEResponse(conn net.Conn, resp *http.Response, codec streamCodec) er
 	return bw.Flush()
 }
 
-// codecForProvider selects the SSE codec matching the upstream provider's stream
-// grammar. OpenAI (incl. ChatGPT-login Codex on chatgpt.com) speaks the
-// Responses-API event shape; everything else uses the Anthropic grammar, which
-// is also the safe default.
-func codecForProvider(provider *providers.Provider, mapping map[string]string) streamCodec {
-	if provider != nil && (*provider).GetType() == providers.ProviderTypeOpenAI {
+// codecForProvider selects the SSE codec matching the request protocol. MiniMax
+// supports both compatible APIs, so its request path determines the grammar.
+func codecForProvider(provider *providers.Provider, requestPath string, mapping map[string]string) streamCodec {
+	if provider != nil && ((*provider).GetType() == providers.ProviderTypeOpenAI ||
+		((*provider).GetType() == providers.ProviderTypeMiniMax && !providers.IsAnthropicMessagesPath(requestPath))) {
 		return newOpenAICodec(mapping)
 	}
 	return newAnthropicCodec(mapping)

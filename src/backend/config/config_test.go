@@ -407,6 +407,28 @@ func TestDefaultConfig_Detectors(t *testing.T) {
 	}
 }
 
+func TestDefaultConfig_MiniMaxProvider(t *testing.T) {
+	cfg := DefaultConfig()
+	if got := cfg.Providers.MiniMaxProviderConfig.APIDomain; got != providers.ProviderAPIDomainMiniMax {
+		t.Errorf("MiniMax APIDomain = %q, want %q", got, providers.ProviderAPIDomainMiniMax)
+	}
+
+	wantDomain := "api.minimax.io"
+	found := false
+	for _, domain := range cfg.Providers.GetInterceptDomains() {
+		if domain == wantDomain {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("GetInterceptDomains() does not contain %q", wantDomain)
+	}
+	if got := cfg.Providers.DefaultProvidersConfig.AnthropicSubpath; got != providers.ProviderTypeAnthropic {
+		t.Errorf("AnthropicSubpath = %q, want %q", got, providers.ProviderTypeAnthropic)
+	}
+}
+
 // An absent "detectors" key must not clobber the default, while an explicit value
 // overrides it. This mirrors how config files are decoded over DefaultConfig.
 func TestConfig_DetectorsDecode(t *testing.T) {

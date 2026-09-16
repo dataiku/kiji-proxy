@@ -1,7 +1,8 @@
 {
   "providers": {
     "default_providers_config": {
-      "openai_subpath": "openai"
+      "openai_subpath": "openai",
+      "anthropic_subpath": "anthropic"
     },
     "openai_provider_config": {
       "api_domain": "api.openai.com"

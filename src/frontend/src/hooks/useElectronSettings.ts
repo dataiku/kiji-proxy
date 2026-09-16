@@ -16,6 +16,7 @@ export function useElectronSettings(callbacks: ModalCallbacks) {
       anthropic: { hasApiKey: false, model: "" },
       gemini: { hasApiKey: false, model: "" },
       mistral: { hasApiKey: false, model: "" },
+      minimax: { hasApiKey: false, model: "", baseUrl: "" },
       custom: { hasApiKey: false, model: "", baseUrl: "" },
     },
   });

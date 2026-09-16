@@ -22,6 +22,7 @@ Kiji Privacy Proxy supports multiple LLM providers out of the box:
 - **Anthropic** (Messages API)
 - **Google Gemini** (GenerateContent API)
 - **Mistral** (ChatCompletions API)
+- **MiniMax** (OpenAI-compatible and Anthropic-compatible APIs; `MiniMax-M3` and `MiniMax-M2.7`)
 
 The proxy automatically detects which provider to route to based on request characteristics. See [Provider Detection](#provider-detection) for details.
 
@@ -44,7 +45,7 @@ The backend supports two proxy modes that can run simultaneously:
 | **Transparent Proxy** | 8081 | MITM proxy that intercepts HTTPS traffic to provider domains. Requires CA certificate trust. Provider detected from request host. On macOS, PAC auto-configuration routes browser traffic automatically. |
 
 **Key Features:**
-- Multi-provider support (OpenAI, Anthropic, Gemini, Mistral)
+- Multi-provider support (OpenAI, Anthropic, Gemini, Mistral, MiniMax)
 - ML-powered PII detection (emails, phone numbers, SSNs, credit cards, etc.)
 - Automatic PII masking and restoration
 - Forward proxy and transparent MITM proxy modes
@@ -339,12 +340,14 @@ export OPENAI_API_KEY="sk-..."
 export ANTHROPIC_API_KEY="sk-ant-..."
 export GEMINI_API_KEY="AIza..."
 export MISTRAL_API_KEY="..."
+export MINIMAX_API_KEY="..."
 
 # Provider base URLs (optional, defaults to official API domains)
 export OPENAI_BASE_URL="api.openai.com"
 export ANTHROPIC_BASE_URL="api.anthropic.com"
 export GEMINI_BASE_URL="generativelanguage.googleapis.com"
 export MISTRAL_BASE_URL="api.mistral.ai"
+export MINIMAX_BASE_URL="https://api.minimax.io/v1"
 
 # PII detection
 export DETECTOR_NAME="onnx_model_detector"  # or "regex_detector", "model_detector"
@@ -374,7 +377,8 @@ export TRANSPARENT_PROXY_KEY_PATH="~/.kiji-proxy/certs/ca.key"
 {
   "providers": {
     "default_providers_config": {
-      "openai_subpath": "openai"
+      "openai_subpath": "openai",
+      "anthropic_subpath": "anthropic"
     },
     "openai_provider_config": {
       "api_domain": "api.openai.com",
@@ -393,6 +397,11 @@ export TRANSPARENT_PROXY_KEY_PATH="~/.kiji-proxy/certs/ca.key"
     },
     "mistral_provider_config": {
       "api_domain": "api.mistral.ai",
+      "api_key": "...",
+      "additional_headers": {}
+    },
+    "minimax_provider_config": {
+      "api_domain": "https://api.minimax.io/v1",
       "api_key": "...",
       "additional_headers": {}
     }
@@ -422,19 +431,29 @@ export TRANSPARENT_PROXY_KEY_PATH="~/.kiji-proxy/certs/ca.key"
 
 **Provider Configuration Notes:**
 
-- `default_providers_config.openai_subpath`: When using the forward proxy, OpenAI and Mistral share the same API subpath (`/v1/chat/completions`). This setting determines which provider is used by default when only the subpath is available. Valid values: `"openai"` or `"mistral"`.
+- `default_providers_config.openai_subpath`: Selects the provider for `/v1/chat/completions`. Valid values: `"openai"`, `"mistral"`, or `"minimax"`.
+- `default_providers_config.anthropic_subpath`: Selects the provider for `/v1/messages`. Valid values: `"anthropic"` or `"minimax"`.
 - `additional_headers`: Custom headers to include with requests to each provider.
 - API keys can be set in the config file or overridden via environment variables (recommended for security).
 
+**MiniMax Compatible Endpoints:**
+
+| Region | OpenAI-compatible base URL | Anthropic-compatible base URL |
+|--------|----------------------------|-------------------------------|
+| Global | `https://api.minimax.io/v1` | `https://api.minimax.io/anthropic` |
+| Mainland China | `https://api.minimaxi.com/v1` | `https://api.minimaxi.com/anthropic` |
+
+Use either official base URL for `MINIMAX_BASE_URL` or `minimax_provider_config.api_domain`. The forward proxy derives the matching official root for each request protocol, so the same configuration supports both `/v1/chat/completions` and `/v1/messages`. Set `openai_subpath` and `anthropic_subpath` to `"minimax"` when those shared paths should default to MiniMax.
+
 ### Provider Detection
 
-Kiji Privacy Proxy supports multiple LLM providers (OpenAI, Anthropic, Gemini, Mistral) and automatically detects which provider to route requests to based on the proxy mode.
+Kiji Privacy Proxy supports multiple LLM providers (OpenAI, Anthropic, Gemini, Mistral, MiniMax) and automatically detects which provider to route requests to based on the proxy mode.
 
 **Forward Proxy Mode (default port 8080)**
 
 In forward proxy mode, the proxy determines the provider using these methods in order:
 
-1. **Optional `provider` field in request body**: You can explicitly specify the provider by including a `"provider"` field in your JSON request body. Valid values: `"openai"`, `"anthropic"`, `"gemini"`, `"mistral"`. This field is automatically stripped before forwarding.
+1. **Optional `provider` field in request body**: You can explicitly specify the provider by including a `"provider"` field in your JSON request body. Valid values: `"openai"`, `"anthropic"`, `"gemini"`, `"mistral"`, `"minimax"`, or `"custom"`. This field is automatically stripped before forwarding.
    ```json
    {
      "provider": "openai",
@@ -444,8 +463,8 @@ In forward proxy mode, the proxy determines the provider using these methods in 
    ```
 
 2. **Request subpath**: If no `provider` field is present, the proxy determines the provider from the API endpoint path:
-   - `/v1/chat/completions` → OpenAI or Mistral (based on `default_providers_config.openai_subpath`)
-   - `/v1/messages` → Anthropic
+   - `/v1/chat/completions` → OpenAI, Mistral, or MiniMax (based on `default_providers_config.openai_subpath`)
+   - `/v1/messages` → Anthropic or MiniMax (based on `default_providers_config.anthropic_subpath`)
    - `/v1beta/models/*/generateContent` → Gemini
 
 **Transparent Proxy Mode (default port 8081)**
@@ -456,6 +475,7 @@ In transparent proxy mode (MITM), the proxy determines the provider from the **r
 - `api.anthropic.com` → Anthropic
 - `generativelanguage.googleapis.com` → Gemini
 - `api.mistral.ai` → Mistral
+- `api.minimax.io` or `api.minimaxi.com` → MiniMax when configured as the MiniMax API domain
 
 The transparent proxy intercepts HTTPS traffic using the configured CA certificate. Requests to non-configured domains are passed through without interception.
 

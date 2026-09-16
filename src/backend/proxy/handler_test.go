@@ -187,7 +187,8 @@ func newTestHandler(t *testing.T, detector *mockDetector, upstreamServer *httpte
 	cfg := &config.Config{
 		Providers: config.ProvidersConfig{
 			DefaultProvidersConfig: config.DefaultProvidersConfig{
-				OpenAISubpath: providers.ProviderTypeOpenAI,
+				OpenAISubpath:    providers.ProviderTypeOpenAI,
+				AnthropicSubpath: providers.ProviderTypeAnthropic,
 			},
 			OpenAIProviderConfig: config.ProviderConfig{
 				APIDomain:         "api.openai.com",
@@ -207,6 +208,11 @@ func newTestHandler(t *testing.T, detector *mockDetector, upstreamServer *httpte
 			MistralProviderConfig: config.ProviderConfig{
 				APIDomain:         "api.mistral.ai",
 				APIKey:            "sk-mistral-test",
+				AdditionalHeaders: map[string]string{},
+			},
+			MiniMaxProviderConfig: config.ProviderConfig{
+				APIDomain:         "api.minimax.io/v1",
+				APIKey:            "sk-minimax-test",
 				AdditionalHeaders: map[string]string{},
 			},
 			CustomProviderConfig: config.ProviderConfig{
@@ -244,13 +250,21 @@ func newTestHandler(t *testing.T, detector *mockDetector, upstreamServer *httpte
 		cfg.Providers.MistralProviderConfig.APIKey,
 		cfg.Providers.MistralProviderConfig.AdditionalHeaders,
 	)
+	miniMaxProvider := providers.NewMiniMaxProvider(
+		cfg.Providers.MiniMaxProviderConfig.APIDomain,
+		cfg.Providers.MiniMaxProviderConfig.APIKey,
+		cfg.Providers.MiniMaxProviderConfig.AdditionalHeaders,
+	)
 	customProvider := providers.NewCustomProvider(
 		cfg.Providers.CustomProviderConfig.APIDomain,
 		cfg.Providers.CustomProviderConfig.APIKey,
 		cfg.Providers.CustomProviderConfig.AdditionalHeaders,
 	)
 
-	defaultProviders, err := providers.NewDefaultProviders(cfg.Providers.DefaultProvidersConfig.OpenAISubpath)
+	defaultProviders, err := providers.NewDefaultProviders(
+		cfg.Providers.DefaultProvidersConfig.OpenAISubpath,
+		cfg.Providers.DefaultProvidersConfig.AnthropicSubpath,
+	)
 	if err != nil {
 		t.Fatalf("NewDefaultProviders() error = %v", err)
 	}
@@ -261,6 +275,7 @@ func newTestHandler(t *testing.T, detector *mockDetector, upstreamServer *httpte
 		AnthropicProvider: anthropicProvider,
 		GeminiProvider:    geminiProvider,
 		MistralProvider:   mistralProvider,
+		MiniMaxProvider:   miniMaxProvider,
 		CustomProvider:    customProvider,
 	}
 
@@ -289,6 +304,16 @@ func newTestHandler(t *testing.T, detector *mockDetector, upstreamServer *httpte
 		loggingDB:         loggingDB,
 		mappingDB:         mappingDB,
 		piiMapping:        piiMapping,
+	}
+}
+
+func TestProviderFromModelMiniMax(t *testing.T) {
+	for _, model := range []string{"MiniMax-M3", "MiniMax-M2.7"} {
+		t.Run(model, func(t *testing.T) {
+			if got := providerFromModel(model); got != "minimax" {
+				t.Errorf("providerFromModel(%q) = %q, want %q", model, got, "minimax")
+			}
+		})
 	}
 }
 
@@ -388,7 +413,11 @@ func TestHandler_AddTransactionID(t *testing.T) {
 
 func TestHandler_BuildTargetURL(t *testing.T) {
 	openAIProvider := providers.NewOpenAIProvider("api.openai.com", "sk-test", nil)
+	globalMiniMaxProvider := providers.NewMiniMaxProvider("https://api.minimax.io/anthropic", "mm-test", nil)
+	chinaMiniMaxProvider := providers.NewMiniMaxProvider("https://api.minimaxi.com/v1", "mm-test", nil)
 	var provider providers.Provider = openAIProvider
+	var globalMiniMax providers.Provider = globalMiniMaxProvider
+	var chinaMiniMax providers.Provider = chinaMiniMaxProvider
 
 	h := &Handler{}
 
@@ -412,6 +441,18 @@ func TestHandler_BuildTargetURL(t *testing.T) {
 			query:    "stream=true",
 			provider: provider,
 			want:     "https://api.openai.com/v1/chat/completions?stream=true",
+		},
+		{
+			name:     "MiniMax OpenAI-compatible path from Anthropic root",
+			path:     "/v1/chat/completions",
+			provider: globalMiniMax,
+			want:     "https://api.minimax.io/v1/chat/completions",
+		},
+		{
+			name:     "MiniMax Anthropic-compatible path from OpenAI root",
+			path:     "/v1/messages",
+			provider: chinaMiniMax,
+			want:     "https://api.minimaxi.com/anthropic/v1/messages",
 		},
 	}
 
@@ -444,6 +485,73 @@ func TestHandler_BuildTargetURL(t *testing.T) {
 			t.Errorf("buildTargetURL() = %q, want %q", got, want)
 		}
 	})
+}
+
+func TestHandler_MiniMaxProtocolRequestCapture(t *testing.T) {
+	tests := []struct {
+		name              string
+		basePath          string
+		requestPath       string
+		wantPath          string
+		wantAuthorization string
+		wantAPIKey        string
+	}{
+		{
+			name:              "OpenAI-compatible path",
+			basePath:          "/v1",
+			requestPath:       "/v1/chat/completions",
+			wantPath:          "/v1/chat/completions",
+			wantAuthorization: "Bearer mm-test-key",
+		},
+		{
+			name:        "Anthropic-compatible path",
+			basePath:    "/anthropic",
+			requestPath: "/v1/messages",
+			wantPath:    "/anthropic/v1/messages",
+			wantAPIKey:  "mm-test-key",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			type capturedRequest struct {
+				path          string
+				authorization string
+				apiKey        string
+			}
+			captured := make(chan capturedRequest, 1)
+			upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				captured <- capturedRequest{
+					path:          r.URL.Path,
+					authorization: r.Header.Get("Authorization"),
+					apiKey:        r.Header.Get("X-Api-Key"),
+				}
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{}`))
+			}))
+			defer upstream.Close()
+
+			h := &Handler{client: upstream.Client()}
+			var provider providers.Provider = providers.NewMiniMaxProvider(upstream.URL+tt.basePath, "mm-test-key", nil)
+			req := httptest.NewRequest(http.MethodPost, tt.requestPath, strings.NewReader(`{}`))
+			resp, err := h.createAndSendProxyRequest(req, []byte(`{}`), &provider)
+			if err != nil {
+				t.Fatalf("createAndSendProxyRequest() error = %v", err)
+			}
+			defer resp.Body.Close()
+
+			got := <-captured
+			if got.path != tt.wantPath {
+				t.Errorf("captured path = %q, want %q", got.path, tt.wantPath)
+			}
+			if got.authorization != tt.wantAuthorization {
+				t.Errorf("captured Authorization = %q, want %q", got.authorization, tt.wantAuthorization)
+			}
+			if got.apiKey != tt.wantAPIKey {
+				t.Errorf("captured X-Api-Key = %q, want %q", got.apiKey, tt.wantAPIKey)
+			}
+		})
+	}
 }
 
 func TestHandler_ProcessRequestBody(t *testing.T) {
@@ -847,7 +955,7 @@ func TestHandler_ServeHTTP_Integration(t *testing.T) {
 		"sk-test",
 		nil,
 	)
-	defaultProviders, _ := providers.NewDefaultProviders(providers.ProviderTypeOpenAI)
+	defaultProviders, _ := providers.NewDefaultProviders(providers.ProviderTypeOpenAI, providers.ProviderTypeAnthropic)
 	h.providers = &providers.Providers{
 		DefaultProviders:  defaultProviders,
 		OpenAIProvider:    openAIProvider,
@@ -941,7 +1049,7 @@ func TestHandler_ServeHTTP_DetailsQueryParam(t *testing.T) {
 		"sk-test",
 		nil,
 	)
-	defaultProviders, _ := providers.NewDefaultProviders(providers.ProviderTypeOpenAI)
+	defaultProviders, _ := providers.NewDefaultProviders(providers.ProviderTypeOpenAI, providers.ProviderTypeAnthropic)
 	h.providers = &providers.Providers{
 		DefaultProviders:  defaultProviders,
 		OpenAIProvider:    openAIProvider,

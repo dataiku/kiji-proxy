@@ -18,6 +18,7 @@ import {
 
 // Providers that support a user-configurable custom endpoint URL.
 const PROVIDERS_WITH_CUSTOM_ENDPOINT: ReadonlySet<ProviderType> = new Set([
+  "minimax",
   "custom",
 ]);
 
@@ -60,6 +61,16 @@ const PROVIDER_INFO: Record<
     placeholder: "...",
     helpLink: "https://console.mistral.ai/api-keys",
   },
+  minimax: {
+    name: "MiniMax",
+    defaultModel: "MiniMax-M3",
+    placeholder: "...",
+    helpLink: "https://platform.minimax.io/user-center/basic-information/interface-key",
+    baseUrlPlaceholder: "https://api.minimax.io/v1",
+    modelHelpText: "Supported model IDs include MiniMax-M3 and MiniMax-M2.7.",
+    endpointHelpText:
+      "Use https://api.minimaxi.com/v1 for the mainland China endpoint.",
+  },
   custom: {
     name: "Custom Provider",
     defaultModel: "your-model-id",
@@ -77,6 +88,7 @@ const PROVIDER_ORDER: ProviderType[] = [
   "anthropic",
   "gemini",
   "mistral",
+  "minimax",
   "custom",
 ];
 
@@ -110,6 +122,7 @@ export default function ProvidersSection({ onSaved }: ProvidersSectionProps) {
       anthropic: { hasApiKey: false, model: "" },
       gemini: { hasApiKey: false, model: "" },
       mistral: { hasApiKey: false, model: "" },
+      minimax: { hasApiKey: false, model: "" },
       custom: { hasApiKey: false, model: "", baseUrl: "" },
     },
   });
@@ -127,6 +140,7 @@ export default function ProvidersSection({ onSaved }: ProvidersSectionProps) {
     anthropic: false,
     gemini: false,
     mistral: false,
+    minimax: false,
     custom: false,
   });
 
@@ -138,6 +152,7 @@ export default function ProvidersSection({ onSaved }: ProvidersSectionProps) {
     anthropic: "",
     gemini: "",
     mistral: "",
+    minimax: "",
     custom: "",
   });
 
@@ -148,6 +163,7 @@ export default function ProvidersSection({ onSaved }: ProvidersSectionProps) {
     anthropic: "",
     gemini: "",
     mistral: "",
+    minimax: "",
     custom: "",
   });
 
@@ -158,6 +174,7 @@ export default function ProvidersSection({ onSaved }: ProvidersSectionProps) {
     anthropic: "",
     gemini: "",
     mistral: "",
+    minimax: "",
     custom: "",
   });
 
@@ -175,6 +192,7 @@ export default function ProvidersSection({ onSaved }: ProvidersSectionProps) {
         anthropic: "",
         gemini: "",
         mistral: "",
+        minimax: "",
         custom: "",
       };
       const baseUrls: Record<ProviderType, string> = {
@@ -182,6 +200,7 @@ export default function ProvidersSection({ onSaved }: ProvidersSectionProps) {
         anthropic: "",
         gemini: "",
         mistral: "",
+        minimax: "",
         custom: "",
       };
       for (const provider of PROVIDER_ORDER) {
@@ -197,6 +216,7 @@ export default function ProvidersSection({ onSaved }: ProvidersSectionProps) {
         anthropic: "",
         gemini: "",
         mistral: "",
+        minimax: "",
         custom: "",
       });
     } catch (error) {
@@ -293,6 +313,7 @@ export default function ProvidersSection({ onSaved }: ProvidersSectionProps) {
         anthropic: "",
         gemini: "",
         mistral: "",
+        minimax: "",
         custom: "",
       });
 

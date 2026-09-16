@@ -6,6 +6,7 @@ type ProviderType =
   | "anthropic"
   | "gemini"
   | "mistral"
+  | "minimax"
   | "custom";
 
 interface ProviderSettings {

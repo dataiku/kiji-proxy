@@ -18,6 +18,12 @@ const (
 	contentTypeText = "text"
 )
 
+// IsAnthropicMessagesPath reports whether path targets the Anthropic-compatible
+// Messages API, including provider-specific base path prefixes.
+func IsAnthropicMessagesPath(path string) bool {
+	return strings.HasSuffix(strings.TrimSuffix(path, "/"), ProviderSubpathAnthropic)
+}
+
 type AnthropicProvider struct {
 	apiDomain         string
 	apiKey            string

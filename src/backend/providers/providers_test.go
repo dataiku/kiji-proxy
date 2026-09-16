@@ -643,9 +643,9 @@ func TestOpenAIProvider_ExtractResponseText_ResponsesAPI(t *testing.T) {
 
 func TestOpenAIProvider_ShapeDetection(t *testing.T) {
 	tests := []struct {
-		name     string
-		data     map[string]interface{}
-		isResp   bool
+		name   string
+		data   map[string]interface{}
+		isResp bool
 	}{
 		{"chat completions with messages", map[string]interface{}{"messages": []interface{}{}}, false},
 		{"responses with input string", map[string]interface{}{"input": "hi"}, true},
@@ -1349,38 +1349,47 @@ func TestMistralProvider_SetAuthHeaders(t *testing.T) {
 
 func TestNewDefaultProviders(t *testing.T) {
 	tests := []struct {
-		name        string
-		provider    ProviderType
-		wantErr     bool
-		wantSubpath ProviderType
+		name              string
+		openAIProvider    ProviderType
+		anthropicProvider ProviderType
+		wantErr           bool
 	}{
-		{"openai valid", ProviderTypeOpenAI, false, ProviderTypeOpenAI},
-		{"mistral valid", ProviderTypeMistral, false, ProviderTypeMistral},
-		{"invalid provider", ProviderType("invalid"), true, ""},
+		{"native providers", ProviderTypeOpenAI, ProviderTypeAnthropic, false},
+		{"Mistral and Anthropic", ProviderTypeMistral, ProviderTypeAnthropic, false},
+		{"MiniMax for both protocols", ProviderTypeMiniMax, ProviderTypeMiniMax, false},
+		{"invalid OpenAI-compatible provider", ProviderType("invalid"), ProviderTypeAnthropic, true},
+		{"invalid Anthropic-compatible provider", ProviderTypeOpenAI, ProviderType("invalid"), true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			dp, err := NewDefaultProviders(tt.provider)
+			dp, err := NewDefaultProviders(tt.openAIProvider, tt.anthropicProvider)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("NewDefaultProviders() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if !tt.wantErr && dp.OpenAISubpath != tt.wantSubpath {
-				t.Errorf("OpenAISubpath = %q, want %q", dp.OpenAISubpath, tt.wantSubpath)
+			if tt.wantErr {
+				return
+			}
+			if dp.OpenAISubpath != tt.openAIProvider {
+				t.Errorf("OpenAISubpath = %q, want %q", dp.OpenAISubpath, tt.openAIProvider)
+			}
+			if dp.AnthropicSubpath != tt.anthropicProvider {
+				t.Errorf("AnthropicSubpath = %q, want %q", dp.AnthropicSubpath, tt.anthropicProvider)
 			}
 		})
 	}
 }
 
 func newTestProviders(defaultOpenAI ProviderType) *Providers {
-	dp, _ := NewDefaultProviders(defaultOpenAI)
+	dp, _ := NewDefaultProviders(defaultOpenAI, ProviderTypeAnthropic)
 	return &Providers{
 		DefaultProviders:  dp,
 		OpenAIProvider:    NewOpenAIProvider("api.openai.com", "sk-openai", nil),
 		AnthropicProvider: NewAnthropicProvider("api.anthropic.com", "sk-ant", nil),
 		GeminiProvider:    NewGeminiProvider("generativelanguage.googleapis.com", "AIza", nil),
 		MistralProvider:   NewMistralProvider("api.mistral.ai", "sk-mistral", nil),
+		MiniMaxProvider:   NewMiniMaxProvider("api.minimax.io/v1", "sk-minimax", nil),
 		CustomProvider:    NewCustomProvider("custom.example.com", "sk-custom", nil),
 	}
 }
@@ -1407,6 +1416,13 @@ func TestProviders_GetProviderFromPath(t *testing.T) {
 			body:         `{"model":"mistral","messages":[]}`,
 			defaultOAI:   ProviderTypeMistral,
 			wantProvider: "Mistral",
+		},
+		{
+			name:         "MiniMax from subpath when default",
+			path:         "/v1/chat/completions",
+			body:         `{"model":"MiniMax-M3","messages":[]}`,
+			defaultOAI:   ProviderTypeMiniMax,
+			wantProvider: "MiniMax",
 		},
 		{
 			name:         "Anthropic from subpath",
@@ -1458,6 +1474,20 @@ func TestProviders_GetProviderFromPath(t *testing.T) {
 			wantProvider: "Mistral",
 		},
 		{
+			name:         "provider field MiniMax-M3",
+			path:         "/v1/chat/completions",
+			body:         `{"provider":"minimax","model":"MiniMax-M3","messages":[]}`,
+			defaultOAI:   ProviderTypeOpenAI,
+			wantProvider: "MiniMax",
+		},
+		{
+			name:         "provider field MiniMax-M2.7",
+			path:         "/v1/chat/completions",
+			body:         `{"provider":"minimax","model":"MiniMax-M2.7","messages":[]}`,
+			defaultOAI:   ProviderTypeOpenAI,
+			wantProvider: "MiniMax",
+		},
+		{
 			name:         "provider field custom",
 			path:         "/v1/chat/completions",
 			body:         `{"provider":"custom","model":"custom-model","messages":[]}`,
@@ -1498,6 +1528,19 @@ func TestProviders_GetProviderFromPath(t *testing.T) {
 			t.Error("provider field should be stripped from body")
 		}
 	})
+
+	t.Run("MiniMax from Anthropic subpath when default", func(t *testing.T) {
+		providers := newTestProviders(ProviderTypeOpenAI)
+		providers.DefaultProviders.AnthropicSubpath = ProviderTypeMiniMax
+		body := []byte(`{"model":"MiniMax-M3","messages":[]}`)
+		provider, err := providers.GetProviderFromPath("", ProviderSubpathAnthropic, &body, "[test]")
+		if err != nil {
+			t.Fatalf("GetProviderFromPath() error = %v", err)
+		}
+		if got := (*provider).GetName(); got != ProviderNameMiniMax {
+			t.Errorf("GetProviderFromPath() provider = %q, want %q", got, ProviderNameMiniMax)
+		}
+	})
 }
 
 func TestProviders_GetProviderFromHost(t *testing.T) {
@@ -1515,6 +1558,7 @@ func TestProviders_GetProviderFromHost(t *testing.T) {
 		{"Anthropic host", "api.anthropic.com", "Anthropic", false},
 		{"Gemini host", "generativelanguage.googleapis.com", "Gemini", false},
 		{"Mistral host", "api.mistral.ai", "Mistral", false},
+		{"MiniMax host", "api.minimax.io", "MiniMax", false},
 		{"Custom host", "custom.example.com", "Custom Provider", false},
 		{"unknown host", "unknown.example.com", "", true},
 	}
@@ -1533,4 +1577,15 @@ func TestProviders_GetProviderFromHost(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("MiniMax regional host", func(t *testing.T) {
+		providers.MiniMaxProvider = NewMiniMaxProvider("https://api.minimaxi.com/v1", "sk-minimax", nil)
+		provider, err := providers.GetProviderFromHost("api.minimaxi.com", "[test]")
+		if err != nil {
+			t.Fatalf("GetProviderFromHost() error = %v", err)
+		}
+		if got := (*provider).GetName(); got != ProviderNameMiniMax {
+			t.Errorf("GetProviderFromHost() provider = %q, want %q", got, ProviderNameMiniMax)
+		}
+	})
 }
