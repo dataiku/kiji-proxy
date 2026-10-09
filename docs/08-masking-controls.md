@@ -160,6 +160,16 @@ curl "http://localhost:8080/mappings?limit=50&offset=0&sort=created_at&order=des
 # Delete one mapping by id, or clear them all
 curl -X DELETE "http://localhost:8080/mappings?id=123"
 curl -X DELETE "http://localhost:8080/mappings"
+
+# Resolve a masked (dummy) value back to the original PII. Single value returns
+# {"masked", "original", "found"} (404 if unknown); an array returns a per-item
+# "results" list plus "found_count". Requires Basic Auth when it is enabled.
+curl -X POST http://localhost:8080/api/mappings/unmask \
+  -H "Content-Type: application/json" \
+  -d '{"masked": "Nicole Brown"}'
+curl -X POST http://localhost:8080/api/mappings/unmask \
+  -H "Content-Type: application/json" \
+  -d '{"masked": ["Nicole Brown", "nicole.brown@example.invalid"]}'
 ```
 
 > Disabled entities set via `/api/pii/entities` are runtime state (they are not persisted to `config.json`). Re-apply them on restart, or use the desktop app, which remembers your selection.

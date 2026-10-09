@@ -32,6 +32,7 @@ func TestIsBasicAuthPublicPath(t *testing.T) {
 		{"/", false},
 		{"/index.html", false},
 		{"/api/mappings", false},
+		{"/api/mappings/unmask", false},
 		{"/api/dashboard", false},
 		{"/api/logs", false},
 		{"/logs", false},
@@ -50,6 +51,7 @@ func TestIsTransparentAdminProtectedPath(t *testing.T) {
 		want bool
 	}{
 		{"/api/mappings", true},
+		{"/api/mappings/unmask", true},
 		{"/mappings", true},
 		{"/api/logs", true},
 		{"/api/stats", true},

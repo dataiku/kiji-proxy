@@ -252,6 +252,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/auth/status", s.authStatusHandler)
 	mux.HandleFunc("/api/logs", s.logsHandler)
 	mux.HandleFunc("/api/mappings", s.mappingsHandler)
+	mux.HandleFunc("/api/mappings/unmask", s.unmaskHandler)
 	mux.HandleFunc("/api/stats", s.statsHandler)
 
 	// Deprecated: bare admin paths, kept only for backwards compatibility with
@@ -421,6 +422,8 @@ func (s *Server) startTransparentProxy() {
 			s.versionHandler(w, r)
 		case "/api/mappings", "/mappings":
 			s.mappingsHandler(w, r)
+		case "/api/mappings/unmask":
+			s.unmaskHandler(w, r)
 		case "/api/stats", "/stats":
 			s.statsHandler(w, r)
 		case "/api/dashboard":
@@ -618,6 +621,37 @@ func (s *Server) mappingsHandler(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
+}
+
+// unmaskHandler provides the unmask endpoint for resolving masked (dummy)
+// values back to the original PII. POST only; see Handler.HandleUnmask.
+func (s *Server) unmaskHandler(w http.ResponseWriter, r *http.Request) {
+	// Apply rate limiting
+	ip := r.RemoteAddr
+	limiter := s.rateLimiter.GetLimiter(ip)
+	if !limiter.Allow() {
+		http.Error(w, "Rate limit exceeded. Please try again later.", http.StatusTooManyRequests)
+		return
+	}
+
+	// Handle CORS preflight OPTIONS request
+	if r.Method == http.MethodOptions {
+		s.corsHandler(w, r)
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	// Add CORS headers to all responses
+	s.corsHandler(w, r)
+
+	// POST only: masked values travel in the body, never in the URL, so the
+	// dummies (and by extension the originals) don't end up in access logs.
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	s.handler.HandleUnmask(w, r)
 }
 
 // statsHandler provides the stats endpoint for retrieving statistics
@@ -1174,6 +1208,7 @@ func isTransparentAdminProtectedPath(p string) bool {
 	switch p {
 	case "/api/logs", "/logs",
 		"/api/mappings", "/mappings",
+		"/api/mappings/unmask",
 		"/api/stats", "/stats",
 		"/api/dashboard",
 		"/api/model/security",

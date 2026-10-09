@@ -1136,3 +1136,134 @@ func TestTruncatePreview(t *testing.T) {
 		}
 	})
 }
+
+// --- HandleUnmask ---
+
+func TestHandler_HandleUnmask(t *testing.T) {
+	detector := &mockDetector{entities: []pii.Entity{}}
+	h := newTestHandler(t, detector, nil)
+	h.piiMapping.AddMapping("John Smith", "Nicole Brown", "NAME", 0.9)
+	h.piiMapping.AddMapping("john@example.com", "nicole.brown@example.invalid", "EMAIL", 0.95)
+
+	post := func(body string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest("POST", "/api/mappings/unmask", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		h.HandleUnmask(w, req)
+		return w
+	}
+
+	t.Run("single found", func(t *testing.T) {
+		w := post(`{"masked":"Nicole Brown"}`)
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
+		}
+		if ct := w.Header().Get("Content-Type"); ct != "application/json" {
+			t.Errorf("Content-Type = %q, want application/json", ct)
+		}
+		var res UnmaskResult
+		if err := json.NewDecoder(w.Body).Decode(&res); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if res.Masked != "Nicole Brown" || res.Original != "John Smith" || !res.Found {
+			t.Errorf("unexpected result: %+v", res)
+		}
+	})
+
+	t.Run("single not found", func(t *testing.T) {
+		w := post(`{"masked":"Nobody Here"}`)
+		if w.Code != http.StatusNotFound {
+			t.Errorf("status = %d, want 404", w.Code)
+		}
+	})
+
+	t.Run("batch mixed", func(t *testing.T) {
+		w := post(`{"masked":["Nicole Brown","unknown","nicole.brown@example.invalid"]}`)
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
+		}
+		var res UnmaskBatchResponse
+		if err := json.NewDecoder(w.Body).Decode(&res); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if res.FoundCount != 2 {
+			t.Errorf("found_count = %d, want 2", res.FoundCount)
+		}
+		if len(res.Results) != 3 {
+			t.Fatalf("results len = %d, want 3", len(res.Results))
+		}
+		want := []UnmaskResult{
+			{Masked: "Nicole Brown", Original: "John Smith", Found: true},
+			{Masked: "unknown", Original: "", Found: false},
+			{Masked: "nicole.brown@example.invalid", Original: "john@example.com", Found: true},
+		}
+		for i, r := range res.Results {
+			if r != want[i] {
+				t.Errorf("results[%d] = %+v, want %+v", i, r, want[i])
+			}
+		}
+	})
+
+	t.Run("batch preserves order and original omitted on miss", func(t *testing.T) {
+		w := post(`{"masked":["unknown"]}`)
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200", w.Code)
+		}
+		if strings.Contains(w.Body.String(), `"original"`) {
+			t.Errorf("miss should omit original field, body=%s", w.Body.String())
+		}
+	})
+
+	badRequests := map[string]string{
+		"invalid json":   `{"masked":`,
+		"missing field":  `{}`,
+		"empty string":   `{"masked":""}`,
+		"empty list":     `{"masked":[]}`,
+		"empty element":  `{"masked":["Nicole Brown",""]}`,
+		"wrong type":     `{"masked":42}`,
+		"object element": `{"masked":[{"a":1}]}`,
+	}
+	for name, body := range badRequests {
+		t.Run("400 "+name, func(t *testing.T) {
+			w := post(body)
+			if w.Code != http.StatusBadRequest {
+				t.Errorf("status = %d, want 400; body=%s", w.Code, w.Body.String())
+			}
+		})
+	}
+
+	t.Run("400 over batch cap", func(t *testing.T) {
+		vals := make([]string, maxUnmaskBatch+1)
+		for i := range vals {
+			vals[i] = fmt.Sprintf("v%d", i)
+		}
+		b, _ := json.Marshal(map[string]interface{}{"masked": vals})
+		w := post(string(b))
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("status = %d, want 400; body=%s", w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("at batch cap is accepted", func(t *testing.T) {
+		vals := make([]string, maxUnmaskBatch)
+		for i := range vals {
+			vals[i] = fmt.Sprintf("v%d", i)
+		}
+		b, _ := json.Marshal(map[string]interface{}{"masked": vals})
+		w := post(string(b))
+		if w.Code != http.StatusOK {
+			t.Errorf("status = %d, want 200; body=%s", w.Code, w.Body.String())
+		}
+	})
+}
+
+func TestHandler_HandleUnmask_NilStore(t *testing.T) {
+	h := &Handler{}
+	req := httptest.NewRequest("POST", "/api/mappings/unmask", strings.NewReader(`{"masked":"x"}`))
+	w := httptest.NewRecorder()
+	h.HandleUnmask(w, req)
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusServiceUnavailable)
+	}
+}
