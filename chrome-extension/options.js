@@ -141,7 +141,27 @@ document.addEventListener("DOMContentLoaded", () => {
   const labelsStatus = document.getElementById("labels-status");
   const toggleAllLink = document.getElementById("toggle-all");
 
+  // Unsaved user edits, keyed by label. Only labels the user actually toggled
+  // are tracked, so a refresh shows the backend's saved state for everything
+  // else (including changes made from the desktop app) while keeping pending
+  // edits. Entries are cleared once a save persists them.
+  const dirtyLabels = new Map();
+  // Latest set of entity types the backend reported, used to reject custom
+  // pattern names that collide with built-in types.
+  let availableLabels = [];
+  // Guards against out-of-order responses when refreshes overlap: only the
+  // most recently started load may touch the grid.
+  let labelLoadSeq = 0;
+
   async function loadLabels() {
+    const seq = ++labelLoadSeq;
+    // Keep the current grid visible while refreshing; only show a placeholder
+    // on the very first load, when there is nothing to show yet.
+    if (!labelGrid.querySelector("input[type=checkbox]")) {
+      labelGrid.innerHTML =
+        '<span class="label-loading">Loading entity types…</span>';
+    }
+
     const base = await getBackendUrl();
     let available = [];
     let disabled = [];
@@ -156,20 +176,19 @@ document.addEventListener("DOMContentLoaded", () => {
       // backend not reachable — grid stays empty
     }
 
+    if (seq !== labelLoadSeq) return; // a newer load superseded this one
+
     if (available.length === 0) {
       labelGrid.innerHTML =
         '<span class="label-loading">Backend unreachable — start the proxy first.</span>';
       return;
     }
 
+    availableLabels = available;
     const disabledSet = new Set(disabled);
-
-    // Preserve any unsaved toggles the user already made: this runs again after
-    // every pattern add/remove (to surface new custom names), and rebuilding
-    // from the backend's saved state would otherwise discard pending edits.
-    const prevChecked = {};
-    for (const cb of labelGrid.querySelectorAll("input[type=checkbox]")) {
-      prevChecked[cb.value] = cb.checked;
+    const availableSet = new Set(available);
+    for (const label of dirtyLabels.keys()) {
+      if (!availableSet.has(label)) dirtyLabels.delete(label);
     }
 
     labelGrid.innerHTML = "";
@@ -179,8 +198,9 @@ document.addEventListener("DOMContentLoaded", () => {
       const cb = document.createElement("input");
       cb.type = "checkbox";
       cb.value = label;
-      cb.checked =
-        label in prevChecked ? prevChecked[label] : !disabledSet.has(label);
+      cb.checked = dirtyLabels.has(label)
+        ? dirtyLabels.get(label)
+        : !disabledSet.has(label);
       item.appendChild(cb);
       item.appendChild(document.createTextNode(label));
       labelGrid.appendChild(item);
@@ -201,11 +221,18 @@ document.addEventListener("DOMContentLoaded", () => {
     const anyChecked = Array.from(checkboxes).some((cb) => cb.checked);
     checkboxes.forEach((cb) => {
       cb.checked = !anyChecked;
+      dirtyLabels.set(cb.value, cb.checked);
     });
     updateToggleAllText();
   });
 
-  labelGrid.addEventListener("change", updateToggleAllText);
+  labelGrid.addEventListener("change", (e) => {
+    const cb = e.target;
+    if (cb instanceof HTMLInputElement && cb.type === "checkbox") {
+      dirtyLabels.set(cb.value, cb.checked);
+    }
+    updateToggleAllText();
+  });
 
   saveLabelBtn.addEventListener("click", async () => {
     const checkboxes = labelGrid.querySelectorAll("input[type=checkbox]");
@@ -216,9 +243,12 @@ document.addEventListener("DOMContentLoaded", () => {
       showLabelStatus("No entity types loaded — start the proxy first.", true);
       return;
     }
-    const disabled = Array.from(checkboxes)
-      .filter((cb) => !cb.checked)
-      .map((cb) => cb.value);
+    const saved = new Map(
+      Array.from(checkboxes).map((cb) => [cb.value, cb.checked])
+    );
+    const disabled = Array.from(saved)
+      .filter(([, checked]) => !checked)
+      .map(([label]) => label);
     const base = await getBackendUrl();
     try {
       const resp = await fetch(`${base}/api/pii/entities`, {
@@ -227,7 +257,13 @@ document.addEventListener("DOMContentLoaded", () => {
         body: JSON.stringify({ disabled }),
       });
       if (!resp.ok) throw new Error((await resp.text()).slice(0, 200));
+      // Clear only edits that this POST persisted; a toggle made while it was
+      // in flight differs from the saved value and stays pending.
+      for (const [label, checked] of saved) {
+        if (dirtyLabels.get(label) === checked) dirtyLabels.delete(label);
+      }
       showLabelStatus("Saved.", false);
+      loadLabels();
     } catch (e) {
       showLabelStatus(`Failed to save: ${e.message}`, true);
     }
@@ -271,11 +307,24 @@ document.addEventListener("DOMContentLoaded", () => {
   // flag them here so a pattern that previews fine doesn't fail (or silently
   // never match) once saved.
   function re2Incompatibility(value) {
-    if (/\(\?<?[=!]/.test(value)) {
-      return "Lookahead/lookbehind is not supported by the backend regex engine.";
-    }
-    if (/\\[1-9]/.test(value)) {
-      return "Backreferences are not supported by the backend regex engine.";
+    // Scan token by token so escaped literals like `\(?=` or `\\1` (a literal
+    // backslash then "1") are not mistaken for lookaround/backreferences.
+    let inClass = false;
+    for (let i = 0; i < value.length; i++) {
+      const c = value[i];
+      if (c === "\\") {
+        if (/[1-9]/.test(value[i + 1] || "")) {
+          return "Backreferences are not supported by the backend regex engine.";
+        }
+        i++; // skip the escaped character
+      } else if (inClass) {
+        if (c === "]") inClass = false;
+      } else if (c === "[") {
+        inClass = true;
+        if (value[i + 1] === "]") i++; // leading `]` is a literal in a class
+      } else if (c === "(" && /^\?<?[=!]/.test(value.slice(i + 1))) {
+        return "Lookahead/lookbehind is not supported by the backend regex engine.";
+      }
     }
     return null;
   }
@@ -368,12 +417,17 @@ document.addEventListener("DOMContentLoaded", () => {
       row
         .querySelector("[data-action=delete]")
         .addEventListener("click", async () => {
-          const prev = regexes;
+          const idx = regexes.indexOf(p);
           regexes = regexes.filter((r) => r !== p);
           try {
             await savePatterns();
           } catch (e) {
-            regexes = prev;
+            // Restore only this entry; replacing the whole array would also
+            // undo any add/remove that completed while this POST was pending.
+            if (!regexes.includes(p)) {
+              regexes = [...regexes];
+              regexes.splice(Math.min(Math.max(idx, 0), regexes.length), 0, p);
+            }
             renderPatterns();
             alert(`Failed to delete pattern: ${e.message}`);
           }
@@ -397,6 +451,13 @@ document.addEventListener("DOMContentLoaded", () => {
       patternRegexError.textContent = `A pattern named ${name} already exists.`;
       return;
     }
+    // Custom names share the entity-type namespace with the model's labels;
+    // reusing one (e.g. EMAIL) would make that toggle ambiguous.
+    const customNames = new Set(regexes.map((r) => r.name));
+    if (availableLabels.some((l) => l === name && !customNames.has(l))) {
+      patternRegexError.textContent = `${name} is a built-in entity type; choose another name.`;
+      return;
+    }
 
     const error = validateRegex(pattern);
     if (error) {
@@ -404,13 +465,16 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    regexes.push({ name, pattern });
+    const added = { name, pattern };
+    regexes = [...regexes, added];
     try {
       await savePatterns();
       patternForm.reset();
       patternPreviewResult.textContent = "";
     } catch (err) {
-      regexes.pop();
+      // Remove this entry specifically: a concurrent delete may have replaced
+      // the array, so the last element is not necessarily ours.
+      regexes = regexes.filter((r) => r !== added);
       patternRegexError.textContent = `Failed to save: ${err.message}`;
     }
   });
