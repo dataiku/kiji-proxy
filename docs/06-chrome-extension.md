@@ -56,7 +56,7 @@ chrome-extension/
 ├── content.js         # Content script: intercepts input, calls API, shows PII modal
 ├── styles.css         # Modal and toast styles (injected into target pages)
 ├── popup.html/js/css  # Extension popup: connection status, stats
-├── options.html/js/css# Settings page: backend URL, intercept domains
+├── options.html/js/css# Settings page: backend URL, intercept domains, PII entity types, custom patterns
 └── icons/             # Extension icons (16, 48, 128)
 ```
 
@@ -73,6 +73,8 @@ All settings are accessible via the extension's options page (right-click extens
 
 - **Backend URL** — The Kiji Privacy Proxy server address (default: `http://localhost:8081`)
 - **Intercept domains** — URL match patterns where the extension is active (one per line)
+- **PII entity types** — Checkbox grid of the entity types the active model can detect (fetched from `GET /api/pii/entities`). Unchecking a type adds it to the backend's `disabled` (passthrough) set so it is left unmasked; the selection is saved with `POST /api/pii/entities`. The set is stored server-side, so it also applies to the proxy pipeline and the Linux server.
+- **Custom patterns** — Add named regular expressions (`name` + `pattern`) that are masked on top of the model's detections. A live preview tests the regex against sample text before saving. Patterns are read from `GET /api/pii/regexes` and the whole set is replaced with `POST /api/pii/regexes` on each add/remove. Each custom name also becomes a selectable entity type in the grid above.
 
 Default domains:
 ```
