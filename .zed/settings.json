@@ -2,7 +2,7 @@
   "languages": {
     "Go": {
       "format_on_save": "on",
-      "formatter": "gofmt",
+      "formatter": "auto",
       "code_actions_on_format": {
         "source.organizeImports": true
       }
