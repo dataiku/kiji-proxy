@@ -252,6 +252,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/auth/status", s.authStatusHandler)
 	mux.HandleFunc("/api/logs", s.logsHandler)
 	mux.HandleFunc("/api/mappings", s.mappingsHandler)
+	mux.HandleFunc("/api/mappings/unmask", s.unmaskHandler)
 	mux.HandleFunc("/api/stats", s.statsHandler)
 
 	// Deprecated: bare admin paths, kept only for backwards compatibility with
@@ -394,19 +395,12 @@ func (s *Server) startTransparentProxy() {
 	log.Printf("Intercepting domains: %v", s.config.Providers.GetInterceptDomains())
 	log.Printf("CA certificate path: %s", s.config.Proxy.CAPath)
 
-	// Create custom handler that routes based on request method
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// Create custom handler that routes based on request method. Admin/data
+	// endpoints are guarded by transparentAdminAuthMiddleware.
+	handler := s.transparentAdminAuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// CONNECT requests go to transparent proxy
 		if r.Method == http.MethodConnect {
 			s.transparentProxy.ServeHTTP(w, r)
-			return
-		}
-
-		// Guard admin/data endpoints with Basic Auth when enabled. CONNECT (above)
-		// and the proxy pass-through (default case below) stay open, so only the
-		// explicitly-listed admin paths are challenged.
-		if s.config.BasicAuth.Active() && isTransparentAdminProtectedPath(r.URL.Path) && !s.validBasicAuth(r) {
-			writeBasicAuthChallenge(w)
 			return
 		}
 
@@ -421,6 +415,8 @@ func (s *Server) startTransparentProxy() {
 			s.versionHandler(w, r)
 		case "/api/mappings", "/mappings":
 			s.mappingsHandler(w, r)
+		case "/api/mappings/unmask":
+			s.unmaskHandler(w, r)
 		case "/api/stats", "/stats":
 			s.statsHandler(w, r)
 		case "/api/dashboard":
@@ -441,7 +437,7 @@ func (s *Server) startTransparentProxy() {
 			// All other HTTP/HTTPS requests go to transparent proxy
 			s.transparentProxy.ServeHTTP(w, r)
 		}
-	})
+	}))
 
 	s.transparentServer = &http.Server{
 		Addr:         proxyPort,
@@ -618,6 +614,37 @@ func (s *Server) mappingsHandler(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
+}
+
+// unmaskHandler provides the unmask endpoint for resolving masked (dummy)
+// values back to the original PII. POST only; see Handler.HandleUnmask.
+func (s *Server) unmaskHandler(w http.ResponseWriter, r *http.Request) {
+	// Apply rate limiting
+	ip := r.RemoteAddr
+	limiter := s.rateLimiter.GetLimiter(ip)
+	if !limiter.Allow() {
+		http.Error(w, "Rate limit exceeded. Please try again later.", http.StatusTooManyRequests)
+		return
+	}
+
+	// Handle CORS preflight OPTIONS request
+	if r.Method == http.MethodOptions {
+		s.corsHandler(w, r)
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	// Add CORS headers to all responses
+	s.corsHandler(w, r)
+
+	// POST only: masked values travel in the body, never in the URL, so the
+	// dummies (and by extension the originals) don't end up in access logs.
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	s.handler.HandleUnmask(w, r)
 }
 
 // statsHandler provides the stats endpoint for retrieving statistics
@@ -1174,6 +1201,7 @@ func isTransparentAdminProtectedPath(p string) bool {
 	switch p {
 	case "/api/logs", "/logs",
 		"/api/mappings", "/mappings",
+		"/api/mappings/unmask",
 		"/api/stats", "/stats",
 		"/api/dashboard",
 		"/api/model/security",
@@ -1217,6 +1245,20 @@ func (s *Server) basicAuthMiddleware(next http.Handler) http.Handler {
 			return
 		}
 		writeBasicAuthChallenge(w)
+	})
+}
+
+// transparentAdminAuthMiddleware guards the transparent proxy's admin/data
+// endpoints with Basic Auth when enabled (default-allow). CONNECT and the proxy
+// pass-through stay open, so only the explicitly-listed admin paths are
+// challenged.
+func (s *Server) transparentAdminAuthMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if s.config.BasicAuth.Active() && isTransparentAdminProtectedPath(r.URL.Path) && !s.validBasicAuth(r) {
+			writeBasicAuthChallenge(w)
+			return
+		}
+		next.ServeHTTP(w, r)
 	})
 }
 

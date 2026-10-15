@@ -1317,6 +1317,129 @@ func (h *Handler) HandleDeleteMapping(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// maxUnmaskBatch caps the number of masked values accepted in a single
+// /api/mappings/unmask request (mirrors the /api/mappings page-size ceiling).
+const maxUnmaskBatch = 500
+
+// errUnmaskValueRequired is the 400 message for a missing/empty masked value.
+const errUnmaskValueRequired = "masked value is required"
+
+// UnmaskRequest is the body for POST /api/mappings/unmask. "masked" is either a
+// single JSON string or an array of strings, each being a dummy value the proxy
+// substituted for a detected PII entity.
+type UnmaskRequest struct {
+	Masked json.RawMessage `json:"masked"`
+}
+
+// UnmaskResult is the lookup result for a single masked value.
+type UnmaskResult struct {
+	Masked   string `json:"masked"`
+	Original string `json:"original,omitempty"`
+	Found    bool   `json:"found"`
+}
+
+// UnmaskBatchResponse is returned when "masked" was an array.
+type UnmaskBatchResponse struct {
+	Results    []UnmaskResult `json:"results"`
+	FoundCount int            `json:"found_count"`
+}
+
+// parseUnmaskValues decodes the "masked" field as a string or []string.
+// isBatch reports whether an array was supplied. It returns a user-facing error
+// message (empty on success) suitable for an HTTP 400 response.
+func parseUnmaskValues(raw json.RawMessage) (values []string, isBatch bool, errMsg string) {
+	if len(raw) == 0 {
+		return nil, false, errUnmaskValueRequired
+	}
+
+	var single string
+	if err := json.Unmarshal(raw, &single); err == nil {
+		if single == "" {
+			return nil, false, errUnmaskValueRequired
+		}
+		return []string{single}, false, ""
+	}
+
+	var list []string
+	if err := json.Unmarshal(raw, &list); err != nil {
+		return nil, false, "masked must be a string or an array of strings"
+	}
+	if len(list) == 0 {
+		return nil, true, errUnmaskValueRequired
+	}
+	if len(list) > maxUnmaskBatch {
+		return nil, true, fmt.Sprintf("too many masked values (max %d)", maxUnmaskBatch)
+	}
+	for _, v := range list {
+		if v == "" {
+			return nil, true, errUnmaskValueRequired
+		}
+	}
+	return list, true, ""
+}
+
+// HandleUnmask handles POST /api/mappings/unmask: it resolves one or more masked
+// (dummy) values back to the original PII via the global mapping store. A single
+// string input returns {masked, original, found} (404 when unknown); an array
+// input always returns 200 with a per-item result list.
+//
+// The original values are never written to the log, only counts.
+func (h *Handler) HandleUnmask(w http.ResponseWriter, r *http.Request) {
+	if h.piiMapping == nil {
+		http.Error(w, "PII mapping storage not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	var req UnmaskRequest
+	dec := json.NewDecoder(r.Body)
+	if err := dec.Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	// Reject trailing data after the JSON object (e.g. `{"masked":"x"}garbage`).
+	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	values, isBatch, errMsg := parseUnmaskValues(req.Masked)
+	if errMsg != "" {
+		http.Error(w, errMsg, http.StatusBadRequest)
+		return
+	}
+
+	results := make([]UnmaskResult, 0, len(values))
+	foundCount := 0
+	for _, masked := range values {
+		original, found := h.piiMapping.GetOriginal(masked)
+		if found {
+			foundCount++
+		}
+		results = append(results, UnmaskResult{Masked: masked, Original: original, Found: found})
+	}
+
+	if !isBatch {
+		if !results[0].Found {
+			http.Error(w, "Mapping not found", http.StatusNotFound)
+			return
+		}
+		log.Printf("[Unmask] ✓ resolved 1 entity")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		if err := json.NewEncoder(w).Encode(results[0]); err != nil {
+			log.Printf("[Unmask] ❌ Failed to write response: %v", err)
+		}
+		return
+	}
+
+	log.Printf("[Unmask] ✓ resolved %d/%d entities", foundCount, len(values))
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(UnmaskBatchResponse{Results: results, FoundCount: foundCount}); err != nil {
+		log.Printf("[Unmask] ❌ Failed to write response: %v", err)
+	}
+}
+
 // HandleClearMappings handles DELETE requests to clear all PII mappings
 func (h *Handler) HandleClearMappings(w http.ResponseWriter, r *http.Request) {
 	if h.piiMapping == nil {

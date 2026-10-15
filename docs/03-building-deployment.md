@@ -612,8 +612,8 @@ KIJI_BASIC_AUTH_PASSWORD=change-me
   `KIJI_BASIC_AUTH_PASSWORD` are set. With neither set (the default) the UI is
   unprotected, so the desktop build and existing setups are unaffected.
 - **Protected** (require credentials): the UI (`/`) and the admin/data endpoints
-  `/api/mappings`, `/api/dashboard`, `/api/logs`, `/api/stats`, `/api/model/*`,
-  `/api/proxy/*`.
+  `/api/mappings`, `/api/mappings/unmask`, `/api/dashboard`, `/api/logs`,
+  `/api/stats`, `/api/model/*`, `/api/proxy/*`.
 - **Always open** (never challenged): the LLM proxy routes `/v1/*` and `/v1beta/*`
   (so API clients with their own keys keep working), all `/api/pii/*` endpoints, and
   `/api/health` / `/api/version` (for load-balancer probes).
