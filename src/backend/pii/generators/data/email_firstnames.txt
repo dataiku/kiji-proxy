@@ -1,0 +1,78 @@
+# Dummy email local-part first names for EmailGenerator.
+# One value per line. Blank lines and lines starting with '#' are ignored.
+# Must stay lowercase single ASCII words (no spaces, apostrophes, or accents):
+# the local part is formatted as first.last and is checked against [a-z]+.
+
+# Western
+jane
+john
+alex
+sam
+taylor
+casey
+jordan
+riley
+michael
+sarah
+david
+emily
+james
+emma
+robert
+olivia
+joseph
+laura
+morgan
+avery
+
+# Asian
+wei
+mei
+hiroshi
+yuki
+jin
+min
+raj
+priya
+ravi
+deepa
+
+# African
+amara
+kofi
+zara
+kwame
+nia
+jelani
+thabo
+lerato
+
+# Middle Eastern
+yusuf
+fatima
+omar
+layla
+ali
+nadia
+samir
+rania
+
+# Latin American
+carlos
+maria
+diego
+sofia
+miguel
+lucia
+javier
+daniela
+
+# Eastern European
+dmitri
+anna
+ivan
+katya
+alexei
+elena
+boris
+zofia
