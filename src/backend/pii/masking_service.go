@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	detectors "github.com/dataiku/kiji-proxy/src/backend/pii/detectors"
+	"github.com/dataiku/kiji-proxy/src/backend/processor"
 )
 
 // minSweepLen is the smallest original-PII length we will mass-replace.
@@ -235,13 +236,11 @@ func (s *MaskingService) GetAvailableEntityTypes() ([]string, error) {
 	return detector.EntityTypes(), nil
 }
 
-// RestorePII restores masked PII text back to original text using the stored mapping
+// RestorePII restores masked PII text back to original text using the stored
+// mapping. It uses a single-pass replacer so a restored value is never
+// re-substituted; see processor.BuildRestorer.
 func (s *MaskingService) RestorePII(text string, maskedToOriginal map[string]string) string {
-	// Replace all occurrences of masked text with original text
-	for maskedText, originalText := range maskedToOriginal {
-		text = strings.ReplaceAll(text, maskedText, originalText)
-	}
-	return text
+	return processor.BuildRestorer(maskedToOriginal).Replace(text)
 }
 
 // GenerateReplacement generates a replacement for the given PII label and original text
