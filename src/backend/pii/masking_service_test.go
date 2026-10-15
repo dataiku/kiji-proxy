@@ -59,9 +59,22 @@ func newTestMaskingService(t *testing.T, entities []detectors.Entity) *MaskingSe
 }
 
 // entity is a small constructor to keep test tables readable: Text, Label, byte
-// offsets, confidence.
-func entity(text, label string, start, end int, confidence float64) detectors.Entity {
-	return detectors.Entity{Text: text, Label: label, StartPos: start, EndPos: end, Confidence: confidence}
+// offsets.
+func entity(text, label string, start, end int) detectors.Entity {
+	return detectors.Entity{Text: text, Label: label, StartPos: start, EndPos: end, Confidence: 0.9}
+}
+
+// entityAt builds an entity for the first occurrence of value in text, with
+// byte offsets computed from the text so they cannot drift out of sync with it.
+// Tests that exercise the position-based path should use this; hardcoded
+// offsets that miss silently fall through to the strings.Replace fallback.
+func entityAt(t *testing.T, text, value, label string) detectors.Entity {
+	t.Helper()
+	start := strings.Index(text, value)
+	if start < 0 {
+		t.Fatalf("test setup: %q not found in %q", value, text)
+	}
+	return entity(value, label, start, start+len(value))
 }
 
 // --- MaskText: core masking behavior ---
@@ -71,11 +84,11 @@ func entity(text, label string, start, end int, confidence float64) detectors.En
 // from the original, and the returned mapping must let every masked value be
 // traced back to exactly the original it replaced.
 func TestMaskText_MultiplePIITypes(t *testing.T) {
-	text := "Contact John Smith at john@example.com or 555-123-4567."
+	text := "Contact John at john@example.com or 555-123-4567."
 	entities := []detectors.Entity{
-		entity("John Smith", "FIRSTNAME", 8, 18, 0.9),
-		entity("john@example.com", "EMAIL", 22, 38, 0.95),
-		entity("555-123-4567", "PHONENUMBER", 44, 56, 0.85),
+		entityAt(t, text, "John", "FIRSTNAME"),
+		entityAt(t, text, "john@example.com", "EMAIL"),
+		entityAt(t, text, "555-123-4567", "PHONENUMBER"),
 	}
 	svc := newTestMaskingService(t, entities)
 
@@ -88,7 +101,7 @@ func TestMaskText_MultiplePIITypes(t *testing.T) {
 		t.Fatalf("expected 3 mapping entries, got %d", len(result.MaskedToOriginal))
 	}
 
-	originals := []string{"John Smith", "john@example.com", "555-123-4567"}
+	originals := []string{"John", "john@example.com", "555-123-4567"}
 	for _, original := range originals {
 		if strings.Contains(result.MaskedText, original) {
 			t.Errorf("masked text still contains original PII %q: %q", original, result.MaskedText)
@@ -153,21 +166,18 @@ func TestMaskText_EmptyInput(t *testing.T) {
 // for the sweep step documented in MaskText: the detector commonly emits a
 // single entity for a repeated PII string even when it appears multiple times
 // in the input. Without the post-pass sweep, the second (and later) occurrence
-// of "Jane Doe" would leak to the upstream provider unmasked. This also checks
+// of "Jane" would leak to the upstream provider unmasked. This also checks
 // that every occurrence collapses to the SAME dummy value, which is what makes
 // downstream restoration (a single find/replace per dummy) correct.
 func TestMaskText_RepeatedIdenticalPII_SweepsAllOccurrences(t *testing.T) {
-	text := "Jane Doe called. Please call Jane Doe back at your convenience."
+	text := "Jane called. Please call Jane back at your convenience."
 	// Detector reports only the first occurrence, mirroring real-world behavior.
-	firstIdx := strings.Index(text, "Jane Doe")
-	entities := []detectors.Entity{
-		entity("Jane Doe", "FIRSTNAME", firstIdx, firstIdx+len("Jane Doe"), 0.9),
-	}
+	entities := []detectors.Entity{entityAt(t, text, "Jane", "FIRSTNAME")}
 	svc := newTestMaskingService(t, entities)
 
 	result := svc.MaskText(text, "[test]")
 
-	if strings.Contains(result.MaskedText, "Jane Doe") {
+	if strings.Contains(result.MaskedText, "Jane") {
 		t.Fatalf("expected every occurrence of the repeated PII to be masked, got %q", result.MaskedText)
 	}
 	if len(result.MaskedToOriginal) != 1 {
@@ -196,18 +206,12 @@ func TestMaskText_RepeatedIdenticalPII_SameDummyAcrossSession(t *testing.T) {
 	provider := &stubDetectorProvider{}
 	svc := NewMaskingService(provider, NewGeneratorService(), mapping)
 
-	text1 := "My name is Alice Johnson."
-	idx1 := strings.Index(text1, "Alice Johnson")
-	provider.detector = &stubDetector{entities: []detectors.Entity{
-		entity("Alice Johnson", "FIRSTNAME", idx1, idx1+len("Alice Johnson"), 0.9),
-	}}
+	text1 := "My name is Alice."
+	provider.detector = &stubDetector{entities: []detectors.Entity{entityAt(t, text1, "Alice", "FIRSTNAME")}}
 	result1 := svc.MaskText(text1, "[req1]")
 
-	text2 := "Alice Johnson signed the form again."
-	idx2 := strings.Index(text2, "Alice Johnson")
-	provider.detector = &stubDetector{entities: []detectors.Entity{
-		entity("Alice Johnson", "FIRSTNAME", idx2, idx2+len("Alice Johnson"), 0.9),
-	}}
+	text2 := "Alice signed the form again."
+	provider.detector = &stubDetector{entities: []detectors.Entity{entityAt(t, text2, "Alice", "FIRSTNAME")}}
 	result2 := svc.MaskText(text2, "[req2]")
 
 	var dummy1, dummy2 string
@@ -229,16 +233,19 @@ func TestMaskText_RepeatedIdenticalPII_SameDummyAcrossSession(t *testing.T) {
 // and the very end of the input (StartPos 0 and EndPos == len(text)) — the
 // off-by-one case most likely to break position-based slicing.
 func TestMaskText_PIIAtStringBoundaries(t *testing.T) {
-	text := "555-000-1111 is Bob Marley"
+	text := "555-000-1111 is Marley"
 	entities := []detectors.Entity{
-		entity("555-000-1111", "PHONENUMBER", 0, len("555-000-1111"), 0.9),
-		entity("Bob Marley", "FIRSTNAME", len(text)-len("Bob Marley"), len(text), 0.9),
+		entityAt(t, text, "555-000-1111", "PHONENUMBER"),
+		entityAt(t, text, "Marley", "SURNAME"),
+	}
+	if entities[0].StartPos != 0 || entities[1].EndPos != len(text) {
+		t.Fatalf("test setup: entities must sit at the string boundaries, got %+v", entities)
 	}
 	svc := newTestMaskingService(t, entities)
 
 	result := svc.MaskText(text, "[test]")
 
-	if strings.Contains(result.MaskedText, "555-000-1111") || strings.Contains(result.MaskedText, "Bob Marley") {
+	if strings.Contains(result.MaskedText, "555-000-1111") || strings.Contains(result.MaskedText, "Marley") {
 		t.Errorf("boundary entities were not fully masked: %q", result.MaskedText)
 	}
 	if !strings.Contains(result.MaskedText, " is ") {
@@ -257,9 +264,9 @@ func TestMaskText_InvalidPositionsFallsBackToStringReplace(t *testing.T) {
 		name   string
 		entity detectors.Entity
 	}{
-		{"end beyond text length", entity("Frank Miller", "FIRSTNAME", 5, 999, 0.9)},
-		{"start after end", entity("Frank Miller", "FIRSTNAME", 20, 10, 0.9)},
-		{"negative start", entity("Frank Miller", "FIRSTNAME", -1, 17, 0.9)},
+		{"end beyond text length", entity("Frank Miller", "FIRSTNAME", 5, 999)},
+		{"start after end", entity("Frank Miller", "FIRSTNAME", 20, 10)},
+		{"negative start", entity("Frank Miller", "FIRSTNAME", -1, 17)},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -284,10 +291,8 @@ func TestMaskText_UnicodeInput(t *testing.T) {
 	// starts at a byte offset past two 2-byte runes.
 	text := "Résumé from Zoë Müller, thanks 🎉"
 	name := "Zoë Müller"
-	start := strings.Index(text, name) // byte offset, matches how a real detector reports positions
-	entities := []detectors.Entity{
-		entity(name, "FIRSTNAME", start, start+len(name), 0.9),
-	}
+	// entityAt uses byte offsets, matching how a real detector reports positions.
+	entities := []detectors.Entity{entityAt(t, text, name, "SURNAME")}
 	svc := newTestMaskingService(t, entities)
 
 	result := svc.MaskText(text, "[test]")
@@ -313,8 +318,8 @@ func TestMaskText_UnicodeInput(t *testing.T) {
 func TestMaskText_DisabledEntityTypePassesThrough(t *testing.T) {
 	text := "Email jane@example.com, phone 555-999-8888"
 	entities := []detectors.Entity{
-		entity("jane@example.com", "EMAIL", 6, 22, 0.9),
-		entity("555-999-8888", "PHONENUMBER", 31, 43, 0.9),
+		entityAt(t, text, "jane@example.com", "EMAIL"),
+		entityAt(t, text, "555-999-8888", "PHONENUMBER"),
 	}
 	svc := newTestMaskingService(t, entities)
 	svc.SetDisabledEntities([]string{"EMAIL"})
@@ -410,20 +415,6 @@ func TestSetDisabledEntities_EmptyClearsToFailClosed(t *testing.T) {
 }
 
 // --- RestorePII on MaskingService ---
-//
-// processor.ResponseProcessor.RestorePII (src/backend/processor/response.go)
-// went through a real, documented bug fix: sequential strings.ReplaceAll calls
-// over a map can chain (e.g. "Nicole"->"Priya" then "Priya"->"Claude" corrupts
-// a text containing "Nicole"), so it was rewritten around BuildRestorer, a
-// single-pass strings.Replacer. MaskingService.RestorePII below still uses the
-// old sequential-ReplaceAll pattern and is not called from anywhere in the
-// current codebase (grep confirms only ResponseProcessor.RestorePII is wired
-// into the request path) — but it is exported, so external callers or future
-// code could still hit the same bug. The first test below is the safe case
-// (independent keys); the second pins down the CURRENT, buggy chained output
-// as a documented characterization test, not an endorsement of correctness —
-// flagged for a follow-up fix (reuse processor.BuildRestorer here too, or
-// remove this method if it really is dead).
 
 func TestMaskingServiceRestorePII_IndependentKeys(t *testing.T) {
 	svc := &MaskingService{}
@@ -448,41 +439,19 @@ func TestMaskingServiceRestorePII_EmptyMapping(t *testing.T) {
 	}
 }
 
-// TestMaskingServiceRestorePII_ChainedSubstitutionBug documents the known
-// defect: unlike processor.BuildRestorer, this method does not process keys in
-// a single simultaneous pass, so replacing one key can corrupt text just
-// produced by another. Go's map iteration order is randomized per call, so a
-// 2-key chain (like the "Nicole"->"Priya", "Priya"->"Claude" example fixed
-// elsewhere) only reproduces the corruption on ONE of the two possible
-// iteration orders — asserting a single hardcoded output would be flaky here.
-//
-// A swap cycle (A's original is B's masked value and vice versa) corrupts
-// under BOTH possible iteration orders, collapsing what should be two distinct
-// restored values into one repeated value — so this test is deterministic
-// while still proving the defect: it asserts the result is NOT the correct
-// swap, and that both instances converge on a single value.
-func TestMaskingServiceRestorePII_ChainedSubstitutionBug(t *testing.T) {
+// TestMaskingServiceRestorePII_NoChainedSubstitution guards against restoring
+// with sequential ReplaceAll calls: when one entry's original equals another
+// entry's dummy, a restored value must not be re-substituted. A swap cycle
+// corrupts under either map iteration order, so a regression fails
+// deterministically.
+func TestMaskingServiceRestorePII_NoChainedSubstitution(t *testing.T) {
 	svc := &MaskingService{}
 	got := svc.RestorePII("mentions [DUMMY_JOHN] and [DUMMY_MARY]", map[string]string{
 		"[DUMMY_JOHN]": "[DUMMY_MARY]",
 		"[DUMMY_MARY]": "[DUMMY_JOHN]",
 	})
-
-	// A correct single-pass restore (see processor.BuildRestorer) would swap
-	// the two placeholders independently.
-	correctSwap := "mentions [DUMMY_MARY] and [DUMMY_JOHN]"
-	if got == correctSwap {
-		t.Fatalf("RestorePII produced the correct swap (%q) — if this method has been fixed to do a single-pass "+
-			"replace, please delete this characterization test instead of leaving it passing by coincidence", got)
-	}
-
-	// Regardless of which key strings.ReplaceAll processes first, sequential
-	// replacement always collapses both placeholders to the SAME restored
-	// value, which a correct restorer would never do (they map to different
-	// originals). Assert that collapse rather than one specific order's output.
-	johnCount := strings.Count(got, "[DUMMY_JOHN]")
-	maryCount := strings.Count(got, "[DUMMY_MARY]")
-	if !((johnCount == 2 && maryCount == 0) || (johnCount == 0 && maryCount == 2)) {
-		t.Errorf("expected the known chained-substitution bug to collapse both placeholders to the same value, got %q", got)
+	want := "mentions [DUMMY_MARY] and [DUMMY_JOHN]"
+	if got != want {
+		t.Errorf("RestorePII = %q, want %q", got, want)
 	}
 }
