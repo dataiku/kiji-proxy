@@ -1391,7 +1391,13 @@ func (h *Handler) HandleUnmask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req UnmaskRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	dec := json.NewDecoder(r.Body)
+	if err := dec.Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	// Reject trailing data after the JSON object (e.g. `{"masked":"x"}garbage`).
+	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}

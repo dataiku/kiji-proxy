@@ -1222,6 +1222,8 @@ func TestHandler_HandleUnmask(t *testing.T) {
 		"empty element":  `{"masked":["Nicole Brown",""]}`,
 		"wrong type":     `{"masked":42}`,
 		"object element": `{"masked":[{"a":1}]}`,
+		"trailing data":  `{"masked":"Nicole Brown"}garbage`,
+		"trailing value": `{"masked":"Nicole Brown"}{}`,
 	}
 	for name, body := range badRequests {
 		t.Run("400 "+name, func(t *testing.T) {

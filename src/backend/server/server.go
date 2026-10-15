@@ -395,19 +395,12 @@ func (s *Server) startTransparentProxy() {
 	log.Printf("Intercepting domains: %v", s.config.Providers.GetInterceptDomains())
 	log.Printf("CA certificate path: %s", s.config.Proxy.CAPath)
 
-	// Create custom handler that routes based on request method
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// Create custom handler that routes based on request method. Admin/data
+	// endpoints are guarded by transparentAdminAuthMiddleware.
+	handler := s.transparentAdminAuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// CONNECT requests go to transparent proxy
 		if r.Method == http.MethodConnect {
 			s.transparentProxy.ServeHTTP(w, r)
-			return
-		}
-
-		// Guard admin/data endpoints with Basic Auth when enabled. CONNECT (above)
-		// and the proxy pass-through (default case below) stay open, so only the
-		// explicitly-listed admin paths are challenged.
-		if s.config.BasicAuth.Active() && isTransparentAdminProtectedPath(r.URL.Path) && !s.validBasicAuth(r) {
-			writeBasicAuthChallenge(w)
 			return
 		}
 
@@ -444,7 +437,7 @@ func (s *Server) startTransparentProxy() {
 			// All other HTTP/HTTPS requests go to transparent proxy
 			s.transparentProxy.ServeHTTP(w, r)
 		}
-	})
+	}))
 
 	s.transparentServer = &http.Server{
 		Addr:         proxyPort,
@@ -1252,6 +1245,20 @@ func (s *Server) basicAuthMiddleware(next http.Handler) http.Handler {
 			return
 		}
 		writeBasicAuthChallenge(w)
+	})
+}
+
+// transparentAdminAuthMiddleware guards the transparent proxy's admin/data
+// endpoints with Basic Auth when enabled (default-allow). CONNECT and the proxy
+// pass-through stay open, so only the explicitly-listed admin paths are
+// challenged.
+func (s *Server) transparentAdminAuthMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if s.config.BasicAuth.Active() && isTransparentAdminProtectedPath(r.URL.Path) && !s.validBasicAuth(r) {
+			writeBasicAuthChallenge(w)
+			return
+		}
+		next.ServeHTTP(w, r)
 	})
 }
 

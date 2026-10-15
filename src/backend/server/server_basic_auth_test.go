@@ -95,6 +95,9 @@ func TestBasicAuthMiddleware(t *testing.T) {
 		{name: "protected wrong creds", path: "/api/mappings", setCreds: true, user: "admin", pass: "wrong", wantStatus: http.StatusUnauthorized, wantChal: true},
 		{name: "protected correct creds", path: "/api/mappings", setCreds: true, user: user, pass: pass, wantStatus: http.StatusOK},
 		{name: "ui correct creds", path: "/", setCreds: true, user: user, pass: pass, wantStatus: http.StatusOK},
+		{name: "unmask no creds", path: "/api/mappings/unmask", wantStatus: http.StatusUnauthorized, wantChal: true},
+		{name: "unmask wrong creds", path: "/api/mappings/unmask", setCreds: true, user: "admin", pass: "wrong", wantStatus: http.StatusUnauthorized, wantChal: true},
+		{name: "unmask correct creds", path: "/api/mappings/unmask", setCreds: true, user: user, pass: pass, wantStatus: http.StatusOK},
 		{name: "public path no creds", path: "/v1/chat/completions", wantStatus: http.StatusOK},
 		{name: "pii path no creds", path: "/api/pii/check", wantStatus: http.StatusOK},
 		{name: "health no creds", path: "/api/health", wantStatus: http.StatusOK},
@@ -118,6 +121,64 @@ func TestBasicAuthMiddleware(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTransparentAdminAuthMiddleware(t *testing.T) {
+	const user, pass = "admin", "secret"
+	s := &Server{config: &config.Config{
+		BasicAuth: config.BasicAuthConfig{Enabled: true, Username: user, Password: pass},
+	}}
+
+	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	handler := s.transparentAdminAuthMiddleware(next)
+
+	tests := []struct {
+		name       string
+		method     string
+		path       string
+		setCreds   bool
+		user, pass string
+		wantStatus int
+		wantChal   bool // expect a WWW-Authenticate challenge
+	}{
+		{name: "unmask no creds", method: http.MethodPost, path: "/api/mappings/unmask", wantStatus: http.StatusUnauthorized, wantChal: true},
+		{name: "unmask wrong creds", method: http.MethodPost, path: "/api/mappings/unmask", setCreds: true, user: "admin", pass: "wrong", wantStatus: http.StatusUnauthorized, wantChal: true},
+		{name: "unmask correct creds", method: http.MethodPost, path: "/api/mappings/unmask", setCreds: true, user: user, pass: pass, wantStatus: http.StatusOK},
+		{name: "mappings no creds", method: http.MethodGet, path: "/api/mappings", wantStatus: http.StatusUnauthorized, wantChal: true},
+		{name: "pii path no creds", method: http.MethodPost, path: "/api/pii/check", wantStatus: http.StatusOK},
+		{name: "health no creds", method: http.MethodGet, path: "/api/health", wantStatus: http.StatusOK},
+		{name: "proxy pass-through no creds", method: http.MethodPost, path: "/v1/chat/completions", wantStatus: http.StatusOK},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(tt.method, tt.path, nil)
+			if tt.setCreds {
+				req.SetBasicAuth(tt.user, tt.pass)
+			}
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+
+			if rec.Code != tt.wantStatus {
+				t.Errorf("status = %d, want %d", rec.Code, tt.wantStatus)
+			}
+			gotChal := rec.Header().Get("WWW-Authenticate") != ""
+			if gotChal != tt.wantChal {
+				t.Errorf("WWW-Authenticate present = %v, want %v", gotChal, tt.wantChal)
+			}
+		})
+	}
+
+	t.Run("open when basic auth disabled", func(t *testing.T) {
+		s := &Server{config: &config.Config{}}
+		req := httptest.NewRequest(http.MethodPost, "/api/mappings/unmask", nil)
+		rec := httptest.NewRecorder()
+		s.transparentAdminAuthMiddleware(next).ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Errorf("status = %d, want %d", rec.Code, http.StatusOK)
+		}
+	})
 }
 
 func TestAuthStatusHandler(t *testing.T) {
