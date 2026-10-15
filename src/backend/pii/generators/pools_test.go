@@ -81,6 +81,64 @@ func TestLoadedPoolsHaveNoDuplicates(t *testing.T) {
 	}
 }
 
+// Pool entries must be printable ASCII. Invisible characters (BOM, zero-width,
+// bidi controls) survive TrimSpace and would ride along in every dummy, and
+// non-ASCII dummies can be escaped by providers (é) so the restorer never
+// matches them and the dummy reaches the user unrestored.
+func TestLoadedPoolsArePrintableASCII(t *testing.T) {
+	for name, pool := range loadedPools {
+		for _, entry := range pool {
+			for _, r := range entry {
+				if r < ' ' || r > '~' {
+					t.Errorf("pool %q entry %q contains non-printable-ASCII rune %U", name, entry, r)
+					break
+				}
+			}
+		}
+	}
+}
+
+// substringOverlapAllowlist holds overlaps that predate the data files. Each
+// pair is (contained, container).
+var substringOverlapAllowlist = map[[2]string]bool{
+	{"Cambridge", "Cambridgeshire"}: true, {"Franklin", "Franklin Blvd"}: true,
+	{"Hampshire", "New Hampshire"}: true, {"India", "Indiana"}: true,
+	{"Ireland", "Northern Ireland"}: true, {"Ivan", "Ivanov"}: true,
+	{"John", "Johnson"}: true, {"Kent", "Kentucky"}: true,
+	{"King", "King Street"}: true, {"King", "Kingston"}: true,
+	{"King", "United Kingdom"}: true, {"Lee", "Leeds"}: true,
+	{"Li", "Lincoln Ave"}: true, {"Li", "Liu"}: true, {"Li", "Liverpool"}: true,
+	{"Madison", "Madison Ave"}: true, {"Maria", "Mariam"}: true,
+	{"Martin", "Martinez"}: true, {"Mexico", "New Mexico"}: true,
+	{"Min", "Minnesota"}: true, {"Oxford", "Oxfordshire"}: true,
+	{"Park", "Park Blvd"}: true, {"Park", "Park Lane"}: true,
+	{"Victoria", "Victoria Road"}: true, {"Virginia", "West Virginia"}: true,
+	{"Washington", "Washington St"}: true, {"William", "Williams"}: true,
+	{"York", "New York"}: true, {"York", "Yorkshire"}: true,
+}
+
+// Response restoration is a plain substring replace, so a dummy that sits
+// inside another dummy (or a longer real word) can be restored into the wrong
+// place. Fail on any overlap between the standalone-value pools that is not
+// already on the allowlist.
+func TestStandalonePoolsHaveNoNewSubstringOverlaps(t *testing.T) {
+	standalone := []string{"firstnames", "surnames", "cities", "streets", "states", "countries"}
+	var all []string
+	for _, name := range standalone {
+		all = append(all, loadedPools[name]...)
+	}
+	for _, a := range all {
+		for _, b := range all {
+			if a == b || !strings.Contains(b, a) {
+				continue
+			}
+			if !substringOverlapAllowlist[[2]string{a, b}] {
+				t.Errorf("pool entry %q is a substring of %q; pick a non-overlapping value", a, b)
+			}
+		}
+	}
+}
+
 // EmailGenerator formats the local part as first.last and callers assert it
 // matches [a-z]+\.[a-z]+, so the email pools must stay lowercase ASCII words.
 func TestEmailPoolsAreLowercaseTokens(t *testing.T) {

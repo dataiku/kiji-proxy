@@ -32,8 +32,6 @@ King
 Wright
 Hill
 Scott
-Green
-Baker
 Adams
 Nelson
 Carter
@@ -77,7 +75,7 @@ Dlamini
 Ndlovu
 Owusu
 Achebe
-Baldé
+Balde
 Mwangi
 
 # Middle Eastern
@@ -94,7 +92,6 @@ Hosseini
 Rahman
 Begum
 Saleh
-Karimi
 Farah
 Aziz
 

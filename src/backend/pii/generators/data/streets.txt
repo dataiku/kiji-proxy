@@ -28,10 +28,8 @@ Jefferson St
 Franklin Blvd
 Madison Ave
 Monroe Dr
-Adams St
 Willow Way
 Birch Lane
-Hillcrest Dr
 
 # UK/Canada style streets
 High Street
@@ -49,6 +47,5 @@ New Road
 Chapel Street
 West End
 North Terrace
-Kingsway
 Meadow Lane
 Orchard Close
