@@ -67,6 +67,20 @@ func TestLoadedPoolsAreCleanAndNonEmpty(t *testing.T) {
 	}
 }
 
+// Duplicate entries silently skew the pick distribution, and the pools are now
+// hand-edited data files, so guard against them.
+func TestLoadedPoolsHaveNoDuplicates(t *testing.T) {
+	for name, pool := range loadedPools {
+		seen := make(map[string]bool, len(pool))
+		for _, entry := range pool {
+			if seen[entry] {
+				t.Errorf("pool %q contains duplicate entry %q", name, entry)
+			}
+			seen[entry] = true
+		}
+	}
+}
+
 // EmailGenerator formats the local part as first.last and callers assert it
 // matches [a-z]+\.[a-z]+, so the email pools must stay lowercase ASCII words.
 func TestEmailPoolsAreLowercaseTokens(t *testing.T) {

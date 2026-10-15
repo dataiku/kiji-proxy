@@ -28,7 +28,6 @@ Clayton
 Auburn
 Fairfield
 Marion
-Oxford
 Dover
 
 # Canadian cities

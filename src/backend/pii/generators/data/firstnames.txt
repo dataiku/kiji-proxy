@@ -36,7 +36,6 @@ Laura
 Benjamin
 Hannah
 Samuel
-Grace
 Nathan
 Rebecca
 
@@ -58,11 +57,8 @@ Takeshi
 Ananya
 Arjun
 Haruto
-Yui
 Ravi
 Deepa
-Jae
-Soo
 
 # African
 Amara
@@ -80,7 +76,6 @@ Imani
 Sekou
 Adaeze
 Kwabena
-Ama
 Thabo
 Lerato
 
