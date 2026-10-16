@@ -1,6 +1,11 @@
 package processor
 
-import "testing"
+import (
+	"encoding/json"
+	"testing"
+
+	"github.com/dataiku/kiji-proxy/src/backend/providers"
+)
 
 // A generated dummy can coincide with a real original from another mapping
 // ("Priya"→"Nicole" alongside "Claude"→"Priya"). Restoration must be a single
@@ -45,4 +50,242 @@ func TestRestorePII_EmptyAndPlainCases(t *testing.T) {
 	if got != want {
 		t.Errorf("RestorePII = %q, want %q", got, want)
 	}
+}
+
+// --- ProcessResponse ---
+//
+// ProcessResponse's own job (as opposed to RestorePII/BuildRestorer above) is:
+// gate on content type, parse-or-passthrough on bad JSON, delegate the actual
+// per-provider restoration to provider.RestoreMaskedResponse, stamp
+// original_response + proxy_metadata, and (per its own comments) fall back to
+// the original body if the modified JSON can't be re-marshaled.
+//
+// providers.Provider can't be faked from this package: CreateMaskedRequest and
+// RestoreMaskedResponse are typed against unexported function types
+// (maskPIIInTextType, restorePIIType, ...) declared in package providers, so
+// only types defined inside that package can satisfy the interface. This
+// mirrors the existing convention in proxy/handler_test.go: use a real
+// provider (OpenAIProvider costs nothing to construct — it makes no network
+// calls until a request is actually sent) rather than invent a workaround.
+// That also means these tests exercise the exact wiring production traffic
+// uses, not a hand-rolled substitute for it.
+
+// stubLoggingConfig is a minimal LoggingConfig with AddProxyNotice
+// controllable per test; the other flags only affect log output, not behavior
+// under test.
+type stubLoggingConfig struct {
+	addProxyNotice bool
+}
+
+func (s stubLoggingConfig) GetLogResponses() bool   { return false }
+func (s stubLoggingConfig) GetLogVerbose() bool     { return false }
+func (s stubLoggingConfig) GetAddProxyNotice() bool { return s.addProxyNotice }
+
+func newTestOpenAIProvider() providers.Provider {
+	return providers.NewOpenAIProvider("api.openai.com", "sk-test", nil)
+}
+
+// decodeFirstChoiceContent unmarshals a ProcessResponse result and returns the
+// decoded body plus choices[0].message.content, failing the test (rather than
+// panicking) if the Chat Completions shape didn't survive.
+func decodeFirstChoiceContent(t *testing.T, got []byte) (map[string]interface{}, string) {
+	t.Helper()
+	var out map[string]interface{}
+	if err := json.Unmarshal(got, &out); err != nil {
+		t.Fatalf("ProcessResponse produced invalid JSON: %v (body: %s)", err, got)
+	}
+	choices, _ := out["choices"].([]interface{})
+	if len(choices) != 1 {
+		t.Fatalf("expected 1 choice to survive, got %#v", out["choices"])
+	}
+	choice, _ := choices[0].(map[string]interface{})
+	message, _ := choice["message"].(map[string]interface{})
+	content, ok := message["content"].(string)
+	if !ok {
+		t.Fatalf("expected choices[0].message.content to be a string, got %#v", choices[0])
+	}
+	return out, content
+}
+
+func TestProcessResponse_NonJSONContentType_PassesThroughUnchanged(t *testing.T) {
+	rp := NewResponseProcessor(nil, stubLoggingConfig{})
+	provider := newTestOpenAIProvider()
+
+	// If ProcessResponse mistakenly tried to restore this as JSON, it would be
+	// altered (masked value replaced) or rejected; either way it wouldn't come
+	// back byte-for-byte identical.
+	body := []byte("plain text response addressed to Kofi Thomas, not JSON at all")
+	got := rp.ProcessResponse(body, "text/plain; charset=utf-8", map[string]string{"Kofi Thomas": "Alice Martin"}, &provider)
+
+	if string(got) != string(body) {
+		t.Errorf("ProcessResponse changed a non-JSON body: got %q, want unchanged %q", got, body)
+	}
+}
+
+func TestProcessResponse_MalformedJSON_ReturnsOriginalBodyUnchanged(t *testing.T) {
+	rp := NewResponseProcessor(nil, stubLoggingConfig{})
+	provider := newTestOpenAIProvider()
+
+	body := []byte(`{"choices": [ this is not valid json`)
+	got := rp.ProcessResponse(body, "application/json", map[string]string{}, &provider)
+
+	if string(got) != string(body) {
+		t.Errorf("expected malformed JSON to pass through unchanged, got %q, want %q", got, body)
+	}
+}
+
+// TestProcessResponse_RestoresPIIAndStampsMetadata drives ProcessResponse with
+// a real OpenAI Chat Completions response shape and checks all three of its
+// documented effects: the masked placeholder in the actual response content is
+// restored, the untouched original bytes are preserved under
+// original_response, and proxy_metadata is stamped.
+func TestProcessResponse_RestoresPIIAndStampsMetadata(t *testing.T) {
+	rp := NewResponseProcessor(nil, stubLoggingConfig{addProxyNotice: false})
+	provider := newTestOpenAIProvider()
+
+	// Dummies look like what generators/ actually produce: realistic names and
+	// emails, not placeholder tokens.
+	body := []byte(`{"choices":[{"message":{"content":"Hello Kofi Thomas, I'll reply to yuki.anderson@test.com."}}]}`)
+	maskedToOriginal := map[string]string{
+		"Kofi Thomas":            "Alice Martin",
+		"yuki.anderson@test.com": "alice.martin@example.org",
+	}
+
+	// "application/json; charset=utf-8" must still match the substring-based
+	// content-type gate in ProcessResponse.
+	got := rp.ProcessResponse(body, "application/json; charset=utf-8", maskedToOriginal, &provider)
+
+	out, content := decodeFirstChoiceContent(t, got)
+	if content != "Hello Alice Martin, I'll reply to alice.martin@example.org." {
+		t.Errorf("restored content = %q, want PII restored to the original", content)
+	}
+
+	// original_response must carry the untouched input bytes, not the restored
+	// version, so a client with the mapping can always recover exactly what the
+	// upstream provider actually sent. It's embedded via json.RawMessage, so it
+	// decodes as nested JSON (not a string) — re-marshal it to compare.
+	rawOriginal, ok := out["original_response"]
+	if !ok {
+		t.Fatalf("expected original_response field to be present, got %#v", out)
+	}
+	rawOriginalBytes, err := json.Marshal(rawOriginal)
+	if err != nil {
+		t.Fatalf("failed to re-marshal original_response: %v", err)
+	}
+	if !jsonEqual(t, string(rawOriginalBytes), string(body)) {
+		t.Errorf("original_response = %s, want it to equal the untouched input %s", rawOriginalBytes, body)
+	}
+
+	meta, ok := out["proxy_metadata"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected proxy_metadata field, got %#v", out["proxy_metadata"])
+	}
+	if intercepted, _ := meta["intercepted"].(bool); !intercepted {
+		t.Errorf("expected proxy_metadata.intercepted = true, got %v", meta["intercepted"])
+	}
+	if svc, _ := meta["service"].(string); svc == "" {
+		t.Error("expected proxy_metadata.service to be set")
+	}
+}
+
+// TestProcessResponse_MappingMissLeavesTextUntouched covers the issue's
+// "mapping miss" case: a masked token in the response body has no entry in
+// maskedToOriginal (e.g. the mapping expired, or the token was echoed back
+// from context rather than actually produced by masking). RestorePII/
+// BuildRestorer only replace keys present in the map, so an unmapped token is
+// left exactly as the model wrote it — it is not blanked out, corrupted, or
+// mistaken for a different key. A mapped value in the same text is still
+// restored, so a partial miss doesn't disable restoration for the rest.
+func TestProcessResponse_MappingMissLeavesTextUntouched(t *testing.T) {
+	rp := NewResponseProcessor(nil, stubLoggingConfig{})
+	provider := newTestOpenAIProvider()
+
+	body := []byte(`{"choices":[{"message":{"content":"Thanks Kofi Thomas, I emailed yuki.anderson@test.com."}}]}`)
+	// The name is mapped; the email dummy has no entry.
+	maskedToOriginal := map[string]string{"Kofi Thomas": "Alice Martin"}
+
+	got := rp.ProcessResponse(body, "application/json", maskedToOriginal, &provider)
+
+	_, content := decodeFirstChoiceContent(t, got)
+	if want := "Thanks Alice Martin, I emailed yuki.anderson@test.com."; content != want {
+		t.Errorf("content = %q, want mapped name restored and unmapped email left as-is (%q)", content, want)
+	}
+}
+
+// TestProcessResponse_ProviderErrorStillStampsMetadata covers the "restore
+// failed but we keep going" path: when the response doesn't match any shape
+// the provider recognizes (OpenAIProvider.RestoreMaskedResponse returns an
+// error when there's no "choices" field), ProcessResponse only logs the
+// error — it never aborts and returns the raw body instead, and proxy_metadata
+// is still added.
+//
+// This pins current behaviour, not a requirement: the stamped metadata is the
+// same whether restoration succeeded, had nothing to do, or failed, so a
+// response whose masked values were never restored is indistinguishable from a
+// normal one. Surfacing that failure to callers is tracked as follow-up work;
+// update this test when it lands.
+func TestProcessResponse_ProviderErrorStillStampsMetadata(t *testing.T) {
+	rp := NewResponseProcessor(nil, stubLoggingConfig{})
+	provider := newTestOpenAIProvider()
+
+	body := []byte(`{"unexpected_shape": true}`)
+	got := rp.ProcessResponse(body, "application/json", nil, &provider)
+
+	var out map[string]interface{}
+	if err := json.Unmarshal(got, &out); err != nil {
+		t.Fatalf("ProcessResponse produced invalid JSON despite a provider error: %v", err)
+	}
+	if _, ok := out["proxy_metadata"]; !ok {
+		t.Error("expected proxy_metadata to still be stamped even when the provider's restore returns an error")
+	}
+	if _, ok := out["unexpected_shape"]; !ok {
+		t.Error("expected the original (unrecognized) field to survive untouched")
+	}
+}
+
+// TestProcessResponse_AddProxyNoticeIsWiredToProvider confirms the
+// interceptionNotice string ProcessResponse builds, and the getAddProxyNotice
+// callback it passes through, actually reach the provider and take effect —
+// this is the one piece of ProcessResponse's contract that isn't visible from
+// its own code, only from how OpenAIProvider is allowed to use what it's
+// handed (see OpenAIProvider.RestoreMaskedResponse).
+func TestProcessResponse_AddProxyNoticeIsWiredToProvider(t *testing.T) {
+	rp := NewResponseProcessor(nil, stubLoggingConfig{addProxyNotice: true})
+	provider := newTestOpenAIProvider()
+
+	body := []byte(`{"choices":[{"message":{"content":"plain content"}}]}`)
+	got := rp.ProcessResponse(body, "application/json", map[string]string{}, &provider)
+
+	_, content := decodeFirstChoiceContent(t, got)
+	if want := "plain content\n\n[This response was intercepted and processed by Kiji Privacy Proxy service]"; content != want {
+		t.Errorf("content = %q, want %q", content, want)
+	}
+}
+
+// Note on the json.Marshal failure branch in ProcessResponse ("Failed to
+// marshal modified JSON" -> return the original body): reaching it would
+// require a provider's RestoreMaskedResponse to write a value into the
+// decoded map that encoding/json cannot marshal (e.g. a channel or func).
+// json.Unmarshal itself can never produce such a value, and every real
+// provider (OpenAI/Anthropic/Gemini/Mistral/Custom) only ever writes strings
+// back into the map. providers.Provider's parameter types are unexported
+// (see above), so this package can't substitute a misbehaving fake to force
+// that branch either. It is exercised here only implicitly, by the fact that
+// every other test's realistic response bodies all marshal successfully.
+
+// jsonEqual compares two JSON strings for structural equality (whitespace/key
+// order shouldn't matter — original_response is re-encoded raw bytes, not a
+// byte-for-byte guarantee).
+func jsonEqual(t *testing.T, a, b string) bool {
+	t.Helper()
+	var av, bv interface{}
+	if err := json.Unmarshal([]byte(a), &av); err != nil {
+		t.Fatalf("invalid JSON %q: %v", a, err)
+	}
+	if err := json.Unmarshal([]byte(b), &bv); err != nil {
+		t.Fatalf("invalid JSON %q: %v", b, err)
+	}
+	aBytes, _ := json.Marshal(av)
+	bBytes, _ := json.Marshal(bv)
+	return string(aBytes) == string(bBytes)
 }
