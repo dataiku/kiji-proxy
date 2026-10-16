@@ -103,11 +103,12 @@
       "USERNAME": "Username"
     },
     "expiration": {
+      "uncertain": "The save could not be confirmed and may already have reached the server. Your edits are kept; refresh or retry to check the current settings.",
       "title": "Mapping expiration",
       "enabled": "Expire mappings",
       "seconds": "Lifetime (seconds)",
       "save": "Save expiration settings",
-      "help": "Default: 300 seconds from creation. Applies to all clients connected to this server, including existing mappings. Expired values stay masked; using a mapping does not extend its lifetime.",
+      "help": "Default: 300 seconds from creation. Applies to all clients and existing mappings. Active requests keep their mappings until the response finishes. Later requests cannot reuse expired mappings.",
       "error": "Could not load or save expiration settings. Check the server connection and reopen Settings to retry.",
       "invalid": "Enter a whole number from 1 to 2147483647.",
       "refresh": "Refresh settings",

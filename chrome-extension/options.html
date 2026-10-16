@@ -87,7 +87,7 @@
               <div class="form-group">
                 <label for="expiration-seconds">Lifetime (seconds)</label>
                 <input id="expiration-seconds" class="input-mono" type="number" min="1" max="2147483647" step="1" value="300" required />
-                <p class="form-help">Default: 300 seconds from creation. Applies to all clients connected to this server, including existing mappings. Expired values stay masked. Using a mapping does not extend its lifetime.</p>
+                <p class="form-help">Default: 300 seconds from creation. Applies to all clients and existing mappings. Active requests keep their mappings until the response finishes. Later requests cannot reuse expired mappings.</p>
               </div>
               <button type="submit" class="btn-primary">Save expiration settings</button>
             </fieldset>

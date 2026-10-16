@@ -45,11 +45,10 @@ type PIIMappingDB interface {
 	// StoreMapping stores a PII mapping in the database with confidence level
 	StoreMapping(ctx context.Context, original, dummy string, piiType string, confidence float64) error
 
-	// GetDummy retrieves dummy data for original PII
-	GetDummy(ctx context.Context, original string) (string, bool, error)
-
-	// GetOriginal retrieves original PII for dummy data
-	GetOriginal(ctx context.Context, dummy string) (string, bool, error)
+	// BeginMappingSnapshot opens an indexed read view; the caller must close it.
+	BeginMappingSnapshot(ctx context.Context) (MappingSnapshot, error)
+	// QueueMappingAccesses records best-effort statistics without blocking requests.
+	QueueMappingAccesses(pairs map[string]string)
 
 	// DeleteMapping removes a mapping from the database
 	DeleteMapping(ctx context.Context, original string) error
@@ -115,14 +114,27 @@ type OpenAIMessage struct {
 
 // SQLitePIIMappingDB implements PIIMappingDB and LoggingDB for SQLite
 type SQLitePIIMappingDB struct {
-	db         *sql.DB
-	debugMode  bool
-	expiration atomic.Pointer[config.MappingExpirationConfig]
-	mappingMu  sync.Mutex // serializes policy transitions with mapping operations
+	db                 *sql.DB
+	readDB             *sql.DB
+	maintenanceDB      *sql.DB
+	maintenanceCancel  context.CancelFunc
+	maintenanceWG      sync.WaitGroup
+	maintenanceMu      sync.Mutex
+	maintenanceStopped bool
+	accessQueue        chan map[string]string
+	closeOnce          sync.Once
+	closeErr           error
+	debugMode          bool
+	expiration         atomic.Pointer[config.MappingExpirationConfig]
+	mappingMu          sync.Mutex // serializes policy transitions with multi-statement mapping mutations
 }
 
 // NewSQLitePIIMappingDB creates a new SQLite PII mapping database
 func NewSQLitePIIMappingDB(ctx context.Context, cfg DatabaseConfig) (*SQLitePIIMappingDB, error) {
+	return newSQLitePIIMappingDB(ctx, cfg, mappingCleanupInterval)
+}
+
+func newSQLitePIIMappingDB(ctx context.Context, cfg DatabaseConfig, cleanupInterval time.Duration) (*SQLitePIIMappingDB, error) {
 	dbPath := cfg.Path
 	if dbPath == "" {
 		dbPath = filepath.Join(paths.AppDataDir(), "kiji_privacy_proxy.db")
@@ -161,6 +173,27 @@ func NewSQLitePIIMappingDB(ctx context.Context, cfg DatabaseConfig) (*SQLitePIIM
 		_ = db.Close()
 		return nil, err
 	}
+	readDB, err := sql.Open("sqlite", dsn+"&_pragma=query_only(ON)")
+	if err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+	// Separate WAL readers let detection keep its view while writers retire rows.
+	readDB.SetMaxOpenConns(mappingReadLimit)
+	readDB.SetMaxIdleConns(4)
+	store.readDB = readDB
+	// Background writes have their own fixed short busy timeout; never alter the
+	// request writer's connection settings, including on failures or cancellation.
+	maintenanceDB, err := sql.Open("sqlite", fmt.Sprintf("file:%s?_pragma=journal_mode(WAL)&_pragma=busy_timeout(100)&_pragma=foreign_keys(ON)", dbPath))
+	if err != nil {
+		_ = readDB.Close()
+		_ = db.Close()
+		return nil, err
+	}
+	maintenanceDB.SetMaxOpenConns(1)
+	maintenanceDB.SetMaxIdleConns(1)
+	store.maintenanceDB = maintenanceDB
+	store.startMaintenance(cleanupInterval)
 	return store, nil
 }
 
@@ -216,53 +249,6 @@ func (s *SQLitePIIMappingDB) MappingExpiration() config.MappingExpirationConfig 
 // expireMappings must be called with mappingMu held.
 func (s *SQLitePIIMappingDB) expireMappings(ctx context.Context) error {
 	return expireMappingsWithPolicy(ctx, s.db, s.MappingExpiration())
-}
-
-// getValue retrieves a value from the database with access statistics update
-func (s *SQLitePIIMappingDB) getValue(ctx context.Context, key string, isOriginalToDummy bool) (string, bool, error) {
-	s.mappingMu.Lock()
-	defer s.mappingMu.Unlock()
-	if err := s.expireMappings(ctx); err != nil {
-		return "", false, err
-	}
-	var query string
-	var updateQuery string
-
-	if isOriginalToDummy {
-		query = `SELECT dummy_pii FROM pii_mappings WHERE original_pii = ?`
-		updateQuery = `UPDATE pii_mappings SET last_accessed_at = datetime('now'), access_count = access_count + 1 WHERE original_pii = ?`
-	} else {
-		query = `SELECT original_pii FROM pii_mappings WHERE dummy_pii = ?`
-		updateQuery = `UPDATE pii_mappings SET last_accessed_at = datetime('now'), access_count = access_count + 1 WHERE dummy_pii = ?`
-	}
-
-	var value string
-	policy := s.MappingExpiration()
-	query += ` AND (? = 0 OR created_at > strftime('%Y-%m-%d %H:%M:%f', 'now', ?))`
-	err := s.db.QueryRowContext(ctx, query, key, policy.Enabled, fmt.Sprintf("-%d seconds", policy.TTLSeconds)).Scan(&value)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return "", false, nil
-		}
-		return "", false, err
-	}
-
-	// Update access statistics
-	if _, err := s.db.ExecContext(ctx, updateQuery, key); err != nil {
-		fmt.Printf("Warning: failed to update access statistics: %v\n", err)
-	}
-
-	return value, true, nil
-}
-
-// GetDummy retrieves dummy data for original PII
-func (s *SQLitePIIMappingDB) GetDummy(ctx context.Context, original string) (string, bool, error) {
-	return s.getValue(ctx, original, true)
-}
-
-// GetOriginal retrieves original PII for dummy data
-func (s *SQLitePIIMappingDB) GetOriginal(ctx context.Context, dummy string) (string, bool, error) {
-	return s.getValue(ctx, dummy, false)
 }
 
 // DeleteMapping removes a mapping from the database
@@ -427,7 +413,11 @@ func (s *SQLitePIIMappingDB) GetMappings(ctx context.Context, limit int, offset 
 
 // Close closes the database connection
 func (s *SQLitePIIMappingDB) Close() error {
-	return s.db.Close()
+	s.closeOnce.Do(func() {
+		s.stopMaintenance()
+		s.closeErr = errors.Join(s.maintenanceDB.Close(), s.readDB.Close(), s.db.Close())
+	})
+	return s.closeErr
 }
 
 // LogEntry represents a single PII detection entry for logging

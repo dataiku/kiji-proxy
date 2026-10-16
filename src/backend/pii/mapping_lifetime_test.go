@@ -42,10 +42,10 @@ func TestMappingLifetimeReservationSurvivesDeletionAndRestart(t *testing.T) {
 	if current == "dummy" {
 		t.Fatal("reservation lost on restart")
 	}
-	if _, found, err := db.GetOriginal(ctx, "dummy"); err != nil || found {
+	if _, found, err := lookupForTest(ctx, db, "dummy", false); err != nil || found {
 		t.Fatal("deleted dummy is unmaskable again")
 	}
-	if got, found, err := db.GetOriginal(ctx, current); err != nil || !found || got != "Alice" {
+	if got, found, err := lookupForTest(ctx, db, current, false); err != nil || !found || got != "Alice" {
 		t.Fatalf("new generation cannot unmask: %q %v %v", got, found, err)
 	}
 }
@@ -74,7 +74,7 @@ func TestMappingLifetimeMigratesExistingDummies(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	if _, found, err := db.GetOriginal(ctx, "legacy-dummy"); err != nil || !found {
+	if _, found, err := lookupForTest(ctx, db, "legacy-dummy", false); err != nil || !found {
 		t.Fatal("legacy disabled policy ignored")
 	}
 	if err := db.DeleteMapping(ctx, "Alice"); err != nil {
@@ -111,7 +111,7 @@ func TestMappingLifetimeConcurrentCreationAndPolicyChanges(t *testing.T) {
 					t.Errorf("concurrent creation minted inconsistent dummy: %q", token)
 					return
 				}
-				if got, found, err := db.GetOriginal(ctx, token); err != nil || !found || got != "Alice" {
+				if got, found, err := lookupForTest(ctx, db, token, false); err != nil || !found || got != "Alice" {
 					t.Errorf("lookup: %q %v %v", got, found, err)
 					return
 				}

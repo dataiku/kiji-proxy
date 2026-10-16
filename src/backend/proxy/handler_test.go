@@ -128,15 +128,30 @@ func (m *mockMappingDB) StoreMapping(_ context.Context, original, dummy, piiType
 	return nil
 }
 
-func (m *mockMappingDB) GetDummy(_ context.Context, original string) (string, bool, error) {
-	v, ok := m.mappings[original]
-	return v, ok, nil
+type mockMappingSnapshot map[string]string
+
+func (s mockMappingSnapshot) Lookup(_ context.Context, key string, forward bool) (string, bool, error) {
+	if forward {
+		value, found := s[key]
+		return value, found, nil
+	}
+	for original, dummy := range s {
+		if dummy == key {
+			return original, true, nil
+		}
+	}
+	return "", false, nil
+}
+func (s mockMappingSnapshot) Close() error { return nil }
+func (m *mockMappingDB) BeginMappingSnapshot(_ context.Context) (piiServices.MappingSnapshot, error) {
+	pairs := make(mockMappingSnapshot, len(m.mappings))
+	for original, dummy := range m.mappings {
+		pairs[original] = dummy
+	}
+	return pairs, nil
 }
 
-func (m *mockMappingDB) GetOriginal(_ context.Context, dummy string) (string, bool, error) {
-	v, ok := m.reverse[dummy]
-	return v, ok, nil
-}
+func (m *mockMappingDB) QueueMappingAccesses(_ map[string]string) {}
 
 func (m *mockMappingDB) DeleteMapping(_ context.Context, original string) error {
 	if dummy, ok := m.mappings[original]; ok {
@@ -991,7 +1006,10 @@ func TestHandler_MaskPIIInText(t *testing.T) {
 	}
 	h := newTestHandler(t, detector, nil)
 
-	maskedText, mapping, entities := h.maskPIIInText("Hello John", "[test]")
+	maskedText, mapping, entities, err := h.maskPIIInText(context.Background(), "Hello John", "[test]")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if maskedText == "Hello John" {
 		t.Error("expected text to be masked")
@@ -1008,7 +1026,10 @@ func TestHandler_MaskPIIInText_NoPII(t *testing.T) {
 	detector := &mockDetector{entities: []pii.Entity{}}
 	h := newTestHandler(t, detector, nil)
 
-	maskedText, mapping, entities := h.maskPIIInText("Hello world", "[test]")
+	maskedText, mapping, entities, err := h.maskPIIInText(context.Background(), "Hello world", "[test]")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if maskedText != "Hello world" {
 		t.Errorf("expected unchanged text, got %q", maskedText)
@@ -1035,7 +1056,10 @@ func TestHandler_MaskPIIInText_DisabledEntityPassesThrough(t *testing.T) {
 	// Disable EMAIL only; it must pass through unmasked while FIRSTNAME is masked.
 	h.SetDisabledEntities([]string{"EMAIL"})
 
-	maskedText, mapping, entities := h.maskPIIInText("John a@b.com", "[test]")
+	maskedText, mapping, entities, err := h.maskPIIInText(context.Background(), "John a@b.com", "[test]")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if len(entities) != 1 || entities[0].Label != "FIRSTNAME" {
 		t.Fatalf("expected only the FIRSTNAME entity, got %+v", entities)
@@ -1064,7 +1088,10 @@ func TestHandler_MaskPIIInText_EmptyDisabledMasksAll(t *testing.T) {
 
 	h.SetDisabledEntities([]string{}) // explicit empty => mask everything
 
-	maskedText, mapping, entities := h.maskPIIInText("John here", "[test]")
+	maskedText, mapping, entities, err := h.maskPIIInText(context.Background(), "John here", "[test]")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if strings.Contains(maskedText, "John") {
 		t.Errorf("expected FIRSTNAME to be masked when nothing is disabled, got %q", maskedText)
@@ -1149,10 +1176,10 @@ func TestTruncatePreview(t *testing.T) {
 func TestHandler_HandleUnmask(t *testing.T) {
 	detector := &mockDetector{entities: []pii.Entity{}}
 	h := newTestHandler(t, detector, nil)
-	if _, err := h.piiMapping.AddMapping("John Smith", "Nicole Brown", "NAME", 0.9); err != nil {
+	if _, err := h.piiMapping.AddMapping(context.Background(), "John Smith", "Nicole Brown", "NAME", 0.9); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := h.piiMapping.AddMapping("john@example.com", "nicole.brown@example.invalid", "EMAIL", 0.95); err != nil {
+	if _, err := h.piiMapping.AddMapping(context.Background(), "john@example.com", "nicole.brown@example.invalid", "EMAIL", 0.95); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1279,4 +1306,14 @@ func TestHandler_HandleUnmask_NilStore(t *testing.T) {
 	if w.Code != http.StatusServiceUnavailable {
 		t.Errorf("status = %d, want %d", w.Code, http.StatusServiceUnavailable)
 	}
+}
+
+func unmaskForTest(t *testing.T, mapping *piiServices.PIIMapping, dummy string) (string, bool) {
+	t.Helper()
+	result, err := mapping.UnmaskMappings(context.Background(), []string{dummy})
+	if err != nil {
+		t.Fatal(err)
+	}
+	value, found := result[dummy]
+	return value, found
 }

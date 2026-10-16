@@ -52,6 +52,11 @@ func (s *Server) handleMappingExpiration(w http.ResponseWriter, r *http.Request)
 			_ = json.NewEncoder(w).Encode(previous)
 			return
 		}
+		previousOverride, err := s.persistedExpiration()
+		if err != nil {
+			http.Error(w, "Failed to read mapping expiration settings", http.StatusInternalServerError)
+			return
+		}
 		settings := &config.PIISettings{
 			DisabledEntities:  s.handler.GetDisabledEntities(),
 			CustomRegexes:     s.handler.GetCustomRegexes(),
@@ -65,13 +70,14 @@ func (s *Server) handleMappingExpiration(w http.ResponseWriter, r *http.Request)
 		if err := s.handler.SetMappingExpiration(policy); err != nil {
 			// The database transition rolls back on failure. Keep the startup
 			// overlay in agreement with that unchanged runtime policy.
-			settings.MappingExpiration = &previous
+			settings.MappingExpiration = previousOverride
 			if rollbackErr := config.SavePIISettings(settings); rollbackErr != nil {
 				log.Printf("Failed to restore PII settings after rejected policy change: %v", rollbackErr)
 			}
 			http.Error(w, err.Error(), http.StatusServiceUnavailable)
 			return
 		}
+		s.expirationOverride = &policy
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return

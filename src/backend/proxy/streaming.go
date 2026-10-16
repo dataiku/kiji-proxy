@@ -117,7 +117,6 @@ type sniffedBody struct {
 // its provider's grammar. transformEvent receives the raw lines of one event
 // (up to and including the blank terminator) and returns the bytes to write.
 type streamCodec interface {
-	setMappingValidator(func(string, string) bool)
 	transformEvent(lines [][]byte) []byte
 	// flushTail emits any text still held in carry buffers as synthetic delta
 	// events. Called when the upstream stream ends (EOF) so a stream that never
@@ -140,7 +139,6 @@ type streamCodec interface {
 // accumulated for audit logging. Codecs embed it so they only implement their
 // own event grammar.
 type restoreCore struct {
-	validMapping func(string, string) bool
 	keys         []string          // dummy values, longest-first
 	vals         map[string]string // dummy → original
 	jsonVals     map[string]string // dummy → original, JSON-string-escaped
@@ -199,9 +197,6 @@ func newRestoreCore(mapping map[string]string) restoreCore {
 // ReplaceAll calls (chained substitution corrupts restoration when a dummy
 // coincides with another mapping's original).
 func (c *restoreCore) restore(text string) string {
-	if c.validMapping != nil {
-		return processor.BuildRestorer(c.activeMappings(text, false)).Replace(text)
-	}
 	return c.replacer.Replace(text)
 }
 
@@ -209,31 +204,7 @@ func (c *restoreCore) restore(text string) string {
 // string value, e.g. tool-call arguments: originals are JSON-escaped so a
 // restored quote or backslash cannot break the JSON the client reassembles.
 func (c *restoreCore) restoreJSON(text string) string {
-	if c.validMapping != nil {
-		return processor.BuildRestorer(c.activeMappings(text, true)).Replace(text)
-	}
 	return c.jsonReplacer.Replace(text)
-}
-
-func (c *restoreCore) setMappingValidator(valid func(string, string) bool) { c.validMapping = valid }
-
-func (c *restoreCore) activeMappings(text string, jsonCtx bool) map[string]string {
-	result := make(map[string]string)
-	for dummy, original := range c.vals {
-		if !strings.Contains(text, dummy) {
-			continue
-		}
-		if !c.validMapping(dummy, original) {
-			result[dummy] = dummy
-		} else {
-			if jsonCtx {
-				result[dummy] = c.jsonVals[dummy]
-			} else {
-				result[dummy] = original
-			}
-		}
-	}
-	return result
 }
 
 // streamRestore restores dummies in buf — the raw (pre-restore) text
@@ -269,11 +240,7 @@ func (c *restoreCore) streamRestore(buf string, jsonCtx bool) (emit, hold string
 		matched := false
 		for _, k := range c.keys {
 			if strings.HasPrefix(rest, k) {
-				if c.validMapping == nil || c.validMapping(k, c.vals[k]) {
-					out.WriteString(vals[k])
-				} else {
-					out.WriteString(k)
-				}
+				out.WriteString(vals[k])
 				i += len(k)
 				matched = true
 				break
@@ -446,12 +413,4 @@ func codecForProvider(provider *providers.Provider, mapping map[string]string) s
 		return newOpenAICodec(mapping)
 	}
 	return newAnthropicCodec(mapping)
-}
-
-func (h *Handler) codecForProvider(provider *providers.Provider, mapping map[string]string) streamCodec {
-	codec := codecForProvider(provider, mapping)
-	if h.piiMapping != nil {
-		codec.setMappingValidator(h.piiMapping.IsValid)
-	}
-	return codec
 }

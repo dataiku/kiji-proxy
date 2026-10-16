@@ -172,7 +172,7 @@ test('failed saves preserve the draft and can be retried', async () => {
   let fail = true;
   const store = createMappingExpirationStore('/policy', async (_, init) => {
     if (init?.method !== 'POST') return response(policy(300));
-    if (fail) throw new Error('offline');
+    if (fail) return response({}, 500);
     return response(policy(90));
   });
   await store.refresh();
@@ -224,3 +224,286 @@ test('visible settings poll for side-by-side changes and stop polling when hidde
   stop();
   assert.equal(stopped, true);
 });
+
+function requestDeadlines() {
+  const callbacks = new Set();
+  return {
+    schedule(callback) {
+      callbacks.add(callback);
+      return () => callbacks.delete(callback);
+    },
+    expire() { for (const callback of [...callbacks]) callback(); },
+    size: () => callbacks.size,
+  };
+}
+
+for (const stalledPart of ['headers', 'body']) {
+  test(`polling recovers from stalled ${stalledPart} without losing a draft or accepting late data`, async () => {
+    const deadlines = requestDeadlines();
+    const late = deferred();
+    let calls = 0, stalledSignal, poll;
+    const store = createMappingExpirationStore('/policy', async (_, init) => {
+      calls++;
+      if (calls === 2) {
+        stalledSignal = init.signal;
+        return stalledPart === 'headers' ? late.promise : { ok: true, json: () => late.promise };
+      }
+      return response(policy(calls === 1 ? 300 : 120));
+    }, deadlines.schedule);
+    const stop = store.watch(new EventTarget(), Object.assign(new EventTarget(), { visibilityState: 'visible' }), callback => {
+      poll = callback;
+      return () => {};
+    });
+    await tick();
+    store.edit({ seconds: '90' });
+    poll();
+    await tick();
+    poll();
+    assert.equal(calls, 2);
+    deadlines.expire();
+    await tick();
+    assert.equal(stalledSignal.aborted, true);
+    assert.equal(store.getSnapshot().status, 'error');
+    assert.equal(store.getSnapshot().seconds, '90');
+    poll();
+    await tick();
+    assert.equal(calls, 3);
+    assert.equal(store.getSnapshot().status, 'conflict');
+    assert.equal(store.getSnapshot().latest.ttl_seconds, 120);
+    assert.equal(store.getSnapshot().seconds, '90');
+    late.resolve(stalledPart === 'headers' ? response(policy(600)) : policy(600));
+    await tick();
+    assert.equal(store.getSnapshot().latest.ttl_seconds, 120);
+    stop();
+    assert.equal(deadlines.size(), 0);
+  });
+}
+
+test('superseding a refresh and unmounting abort outstanding requests and clear deadlines', async () => {
+  const deadlines = requestDeadlines();
+  const signals = [];
+  const store = createMappingExpirationStore('/policy', (_, init) => {
+    signals.push(init.signal);
+    return new Promise(() => {});
+  }, deadlines.schedule);
+  const stop = store.watch(new EventTarget(), Object.assign(new EventTarget(), { visibilityState: 'visible' }));
+  const refresh = store.refresh();
+  await tick();
+  assert.equal(signals[0].aborted, true);
+  assert.equal(deadlines.size(), 1);
+  stop();
+  await refresh;
+  assert.equal(signals[1].aborted, true);
+  assert.equal(deadlines.size(), 0);
+  assert.equal(store.getSnapshot().status, null);
+});
+
+test('a timed-out save retains edits, releases the form, and reconciles a server-side success', async () => {
+  const deadlines = requestDeadlines();
+  let current = policy(300), saveSignal;
+  const store = createMappingExpirationStore('/policy', async (_, init) => {
+    if (init.method === 'POST') {
+      current = policy(90); // The server commits, but the reply never arrives.
+      saveSignal = init.signal;
+      return new Promise(() => {});
+    }
+    return response(current);
+  }, deadlines.schedule);
+  await store.refresh();
+  store.edit({ seconds: '90' });
+  const save = store.save();
+  deadlines.expire();
+  await save;
+  assert.equal(saveSignal.aborted, true);
+  assert.equal(store.getSnapshot().saving, false);
+  assert.equal(store.getSnapshot().seconds, '90');
+  assert.equal(store.getSnapshot().status, 'uncertain');
+  await store.refresh();
+  assert.equal(store.getSnapshot().status, 'saved');
+  assert.deepEqual(store.getSnapshot().latest, current);
+  assert.equal(deadlines.size(), 0);
+});
+
+test('unchanged refreshes retain save confirmations and failed-save messages', async () => {
+  const f = fixture();
+  await f.store.refresh();
+  f.store.edit({ seconds: '90' });
+  await f.store.save();
+  await f.store.refresh();
+  assert.equal(f.store.getSnapshot().status, 'saved');
+  f.remote(policy(120));
+  await f.store.refresh();
+  assert.equal(f.store.getSnapshot().status, null);
+
+  const store = createMappingExpirationStore('/policy', async (_, init) => {
+    if (init.method === 'POST') return response({}, 500);
+    return response(policy(300));
+  });
+  await store.refresh();
+  store.edit({ seconds: '90' });
+  await store.save();
+  await store.refresh();
+  assert.equal(store.getSnapshot().status, 'error');
+  assert.equal(store.getSnapshot().seconds, '90');
+});
+
+for (const retry of [false, true]) {
+  test(`uncertain save adopts server success and preserves newer edits (${retry ? 'retry' : 'refresh'})`, async () => {
+    const deadlines = requestDeadlines();
+    let current = policy(300), posts = 0;
+    const store = createMappingExpirationStore('/policy', async (_, init) => {
+      if (init.method === 'POST') {
+        posts++;
+        const body = JSON.parse(init.body);
+        if (posts === 1) {
+          current = policy(90);
+          return new Promise(() => {});
+        }
+        assert.deepEqual(body.expected, policy(90));
+        current = policy(body.ttl_seconds, body.enabled);
+      }
+      return response(current);
+    }, deadlines.schedule);
+    await store.refresh();
+    store.edit({ seconds: '90' });
+    const save = store.save();
+    deadlines.expire();
+    await save;
+    store.edit({ seconds: '120', enabled: false });
+    if (retry) await store.save();
+    else await store.refresh();
+    assert.equal(store.getSnapshot().seconds, '120');
+    assert.equal(store.getSnapshot().enabled, false);
+    assert.equal(store.getSnapshot().status, retry ? 'saved' : null);
+    assert.deepEqual(store.getSnapshot().baseline, retry ? policy(120, false) : policy(90));
+    assert.equal(posts, retry ? 2 : 1);
+    assert.equal(deadlines.size(), 0);
+  });
+}
+
+test('retry checks an uncertain save and avoids a redundant POST if already applied', async () => {
+  const deadlines = requestDeadlines();
+  let current = policy(300), posts = 0;
+  const store = createMappingExpirationStore('/policy', async (_, init) => {
+    if (init.method === 'POST') {
+      posts++;
+      current = policy(90);
+      return new Promise(() => {});
+    }
+    return response(current);
+  }, deadlines.schedule);
+  await store.refresh();
+  store.edit({ seconds: '90' });
+  const save = store.save();
+  deadlines.expire();
+  await save;
+  await store.save();
+  assert.equal(posts, 1);
+  assert.equal(store.getSnapshot().status, 'saved');
+});
+
+test('a save completing after retry preflight is recognized from its matching 409', async () => {
+  const deadlines = requestDeadlines();
+  let posts = 0;
+  const store = createMappingExpirationStore('/policy', async (_, init) => {
+    if (init.method === 'POST') {
+      if (++posts === 1) return new Promise(() => {});
+      return response(policy(90), 409);
+    }
+    return response(policy(300));
+  }, deadlines.schedule);
+  await store.refresh();
+  store.edit({ seconds: '90' });
+  const save = store.save();
+  deadlines.expire();
+  await save;
+  await store.save();
+  assert.equal(posts, 2);
+  assert.equal(store.getSnapshot().status, 'saved');
+  assert.deepEqual(store.getSnapshot().baseline, policy(90));
+});
+
+test('uncertain saves still protect drafts from genuinely different remote changes', async () => {
+  const deadlines = requestDeadlines();
+  let current = policy(300), posts = 0;
+  const store = createMappingExpirationStore('/policy', async (_, init) => {
+    if (init.method === 'POST') { posts++; return new Promise(() => {}); }
+    return response(current);
+  }, deadlines.schedule);
+  await store.refresh();
+  store.edit({ seconds: '90' });
+  const save = store.save();
+  deadlines.expire();
+  await save;
+  current = policy(120);
+  await store.save();
+  assert.equal(posts, 1);
+  assert.equal(store.getSnapshot().seconds, '90');
+  assert.equal(store.getSnapshot().status, 'conflict');
+});
+
+test('reverting a draft to the old baseline during an uncertain save is preserved', async () => {
+  const deadlines = requestDeadlines();
+  let current = policy(300);
+  const store = createMappingExpirationStore('/policy', async (_, init) => {
+    if (init.method === 'POST') { current = policy(90); return new Promise(() => {}); }
+    return response(current);
+  }, deadlines.schedule);
+  await store.refresh();
+  store.edit({ seconds: '90' });
+  const save = store.save();
+  deadlines.expire();
+  await save;
+  store.edit({ seconds: '300' });
+  await store.refresh();
+  assert.equal(store.getSnapshot().seconds, '300');
+  assert.deepEqual(store.getSnapshot().baseline, policy(90));
+  assert.equal(store.getSnapshot().status, null);
+});
+
+for (const newerDraft of [false, true]) {
+  test(`a definite retry failure stays an error after an earlier timeout (${newerDraft ? 'new' : 'same'} draft)`, async () => {
+    const deadlines = requestDeadlines();
+    let current = policy(300), posts = 0, failReads = false;
+    const store = createMappingExpirationStore('/policy', async (_, init) => {
+      if (init.method === 'POST') {
+        posts++;
+        if (posts === 1) return new Promise(() => {});
+        if (posts === 2) return response({}, 503);
+        const body = JSON.parse(init.body);
+        assert.deepEqual(body.expected, policy(90));
+        current = policy(body.ttl_seconds);
+      }
+      if (failReads) throw new Error('offline');
+      return response(current);
+    }, deadlines.schedule);
+    await store.refresh();
+    store.edit({ seconds: '90' });
+    const first = store.save();
+    deadlines.expire();
+    await first;
+    assert.equal(store.getSnapshot().status, 'uncertain');
+    if (newerDraft) store.edit({ seconds: '120' });
+    await store.save();
+    assert.equal(store.getSnapshot().status, 'error');
+    await store.refresh();
+    assert.equal(store.getSnapshot().status, 'error');
+    failReads = true;
+    await store.refresh();
+    assert.equal(store.getSnapshot().status, 'error');
+    failReads = false;
+    // The first POST eventually commits: retain its identity for reconciliation.
+    current = policy(90);
+    await store.refresh();
+    assert.deepEqual(store.getSnapshot().baseline, policy(90));
+    assert.equal(store.getSnapshot().seconds, newerDraft ? '120' : '90');
+    assert.equal(store.getSnapshot().status, newerDraft ? 'error' : 'saved');
+    if (newerDraft) {
+      await store.refresh();
+      assert.equal(store.getSnapshot().status, 'error');
+      await store.save();
+      assert.equal(store.getSnapshot().status, 'saved');
+    }
+    assert.equal(deadlines.size(), 0);
+  });
+}

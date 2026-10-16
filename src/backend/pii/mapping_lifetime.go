@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/dataiku/kiji-proxy/src/backend/config"
@@ -19,11 +18,19 @@ type mappingExecer interface {
 	ExecContext(context.Context, string, ...interface{}) (sql.Result, error)
 }
 
+// liveMappingAtBoundary is shared by snapshots and physical cleanup. The one
+// parameter is the operation's fixed UTC boundary; policy columns are supplied
+// either by the persisted singleton or the explicit transition policy CTE.
+const liveMappingAtBoundary = `(enabled = 0 OR pii_mappings.created_at > strftime('%Y-%m-%d %H:%M:%f', ?, printf('-%d seconds', ttl_seconds)))`
+
+func mappingTimeBoundary() string { return time.Now().UTC().Format("2006-01-02 15:04:05.000") }
+
 func expireMappingsWithPolicy(ctx context.Context, db mappingExecer, policy config.MappingExpirationConfig) error {
 	if !policy.Enabled {
 		return nil
 	}
-	_, err := db.ExecContext(ctx, `DELETE FROM pii_mappings WHERE created_at <= strftime('%Y-%m-%d %H:%M:%f', 'now', ?)`, fmt.Sprintf("-%d seconds", policy.TTLSeconds))
+	_, err := db.ExecContext(ctx, `WITH policy(enabled, ttl_seconds) AS (VALUES (?,?))
+ DELETE FROM pii_mappings WHERE EXISTS (SELECT 1 FROM policy WHERE NOT `+liveMappingAtBoundary+`)`, policy.Enabled, policy.TTLSeconds, mappingTimeBoundary())
 	return err
 }
 

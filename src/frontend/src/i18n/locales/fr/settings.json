@@ -103,11 +103,12 @@
       "USERNAME": "Nom d'utilisateur"
     },
     "expiration": {
+      "uncertain": "L’enregistrement n’a pas pu être confirmé et a peut-être déjà été appliqué sur le serveur. Vos modifications sont conservées ; actualisez ou réessayez pour vérifier les paramètres.",
       "title": "Expiration des correspondances",
       "enabled": "Activer l’expiration",
       "seconds": "Durée de vie (secondes)",
       "save": "Enregistrer l’expiration",
-      "help": "Par défaut : 300 secondes après la création. S’applique à tous les clients connectés à ce serveur et aux correspondances existantes. Les valeurs expirées restent masquées ; leur utilisation ne prolonge pas leur durée de vie.",
+      "help": "Par défaut : 300 secondes après la création. S’applique à tous les clients et aux correspondances existantes. Les requêtes en cours conservent leurs correspondances jusqu’à la fin de la réponse. Les requêtes suivantes ne peuvent pas réutiliser les correspondances expirées.",
       "error": "Impossible de charger ou d’enregistrer les paramètres. Vérifiez la connexion au serveur et rouvrez les paramètres pour réessayer.",
       "invalid": "Saisissez un nombre entier entre 1 et 2147483647.",
       "refresh": "Actualiser les paramètres",

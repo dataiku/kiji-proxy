@@ -58,7 +58,9 @@ based on their original creation time. UI changes are saved in
 `pii_settings.json` in the application data directory and override the static
 config on restart. Remove that file's `mapping_expiration` property to return
 control to the static config. Older settings files without this property keep
-the config value (or the 300-second default).
+the config value (or the 300-second default). Saving entity or regex settings
+preserves an existing expiration override but does not create one; only an
+explicit expiration save takes control away from the static config.
 
 The Mac settings refresh when the window regains focus or becomes visible, and
 every five seconds while Settings remains visible. A
@@ -66,16 +68,24 @@ refresh preserves unsaved edits; if another client changed the policy, choose
 **Use server settings** or **Keep my edits** before saving. Saves check the policy
 the editor originally loaded, so changes arriving just before a save are also
 detected. Chrome reports conflicting saves and lets you reload the server settings.
+Mac settings requests time out after ten seconds, allowing polling to recover
+without discarding drafts. Superseded requests are cancelled, and late responses
+cannot overwrite newer settings. A timed-out save remains uncertain until a
+refresh confirms it. If a later retry receives a definite server error, the UI
+shows that error while still reconciling the earlier save and preserving newer edits.
 
-Expiration is checked during masking, unmasking, response restoration (including
-streamed responses), mapping list/count reads, and policy changes. A policy
+Expiration is checked when a masking request or standalone unmask operation
+starts, on global mapping lookups, on mapping list/count reads, and on policy
+changes. A policy
 change removes rows expired under either the old or new policy in one
 transaction; extending or disabling expiration cannot revive them. The previous
 policy is retained in the database so changing the config during a restart
-cannot revive them either. Idle servers do not need a cleanup timer to enforce
-expiration. Masking
+cannot revive them either. A background cleanup runs every second, independently
+of request traffic, and retries after database contention. This removes expired
+rows even on idle servers; it does not guarantee immediate secure erasure from
+SQLite files or backups. Active request snapshots retain their original view. Masking
 an expired original creates a new mapping. Unmasking an expired dummy returns
-not found; expired values in provider responses stay masked. Reads do not renew
+not found. Reads do not renew
 the lifetime. Turning expiration off retains mappings until they are deleted;
 it does not recover expired rows. This setting controls mappings, not the
 separate activity logs.
@@ -88,11 +98,43 @@ and clearing mappings; these reservations contain no original PII and grow with
 the number of distinct placeholders. Existing live mappings keep their current
 placeholders during migration.
 
-For long-running streams, values emitted before expiration remain in the
-client's earlier output; later occurrences stay masked. Expired longer
-placeholders also shield any shorter active placeholders inside them. Stream
-audit logs accumulate the emitted deltas and flushed tails, so expiration or a
-settings change does not rewrite the earlier audit text.
+Each proxied request takes a mapping snapshot before detection and uses it
+across all message fields. The mappings actually used by that request remain
+available in memory through the upstream wait and the complete response,
+including streamed deltas, final payloads, tool arguments, and buffered replies.
+Expiration, deletion, or an expiration-settings change during the request does
+not change those mappings. After the request finishes, its snapshot is discarded;
+a later request or standalone unmask call cannot reuse an expired pair. A
+standalone batch unmask also uses one snapshot for its whole operation.
+
+The database snapshot stays open only during detection and masking. Indexed
+lookups read just the detected values, and a per-request cache reuses them across
+fields. Before waiting for the upstream response, the database snapshot closes;
+only used pairs remain in the response map. Standalone unmasking likewise reads
+only the requested dummy values and returns a service error if the database read
+fails, rather than reporting those values as missing.
+
+Read connections are capped at 16. Acquisition occurs before detection, observes
+request cancellation, and waits at most five seconds for a slot. This acquisition
+deadline does not shorten an acquired snapshot's lifetime. Exhausted acquisition
+or failed mapping reads return HTTP 503 without forwarding the request.
+Cancellation stops remaining lookups and mapping creation. Long detection inference can
+still delay WAL checkpoints; snapshots close before the upstream wait.
+
+Taking a snapshot is read-only. Each reused pair is counted once per masking
+request or standalone unmask batch. Counts are updated in one best-effort batch
+by a background worker after closing the snapshot. Requests never wait for this
+write. The worker uses a separate connection with a fixed 100-millisecond busy
+timeout and a 100-millisecond operation budget. Its queue holds at most 64 batches;
+batches exceeding 1024 pairs or 128 KiB are skipped. Counts may be dropped under
+load or at shutdown, but cannot discard resolved unmask results.
+Response restoration does not touch the database or inflate access statistics.
+In addition to periodic cleanup, mapping creation, list/count reads, and policy
+changes retire expired rows. Missing or expired snapshot
+lookups do not issue cleanup writes.
+The request snapshot neither renews timestamps nor recreates expired rows.
+Stream audit logs capture exactly the restored deltas and flushed tails emitted
+to the client, without duplicating final payloads.
 
 For automation, `GET /api/pii/mapping-expiration` returns the active
 `{ "enabled": true, "ttl_seconds": 300 }` policy. `POST` to the same endpoint with
@@ -104,6 +146,16 @@ server returns HTTP 409 with the current policy and makes no changes. Omitting
 `expected` preserves unconditional updates for existing API callers.
 
 ---
+
+A save with an unconfirmed response may already have been applied. The Mac app
+explains this uncertainty and checks the server before retrying. When the server
+matches the submitted policy, the app accepts it while preserving any newer
+local edits. Different server settings still require conflict resolution.
+
+Entity and regex saves report persistence errors and restore the previous runtime
+values on failure. A malformed settings file can be repaired by saving settings;
+the server retains the last known explicit expiration override, or its absence.
+Filesystem read/write failures are reported rather than treated as missing data.
 
 ## PII detection sensitivity
 

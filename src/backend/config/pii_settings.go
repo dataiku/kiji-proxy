@@ -2,12 +2,16 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/dataiku/kiji-proxy/src/backend/paths"
 )
+
+// ErrMalformedPIISettings distinguishes repairable JSON from filesystem failures.
+var ErrMalformedPIISettings = errors.New("malformed PII settings")
 
 // PIISettingsFileName is the name of the file holding the runtime-tunable PII
 // settings, stored in the application data directory next to the database/certs.
@@ -41,7 +45,7 @@ func LoadPIISettings() (*PIISettings, error) {
 	}
 	var s PIISettings
 	if err := json.Unmarshal(data, &s); err != nil {
-		return nil, fmt.Errorf("parse %s: %w", path, err)
+		return nil, fmt.Errorf("%w: parse %s: %w", ErrMalformedPIISettings, path, err)
 	}
 	return &s, nil
 }

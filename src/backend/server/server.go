@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"log"
@@ -77,6 +78,7 @@ func (rl *RateLimiter) CleanupOldVisitors() {
 // Server represents the HTTP server
 type Server struct {
 	piiSettingsMu           sync.Mutex
+	expirationOverride      *config.MappingExpirationConfig
 	config                  *config.Config
 	handler                 *proxy.Handler
 	transparentProxy        *proxy.TransparentProxy
@@ -140,6 +142,7 @@ func NewServer(cfg *config.Config, version string) (*Server, error) {
 		transparentProxyEnabled: cfg.Proxy.TransparentEnabled,
 	}
 
+	_, _ = s.persistedExpiration() // Remember the startup override for malformed-file recovery.
 	// Wire up the enabled check function to the transparent proxy
 	if transparentProxy != nil {
 		transparentProxy.SetEnabledFunc(s.IsTransparentProxyEnabled)
@@ -190,6 +193,7 @@ func NewServerWithEmbedded(cfg *config.Config, uiFS, modelFS fs.FS, version stri
 		transparentProxyEnabled: cfg.Proxy.TransparentEnabled,
 	}
 
+	_, _ = s.persistedExpiration() // Remember the startup override for malformed-file recovery.
 	// Wire up the enabled check function to the transparent proxy
 	if transparentProxy != nil {
 		transparentProxy.SetEnabledFunc(s.IsTransparentProxyEnabled)
@@ -790,7 +794,11 @@ func (s *Server) handlePIICheck(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Mask + persist request_original / request_masked so the call appears in /logs.
-	maskedText, maskedToOriginal, entities := s.handler.MaskPIIInTextWithLogging(r.Context(), req.Message, req.Site)
+	maskedText, maskedToOriginal, entities, err := s.handler.MaskPIIInTextWithLogging(r.Context(), req.Message, req.Site)
+	if err != nil {
+		http.Error(w, "Failed to acquire or read mappings", http.StatusServiceUnavailable)
+		return
+	}
 
 	// masked -> original map (consumed by UI)
 	entityDetails := make(map[string]string)
@@ -874,19 +882,35 @@ func (s *Server) handlePIIConfidence(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// savePIISettings snapshots the current disabled labels and custom regexes from
-// the handler and persists them to pii_settings.json so they survive restarts.
-// A persistence failure is logged but not surfaced to the caller — the in-memory
-// update has already taken effect; only durability across restarts is lost.
-func (s *Server) savePIISettings() {
-	expiration := s.handler.GetMappingExpiration()
-	if err := config.SavePIISettings(&config.PIISettings{
-		MappingExpiration: &expiration,
+// persistedExpiration preserves the distinction between static configuration and
+// an explicit override. Malformed JSON can be repaired from runtime settings;
+// an I/O failure must be reported, never treated as an empty settings file.
+// Callers hold piiSettingsMu (or are constructing the server).
+func (s *Server) persistedExpiration() (*config.MappingExpirationConfig, error) {
+	previous, err := config.LoadPIISettings()
+	if err != nil {
+		if errors.Is(err, config.ErrMalformedPIISettings) {
+			return s.expirationOverride, nil
+		}
+		return nil, err
+	}
+	s.expirationOverride = nil
+	if previous != nil {
+		s.expirationOverride = previous.MappingExpiration
+	}
+	return s.expirationOverride, nil
+}
+
+func (s *Server) savePIISettings() error {
+	expiration, err := s.persistedExpiration()
+	if err != nil {
+		return err
+	}
+	return config.SavePIISettings(&config.PIISettings{
+		MappingExpiration: expiration,
 		DisabledEntities:  s.handler.GetDisabledEntities(),
 		CustomRegexes:     s.handler.GetCustomRegexes(),
-	}); err != nil {
-		log.Printf("Failed to persist PII settings to %s: %v", config.PIISettingsPath(), err)
-	}
+	})
 }
 
 // handlePIIEntities handles GET/POST /api/pii/entities requests. GET returns the
@@ -943,8 +967,13 @@ func (s *Server) handlePIIEntities(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		previous := s.handler.GetDisabledEntities()
 		s.handler.SetDisabledEntities(req.Disabled)
-		s.savePIISettings()
+		if err := s.savePIISettings(); err != nil {
+			s.handler.SetDisabledEntities(previous)
+			http.Error(w, "Failed to save PII settings", http.StatusInternalServerError)
+			return
+		}
 		log.Printf("PII disabled (passthrough) entities updated: %d left unmasked", len(req.Disabled))
 
 		w.Header().Set("Content-Type", "application/json")
@@ -992,11 +1021,16 @@ func (s *Server) handlePIIRegexes(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		previous := s.handler.GetCustomRegexes()
 		if err := s.handler.SetCustomRegexes(req.Regexes); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		s.savePIISettings()
+		if err := s.savePIISettings(); err != nil {
+			_ = s.handler.SetCustomRegexes(previous)
+			http.Error(w, "Failed to save PII settings", http.StatusInternalServerError)
+			return
+		}
 		log.Printf("PII custom regexes updated: %d pattern(s)", len(req.Regexes))
 
 		w.Header().Set("Content-Type", "application/json")

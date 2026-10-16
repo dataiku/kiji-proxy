@@ -160,7 +160,7 @@ func (tp *TransparentProxy) interceptHTTP(w http.ResponseWriter, r *http.Request
 	processed, err := tp.handler.ProcessRequestBody(ctx, body, provider)
 	if err != nil {
 		log.Printf("[TransparentProxy] ❌ Failed to process request: %v", err)
-		http.Error(w, "Failed to process request", http.StatusInternalServerError)
+		http.Error(w, "Failed to process request", maskingErrorStatus(err))
 		return
 	}
 	requestMaskTime := time.Since(maskStart)
@@ -455,7 +455,7 @@ func (tp *TransparentProxy) interceptHTTPOverTLS(conn net.Conn, r *http.Request,
 	processed, err := tp.handler.ProcessRequestBody(ctx, body, provider)
 	if err != nil {
 		log.Printf("[TransparentProxy] ❌ Failed to process request: %v", err)
-		tp.writeErrorResponse(conn, http.StatusInternalServerError, "Failed to process request")
+		tp.writeErrorResponse(conn, maskingErrorStatus(err), "Failed to process request")
 		return
 	}
 	requestMaskTime := time.Since(maskStart)
@@ -508,7 +508,8 @@ func (tp *TransparentProxy) interceptHTTPOverTLS(conn net.Conn, r *http.Request,
 	// the Codex backend streams SSE without a Content-Type header.
 	if wantStream && responseLooksLikeSSE(resp) {
 		log.Printf("[TransparentProxy] Streaming SSE response for %s", r.URL.Path)
-		codec := tp.handler.codecForProvider(provider, processed.MaskedToOriginal)
+		// The request owns this snapshot through the entire upstream wait and stream.
+		codec := codecForProvider(provider, processed.MaskedToOriginal)
 		if streamErr := streamSSEResponse(conn, resp, codec); streamErr != nil {
 			log.Printf("[TransparentProxy] ❌ Failed to stream SSE response: %v", streamErr)
 		}

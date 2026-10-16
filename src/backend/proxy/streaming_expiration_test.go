@@ -13,7 +13,7 @@ import (
 	"testing"
 )
 
-func TestStreamAuditPreservesEmittedTextAcrossExpiration(t *testing.T) {
+func TestStreamAuditMatchesSnapshotAcrossEvents(t *testing.T) {
 	for _, openai := range []bool{false, true} {
 		var codec streamCodec
 		if openai {
@@ -21,8 +21,6 @@ func TestStreamAuditPreservesEmittedTextAcrossExpiration(t *testing.T) {
 		} else {
 			codec = newAnthropicCodec(map[string]string{"dummy": "Alice"})
 		}
-		valid := true
-		codec.setMappingValidator(func(string, string) bool { return valid })
 		delta := func(text string) []byte {
 			if openai {
 				return codec.transformEvent(sseLines("event: response.output_text.delta\n" + `data: {"type":"response.output_text.delta","delta":"` + text + `"}` + "\n\n"))
@@ -30,9 +28,8 @@ func TestStreamAuditPreservesEmittedTextAcrossExpiration(t *testing.T) {
 			return codec.transformEvent(sseLines("event: content_block_delta\n" + `data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"` + text + `"}}` + "\n\n"))
 		}
 		received := deltaPayloads(t, string(delta("Hello dummy! ")))
-		valid = false // same callback change produced by expiration or a shorter policy
 		received += deltaPayloads(t, string(delta("Bye dummy!")))
-		if received != "Hello Alice! Bye dummy!" {
+		if received != "Hello Alice! Bye Alice!" {
 			t.Fatalf("unexpected client text: %q", received)
 		}
 		if openai {
@@ -45,14 +42,11 @@ func TestStreamAuditPreservesEmittedTextAcrossExpiration(t *testing.T) {
 	}
 }
 
-func TestStreamAuditIncludesExpiredTailOnce(t *testing.T) {
+func TestStreamAuditIncludesSnapshotTailOnce(t *testing.T) {
 	codec := newOpenAICodec(map[string]string{"dummy": "Alice", "dummy suffix": "Bob"})
-	valid := true
-	codec.setMappingValidator(func(string, string) bool { return valid })
 	received := deltaPayloads(t, string(codec.transformEvent(sseLines("event: response.output_text.delta\n"+`data: {"type":"response.output_text.delta","delta":"Hello dummy"}`+"\n\n"))))
-	valid = false
 	received += deltaPayloads(t, string(codec.flushTail()))
-	if received != "Hello dummy" || codec.restoredOutput() != received {
+	if received != "Hello Alice" || codec.restoredOutput() != received {
 		t.Fatalf("tail audit=%q client=%q", codec.restoredOutput(), received)
 	}
 	if len(codec.flushTail()) != 0 || codec.restoredOutput() != received {
@@ -61,8 +55,7 @@ func TestStreamAuditIncludesExpiredTailOnce(t *testing.T) {
 }
 
 func TestExpiredLongDummyConsistentAcrossDeltaDoneAndJSON(t *testing.T) {
-	core := newRestoreCore(map[string]string{"Alex Smith": "Jane Doe", "Alex": "Bob"})
-	core.setMappingValidator(func(dummy, original string) bool { return dummy != "Alex Smith" })
+	core := newRestoreCore(map[string]string{"Alex Smith": "Alex Smith", "Alex": "Bob"})
 	text, want := "Alex Smith and Alex!", "Alex Smith and Bob!"
 	for _, jsonCtx := range []bool{false, true} {
 		streamed, held := core.streamRestore(text, jsonCtx)
@@ -82,15 +75,14 @@ func TestExpiredLongDummyConsistentAcrossDeltaDoneAndJSON(t *testing.T) {
 }
 
 func TestOpenAICompletedDoesNotPartiallyRestoreExpiredDummy(t *testing.T) {
-	codec := newOpenAICodec(map[string]string{"Alex Smith": "Jane Doe", "Alex": "Bob"})
-	codec.setMappingValidator(func(dummy, original string) bool { return dummy != "Alex Smith" })
+	codec := newOpenAICodec(map[string]string{"Alex Smith": "Alex Smith", "Alex": "Bob"})
 	out := codec.transformEvent(sseLines("event: response.completed\n" + `data: {"type":"response.completed","response":{"output":[{"content":[{"type":"output_text","text":"Alex Smith and Alex!"}]}]}}` + "\n\n"))
 	if !strings.Contains(string(out), `"text":"Alex Smith and Bob!"`) {
 		t.Fatalf("completed response corrupted: %s", out)
 	}
 }
 
-func TestStreamOldGenerationStaysMaskedAfterPolicyChangeAndRemasking(t *testing.T) {
+func TestStreamKeepsOwnGenerationAfterPolicyChangeAndRemasking(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "stream.db")
 	db, err := piiServices.NewSQLitePIIMappingDB(ctx, piiServices.DatabaseConfig{Path: path})
@@ -100,12 +92,12 @@ func TestStreamOldGenerationStaysMaskedAfterPolicyChangeAndRemasking(t *testing.
 	defer db.Close()
 	m := piiServices.NewPIIMappingWithDB(db, true)
 	candidate := piiServices.NewGeneratorService().GenerateReplacement("EMPLOYEE_ID", "EMP-123")
-	first, err := m.AddMapping("EMP-123", candidate, "EMPLOYEE_ID", 1)
+	first, err := m.AddMapping(context.Background(), "EMP-123", candidate, "EMPLOYEE_ID", 1)
 	if err != nil {
 		t.Fatal(err)
 	}
 	h := &Handler{piiMapping: m, mappingDB: db}
-	codec := h.codecForProvider(nil, map[string]string{first: "EMP-123"})
+	codec := codecForProvider(nil, map[string]string{first: "EMP-123"})
 	delta := func(text string) string {
 		data, _ := json.Marshal(map[string]interface{}{"type": "content_block_delta", "index": 0, "delta": map[string]string{"type": "text_delta", "text": text}})
 		return deltaPayloads(t, string(codec.transformEvent(sseLines("event: content_block_delta\ndata: "+string(data)+"\n\n"))))
@@ -126,7 +118,7 @@ func TestStreamOldGenerationStaysMaskedAfterPolicyChangeAndRemasking(t *testing.
 	if err := h.SetMappingExpiration(config.MappingExpirationConfig{Enabled: false, TTLSeconds: 300}); err != nil {
 		t.Fatal(err)
 	}
-	second, err := m.AddMapping("EMP-123", candidate, "EMPLOYEE_ID", 1)
+	second, err := m.AddMapping(context.Background(), "EMP-123", candidate, "EMPLOYEE_ID", 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,23 +126,83 @@ func TestStreamOldGenerationStaysMaskedAfterPolicyChangeAndRemasking(t *testing.
 		t.Fatal("remasking reused expired generation")
 	}
 	received += delta("After " + first + ".")
-	want := "Before EMP-123. After " + first + "."
+	want := "Before EMP-123. After EMP-123."
 	if received != want || codec.restoredOutput() != want {
-		t.Fatalf("old stream/audit revived: received=%q audit=%q", received, codec.restoredOutput())
+		t.Fatalf("request snapshot lost: received=%q audit=%q", received, codec.restoredOutput())
 	}
-	if got, found := m.GetOriginal(second); !found || got != "EMP-123" {
+	if got, found := unmaskForTest(t, m, second); !found || got != "EMP-123" {
 		t.Fatal("new mapping failed to restore")
+	}
+	if _, found := unmaskForTest(t, m, first); found {
+		t.Fatal("active stream revived its old token in the global store")
 	}
 }
 
 func TestStreamAuditPreservesEscapedToolArguments(t *testing.T) {
 	codec := newAnthropicCodec(map[string]string{"dummy": `Alice "Q"`})
-	valid := true
-	codec.setMappingValidator(func(string, string) bool { return valid })
 	out := codec.transformEvent(sseLines("event: content_block_delta\n" + `data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"name\":\"dummy\"}"}}` + "\n\n"))
 	received := deltaPayloads(t, string(out))
-	valid = false
 	if received != `{"name":"Alice \"Q\""}` || codec.restoredOutput() != received {
 		t.Fatalf("JSON audit differs: %q / %q", received, codec.restoredOutput())
+	}
+}
+
+// Expiry during a stream affects later operations, never the snapshot used by
+// deltas, done/completed payloads and tool arguments in this response.
+func TestStreamSnapshotSurvivesExpirationBetweenEvents(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "stream.db")
+	db, err := piiServices.NewSQLitePIIMappingDB(ctx, piiServices.DatabaseConfig{Path: path})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	m := piiServices.NewPIIMappingWithDB(db, true)
+	if _, err := m.AddMapping(context.Background(), "Alice", "dummy", "FIRSTNAME", 1); err != nil {
+		t.Fatal(err)
+	}
+	fixture, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fixture.Close()
+	codec := newOpenAICodec(map[string]string{"dummy": "Alice"})
+	delta := func() string {
+		return deltaPayloads(t, string(codec.transformEvent(sseLines("event: response.output_text.delta\n"+`data: {"type":"response.output_text.delta","delta":"Hello dummy! "}`+"\n\n"))))
+	}
+	received := delta()
+	if received != "Hello Alice! " {
+		t.Fatalf("live delta: %q", received)
+	}
+	if _, err := fixture.Exec(`UPDATE pii_mappings SET created_at = datetime('now','-600 seconds')`); err != nil {
+		t.Fatal(err)
+	}
+	received += delta()
+	if received != "Hello Alice! Hello Alice! " {
+		t.Fatalf("stream lost its snapshot: %q", received)
+	}
+	for _, event := range []string{
+		"event: response.output_text.done\n" + `data: {"type":"response.output_text.done","text":"Hello dummy!"}`,
+		"event: response.function_call_arguments.done\n" + `data: {"type":"response.function_call_arguments.done","arguments":"{\"name\":\"dummy\"}"}`,
+		"event: response.completed\n" + `data: {"type":"response.completed","response":{"output":[{"content":[{"type":"output_text","text":"Hello dummy!"}]}]}}`,
+	} {
+		out := string(codec.transformEvent(sseLines(event + "\n\n")))
+		if !strings.Contains(out, "Alice") || strings.Contains(out, "dummy") {
+			t.Fatalf("final value differs from request snapshot: %s", out)
+		}
+	}
+	if codec.restoredOutput() != received {
+		t.Fatalf("audit differs from emitted deltas: %q", codec.restoredOutput())
+	}
+	var count int
+	if err := fixture.QueryRow(`SELECT access_count FROM pii_mappings WHERE dummy_pii = 'dummy'`).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("stream validity checks inflated access count: %d", count)
+	}
+	// The active stream did not make the expired mapping globally valid.
+	if _, found := unmaskForTest(t, m, "dummy"); found {
+		t.Fatal("expired retained row was valid")
 	}
 }

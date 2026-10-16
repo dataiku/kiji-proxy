@@ -73,7 +73,7 @@ func TestStoreAndGetMapping(t *testing.T) {
 		t.Fatalf("StoreMapping failed: %v", err)
 	}
 
-	dummy, found, err := db.GetDummy(ctx, "John Doe")
+	dummy, found, err := lookupForTest(ctx, db, "John Doe", true)
 	if err != nil {
 		t.Fatalf("GetDummy failed: %v", err)
 	}
@@ -84,7 +84,7 @@ func TestStoreAndGetMapping(t *testing.T) {
 		t.Errorf("expected 'Jane Smith', got %q", dummy)
 	}
 
-	original, found, err := db.GetOriginal(ctx, "Jane Smith")
+	original, found, err := lookupForTest(ctx, db, "Jane Smith", false)
 	if err != nil {
 		t.Fatalf("GetOriginal failed: %v", err)
 	}
@@ -100,7 +100,7 @@ func TestGetDummy_NotFound(t *testing.T) {
 	db := newTestDB(t)
 	ctx := context.Background()
 
-	_, found, err := db.GetDummy(ctx, "nonexistent")
+	_, found, err := lookupForTest(ctx, db, "nonexistent", true)
 	if err != nil {
 		t.Fatalf("GetDummy failed: %v", err)
 	}
@@ -113,7 +113,7 @@ func TestGetOriginal_NotFound(t *testing.T) {
 	db := newTestDB(t)
 	ctx := context.Background()
 
-	_, found, err := db.GetOriginal(ctx, "nonexistent")
+	_, found, err := lookupForTest(ctx, db, "nonexistent", false)
 	if err != nil {
 		t.Fatalf("GetOriginal failed: %v", err)
 	}
@@ -162,7 +162,7 @@ func TestDeleteMapping(t *testing.T) {
 		t.Fatalf("DeleteMapping failed: %v", err)
 	}
 
-	_, found, err := db.GetDummy(ctx, "secret")
+	_, found, err := lookupForTest(ctx, db, "secret", true)
 	if err != nil {
 		t.Fatalf("GetDummy failed: %v", err)
 	}
@@ -264,7 +264,7 @@ func TestCleanupOldMappings(t *testing.T) {
 		t.Errorf("expected 1 remaining, got %d", count)
 	}
 
-	_, found, _ := db.GetDummy(ctx, "new-data")
+	_, found, _ := lookupForTest(ctx, db, "new-data", true)
 	if !found {
 		t.Error("expected new-data mapping to survive cleanup")
 	}
@@ -810,7 +810,7 @@ func TestCloseAndReopen(t *testing.T) {
 	}
 	defer db2.Close()
 
-	dummy, found, err := db2.GetDummy(ctx, "persistent")
+	dummy, found, err := lookupForTest(ctx, db2, "persistent", true)
 	if err != nil {
 		t.Fatalf("GetDummy failed: %v", err)
 	}
@@ -945,4 +945,31 @@ func TestDashboardWindowRows_SinceBound(t *testing.T) {
 	} else if len(rows) != 0 {
 		t.Errorf("expected 0 rows for a future bound, got %d", len(rows))
 	}
+}
+
+// lookupForTest exercises indexed request-start snapshots without legacy APIs.
+func lookupForTest(ctx context.Context, db PIIMappingDB, key string, forward bool) (string, bool, error) {
+	snapshot, err := db.BeginMappingSnapshot(ctx)
+	if err != nil {
+		return "", false, err
+	}
+	defer snapshot.Close()
+	return snapshot.Lookup(ctx, key, forward)
+}
+func unmaskForTest(t *testing.T, mapping *PIIMapping, dummy string) (string, bool) {
+	t.Helper()
+	result, err := mapping.UnmaskMappings(context.Background(), []string{dummy})
+	if err != nil {
+		t.Fatal(err)
+	}
+	value, found := result[dummy]
+	return value, found
+}
+func dummyForTest(t *testing.T, mapping *PIIMapping, original string) (string, bool) {
+	t.Helper()
+	value, found, err := lookupForTest(context.Background(), mapping.db, original, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return value, found
 }

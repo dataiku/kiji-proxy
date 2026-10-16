@@ -92,7 +92,7 @@ func TestMaskText_MultiplePIITypes(t *testing.T) {
 	}
 	svc := newTestMaskingService(t, entities)
 
-	result := svc.MaskText(text, "[test]")
+	result := mustMaskText(t, svc, text, "[test]")
 
 	if len(result.Entities) != 3 {
 		t.Fatalf("expected 3 entities to survive filtering, got %d", len(result.Entities))
@@ -131,7 +131,7 @@ func TestMaskText_NoPII_PassesThroughUnchanged(t *testing.T) {
 	svc := newTestMaskingService(t, nil)
 	text := "Just a normal sentence with no sensitive data."
 
-	result := svc.MaskText(text, "[test]")
+	result := mustMaskText(t, svc, text, "[test]")
 
 	if result.MaskedText != text {
 		t.Errorf("MaskedText = %q, want unchanged %q", result.MaskedText, text)
@@ -152,7 +152,7 @@ func TestMaskText_NoPII_PassesThroughUnchanged(t *testing.T) {
 func TestMaskText_EmptyInput(t *testing.T) {
 	svc := newTestMaskingService(t, nil)
 
-	result := svc.MaskText("", "[test]")
+	result := mustMaskText(t, svc, "", "[test]")
 
 	if result.MaskedText != "" {
 		t.Errorf("MaskedText = %q, want empty", result.MaskedText)
@@ -175,7 +175,7 @@ func TestMaskText_RepeatedIdenticalPII_SweepsAllOccurrences(t *testing.T) {
 	entities := []detectors.Entity{entityAt(t, text, "Jane", "FIRSTNAME")}
 	svc := newTestMaskingService(t, entities)
 
-	result := svc.MaskText(text, "[test]")
+	result := mustMaskText(t, svc, text, "[test]")
 
 	if strings.Contains(result.MaskedText, "Jane") {
 		t.Fatalf("expected every occurrence of the repeated PII to be masked, got %q", result.MaskedText)
@@ -208,11 +208,11 @@ func TestMaskText_RepeatedIdenticalPII_SameDummyAcrossSession(t *testing.T) {
 
 	text1 := "My name is Alice."
 	provider.detector = &stubDetector{entities: []detectors.Entity{entityAt(t, text1, "Alice", "FIRSTNAME")}}
-	result1 := svc.MaskText(text1, "[req1]")
+	result1 := mustMaskText(t, svc, text1, "[req1]")
 
 	text2 := "Alice signed the form again."
 	provider.detector = &stubDetector{entities: []detectors.Entity{entityAt(t, text2, "Alice", "FIRSTNAME")}}
-	result2 := svc.MaskText(text2, "[req2]")
+	result2 := mustMaskText(t, svc, text2, "[req2]")
 
 	var dummy1, dummy2 string
 	for masked := range result1.MaskedToOriginal {
@@ -243,7 +243,7 @@ func TestMaskText_PIIAtStringBoundaries(t *testing.T) {
 	}
 	svc := newTestMaskingService(t, entities)
 
-	result := svc.MaskText(text, "[test]")
+	result := mustMaskText(t, svc, text, "[test]")
 
 	if strings.Contains(result.MaskedText, "555-000-1111") || strings.Contains(result.MaskedText, "Marley") {
 		t.Errorf("boundary entities were not fully masked: %q", result.MaskedText)
@@ -271,7 +271,7 @@ func TestMaskText_InvalidPositionsFallsBackToStringReplace(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			svc := newTestMaskingService(t, []detectors.Entity{tc.entity})
-			result := svc.MaskText(text, "[test]")
+			result := mustMaskText(t, svc, text, "[test]")
 			if strings.Contains(result.MaskedText, "Frank Miller") {
 				t.Errorf("expected fallback string-replace to still mask the entity, got %q", result.MaskedText)
 			}
@@ -295,7 +295,7 @@ func TestMaskText_UnicodeInput(t *testing.T) {
 	entities := []detectors.Entity{entityAt(t, text, name, "SURNAME")}
 	svc := newTestMaskingService(t, entities)
 
-	result := svc.MaskText(text, "[test]")
+	result := mustMaskText(t, svc, text, "[test]")
 
 	if !strings.HasPrefix(result.MaskedText, "Résumé from ") {
 		t.Fatalf("expected unicode prefix to survive intact, got %q", result.MaskedText)
@@ -324,7 +324,7 @@ func TestMaskText_DisabledEntityTypePassesThrough(t *testing.T) {
 	svc := newTestMaskingService(t, entities)
 	svc.SetDisabledEntities([]string{"EMAIL"})
 
-	result := svc.MaskText(text, "[test]")
+	result := mustMaskText(t, svc, text, "[test]")
 
 	if !strings.Contains(result.MaskedText, "jane@example.com") {
 		t.Errorf("expected disabled entity type EMAIL to pass through unmasked, got %q", result.MaskedText)
@@ -354,7 +354,7 @@ func TestMaskText_DetectorFailure_ReturnsUnmaskedTextUnflagged(t *testing.T) {
 	provider := &stubDetectorProvider{err: errors.New("model unavailable")}
 	svc := NewMaskingService(provider, NewGeneratorService(), nil)
 
-	result := svc.MaskText(text, "[test]")
+	result := mustMaskText(t, svc, text, "[test]")
 
 	if result.MaskedText != text {
 		t.Errorf("MaskedText = %q, want original text unchanged on detector error", result.MaskedText)
@@ -371,7 +371,7 @@ func TestMaskText_DetectFailure_SameFailOpenBehavior(t *testing.T) {
 	provider := &stubDetectorProvider{detector: &stubDetector{err: errors.New("inference failed")}}
 	svc := NewMaskingService(provider, NewGeneratorService(), nil)
 
-	result := svc.MaskText(text, "[test]")
+	result := mustMaskText(t, svc, text, "[test]")
 
 	if result.MaskedText != text {
 		t.Errorf("MaskedText = %q, want original text unchanged when Detect() errors", result.MaskedText)
@@ -454,4 +454,13 @@ func TestMaskingServiceRestorePII_NoChainedSubstitution(t *testing.T) {
 	if got != want {
 		t.Errorf("RestorePII = %q, want %q", got, want)
 	}
+}
+
+func mustMaskText(t *testing.T, svc *MaskingService, text, prefix string) MaskedResult {
+	t.Helper()
+	result, err := svc.MaskText(context.Background(), text, prefix)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return result
 }
