@@ -204,9 +204,14 @@ func TestProcessResponse_MappingMissLeavesTextUntouched(t *testing.T) {
 // failed but we keep going" path: when the response doesn't match any shape
 // the provider recognizes (OpenAIProvider.RestoreMaskedResponse returns an
 // error when there's no "choices" field), ProcessResponse only logs the
-// error — it never aborts and returns the raw body instead. proxy_metadata
-// must still be added so callers can't distinguish "nothing to restore" from
-// "the proxy silently gave up".
+// error — it never aborts and returns the raw body instead, and proxy_metadata
+// is still added.
+//
+// This pins current behaviour, not a requirement: the stamped metadata is the
+// same whether restoration succeeded, had nothing to do, or failed, so a
+// response whose masked values were never restored is indistinguishable from a
+// normal one. Surfacing that failure to callers is tracked as follow-up work;
+// update this test when it lands.
 func TestProcessResponse_ProviderErrorStillStampsMetadata(t *testing.T) {
 	rp := NewResponseProcessor(nil, stubLoggingConfig{})
 	provider := newTestOpenAIProvider()
