@@ -40,6 +40,8 @@ interface UseProxySubmitOptions {
   };
   apiKey: string | null;
   isElectron: boolean;
+  /** PII profile id to apply; empty uses the server's default profile. */
+  profile?: string;
 }
 
 export function useProxySubmit({
@@ -47,6 +49,7 @@ export function useProxySubmit({
   providersConfig,
   apiKey,
   isElectron,
+  profile,
 }: UseProxySubmitOptions) {
   const [inputData, setInputData] = useState("");
   const [maskedInput, setMaskedInput] = useState("");
@@ -58,6 +61,10 @@ export function useProxySubmit({
   );
   const [detectedEntities, setDetectedEntities] = useState<DetectedEntity[]>(
     []
+  );
+  // Display name of the PII profile the backend applied to the last request.
+  const [resultProfileName, setResultProfileName] = useState<string | null>(
+    null
   );
 
   const averageConfidence = useMemo(() => {
@@ -157,6 +164,9 @@ export function useProxySubmit({
       // Identify the originating app for the dashboard activity feed. Set after
       // buildHeaders so it survives whichever header-construction branch ran.
       headers["X-Kiji-Source"] = "Kiji Playground";
+      if (profile) {
+        headers["X-Kiji-Profile"] = profile;
+      }
 
       const response = await fetch(apiUrl, {
         method: "POST",
@@ -165,7 +175,12 @@ export function useProxySubmit({
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        // Surface the backend's message (e.g. an unknown PII profile).
+        const detail = await response
+          .json()
+          .then((body) => body?.error as string | undefined)
+          .catch(() => undefined);
+        throw new Error(detail ?? `HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
@@ -236,6 +251,7 @@ export function useProxySubmit({
       setMaskedInput(maskedInputText);
       setMaskedOutput(maskedOutputText);
       setDetectedEntities(transformedEntities);
+      setResultProfileName(data.x_pii_details?.profile?.name ?? null);
     } catch (error) {
       console.error(
         "Error calling proxy endpoint:",
@@ -245,7 +261,7 @@ export function useProxySubmit({
     } finally {
       setIsProcessing(false);
     }
-  }, [inputData, activeProvider, providersConfig, apiKey, isElectron]);
+  }, [inputData, activeProvider, providersConfig, apiKey, isElectron, profile]);
 
   const handleReset = useCallback(() => {
     setInputData("");
@@ -254,6 +270,7 @@ export function useProxySubmit({
     setFinalOutput("");
     setResultProvider(null);
     setDetectedEntities([]);
+    setResultProfileName(null);
   }, []);
 
   return {
@@ -264,6 +281,7 @@ export function useProxySubmit({
     finalOutput,
     isProcessing,
     resultProvider,
+    resultProfileName,
     detectedEntities,
     responseDetectedEntities,
     averageConfidence,

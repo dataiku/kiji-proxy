@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -8,7 +9,8 @@ import (
 	"testing"
 )
 
-// redirectDataDir points paths.AppDataDir() (and thus PIISettingsPath) at a fresh
+// redirectDataDir points paths.AppDataDir() (and thus the PII settings/profile
+// paths) at a fresh
 // temp dir on both Linux (KIJI_DATA_PATH) and macOS (HOME-derived), so the tests
 // never read or write the real application data directory.
 func redirectDataDir(t *testing.T) {
@@ -30,72 +32,37 @@ func TestLoadPIISettings_MissingReturnsNil(t *testing.T) {
 	}
 }
 
-func TestSavePIISettings_RoundTrip(t *testing.T) {
+// writeLegacyPIISettings writes a pii_settings.json as older versions did.
+func writeLegacyPIISettings(t *testing.T, s *PIISettings) {
+	t.Helper()
+	path := PIISettingsPath()
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		t.Fatalf("setup mkdir: %v", err)
+	}
+	data, err := json.Marshal(s)
+	if err != nil {
+		t.Fatalf("setup marshal: %v", err)
+	}
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatalf("setup write: %v", err)
+	}
+}
+
+func TestLoadPIISettings_ReadsLegacyFile(t *testing.T) {
 	redirectDataDir(t)
 
 	want := &PIISettings{
 		DisabledEntities: []string{"EMAIL", "PHONE"},
-		CustomRegexes: []RegexPatternConfig{
-			{Name: "TICKET", Pattern: `TICK-\d+`},
-			{Name: "BADGE", Pattern: `[A-Z]{2}\d{4}`},
-		},
+		CustomRegexes:    []RegexPatternConfig{{Name: "TICKET", Pattern: `TICK-\d+`}},
 	}
-
-	if err := SavePIISettings(want); err != nil {
-		t.Fatalf("SavePIISettings() error = %v", err)
-	}
+	writeLegacyPIISettings(t, want)
 
 	got, err := LoadPIISettings()
 	if err != nil {
 		t.Fatalf("LoadPIISettings() error = %v", err)
-	}
-	if got == nil {
-		t.Fatal("LoadPIISettings() = nil, want the saved settings")
 	}
 	if !reflect.DeepEqual(got, want) {
-		t.Errorf("round-trip mismatch:\n got = %+v\nwant = %+v", got, want)
-	}
-}
-
-func TestSavePIISettings_CreatesDataDirAtExpectedPath(t *testing.T) {
-	redirectDataDir(t)
-
-	// Save into a data dir that does not exist yet — Save must create it.
-	if err := SavePIISettings(&PIISettings{}); err != nil {
-		t.Fatalf("SavePIISettings() error = %v", err)
-	}
-
-	path := PIISettingsPath()
-	if filepath.Base(path) != PIISettingsFileName {
-		t.Errorf("PIISettingsPath() base = %q, want %q", filepath.Base(path), PIISettingsFileName)
-	}
-	if _, err := os.Stat(path); err != nil {
-		t.Errorf("expected settings file at %q: %v", path, err)
-	}
-}
-
-func TestSavePIISettings_OverwritesAndLeavesNoTempFile(t *testing.T) {
-	redirectDataDir(t)
-
-	if err := SavePIISettings(&PIISettings{DisabledEntities: []string{"EMAIL"}}); err != nil {
-		t.Fatalf("first SavePIISettings() error = %v", err)
-	}
-	second := &PIISettings{DisabledEntities: []string{"PHONE", "SSN"}}
-	if err := SavePIISettings(second); err != nil {
-		t.Fatalf("second SavePIISettings() error = %v", err)
-	}
-
-	got, err := LoadPIISettings()
-	if err != nil {
-		t.Fatalf("LoadPIISettings() error = %v", err)
-	}
-	if !reflect.DeepEqual(got.DisabledEntities, second.DisabledEntities) {
-		t.Errorf("after overwrite got %v, want %v", got.DisabledEntities, second.DisabledEntities)
-	}
-
-	// The atomic temp file must not linger after a successful save.
-	if _, err := os.Stat(PIISettingsPath() + ".tmp"); !os.IsNotExist(err) {
-		t.Errorf("temp file should not remain after save (stat err = %v)", err)
+		t.Errorf("got %+v, want %+v", got, want)
 	}
 }
 
