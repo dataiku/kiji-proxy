@@ -115,6 +115,13 @@ func newMockMappingDB() *mockMappingDB {
 	}
 }
 
+func (m *mockMappingDB) GetOrCreateMapping(ctx context.Context, original, dummy, piiType string, confidence float64) (string, error) {
+	if existing, ok := m.mappings[original]; ok {
+		return existing, nil
+	}
+	return dummy, m.StoreMapping(ctx, original, dummy, piiType, confidence)
+}
+
 func (m *mockMappingDB) StoreMapping(_ context.Context, original, dummy, piiType string, confidence float64) error {
 	m.mappings[original] = dummy
 	m.reverse[dummy] = original
@@ -1142,8 +1149,12 @@ func TestTruncatePreview(t *testing.T) {
 func TestHandler_HandleUnmask(t *testing.T) {
 	detector := &mockDetector{entities: []pii.Entity{}}
 	h := newTestHandler(t, detector, nil)
-	h.piiMapping.AddMapping("John Smith", "Nicole Brown", "NAME", 0.9)
-	h.piiMapping.AddMapping("john@example.com", "nicole.brown@example.invalid", "EMAIL", 0.95)
+	if _, err := h.piiMapping.AddMapping("John Smith", "Nicole Brown", "NAME", 0.9); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.piiMapping.AddMapping("john@example.com", "nicole.brown@example.invalid", "EMAIL", 0.95); err != nil {
+		t.Fatal(err)
+	}
 
 	post := func(body string) *httptest.ResponseRecorder {
 		req := httptest.NewRequest("POST", "/api/mappings/unmask", strings.NewReader(body))

@@ -614,3 +614,44 @@ func TestStreamSSEResponse_FlushesCarryTailOnEOF(t *testing.T) {
 		t.Errorf("client-assembled deltas = %q, want %q (carry tail dropped on EOF)", assembled, "Hello Jane")
 	}
 }
+
+// A dummy can arrive before its expiration and complete after it. Validate when
+// it is emitted, including JSON tool arguments and final buffered text.
+func TestStreamMappingExpiresBetweenDeltas(t *testing.T) {
+	core := newRestoreCore(map[string]string{"[DUMMY]": "Alice"})
+	valid := true
+	core.setMappingValidator(func(dummy, original string) bool { return valid })
+	emit, hold := core.streamRestore("Hello [DUM", false)
+	if emit != "Hello " || hold != "[DUM" {
+		t.Fatalf("unexpected initial delta: %q, %q", emit, hold)
+	}
+	valid = false
+	emit, hold = core.streamRestore(hold+"MY]", false)
+	if emit != "[DUMMY]" || hold != "" {
+		t.Fatalf("expired mapping restored: %q, %q", emit, hold)
+	}
+	if got := core.restore("[DUMMY]"); got != "[DUMMY]" {
+		t.Fatal("final text restored expired mapping")
+	}
+	if got := core.restoreJSON("[DUMMY]"); got != "[DUMMY]" {
+		t.Fatal("JSON restored expired mapping")
+	}
+	if got, _ := core.streamRestore("[DUMMY]", true); got != "[DUMMY]" {
+		t.Fatal("streamed JSON restored expired mapping")
+	}
+}
+
+func TestStreamExpiredMappingIsNotRestoredOnFlush(t *testing.T) {
+	core := newRestoreCore(map[string]string{"dummy": "Alice", "dummy suffix": "Bob"})
+	core.setMappingValidator(func(string, string) bool { return false })
+	for _, jsonCtx := range []bool{false, true} {
+		// A complete shorter dummy is held while a longer dummy might still arrive.
+		emit, hold := core.streamRestore("dummy", jsonCtx)
+		if emit != "" || hold != "dummy" {
+			t.Fatalf("expected held prefix, got %q %q", emit, hold)
+		}
+		if got := core.flushCarry(hold, jsonCtx); got != "dummy" {
+			t.Fatalf("expired mapping restored during flush: %q", got)
+		}
+	}
+}

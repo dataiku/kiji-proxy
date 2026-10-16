@@ -34,5 +34,9 @@
     "ca_path": "~/Library/Application Support/Kiji Privacy Proxy/certs/ca.crt",
     "key_path": "~/Library/Application Support/Kiji Privacy Proxy/certs/ca.key",
     "enable_pac": true
+  },
+  "mapping_expiration": {
+    "enabled": true,
+    "ttl_seconds": 300
   }
 }

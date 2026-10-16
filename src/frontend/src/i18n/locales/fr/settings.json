@@ -101,6 +101,15 @@
       "SECURITYTOKEN": "Jeton de sécurité",
       "CREDITCARDNUMBER": "Numéro de carte bancaire",
       "USERNAME": "Nom d'utilisateur"
+    },
+    "expiration": {
+      "title": "Expiration des correspondances",
+      "enabled": "Activer l’expiration",
+      "seconds": "Durée de vie (secondes)",
+      "save": "Enregistrer l’expiration",
+      "help": "Par défaut : 300 secondes après la création. S’applique à tous les clients connectés à ce serveur et aux correspondances existantes. Les valeurs expirées restent masquées ; leur utilisation ne prolonge pas leur durée de vie.",
+      "error": "Impossible de charger ou d’enregistrer les paramètres. Vérifiez la connexion au serveur et rouvrez les paramètres pour réessayer.",
+      "invalid": "Saisissez un nombre entier entre 1 et 2147483647."
     }
   },
   "advanced": {

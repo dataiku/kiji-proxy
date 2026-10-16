@@ -17,8 +17,9 @@ const PIISettingsFileName = "pii_settings.json"
 // at runtime (via the POST endpoints) and that must survive restarts. It is
 // persisted separately from the static --config file so the two never collide.
 type PIISettings struct {
-	DisabledEntities []string             `json:"disabled_entities"`
-	CustomRegexes    []RegexPatternConfig `json:"custom_regexes"`
+	MappingExpiration *MappingExpirationConfig `json:"mapping_expiration,omitempty"`
+	DisabledEntities  []string                 `json:"disabled_entities"`
+	CustomRegexes     []RegexPatternConfig     `json:"custom_regexes"`
 }
 
 // PIISettingsPath returns the absolute path to the persisted PII settings file.

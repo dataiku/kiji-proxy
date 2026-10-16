@@ -76,6 +76,7 @@ func (rl *RateLimiter) CleanupOldVisitors() {
 
 // Server represents the HTTP server
 type Server struct {
+	piiSettingsMu           sync.Mutex
 	config                  *config.Config
 	handler                 *proxy.Handler
 	transparentProxy        *proxy.TransparentProxy
@@ -274,6 +275,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/pii/confidence", s.handlePIIConfidence)
 	mux.HandleFunc("/api/pii/entities", s.handlePIIEntities)
 	mux.HandleFunc("/api/pii/regexes", s.handlePIIRegexes)
+	mux.HandleFunc("/api/pii/mapping-expiration", s.handleMappingExpiration)
 
 	// Dashboard API
 	mux.HandleFunc("/api/dashboard", s.dashboardHandler)
@@ -431,6 +433,8 @@ func (s *Server) startTransparentProxy() {
 			s.handlePIIConfidence(w, r)
 		case "/api/pii/entities":
 			s.handlePIIEntities(w, r)
+		case "/api/pii/mapping-expiration":
+			s.handleMappingExpiration(w, r)
 		case "/api/pii/regexes":
 			s.handlePIIRegexes(w, r)
 		default:
@@ -875,9 +879,11 @@ func (s *Server) handlePIIConfidence(w http.ResponseWriter, r *http.Request) {
 // A persistence failure is logged but not surfaced to the caller — the in-memory
 // update has already taken effect; only durability across restarts is lost.
 func (s *Server) savePIISettings() {
+	expiration := s.handler.GetMappingExpiration()
 	if err := config.SavePIISettings(&config.PIISettings{
-		DisabledEntities: s.handler.GetDisabledEntities(),
-		CustomRegexes:    s.handler.GetCustomRegexes(),
+		MappingExpiration: &expiration,
+		DisabledEntities:  s.handler.GetDisabledEntities(),
+		CustomRegexes:     s.handler.GetCustomRegexes(),
 	}); err != nil {
 		log.Printf("Failed to persist PII settings to %s: %v", config.PIISettingsPath(), err)
 	}
@@ -888,6 +894,8 @@ func (s *Server) savePIISettings() {
 // disabled (left unmasked). POST replaces the disabled set with the provided
 // list; an empty list means "mask everything" (fail closed).
 func (s *Server) handlePIIEntities(w http.ResponseWriter, r *http.Request) {
+	s.piiSettingsMu.Lock()
+	defer s.piiSettingsMu.Unlock()
 	s.corsHandler(w, r)
 
 	if r.Method == http.MethodOptions {
@@ -957,6 +965,8 @@ func (s *Server) handlePIIEntities(w http.ResponseWriter, r *http.Request) {
 // POST replaces the whole set with the provided list; patterns that fail to
 // compile (or a disabled regex detector) are rejected with 400.
 func (s *Server) handlePIIRegexes(w http.ResponseWriter, r *http.Request) {
+	s.piiSettingsMu.Lock()
+	defer s.piiSettingsMu.Unlock()
 	s.corsHandler(w, r)
 
 	if r.Method == http.MethodOptions {

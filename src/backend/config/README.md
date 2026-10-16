@@ -213,3 +213,14 @@ For more details, see:
 - `pii/CONFIGURATION_GUIDE.md` - Complete configuration guide
 - `pii/CONFIGURATION_SUMMARY.md` - Implementation summary
 - `pii/MODEL_DETECTOR.md` - ML detector documentation
+
+### Mapping expiration
+
+`mapping_expiration` controls mapping lifetime in seconds. The default is
+`{"enabled": true, "ttl_seconds": 300}`. Set `enabled` to `false` to disable
+expiration; `ttl_seconds` must remain a positive integer (maximum 2147483647).
+The Mac app and Chrome extension can update this shared policy at runtime.
+Persisted UI settings override the static file on restart. See
+[Mapping expiration](../../../docs/08-masking-controls.md#mapping-expiration)
+for precedence and masking/unmasking behavior. The legacy `Database.CleanupHours`
+field does not control this expiration policy.

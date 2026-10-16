@@ -30,6 +30,10 @@ func newTestDB(t *testing.T) *SQLitePIIMappingDB {
 // --- NewSQLitePIIMappingDB tests ---
 
 func TestNewSQLitePIIMappingDB_DefaultPath(t *testing.T) {
+	// Never open or remove the user's real application database.
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	t.Setenv("KIJI_DATA_PATH", dir)
 	expectedPath := filepath.Join(paths.AppDataDir(), "kiji_privacy_proxy.db")
 
 	db, err := NewSQLitePIIMappingDB(context.Background(), DatabaseConfig{})
@@ -220,6 +224,11 @@ func TestGetMappingsCount_Empty(t *testing.T) {
 
 func TestCleanupOldMappings(t *testing.T) {
 	db := newTestDB(t)
+	policy := db.MappingExpiration()
+	policy.Enabled = false
+	if err := db.SetMappingExpiration(policy); err != nil {
+		t.Fatal(err)
+	}
 	ctx := context.Background()
 
 	// Insert a mapping

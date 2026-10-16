@@ -10,6 +10,7 @@ This chapter covers the controls that decide **what** Kiji masks and let you **r
 ## Table of Contents
 
 - [Where to find these controls](#where-to-find-these-controls)
+- [Mapping expiration](#mapping-expiration)
 - [PII detection sensitivity](#pii-detection-sensitivity)
 - [Choosing which entities to mask](#choosing-which-entities-to-mask)
 - [Custom regex patterns](#custom-regex-patterns)
@@ -30,6 +31,66 @@ These controls live in the **macOS desktop app** (the Electron UI). Open them fr
 > The PII Settings and Mappings screens are part of the desktop UI. If you run the standalone backend (Linux/headless), configure the same behavior through the config file and HTTP API — see [For standalone / automation](#for-standalone--automation).
 
 <!-- Screenshot: PII Settings modal showing the Detection Sensitivity, Entities to Mask, and Custom Regex Patterns sections -->
+
+---
+
+## Mapping expiration
+
+Mappings expire **300 seconds after creation** by default. Set the duration as a
+whole number of seconds (1–2147483647), or turn expiration off:
+
+- **Mac app:** Settings → PII Settings → Mapping expiration → Save expiration settings.
+- **Chrome extension:** Settings → Mapping expiration → Save expiration settings.
+- **Linux server:** add this block to the JSON file passed to `-config`:
+
+```json
+{
+  "mapping_expiration": {
+    "enabled": true,
+    "ttl_seconds": 300
+  }
+}
+```
+
+Both UIs read and change the connected server's policy, so it applies to all its
+clients. Changes take effect without restarting and apply to existing mappings
+based on their original creation time. UI changes are saved in
+`pii_settings.json` in the application data directory and override the static
+config on restart. Remove that file's `mapping_expiration` property to return
+control to the static config. Older settings files without this property keep
+the config value (or the 300-second default).
+
+Expiration is checked during masking, unmasking, response restoration (including
+streamed responses), mapping list/count reads, and policy changes. A policy
+change removes rows expired under either the old or new policy in one
+transaction; extending or disabling expiration cannot revive them. The previous
+policy is retained in the database so changing the config during a restart
+cannot revive them either. Idle servers do not need a cleanup timer to enforce
+expiration. Masking
+an expired original creates a new mapping. Unmasking an expired dummy returns
+not found; expired values in provider responses stay masked. Reads do not renew
+the lifetime. Turning expiration off retains mappings until they are deleted;
+it does not recover expired rows. This setting controls mappings, not the
+separate activity logs.
+
+A placeholder is never recycled after expiry or deletion. If the generator
+proposes a previously used value (including a deterministic custom-pattern
+placeholder), the new mapping gets a fresh opaque `[REDACTED_…]` token. Compact
+SHA-256 fingerprints of used placeholders remain in the database across restarts
+and clearing mappings; these reservations contain no original PII and grow with
+the number of distinct placeholders. Existing live mappings keep their current
+placeholders during migration.
+
+For long-running streams, values emitted before expiration remain in the
+client's earlier output; later occurrences stay masked. Expired longer
+placeholders also shield any shorter active placeholders inside them. Stream
+audit logs accumulate the emitted deltas and flushed tails, so expiration or a
+settings change does not rewrite the earlier audit text.
+
+For automation, `GET /api/pii/mapping-expiration` returns the active
+`{ "enabled": true, "ttl_seconds": 300 }` policy. `POST` to the same endpoint with
+both fields changes and persists it. The route is available on both proxy ports,
+with the same access rules as the other `/api/pii/*` settings endpoints.
 
 ---
 

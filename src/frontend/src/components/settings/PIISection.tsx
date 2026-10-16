@@ -1,3 +1,4 @@
+import MappingExpirationControl from "./MappingExpirationControl";
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
@@ -237,6 +238,7 @@ export default function PIISection() {
       </div>
 
       <div className="space-y-6">
+        <MappingExpirationControl />
         {/* PII Detection Sensitivity */}
         <div>
           <label className="text-sm font-semibold text-stone-700 mb-2 flex items-center gap-2">

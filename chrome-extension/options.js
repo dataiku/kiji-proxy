@@ -106,6 +106,7 @@ document.addEventListener("DOMContentLoaded", () => {
         });
 
         showStatus("Saved.", false);
+        loadExpiration();
       }
     );
   });
@@ -129,6 +130,71 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     return (backendUrl || DEFAULT_API_BASE).replace(/\/+$/, "");
   }
+
+  const expirationFields = document.getElementById("expiration-fields");
+  const expirationEnabled = document.getElementById("expiration-enabled");
+  const expirationSeconds = document.getElementById("expiration-seconds");
+  const expirationStatus = document.getElementById("expiration-status");
+  let expirationBase = null;
+  let expirationLoadSeq = 0;
+
+  async function loadExpiration() {
+    const seq = ++expirationLoadSeq;
+    expirationFields.disabled = true;
+    expirationBase = null;
+    expirationStatus.textContent = "Loading…";
+    try {
+      const base = await getBackendUrl();
+      const res = await fetch(`${base}/api/pii/mapping-expiration`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const policy = await res.json();
+      if (seq !== expirationLoadSeq) return;
+      expirationEnabled.checked = policy.enabled;
+      expirationSeconds.value = policy.ttl_seconds;
+      expirationSeconds.disabled = !policy.enabled;
+      expirationBase = base;
+      expirationFields.disabled = false;
+      expirationStatus.textContent = "";
+    } catch {
+      if (seq === expirationLoadSeq) expirationStatus.textContent = "Unable to load settings. Start the proxy and reload.";
+    }
+  }
+  expirationEnabled.addEventListener("change", () => {
+    expirationSeconds.disabled = !expirationEnabled.checked;
+    expirationStatus.textContent = "";
+  });
+  expirationSeconds.addEventListener("input", () => { expirationStatus.textContent = ""; });
+  document.getElementById("expiration-reload").addEventListener("click", loadExpiration);
+  document.getElementById("expiration-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const ttl = Number(expirationSeconds.value);
+    if (!Number.isInteger(ttl) || ttl < 1 || ttl > 2147483647) {
+      expirationStatus.textContent = "Enter a whole number from 1 to 2147483647.";
+      return;
+    }
+    const base = await getBackendUrl();
+    if (!expirationBase || base !== expirationBase) {
+      await loadExpiration();
+      expirationStatus.textContent = "Server changed. Review the loaded settings before saving.";
+      return;
+    }
+    const seq = ++expirationLoadSeq;
+    expirationFields.disabled = true;
+    try {
+      const res = await fetch(`${base}/api/pii/mapping-expiration`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: expirationEnabled.checked, ttl_seconds: ttl }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (seq === expirationLoadSeq) expirationStatus.textContent = "Saved.";
+    } catch {
+      if (seq === expirationLoadSeq) expirationStatus.textContent = "Unable to save settings. Check the server connection and try again.";
+    } finally {
+      if (seq === expirationLoadSeq) expirationFields.disabled = false;
+    }
+  });
+  loadExpiration();
 
   // ── PII entity types ──────────────────────────────────────────────────────
   // GET /api/pii/entities → { available, disabled }. Checked = masked; the

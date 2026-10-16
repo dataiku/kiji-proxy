@@ -47,7 +47,7 @@ type Handler struct {
 	maskingService    *piiServices.MaskingService
 	loggingDB         piiServices.LoggingDB    // Database or in-memory storage for logging
 	mappingDB         piiServices.PIIMappingDB // Same instance as loggingDB, for mapping operations
-	piiMapping        *piiServices.PIIMapping  // Cache+DB wrapper; used for cache-consistent clear/delete
+	piiMapping        *piiServices.PIIMapping  // Database-backed mapping lookup and invalidation
 	metrics           *metrics.Collector       // In-memory dashboard aggregates (GET /api/dashboard)
 }
 
@@ -656,6 +656,9 @@ func (h *Handler) ProcessRequestBody(ctx context.Context, body []byte, provider 
 // This is the shared entry point for all response sources (handler, transparent proxy)
 func (h *Handler) ProcessResponseBody(ctx context.Context, body []byte, contentType string, maskedToOriginal map[string]string, transactionID string, provider *providers.Provider) []byte {
 	// Process the response to restore PII first
+	if h.piiMapping != nil {
+		maskedToOriginal = h.piiMapping.RestorationMappings(maskedToOriginal)
+	}
 	modifiedBody := h.responseProcessor.ProcessResponse(body, contentType, maskedToOriginal, provider)
 
 	// Log both masked and restored responses with shared context
@@ -989,7 +992,8 @@ func NewHandler(cfg *config.Config) (*Handler, error) {
 	// Initialize SQLite database
 	ctx := context.Background()
 	dbConfig := piiServices.DatabaseConfig{
-		Path: cfg.Database.Path,
+		Path:              cfg.Database.Path,
+		MappingExpiration: &cfg.MappingExpiration,
 	}
 	db, dbErr := piiServices.NewSQLitePIIMappingDB(ctx, dbConfig)
 	if dbErr != nil {
@@ -1447,8 +1451,8 @@ func (h *Handler) HandleClearMappings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Route through the cache wrapper so the in-memory cache is cleared too,
-	// not just the database row store.
+	// Use the shared mapping store so subsequent masking and restoration see
+	// the deletion immediately.
 	h.handleClearOperation(w, r, "PII mappings", func(context.Context) error {
 		return h.piiMapping.ClearAll()
 	})

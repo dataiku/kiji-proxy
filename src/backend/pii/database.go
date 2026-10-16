@@ -10,8 +10,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
+	"github.com/dataiku/kiji-proxy/src/backend/config"
 	"github.com/dataiku/kiji-proxy/src/backend/paths"
 	detectors "github.com/dataiku/kiji-proxy/src/backend/pii/detectors"
 	_ "modernc.org/sqlite"
@@ -31,11 +34,14 @@ const (
 
 // DatabaseConfig holds database configuration
 type DatabaseConfig struct {
-	Path string // Path to SQLite database file
+	Path              string                          // Path to SQLite database file
+	MappingExpiration *config.MappingExpirationConfig // nil preserves the persisted policy
 }
 
 // PIIMappingDB defines the interface for database operations
 type PIIMappingDB interface {
+	// GetOrCreateMapping atomically reuses a live mapping or reserves a never-used dummy.
+	GetOrCreateMapping(ctx context.Context, original, dummy, piiType string, confidence float64) (string, error)
 	// StoreMapping stores a PII mapping in the database with confidence level
 	StoreMapping(ctx context.Context, original, dummy string, piiType string, confidence float64) error
 
@@ -109,13 +115,15 @@ type OpenAIMessage struct {
 
 // SQLitePIIMappingDB implements PIIMappingDB and LoggingDB for SQLite
 type SQLitePIIMappingDB struct {
-	db        *sql.DB
-	debugMode bool
+	db         *sql.DB
+	debugMode  bool
+	expiration atomic.Pointer[config.MappingExpirationConfig]
+	mappingMu  sync.Mutex // serializes policy transitions with mapping operations
 }
 
 // NewSQLitePIIMappingDB creates a new SQLite PII mapping database
-func NewSQLitePIIMappingDB(ctx context.Context, config DatabaseConfig) (*SQLitePIIMappingDB, error) {
-	dbPath := config.Path
+func NewSQLitePIIMappingDB(ctx context.Context, cfg DatabaseConfig) (*SQLitePIIMappingDB, error) {
+	dbPath := cfg.Path
 	if dbPath == "" {
 		dbPath = filepath.Join(paths.AppDataDir(), "kiji_privacy_proxy.db")
 	}
@@ -148,7 +156,12 @@ func NewSQLitePIIMappingDB(ctx context.Context, config DatabaseConfig) (*SQLiteP
 		return nil, fmt.Errorf("failed to create tables: %w", err)
 	}
 
-	return &SQLitePIIMappingDB{db: db}, nil
+	store := &SQLitePIIMappingDB{db: db}
+	if err := store.initializeMappingPolicy(ctx, cfg.MappingExpiration); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+	return store, nil
 }
 
 // createSQLiteTables creates the required tables if they don't exist
@@ -195,24 +208,23 @@ func createSQLiteTables(ctx context.Context, db *sql.DB) error {
 	return nil
 }
 
-// StoreMapping stores a PII mapping in the database with confidence level
-func (s *SQLitePIIMappingDB) StoreMapping(ctx context.Context, original, dummy string, piiType string, confidence float64) error {
-	query := `
-	INSERT INTO pii_mappings (original_pii, dummy_pii, pii_type, confidence, created_at, last_accessed_at, access_count)
-	VALUES (?, ?, ?, ?, datetime('now'), datetime('now'), 1)
-	ON CONFLICT (original_pii)
-	DO UPDATE SET
-		last_accessed_at = datetime('now'),
-		access_count = pii_mappings.access_count + 1,
-		confidence = excluded.confidence
-	`
+// MappingExpiration returns a copy of the active policy.
+func (s *SQLitePIIMappingDB) MappingExpiration() config.MappingExpirationConfig {
+	return *s.expiration.Load()
+}
 
-	_, err := s.db.ExecContext(ctx, query, original, dummy, piiType, confidence)
-	return err
+// expireMappings must be called with mappingMu held.
+func (s *SQLitePIIMappingDB) expireMappings(ctx context.Context) error {
+	return expireMappingsWithPolicy(ctx, s.db, s.MappingExpiration())
 }
 
 // getValue retrieves a value from the database with access statistics update
 func (s *SQLitePIIMappingDB) getValue(ctx context.Context, key string, isOriginalToDummy bool) (string, bool, error) {
+	s.mappingMu.Lock()
+	defer s.mappingMu.Unlock()
+	if err := s.expireMappings(ctx); err != nil {
+		return "", false, err
+	}
 	var query string
 	var updateQuery string
 
@@ -225,7 +237,9 @@ func (s *SQLitePIIMappingDB) getValue(ctx context.Context, key string, isOrigina
 	}
 
 	var value string
-	err := s.db.QueryRowContext(ctx, query, key).Scan(&value)
+	policy := s.MappingExpiration()
+	query += ` AND (? = 0 OR created_at > strftime('%Y-%m-%d %H:%M:%f', 'now', ?))`
+	err := s.db.QueryRowContext(ctx, query, key, policy.Enabled, fmt.Sprintf("-%d seconds", policy.TTLSeconds)).Scan(&value)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return "", false, nil
@@ -253,6 +267,8 @@ func (s *SQLitePIIMappingDB) GetOriginal(ctx context.Context, dummy string) (str
 
 // DeleteMapping removes a mapping from the database
 func (s *SQLitePIIMappingDB) DeleteMapping(ctx context.Context, original string) error {
+	s.mappingMu.Lock()
+	defer s.mappingMu.Unlock()
 	query := `DELETE FROM pii_mappings WHERE original_pii = ?`
 	_, err := s.db.ExecContext(ctx, query, original)
 	return err
@@ -262,6 +278,8 @@ func (s *SQLitePIIMappingDB) DeleteMapping(ctx context.Context, original string)
 // original/dummy values (so the caller can evict in-memory caches), then deletes
 // the row. Returns ErrMappingNotFound if the id does not exist.
 func (s *SQLitePIIMappingDB) DeleteMappingByID(ctx context.Context, id int) (string, string, error) {
+	s.mappingMu.Lock()
+	defer s.mappingMu.Unlock()
 	var original, dummy string
 	err := s.db.QueryRowContext(ctx, `SELECT original_pii, dummy_pii FROM pii_mappings WHERE id = ?`, id).Scan(&original, &dummy)
 	if err != nil {
@@ -280,6 +298,8 @@ func (s *SQLitePIIMappingDB) DeleteMappingByID(ctx context.Context, id int) (str
 
 // CleanupOldMappings removes mappings older than specified duration
 func (s *SQLitePIIMappingDB) CleanupOldMappings(ctx context.Context, olderThan time.Duration) (int64, error) {
+	s.mappingMu.Lock()
+	defer s.mappingMu.Unlock()
 	query := `DELETE FROM pii_mappings WHERE created_at < datetime('now', ?)`
 	modifier := fmt.Sprintf("-%d seconds", int(olderThan.Seconds()))
 
@@ -293,6 +313,8 @@ func (s *SQLitePIIMappingDB) CleanupOldMappings(ctx context.Context, olderThan t
 
 // ClearMappings removes all PII mappings from the database
 func (s *SQLitePIIMappingDB) ClearMappings(ctx context.Context) error {
+	s.mappingMu.Lock()
+	defer s.mappingMu.Unlock()
 	_, err := s.db.ExecContext(ctx, `DELETE FROM pii_mappings`)
 	if err != nil {
 		return fmt.Errorf("failed to clear mappings: %w", err)
@@ -303,6 +325,11 @@ func (s *SQLitePIIMappingDB) ClearMappings(ctx context.Context) error {
 
 // GetMappingsCount returns the total number of PII mappings
 func (s *SQLitePIIMappingDB) GetMappingsCount(ctx context.Context) (int, error) {
+	s.mappingMu.Lock()
+	defer s.mappingMu.Unlock()
+	if err := s.expireMappings(ctx); err != nil {
+		return 0, err
+	}
 	var count int
 	err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM pii_mappings`).Scan(&count)
 	if err != nil {
@@ -330,6 +357,11 @@ var allowedMappingSortColumns = map[string]string{
 
 // GetMappings retrieves PII mappings from the database with pagination and sorting.
 func (s *SQLitePIIMappingDB) GetMappings(ctx context.Context, limit int, offset int, sortColumn string, sortDescending bool) ([]map[string]interface{}, error) {
+	s.mappingMu.Lock()
+	defer s.mappingMu.Unlock()
+	if err := s.expireMappings(ctx); err != nil {
+		return nil, err
+	}
 	column, ok := allowedMappingSortColumns[sortColumn]
 	if !ok {
 		column = MappingColumnCreatedAt // safe default

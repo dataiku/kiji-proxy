@@ -88,9 +88,27 @@ type ProxyConfig struct {
 	EnablePAC          bool   `json:"enable_pac"` // Enable PAC (Proxy Auto-Config) for automatic system proxy setup
 }
 
+// MappingExpirationConfig controls the fixed lifetime of mappings from creation.
+// Changing the policy applies to existing mappings as well as new ones.
+type MappingExpirationConfig struct {
+	Enabled    bool `json:"enabled"`
+	TTLSeconds int  `json:"ttl_seconds"`
+}
+
+const DefaultMappingTTLSeconds = 300
+const MaxMappingTTLSeconds = 2147483647
+
+func (c MappingExpirationConfig) Validate() error {
+	if c.TTLSeconds < 1 || c.TTLSeconds > MaxMappingTTLSeconds {
+		return fmt.Errorf("mapping expiration ttl_seconds must be an integer between 1 and %d", MaxMappingTTLSeconds)
+	}
+	return nil
+}
+
 // Config holds all configuration for the PII proxy service
 type Config struct {
-	Providers          ProvidersConfig `json:"providers"`
+	MappingExpiration  MappingExpirationConfig `json:"mapping_expiration"`
+	Providers          ProvidersConfig         `json:"providers"`
 	ProxyPort          string
 	UnixSocketPath     string
 	Database           DatabaseConfig
@@ -158,6 +176,9 @@ func (c *Config) ResolveModelDirectory() string {
 
 func (c *Config) ValidateConfig() error {
 	var errs []string
+	if err := c.MappingExpiration.Validate(); err != nil {
+		errs = append(errs, err.Error())
+	}
 
 	if c.UnixSocketPath == "" {
 		// Validate ProxyPort format (":port")
@@ -299,6 +320,7 @@ func DefaultConfig() *Config {
 	dbPath := filepath.Join(appDataDir, "kiji_privacy_proxy.db")
 
 	return &Config{
+		MappingExpiration: MappingExpirationConfig{Enabled: true, TTLSeconds: DefaultMappingTTLSeconds},
 		Providers: ProvidersConfig{
 			DefaultProvidersConfig:  defaultProvidersConfig,
 			OpenAIProviderConfig:    defaultOpenAIProviderConfig,

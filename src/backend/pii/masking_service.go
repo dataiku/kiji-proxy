@@ -126,7 +126,13 @@ func (s *MaskingService) MaskText(text string, logPrefix string) MaskedResult {
 				maskedEntityText = dummy
 			} else {
 				maskedEntityText = s.generator.GenerateReplacement(entity.Label, originalText)
-				s.mapping.AddMapping(originalText, maskedEntityText, entity.Label, entity.Confidence)
+				if stored, err := s.mapping.AddMapping(originalText, maskedEntityText, entity.Label, entity.Confidence); err == nil {
+					maskedEntityText = stored
+				} else {
+					// Never emit a reused token if storage failed: it could unmask to someone
+					// else's value. An unrecorded fresh token safely stays masked.
+					maskedEntityText = freshMappingPlaceholder()
+				}
 			}
 		} else {
 			maskedEntityText = s.generator.GenerateReplacement(entity.Label, originalText)
@@ -240,6 +246,9 @@ func (s *MaskingService) GetAvailableEntityTypes() ([]string, error) {
 // mapping. It uses a single-pass replacer so a restored value is never
 // re-substituted; see processor.BuildRestorer.
 func (s *MaskingService) RestorePII(text string, maskedToOriginal map[string]string) string {
+	if s.mapping != nil {
+		maskedToOriginal = s.mapping.RestorationMappings(maskedToOriginal)
+	}
 	return processor.BuildRestorer(maskedToOriginal).Replace(text)
 }
 

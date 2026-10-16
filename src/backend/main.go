@@ -92,6 +92,9 @@ func run(configPath *string) error {
 	if settings, err := config.LoadPIISettings(); err != nil {
 		log.Printf("Failed to load persisted PII settings, using config defaults: %v", err)
 	} else if settings != nil {
+		if settings.MappingExpiration != nil {
+			cfg.MappingExpiration = *settings.MappingExpiration
+		}
 		cfg.CustomRegexes = settings.CustomRegexes
 		cfg.DisabledEntities = settings.DisabledEntities
 		log.Printf("Loaded persisted PII settings: %d custom regex(es), %d disabled label(s)",

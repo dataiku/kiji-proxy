@@ -3,103 +3,62 @@ package pii
 import (
 	"context"
 	"log"
-	"sync"
 	"time"
 )
 
-// PIIMapping stores the relationship between original and dummy PII
-type PIIMapping struct {
-	OriginalToDummy map[string]string // original -> dummy (cache)
-	DummyToOriginal map[string]string // dummy -> original (cache)
-	mutex           sync.RWMutex
-	db              PIIMappingDB // database backend
-	useCache        bool         // whether to use in-memory cache
+// PIIMapping resolves mappings through the database so expiration, deletion and
+// runtime policy changes cannot be bypassed by an untimed in-memory cache.
+type PIIMapping struct{ db PIIMappingDB }
+
+// The legacy cache flag is retained for callers; SQLite is authoritative.
+func NewPIIMappingWithDB(db PIIMappingDB, _ bool) *PIIMapping {
+	return &PIIMapping{db: db}
 }
 
-// NewPIIMappingWithDB creates a new PII mapping instance with database backend
-func NewPIIMappingWithDB(db PIIMappingDB, useCache bool) *PIIMapping {
-	return &PIIMapping{
-		OriginalToDummy: make(map[string]string),
-		DummyToOriginal: make(map[string]string),
-		db:              db,
-		useCache:        useCache,
-	}
-}
-
-// AddMappingWithConfidence adds a mapping between original and dummy PII with confidence level
-func (m *PIIMapping) AddMapping(original, dummy, piiType string, confidence float64) {
+func (m *PIIMapping) AddMapping(original, dummy, piiType string, confidence float64) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-
-	// Store in database with confidence
-	if err := m.db.StoreMapping(ctx, original, dummy, piiType, confidence); err != nil {
-		// Log error but continue with cache
-		// In production, you might want to use a proper logger
+	stored, err := m.db.GetOrCreateMapping(ctx, original, dummy, piiType, confidence)
+	if err != nil {
 		log.Printf("Error storing mapping: %v", err)
 	}
-
-	// Update cache if enabled
-	if m.useCache {
-		m.mutex.Lock()
-		m.OriginalToDummy[original] = dummy
-		m.DummyToOriginal[dummy] = original
-		m.mutex.Unlock()
-	}
+	return stored, err
 }
 
-// getValue retrieves a value using cache-first strategy with database fallback
 func (m *PIIMapping) getValue(key string, isOriginalToDummy bool) (string, bool) {
-	// Check cache first if enabled
-	if m.useCache {
-		m.mutex.RLock()
-		var value string
-		var exists bool
-
-		if isOriginalToDummy {
-			value, exists = m.OriginalToDummy[key]
-		} else {
-			value, exists = m.DummyToOriginal[key]
-		}
-
-		m.mutex.RUnlock()
-		if exists {
-			return value, true
-		}
-	}
-
-	// Check database
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-
 	var value string
-	var exists bool
+	var found bool
 	var err error
-
 	if isOriginalToDummy {
-		value, exists, err = m.db.GetDummy(ctx, key)
+		value, found, err = m.db.GetDummy(ctx, key)
 	} else {
-		value, exists, err = m.db.GetOriginal(ctx, key)
+		value, found, err = m.db.GetOriginal(ctx, key)
 	}
-
 	if err != nil {
-		// Log error but return false
 		return "", false
 	}
+	return value, found
+}
 
-	// Update cache if enabled and found in database
-	if exists && m.useCache {
-		m.mutex.Lock()
-		if isOriginalToDummy {
-			m.OriginalToDummy[key] = value
-			m.DummyToOriginal[value] = key
+// RestorationMappings keeps invalid dummies as identity replacements so a shorter
+// active dummy cannot be substituted inside an expired longer dummy.
+func (m *PIIMapping) RestorationMappings(mapping map[string]string) map[string]string {
+	valid := make(map[string]string, len(mapping))
+	for dummy, original := range mapping {
+		if m.IsValid(dummy, original) {
+			valid[dummy] = original
 		} else {
-			m.DummyToOriginal[key] = value
-			m.OriginalToDummy[value] = key
+			valid[dummy] = dummy
 		}
-		m.mutex.Unlock()
 	}
+	return valid
+}
 
-	return value, exists
+func (m *PIIMapping) IsValid(dummy, original string) bool {
+	current, found := m.GetOriginal(dummy)
+	return found && current == original
 }
 
 // GetDummy returns the dummy value for an original PII
@@ -112,46 +71,15 @@ func (m *PIIMapping) GetOriginal(dummy string) (string, bool) {
 	return m.getValue(dummy, false)
 }
 
-// DeleteByID removes a single mapping (by row id) from both the database and the
-// in-memory cache, keeping the two consistent. Returns ErrMappingNotFound when
-// the id does not exist.
+// DeleteByID removes a single mapping by row id.
 func (m *PIIMapping) DeleteByID(ctx context.Context, id int) error {
-	original, dummy, err := m.db.DeleteMappingByID(ctx, id)
-	if err != nil {
-		return err
-	}
-
-	if m.useCache {
-		m.mutex.Lock()
-		delete(m.OriginalToDummy, original)
-		delete(m.DummyToOriginal, dummy)
-		m.mutex.Unlock()
-	}
-
-	return nil
+	_, _, err := m.db.DeleteMappingByID(ctx, id)
+	return err
 }
 
-// Clear removes all mappings from cache (database mappings remain)
-func (m *PIIMapping) Clear() {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-
-	m.OriginalToDummy = make(map[string]string)
-	m.DummyToOriginal = make(map[string]string)
-}
-
-// ClearAll removes all mappings from both cache and database
 func (m *PIIMapping) ClearAll() error {
-	// Clear cache first
-	m.mutex.Lock()
-	m.OriginalToDummy = make(map[string]string)
-	m.DummyToOriginal = make(map[string]string)
-	m.mutex.Unlock()
-
-	// Clear database
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-
 	return m.db.ClearMappings(ctx)
 }
 
@@ -166,22 +94,4 @@ func (m *PIIMapping) GetMappingsCount() (int, error) {
 // Close closes the database connection
 func (m *PIIMapping) Close() error {
 	return m.db.Close()
-}
-
-// GetAllMappings returns a copy of all mappings (for debugging/testing)
-func (m *PIIMapping) GetAllMappings() (map[string]string, map[string]string) {
-	m.mutex.RLock()
-	defer m.mutex.RUnlock()
-
-	originalToDummy := make(map[string]string)
-	dummyToOriginal := make(map[string]string)
-
-	for k, v := range m.OriginalToDummy {
-		originalToDummy[k] = v
-	}
-	for k, v := range m.DummyToOriginal {
-		dummyToOriginal[k] = v
-	}
-
-	return originalToDummy, dummyToOriginal
 }
