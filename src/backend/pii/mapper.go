@@ -15,10 +15,10 @@ func NewPIIMappingWithDB(db PIIMappingDB, _ bool) *PIIMapping {
 	return &PIIMapping{db: db}
 }
 
-func (m *PIIMapping) AddMapping(ctx context.Context, original, dummy, piiType string, confidence float64) (string, error) {
+func (m *PIIMapping) AddMapping(ctx context.Context, original, dummy, piiType string, confidence float64, generators ...func() string) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	stored, err := m.db.GetOrCreateMapping(ctx, original, dummy, piiType, confidence)
+	stored, err := m.db.GetOrCreateMapping(ctx, original, dummy, piiType, confidence, generators...)
 	if err != nil {
 		log.Printf("Error storing mapping: %v", err)
 	}

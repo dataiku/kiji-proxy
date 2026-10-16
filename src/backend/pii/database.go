@@ -40,8 +40,8 @@ type DatabaseConfig struct {
 
 // PIIMappingDB defines the interface for database operations
 type PIIMappingDB interface {
-	// GetOrCreateMapping atomically reuses a live mapping or reserves a never-used dummy.
-	GetOrCreateMapping(ctx context.Context, original, dummy, piiType string, confidence float64) (string, error)
+	// GetOrCreateMapping atomically reuses a live mapping or chooses an available dummy.
+	GetOrCreateMapping(ctx context.Context, original, dummy, piiType string, confidence float64, generators ...func() string) (string, error)
 	// StoreMapping stores a PII mapping in the database with confidence level
 	StoreMapping(ctx context.Context, original, dummy string, piiType string, confidence float64) error
 
@@ -150,7 +150,10 @@ func newSQLitePIIMappingDB(ctx context.Context, cfg DatabaseConfig, cleanupInter
 
 	// Open database connection with SQLite pragmas for performance
 	dsn := fmt.Sprintf("file:%s?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(ON)", dbPath)
-	db, err := sql.Open("sqlite", dsn)
+	// Acquire the writer reservation before reading inside mutation transactions.
+	// Otherwise a maintenance write between SELECT and INSERT can make a deferred
+	// transaction impossible to upgrade, even when expiration is disabled.
+	db, err := sql.Open("sqlite", dsn+"&_txlock=immediate")
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database connection: %w", err)
 	}

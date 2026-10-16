@@ -16,7 +16,7 @@ async function setup() {
     return elements.get(id);
   };
   let ready;
-  let policy = { enabled: true, ttl_seconds: 300 };
+  let policy = { ttl_seconds: 300 };
   const posts = [];
   const context = {
     document: { addEventListener: (_, callback) => { ready = callback; }, getElementById: element },
@@ -36,7 +36,7 @@ async function setup() {
         if (JSON.stringify(body.expected) !== JSON.stringify(policy)) {
           return { status: 409, ok: false, json: async () => policy };
         }
-        policy = { enabled: body.enabled, ttl_seconds: body.ttl_seconds };
+        policy = { ttl_seconds: body.ttl_seconds };
       }
       return { status: 200, ok: true, json: async () => policy };
     },
@@ -54,23 +54,57 @@ test('extension sends its loaded baseline and updates it after a successful save
   const f = await setup();
   f.element('expiration-seconds').value = '120';
   await f.submit();
-  assert.deepEqual(f.posts[0].expected, { enabled: true, ttl_seconds: 300 });
-  f.element('expiration-enabled').checked = false;
+  assert.deepEqual(f.posts[0].expected, { ttl_seconds: 300 });
+  f.element('expiration-seconds').value = '0';
   await f.submit();
-  assert.deepEqual(f.posts[1].expected, { enabled: true, ttl_seconds: 120 });
+  assert.deepEqual(f.posts[1].expected, { ttl_seconds: 120 });
   assert.equal(f.element('expiration-status').textContent, 'Saved.');
 });
 
 test('extension preserves a conflicting draft until explicit reload', async () => {
   const f = await setup();
   f.element('expiration-seconds').value = '90';
-  f.remote({ enabled: false, ttl_seconds: 60 });
+  f.remote({ ttl_seconds: 0 });
   await f.submit();
-  assert.deepEqual(f.current(), { enabled: false, ttl_seconds: 60 });
+  assert.deepEqual(f.current(), { ttl_seconds: 0 });
   assert.equal(f.element('expiration-seconds').value, '90');
   assert.match(f.element('expiration-status').textContent, /changed in another client/);
   assert.equal(f.element('expiration-fields').disabled, false);
   await f.element('expiration-reload').listeners.click();
-  assert.equal(f.element('expiration-seconds').value, 60);
-  assert.equal(f.element('expiration-enabled').checked, false);
+  assert.equal(f.element('expiration-seconds').value, '0');
+  assert.equal(f.element('expiration-seconds').disabled, false);
+});
+
+test('extension defaults to 300 and uses zero to disable then a positive duration to enable', async () => {
+  const f = await setup();
+  assert.equal(f.element('expiration-seconds').value, '300');
+  f.element('expiration-seconds').value = '0';
+  await f.submit();
+  assert.deepEqual(f.current(), { ttl_seconds: 0 });
+  assert.equal(f.element('expiration-seconds').value, '0');
+  assert.equal(f.element('expiration-seconds').disabled, false);
+  f.element('expiration-seconds').value = '300';
+  await f.submit();
+  assert.deepEqual(f.posts[1].expected, { ttl_seconds: 0 });
+  assert.deepEqual(f.current(), { ttl_seconds: 300 });
+});
+
+test('extension rejects empty, negative, fractional and excessive durations', async () => {
+  const f = await setup();
+  for (const value of ['', ' ', '-1', '1.5', '2147483648']) {
+    f.element('expiration-seconds').value = value;
+    await f.submit();
+    assert.match(f.element('expiration-status').textContent, /whole number from 0/);
+  }
+  assert.equal(f.posts.length, 0);
+});
+
+test('extension preserves a zero draft when another client changes the lifetime', async () => {
+  const f = await setup();
+  f.element('expiration-seconds').value = '0';
+  f.remote({ ttl_seconds: 45 });
+  await f.submit();
+  assert.equal(f.element('expiration-seconds').value, '0');
+  assert.match(f.element('expiration-status').textContent, /changed in another client/);
+  assert.deepEqual(f.current(), { ttl_seconds: 45 });
 });

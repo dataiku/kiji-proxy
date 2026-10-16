@@ -47,6 +47,11 @@ func LoadPIISettings() (*PIISettings, error) {
 	if err := json.Unmarshal(data, &s); err != nil {
 		return nil, fmt.Errorf("%w: parse %s: %w", ErrMalformedPIISettings, path, err)
 	}
+	if s.MappingExpiration != nil {
+		if err := s.MappingExpiration.Validate(); err != nil {
+			return nil, fmt.Errorf("%w: %w", ErrMalformedPIISettings, err)
+		}
+	}
 	return &s, nil
 }
 
@@ -69,5 +74,25 @@ func SavePIISettings(s *PIISettings) error {
 	if err := os.Rename(tmp, path); err != nil {
 		return fmt.Errorf("rename %s -> %s: %w", tmp, path, err)
 	}
+	return nil
+}
+
+// LoadPersistedPIISettings applies UI overrides. On failure the database retains
+// its last policy rather than applying defaults or an older static configuration.
+func (c *Config) LoadPersistedPIISettings() error {
+	settings, err := LoadPIISettings()
+	if err != nil {
+		c.preserveMappingPolicy = true
+		return err
+	}
+	if settings == nil {
+		return nil
+	}
+	if settings.MappingExpiration != nil {
+		c.MappingExpiration = *settings.MappingExpiration
+		c.mappingExpirationExplicit = true
+	}
+	c.CustomRegexes = settings.CustomRegexes
+	c.DisabledEntities = settings.DisabledEntities
 	return nil
 }

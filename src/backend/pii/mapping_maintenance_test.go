@@ -2,7 +2,6 @@ package pii
 
 import (
 	"context"
-	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -61,15 +60,18 @@ func TestPeriodicCleanupPreservesRequestSnapshot(t *testing.T) {
 	if got, err := mapping.UnmaskMappings(ctx, []string{"dummy"}); err != nil || len(got) != 0 {
 		t.Fatalf("later unmask revived expired pair: %v %v", got, err)
 	}
-	if err := db.StoreMapping(ctx, "Other", "dummy", "PERSON", 1); !errors.Is(err, ErrDummyAlreadyUsed) {
-		t.Fatalf("cleanup released dummy reservation: %v", err)
+	if err := db.StoreMapping(ctx, "Other", "dummy", "PERSON", 1); err != nil {
+		t.Fatalf("cleanup did not release dummy: %v", err)
+	}
+	if got, found, err := snapshot.Lookup(ctx, "dummy", false); err != nil || !found || got != "Alice" {
+		t.Fatalf("reuse changed active snapshot: %q %v %v", got, found, err)
 	}
 }
 
 func TestPeriodicCleanupHonorsDisabledPolicyAndRetries(t *testing.T) {
 	db := maintenanceTestDB(t, 10*time.Millisecond)
 	ctx := context.Background()
-	if err := db.SetMappingExpiration(config.MappingExpirationConfig{Enabled: false, TTLSeconds: 300}); err != nil {
+	if err := db.SetMappingExpiration(config.MappingExpirationConfig{TTLSeconds: 0}); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.StoreMapping(ctx, "Alice", "dummy", "PERSON", 1); err != nil {
@@ -87,7 +89,7 @@ func TestPeriodicCleanupHonorsDisabledPolicyAndRetries(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Change only the persisted policy to exercise timer retries, not policy-save cleanup.
-	if _, err := db.db.Exec(`UPDATE pii_mapping_policy SET enabled=1`); err != nil {
+	if _, err := db.db.Exec(`UPDATE pii_mapping_policy SET ttl_seconds=300`); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.cleanupExpiredMappings(ctx); err == nil {

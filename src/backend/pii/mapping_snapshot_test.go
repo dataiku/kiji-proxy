@@ -25,7 +25,7 @@ func (d *snapshotDetector) Detect(ctx context.Context, input detectors.DetectorI
 }
 
 func TestMaskingSnapshotTakenBeforeDetection(t *testing.T) {
-	for _, change := range []string{"expire", "shorten", "disable", "delete"} {
+	for _, change := range []string{"expire", "shorten", "disable", "zero TTL", "delete"} {
 		t.Run(change, func(t *testing.T) {
 			db := newTestDB(t)
 			mapping := NewPIIMappingWithDB(db, true)
@@ -43,11 +43,15 @@ func TestMaskingSnapshotTakenBeforeDetection(t *testing.T) {
 				backdateMapping(t, db, "-600 seconds")
 				switch change {
 				case "shorten":
-					if err := db.SetMappingExpiration(config.MappingExpirationConfig{Enabled: true, TTLSeconds: 1}); err != nil {
+					if err := db.SetMappingExpiration(config.MappingExpirationConfig{TTLSeconds: 1}); err != nil {
 						t.Fatal(err)
 					}
 				case "disable":
-					if err := db.SetMappingExpiration(config.MappingExpirationConfig{Enabled: false, TTLSeconds: 300}); err != nil {
+					if err := db.SetMappingExpiration(config.MappingExpirationConfig{TTLSeconds: 0}); err != nil {
+						t.Fatal(err)
+					}
+				case "zero TTL":
+					if err := db.SetMappingExpiration(config.MappingExpirationConfig{TTLSeconds: 0}); err != nil {
 						t.Fatal(err)
 					}
 				case "delete":
@@ -86,7 +90,7 @@ func TestMaskingSessionKeepsNewMappingsAcrossFields(t *testing.T) {
 	defer request.Close()
 	first := request.MaskText("Alice", "first field")
 	backdateMapping(t, db, "-600 seconds")
-	if err := db.SetMappingExpiration(config.MappingExpirationConfig{Enabled: false, TTLSeconds: 300}); err != nil {
+	if err := db.SetMappingExpiration(config.MappingExpirationConfig{TTLSeconds: 0}); err != nil {
 		t.Fatal(err)
 	}
 	second := request.MaskText("Alice", "second field")
@@ -180,7 +184,7 @@ func TestStandaloneUnmaskUsesOneSnapshotForWholeBatch(t *testing.T) {
 	}
 	wrapped := &invalidatingAccessDB{PIIMappingDB: db, beforeAccess: func() {
 		backdateMapping(t, db, "-600 seconds")
-		if err := db.SetMappingExpiration(config.MappingExpirationConfig{Enabled: false, TTLSeconds: 300}); err != nil {
+		if err := db.SetMappingExpiration(config.MappingExpirationConfig{TTLSeconds: 0}); err != nil {
 			t.Fatal(err)
 		}
 	}}
@@ -303,7 +307,7 @@ func BenchmarkMappingSnapshotIndexedLookup(b *testing.B) {
 	for _, size := range []int{1, 10000} {
 		b.Run(fmt.Sprintf("rows=%d", size), func(b *testing.B) {
 			ctx := context.Background()
-			db, err := NewSQLitePIIMappingDB(ctx, DatabaseConfig{Path: filepath.Join(b.TempDir(), "bench.db"), MappingExpiration: &config.MappingExpirationConfig{Enabled: false, TTLSeconds: 300}})
+			db, err := NewSQLitePIIMappingDB(ctx, DatabaseConfig{Path: filepath.Join(b.TempDir(), "bench.db"), MappingExpiration: &config.MappingExpirationConfig{TTLSeconds: 0}})
 			if err != nil {
 				b.Fatal(err)
 			}

@@ -33,7 +33,7 @@ func (d *betweenFieldsDetector) Detect(ctx context.Context, input detectors.Dete
 }
 
 func TestRequestMappingsSurviveUpstreamWaitAndResponse(t *testing.T) {
-	for _, change := range []string{"expiration", "shorter policy", "disabled policy", "clear mappings"} {
+	for _, change := range []string{"expiration", "shorter policy", "disabled policy", "zero TTL", "clear mappings"} {
 		t.Run(change, func(t *testing.T) {
 			ctx := context.Background()
 			path := filepath.Join(t.TempDir(), "requests.db")
@@ -83,11 +83,15 @@ func TestRequestMappingsSurviveUpstreamWaitAndResponse(t *testing.T) {
 			}
 			switch change {
 			case "shorter policy":
-				if err := h.SetMappingExpiration(config.MappingExpirationConfig{Enabled: true, TTLSeconds: 1}); err != nil {
+				if err := h.SetMappingExpiration(config.MappingExpirationConfig{TTLSeconds: 1}); err != nil {
 					t.Fatal(err)
 				}
 			case "disabled policy":
-				if err := h.SetMappingExpiration(config.MappingExpirationConfig{Enabled: false, TTLSeconds: 300}); err != nil {
+				if err := h.SetMappingExpiration(config.MappingExpirationConfig{TTLSeconds: 0}); err != nil {
+					t.Fatal(err)
+				}
+			case "zero TTL":
+				if err := h.SetMappingExpiration(config.MappingExpirationConfig{TTLSeconds: 0}); err != nil {
 					t.Fatal(err)
 				}
 			case "clear mappings":

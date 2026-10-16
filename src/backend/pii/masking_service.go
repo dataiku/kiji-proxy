@@ -195,7 +195,7 @@ func (r *MaskingRequest) MaskText(text string, logPrefix string) MaskedResult {
 				maskedEntityText = dummy
 			} else {
 				maskedEntityText = s.generator.GenerateReplacement(entity.Label, originalText)
-				if stored, err := s.mapping.AddMapping(r.ctx, originalText, maskedEntityText, entity.Label, entity.Confidence); err == nil {
+				if stored, err := s.mapping.AddMapping(r.ctx, originalText, maskedEntityText, entity.Label, entity.Confidence, func() string { return s.generator.GenerateReplacement(entity.Label, originalText) }); err == nil {
 					maskedEntityText = stored
 				} else {
 					if r.ctx.Err() != nil {

@@ -115,26 +115,23 @@ func TestStreamKeepsOwnGenerationAfterPolicyChangeAndRemasking(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Disabling must retire the expired generation before a later request remasks.
-	if err := h.SetMappingExpiration(config.MappingExpirationConfig{Enabled: false, TTLSeconds: 300}); err != nil {
+	if err := h.SetMappingExpiration(config.MappingExpirationConfig{TTLSeconds: 0}); err != nil {
 		t.Fatal(err)
 	}
-	second, err := m.AddMapping(context.Background(), "EMP-123", candidate, "EMPLOYEE_ID", 1)
+	second, err := m.AddMapping(context.Background(), "EMP-456", candidate, "EMPLOYEE_ID", 1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if first == second {
-		t.Fatal("remasking reused expired generation")
+	if first != second {
+		t.Fatal("expired placeholder was not reusable")
 	}
 	received += delta("After " + first + ".")
 	want := "Before EMP-123. After EMP-123."
 	if received != want || codec.restoredOutput() != want {
 		t.Fatalf("request snapshot lost: received=%q audit=%q", received, codec.restoredOutput())
 	}
-	if got, found := unmaskForTest(t, m, second); !found || got != "EMP-123" {
+	if got, found := unmaskForTest(t, m, second); !found || got != "EMP-456" {
 		t.Fatal("new mapping failed to restore")
-	}
-	if _, found := unmaskForTest(t, m, first); found {
-		t.Fatal("active stream revived its old token in the global store")
 	}
 }
 

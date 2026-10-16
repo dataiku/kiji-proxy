@@ -132,7 +132,6 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   const expirationFields = document.getElementById("expiration-fields");
-  const expirationEnabled = document.getElementById("expiration-enabled");
   const expirationSeconds = document.getElementById("expiration-seconds");
   const expirationStatus = document.getElementById("expiration-status");
   let expirationBase = null;
@@ -150,28 +149,22 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const policy = await res.json();
       if (seq !== expirationLoadSeq) return;
-      expirationEnabled.checked = policy.enabled;
-      expirationSeconds.value = policy.ttl_seconds;
-      expirationSeconds.disabled = !policy.enabled;
+      expirationSeconds.value = String(policy.ttl_seconds);
       expirationBase = base;
-      expirationPolicy = { enabled: policy.enabled, ttl_seconds: policy.ttl_seconds };
+      expirationPolicy = { ttl_seconds: policy.ttl_seconds };
       expirationFields.disabled = false;
       expirationStatus.textContent = "";
     } catch {
       if (seq === expirationLoadSeq) expirationStatus.textContent = "Unable to load settings. Start the proxy and reload.";
     }
   }
-  expirationEnabled.addEventListener("change", () => {
-    expirationSeconds.disabled = !expirationEnabled.checked;
-    expirationStatus.textContent = "";
-  });
   expirationSeconds.addEventListener("input", () => { expirationStatus.textContent = ""; });
   document.getElementById("expiration-reload").addEventListener("click", loadExpiration);
   document.getElementById("expiration-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     const ttl = Number(expirationSeconds.value);
-    if (!Number.isInteger(ttl) || ttl < 1 || ttl > 2147483647) {
-      expirationStatus.textContent = "Enter a whole number from 1 to 2147483647.";
+    if (expirationSeconds.value.trim() === "" || !Number.isInteger(ttl) || ttl < 0 || ttl > 2147483647) {
+      expirationStatus.textContent = "Enter a whole number from 0 to 2147483647.";
       return;
     }
     const base = await getBackendUrl();
@@ -186,7 +179,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const res = await fetch(`${base}/api/pii/mapping-expiration`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ enabled: expirationEnabled.checked, ttl_seconds: ttl, expected: expirationPolicy }),
+        body: JSON.stringify({ ttl_seconds: ttl, expected: expirationPolicy }),
       });
       if (res.status === 409) {
         if (seq === expirationLoadSeq) expirationStatus.textContent = "Settings changed in another client. Your edits were kept. Reload settings to discard them and review the current policy.";
@@ -195,7 +188,8 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const saved = await res.json();
       if (seq === expirationLoadSeq) {
-        expirationPolicy = { enabled: saved.enabled, ttl_seconds: saved.ttl_seconds };
+        expirationPolicy = { ttl_seconds: saved.ttl_seconds };
+        expirationSeconds.value = String(saved.ttl_seconds);
         expirationStatus.textContent = "Saved.";
       }
     } catch {

@@ -11,7 +11,7 @@ const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.Modu
 const exportsUnderTest = {};
 new Function('exports', compiled.outputText)(exportsUnderTest);
 const { createMappingExpirationStore } = exportsUnderTest;
-const policy = (ttl_seconds, enabled = true) => ({ enabled, ttl_seconds });
+const policy = ttl_seconds => ({ ttl_seconds });
 const response = (value, status = 200) => ({ ok: status === 200, status, json: async () => value });
 const tick = () => new Promise(resolve => setImmediate(resolve));
 const deferred = () => {
@@ -27,7 +27,7 @@ function fixture() {
       const body = JSON.parse(init.body);
       posts.push(body);
       if (JSON.stringify(body.expected) !== JSON.stringify(current)) return response(current, 409);
-      current = policy(body.ttl_seconds, body.enabled);
+      current = policy(body.ttl_seconds);
     }
     return response(current);
   });
@@ -44,7 +44,7 @@ test('focus and visibility refresh a clean form without navigating away', async 
   focus.dispatchEvent(new Event('focus'));
   await tick();
   assert.equal(f.store.getSnapshot().seconds, '120');
-  f.remote(policy(60, false));
+  f.remote(policy(0));
   visibility.visibilityState = 'hidden';
   visibility.dispatchEvent(new Event('visibilitychange'));
   await tick();
@@ -52,22 +52,20 @@ test('focus and visibility refresh a clean form without navigating away', async 
   visibility.visibilityState = 'visible';
   visibility.dispatchEvent(new Event('visibilitychange'));
   await tick();
-  assert.equal(f.store.getSnapshot().enabled, false);
-  assert.equal(f.store.getSnapshot().seconds, '60');
+  assert.equal(f.store.getSnapshot().seconds, '0');
   stop();
   f.remote(policy(900));
   focus.dispatchEvent(new Event('focus'));
   await tick();
-  assert.equal(f.store.getSnapshot().seconds, '60');
+  assert.equal(f.store.getSnapshot().seconds, '0');
 });
 
 test('refresh keeps a draft when the server has not changed', async () => {
   const { store } = fixture();
   await store.refresh();
-  store.edit({ seconds: '90', enabled: false });
+  store.edit({ seconds: '90' });
   await store.refresh();
   assert.equal(store.getSnapshot().seconds, '90');
-  assert.equal(store.getSnapshot().enabled, false);
   assert.equal(store.getSnapshot().status, null);
 });
 
@@ -75,16 +73,14 @@ test('external change preserves draft and blocks saving until resolved', async (
   const f = fixture();
   await f.store.refresh();
   f.store.edit({ seconds: '90' });
-  f.remote(policy(120, false));
+  f.remote(policy(0));
   await f.store.refresh();
   assert.equal(f.store.getSnapshot().seconds, '90');
-  assert.equal(f.store.getSnapshot().enabled, true);
   assert.equal(f.store.getSnapshot().status, 'conflict');
   await f.store.save();
   assert.equal(f.posts.length, 0);
   f.store.useServerSettings();
-  assert.equal(f.store.getSnapshot().seconds, '120');
-  assert.equal(f.store.getSnapshot().enabled, false);
+  assert.equal(f.store.getSnapshot().seconds, '0');
   assert.equal(f.store.getSnapshot().status, null);
 });
 
@@ -188,7 +184,7 @@ test('failed saves preserve the draft and can be retried', async () => {
 test('invalid values never reach the server', async () => {
   const f = fixture();
   await f.store.refresh();
-  for (const seconds of ['', '0', '-1', '1.5', '2147483648']) {
+  for (const seconds of ['', '   ', '-1', '1.5', '2147483648']) {
     f.store.edit({ seconds });
     await f.store.save();
     assert.equal(f.store.getSnapshot().status, 'invalid');
@@ -360,7 +356,7 @@ for (const retry of [false, true]) {
           return new Promise(() => {});
         }
         assert.deepEqual(body.expected, policy(90));
-        current = policy(body.ttl_seconds, body.enabled);
+        current = policy(body.ttl_seconds);
       }
       return response(current);
     }, deadlines.schedule);
@@ -369,13 +365,12 @@ for (const retry of [false, true]) {
     const save = store.save();
     deadlines.expire();
     await save;
-    store.edit({ seconds: '120', enabled: false });
+    store.edit({ seconds: '0' });
     if (retry) await store.save();
     else await store.refresh();
-    assert.equal(store.getSnapshot().seconds, '120');
-    assert.equal(store.getSnapshot().enabled, false);
+    assert.equal(store.getSnapshot().seconds, '0');
     assert.equal(store.getSnapshot().status, retry ? 'saved' : null);
-    assert.deepEqual(store.getSnapshot().baseline, retry ? policy(120, false) : policy(90));
+    assert.deepEqual(store.getSnapshot().baseline, retry ? policy(0) : policy(90));
     assert.equal(posts, retry ? 2 : 1);
     assert.equal(deadlines.size(), 0);
   });
@@ -507,3 +502,46 @@ for (const newerDraft of [false, true]) {
     assert.equal(deadlines.size(), 0);
   });
 }
+
+test('zero disables expiration and a positive lifetime re-enables it', async () => {
+  const f = fixture();
+  assert.equal(f.store.getSnapshot().seconds, '300');
+  await f.store.refresh();
+  f.store.edit({ seconds: '0' });
+  await f.store.save();
+  assert.deepEqual(f.current(), policy(0));
+  assert.equal(f.store.getSnapshot().seconds, '0');
+  assert.equal(f.store.getSnapshot().status, 'saved');
+  f.store.edit({ seconds: '300' });
+  await f.store.save();
+  assert.deepEqual(f.posts[1].expected, policy(0));
+  assert.deepEqual(f.current(), policy(300));
+});
+
+test('a zero draft survives a remote change and can be saved after conflict resolution', async () => {
+  const f = fixture();
+  await f.store.refresh();
+  f.store.edit({ seconds: '0' });
+  f.remote(policy(45));
+  await f.store.refresh();
+  assert.equal(f.store.getSnapshot().seconds, '0');
+  assert.equal(f.store.getSnapshot().status, 'conflict');
+  await f.store.save();
+  assert.equal(f.posts.length, 0);
+  f.store.keepEdits();
+  await f.store.save();
+  assert.deepEqual(f.posts[0].expected, policy(45));
+  assert.deepEqual(f.current(), policy(0));
+});
+
+test('zero from the server is a clean draft and can be changed to a positive lifetime', async () => {
+  const f = fixture();
+  f.remote(policy(0));
+  await f.store.refresh();
+  assert.equal(f.store.getSnapshot().seconds, '0');
+  assert.equal(exportsUnderTest.hasExpirationEdits(f.store.getSnapshot()), false);
+  f.store.edit({ seconds: '60' });
+  await f.store.save();
+  assert.deepEqual(f.posts[0].expected, policy(0));
+  assert.deepEqual(f.current(), policy(60));
+});

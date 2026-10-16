@@ -115,7 +115,7 @@ func newMockMappingDB() *mockMappingDB {
 	}
 }
 
-func (m *mockMappingDB) GetOrCreateMapping(ctx context.Context, original, dummy, piiType string, confidence float64) (string, error) {
+func (m *mockMappingDB) GetOrCreateMapping(ctx context.Context, original, dummy, piiType string, confidence float64, generators ...func() string) (string, error) {
 	if existing, ok := m.mappings[original]; ok {
 		return existing, nil
 	}

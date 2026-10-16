@@ -1,34 +1,31 @@
 export interface ExpirationPolicy {
-  enabled: boolean;
   ttl_seconds: number;
 }
 
 interface ExpirationState {
   baseline: ExpirationPolicy | null;
   latest: ExpirationPolicy | null;
-  enabled: boolean;
   seconds: string;
   saving: boolean;
   status: "saved" | "error" | "uncertain" | "invalid" | "conflict" | null;
 }
 
 function samePolicy(a: ExpirationPolicy | null, b: ExpirationPolicy | null) {
-  return a?.enabled === b?.enabled && a?.ttl_seconds === b?.ttl_seconds;
+  return a?.ttl_seconds === b?.ttl_seconds;
 }
 
 export function hasExpirationEdits(state: ExpirationState) {
   return state.baseline !== null && (
-    state.enabled !== state.baseline.enabled ||
     state.seconds.trim() === "" || Number(state.seconds) !== state.baseline.ttl_seconds
   );
 }
 
 function readPolicy(value: ExpirationPolicy): ExpirationPolicy {
-  if (!value || typeof value.enabled !== "boolean" || !Number.isInteger(value.ttl_seconds) ||
-      value.ttl_seconds < 1 || value.ttl_seconds > 2147483647) {
+  if (!value || !Number.isInteger(value.ttl_seconds) ||
+      value.ttl_seconds < 0 || value.ttl_seconds > 2147483647) {
     throw new Error("Invalid expiration policy");
   }
-  return { enabled: value.enabled, ttl_seconds: value.ttl_seconds };
+  return { ttl_seconds: value.ttl_seconds };
 }
 
 class SettingsHTTPError extends Error {}
@@ -41,7 +38,7 @@ export function createMappingExpirationStore(url: string, request: typeof fetch 
     return () => clearTimeout(timer);
   }) {
   let state: ExpirationState = {
-    baseline: null, latest: null, enabled: true, seconds: "300", saving: false, status: null,
+    baseline: null, latest: null, seconds: "300", saving: false, status: null,
   };
   let sequence = 0;
   let activeRead: AbortController | null = null;
@@ -58,7 +55,7 @@ export function createMappingExpirationStore(url: string, request: typeof fetch 
     saveFailed = false;
     definiteSaveFailure = false;
     pendingSave = null;
-    publish({ baseline: policy, latest: policy, enabled: policy.enabled,
+    publish({ baseline: policy, latest: policy,
       seconds: String(policy.ttl_seconds), status });
   };
 
@@ -94,8 +91,7 @@ export function createMappingExpirationStore(url: string, request: typeof fetch 
     if (pendingSave && samePolicy(policy, pendingSave)) {
       // The requested state is now on the server. A newer local draft must
       // survive, but its baseline can advance past our uncertain save.
-      const draftMatches = state.enabled === policy.enabled &&
-        state.seconds.trim() !== "" && Number(state.seconds) === policy.ttl_seconds;
+      const draftMatches = state.seconds.trim() !== "" && Number(state.seconds) === policy.ttl_seconds;
       pendingSave = null;
       if (draftMatches) accept(policy, "saved");
       else {
@@ -162,7 +158,7 @@ export function createMappingExpirationStore(url: string, request: typeof fetch 
         stopPolling();
       };
     },
-    edit: (patch: Partial<Pick<ExpirationState, "enabled" | "seconds">>) => {
+    edit: (patch: Partial<Pick<ExpirationState, "seconds">>) => {
       if (state.saving) return;
       saveFailed = false;
       definiteSaveFailure = false;
@@ -186,11 +182,11 @@ export function createMappingExpirationStore(url: string, request: typeof fetch 
         if (!pendingSave && !hasExpirationEdits(state)) return;
       }
       const ttl = Number(state.seconds);
-      if (!Number.isInteger(ttl) || ttl < 1 || ttl > 2147483647) {
+      if (state.seconds.trim() === "" || !Number.isInteger(ttl) || ttl < 0 || ttl > 2147483647) {
         publish({ status: "invalid" });
         return;
       }
-      const body = { enabled: state.enabled, ttl_seconds: ttl, expected: state.baseline };
+      const body = { ttl_seconds: ttl, expected: state.baseline };
       const current = ++sequence; // invalidate any GET started before this save
       activeRead?.abort();
       const controller = new AbortController();
@@ -204,7 +200,7 @@ export function createMappingExpirationStore(url: string, request: typeof fetch 
         });
         if (response.status === 409) {
           if (current === sequence) {
-            if (samePolicy(policy, { enabled: body.enabled, ttl_seconds: body.ttl_seconds })) accept(policy, "saved");
+            if (samePolicy(policy, { ttl_seconds: body.ttl_seconds })) accept(policy, "saved");
             else reconcile(policy);
           }
         } else {
@@ -215,7 +211,7 @@ export function createMappingExpirationStore(url: string, request: typeof fetch 
           saveFailed = true;
           definiteSaveFailure = error instanceof SettingsHTTPError;
           if (!definiteSaveFailure) {
-            pendingSave = { enabled: body.enabled, ttl_seconds: body.ttl_seconds };
+            pendingSave = { ttl_seconds: body.ttl_seconds };
           }
           publish({ status: definiteSaveFailure ? "error" : "uncertain" });
         }

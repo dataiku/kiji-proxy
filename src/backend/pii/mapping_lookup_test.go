@@ -87,7 +87,7 @@ func TestReadOnlyValidityTracksExpirationAndPolicyChanges(t *testing.T) {
 	}
 	// Validation no longer physically deletes rows, but disabling expiration
 	// must still retire rows expired under the previous policy before the change.
-	if err := db.SetMappingExpiration(config.MappingExpirationConfig{Enabled: false, TTLSeconds: 300}); err != nil {
+	if err := db.SetMappingExpiration(config.MappingExpirationConfig{TTLSeconds: 0}); err != nil {
 		t.Fatal(err)
 	}
 	if snapshotOriginal(t, db, "dummy") != "" {
@@ -100,7 +100,7 @@ func TestReadOnlyValidityTracksExpirationAndPolicyChanges(t *testing.T) {
 	if snapshotOriginal(t, db, "new-dummy") != "Alice" {
 		t.Fatal("disabled expiration rejected mapping")
 	}
-	if err := db.SetMappingExpiration(config.MappingExpirationConfig{Enabled: true, TTLSeconds: 60}); err != nil {
+	if err := db.SetMappingExpiration(config.MappingExpirationConfig{TTLSeconds: 60}); err != nil {
 		t.Fatal(err)
 	}
 	if snapshotOriginal(t, db, "new-dummy") != "" {

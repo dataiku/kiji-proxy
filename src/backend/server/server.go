@@ -890,6 +890,10 @@ func (s *Server) persistedExpiration() (*config.MappingExpirationConfig, error) 
 	previous, err := config.LoadPIISettings()
 	if err != nil {
 		if errors.Is(err, config.ErrMalformedPIISettings) {
+			if s.expirationOverride == nil && s.config.PreservingMappingPolicy() {
+				policy := s.handler.GetMappingExpiration()
+				s.expirationOverride = &policy
+			}
 			return s.expirationOverride, nil
 		}
 		return nil, err

@@ -35,12 +35,12 @@ func (s *interruptedSnapshot) Lookup(ctx context.Context, key string, forward bo
 	}
 	return s.MappingSnapshot.Lookup(ctx, key, forward)
 }
-func (d *interruptedMappingDB) GetOrCreateMapping(ctx context.Context, original, dummy, piiType string, confidence float64) (string, error) {
+func (d *interruptedMappingDB) GetOrCreateMapping(ctx context.Context, original, dummy, piiType string, confidence float64, generators ...func() string) (string, error) {
 	d.creates++
 	if d.beforeCreate != nil {
 		d.beforeCreate()
 	}
-	return d.PIIMappingDB.GetOrCreateMapping(ctx, original, dummy, piiType, confidence)
+	return d.PIIMappingDB.GetOrCreateMapping(ctx, original, dummy, piiType, confidence, generators...)
 }
 
 func TestMaskingStopsOnCancellationAndLookupFailures(t *testing.T) {
@@ -91,7 +91,7 @@ func TestMaskingStopsOnCancellationAndLookupFailures(t *testing.T) {
 			if wrapped.creates != wantCreates {
 				t.Fatalf("created %d mappings after interruption", wrapped.creates)
 			}
-			for _, table := range []string{"pii_mappings", "pii_used_dummies"} {
+			for _, table := range []string{"pii_mappings"} {
 				var count int
 				if err := db.db.QueryRow(`SELECT COUNT(*) FROM ` + table).Scan(&count); err != nil || count != 0 {
 					t.Fatalf("%s mutated: %d %v", table, count, err)

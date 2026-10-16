@@ -45,15 +45,15 @@ func TestMappingExpirationAPI(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &policy); err != nil {
 		t.Fatal(err)
 	}
-	if w.Code != 200 || !policy.Enabled || policy.TTLSeconds != 300 {
+	if w.Code != 200 || policy.TTLSeconds != 300 {
 		t.Fatalf("default: %d %s", w.Code, w.Body.String())
 	}
-	for _, body := range []string{`{}`, `{"enabled":true}`, `{"enabled":null,"ttl_seconds":10}`, `{"enabled":true,"ttl_seconds":0}`, `{"enabled":false,"ttl_seconds":-10}`, `{"enabled":true,"ttl_seconds":1.5}`, `{"enabled":true,"ttl_seconds":2147483648}`, `{"enabled":true,"ttl_seconds":"60"}`, `{"enabled":true,"ttl_seconds":60} garbage`} {
+	for _, body := range []string{`{}`, `{"enabled":true}`, `{"enabled":false,"ttl_seconds":0}`, `{"ttl_seconds":null}`, `{"ttl_seconds":-1}`, `{"ttl_seconds":1.5}`, `{"ttl_seconds":2147483648}`, `{"ttl_seconds":"60"}`, `{"ttl_seconds":60} garbage`} {
 		if w := call(http.MethodPost, body); w.Code != 400 {
 			t.Errorf("invalid input accepted: %s (%d)", body, w.Code)
 		}
 	}
-	for _, body := range []string{`{"enabled":false,"ttl_seconds":45}`, `{"enabled":true,"ttl_seconds":90}`} {
+	for _, body := range []string{`{"ttl_seconds":0}`, `{"ttl_seconds":45}`, `{"ttl_seconds":90}`} {
 		w := call(http.MethodPost, body)
 		if w.Code != 200 {
 			t.Fatalf("save failed: %d %s", w.Code, w.Body.String())
@@ -90,7 +90,7 @@ func TestMappingExpirationAPI(t *testing.T) {
 		t.Fatal(err)
 	}
 	before := s.handler.GetMappingExpiration()
-	if w := call(http.MethodPost, `{"enabled":false,"ttl_seconds":120}`); w.Code != 500 {
+	if w := call(http.MethodPost, `{"ttl_seconds":0}`); w.Code != 500 {
 		t.Fatalf("save failure reported as success: %d", w.Code)
 	}
 	if after := s.handler.GetMappingExpiration(); after != before {
@@ -125,7 +125,7 @@ func testMappingExpirationRollback(t *testing.T, explicit bool) {
 	}
 	before := s.handler.GetMappingExpiration()
 	w := httptest.NewRecorder()
-	s.handleMappingExpiration(w, httptest.NewRequest(http.MethodPost, "/api/pii/mapping-expiration", strings.NewReader(`{"enabled":false,"ttl_seconds":900}`)))
+	s.handleMappingExpiration(w, httptest.NewRequest(http.MethodPost, "/api/pii/mapping-expiration", strings.NewReader(`{"ttl_seconds":0}`)))
 	if w.Code != http.StatusServiceUnavailable {
 		t.Fatalf("expected rejected transition, got %d", w.Code)
 	}
@@ -196,7 +196,7 @@ func TestMappingExpirationRejectsStaleSave(t *testing.T) {
 		s.handleMappingExpiration(w, httptest.NewRequest(http.MethodPost, "/api/pii/mapping-expiration", strings.NewReader(body)))
 		return w
 	}
-	if w := call(`{"enabled":true,"ttl_seconds":120,"expected":{"enabled":true,"ttl_seconds":300}}`); w.Code != 200 {
+	if w := call(`{"ttl_seconds":120,"expected":{"ttl_seconds":300}}`); w.Code != 200 {
 		t.Fatalf("initial save: %d", w.Code)
 	}
 	db, err := sql.Open("sqlite", s.config.Database.Path)
@@ -211,7 +211,7 @@ func TestMappingExpirationRejectsStaleSave(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	w := call(`{"enabled":true,"ttl_seconds":1,"expected":{"enabled":true,"ttl_seconds":300}}`)
+	w := call(`{"ttl_seconds":1,"expected":{"ttl_seconds":300}}`)
 	if w.Code != http.StatusConflict {
 		t.Fatalf("stale save accepted: %d", w.Code)
 	}
@@ -219,7 +219,7 @@ func TestMappingExpirationRejectsStaleSave(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &current); err != nil {
 		t.Fatal(err)
 	}
-	if !current.Enabled || current.TTLSeconds != 120 || current != s.handler.GetMappingExpiration() {
+	if current.TTLSeconds != 120 || current != s.handler.GetMappingExpiration() {
 		t.Fatalf("wrong conflict policy: %+v", current)
 	}
 	after, err := os.ReadFile(config.PIISettingsPath())
@@ -233,12 +233,12 @@ func TestMappingExpirationRejectsStaleSave(t *testing.T) {
 	if err := db.QueryRow(`SELECT count(*) FROM pii_mappings`).Scan(&count); err != nil || count != 1 {
 		t.Fatalf("stale save deleted mapping: %d %v", count, err)
 	}
-	if w := call(`{"enabled":false,"ttl_seconds":120,"expected":{"enabled":true,"ttl_seconds":120}}`); w.Code != 200 {
+	if w := call(`{"ttl_seconds":0,"expected":{"ttl_seconds":120}}`); w.Code != 200 {
 		t.Fatalf("resolved save: %d", w.Code)
 	}
-	// A toggle-only change must also conflict.
-	if w := call(`{"enabled":true,"ttl_seconds":90,"expected":{"enabled":true,"ttl_seconds":120}}`); w.Code != 409 {
-		t.Fatalf("toggle conflict missed: %d", w.Code)
+	// Disabling with zero must also conflict with an outdated positive baseline.
+	if w := call(`{"ttl_seconds":90,"expected":{"ttl_seconds":120}}`); w.Code != 409 {
+		t.Fatalf("zero-duration conflict missed: %d", w.Code)
 	}
 }
 
@@ -246,8 +246,8 @@ func TestMappingExpirationConcurrentConditionalSaves(t *testing.T) {
 	s := expirationTestServer(t)
 	codes := make(chan int, 2)
 	for _, body := range []string{
-		`{"enabled":true,"ttl_seconds":60,"expected":{"enabled":true,"ttl_seconds":300}}`,
-		`{"enabled":false,"ttl_seconds":90,"expected":{"enabled":true,"ttl_seconds":300}}`,
+		`{"ttl_seconds":60,"expected":{"ttl_seconds":300}}`,
+		`{"ttl_seconds":0,"expected":{"ttl_seconds":300}}`,
 	} {
 		go func(body string) {
 			w := httptest.NewRecorder()
@@ -275,7 +275,7 @@ func TestPIISettingsRepairMalformedFileAndPreserveOverride(t *testing.T) {
 				s := expirationTestServer(t)
 				if explicit {
 					w := httptest.NewRecorder()
-					s.handleMappingExpiration(w, httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"enabled":false,"ttl_seconds":90}`)))
+					s.handleMappingExpiration(w, httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"ttl_seconds":0}`)))
 					if w.Code != 200 {
 						t.Fatal(w.Body.String())
 					}
@@ -293,7 +293,7 @@ func TestPIISettingsRepairMalformedFileAndPreserveOverride(t *testing.T) {
 				case "regexes":
 					s.handlePIIRegexes(w, httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"regexes":[{"name":"EMPLOYEE_ID","pattern":"EMP-[0-9]+"}]}`)))
 				case "expiration":
-					s.handleMappingExpiration(w, httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"enabled":true,"ttl_seconds":120}`)))
+					s.handleMappingExpiration(w, httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"ttl_seconds":120}`)))
 				}
 				if w.Code != 200 {
 					t.Fatalf("repair failed: %d %s", w.Code, w.Body.String())
@@ -308,7 +308,7 @@ func TestPIISettingsRepairMalformedFileAndPreserveOverride(t *testing.T) {
 						t.Fatal("explicit repair not persisted")
 					}
 				case explicit:
-					if saved.MappingExpiration == nil || saved.MappingExpiration.Enabled || saved.MappingExpiration.TTLSeconds != 90 {
+					if saved.MappingExpiration == nil || saved.MappingExpiration.TTLSeconds != 0 {
 						t.Fatal("repair lost known override")
 					}
 				case saved.MappingExpiration != nil:
@@ -372,5 +372,178 @@ func TestPIICheckRejectsCancelledSnapshotAcquisition(t *testing.T) {
 	s.handlePIICheck(w, httptest.NewRequest(http.MethodPost, "/api/pii/check", strings.NewReader(`{"message":"Alice"}`)).WithContext(ctx))
 	if w.Code != http.StatusServiceUnavailable {
 		t.Fatalf("cancelled check reported success: %d %s", w.Code, w.Body.String())
+	}
+}
+
+func TestMappingExpirationRejectsUntrustedOriginsWithoutMutation(t *testing.T) {
+	s := expirationTestServer(t)
+	s.config.MappingExpirationAllowedOrigins = []string{"https://settings.example.test"}
+	for _, tc := range []struct {
+		origin  string
+		allowed bool
+	}{
+		{"", true},
+		{"http://localhost:8080", true},
+		{"http://127.0.0.1:8080", true},
+		{"http://[::1]:8080", true},
+		{"chrome-extension://abcdefghijklmnopabcdefghijklmnop", true},
+		{"https://settings.example.test", true},
+		{"https://evil.example", false},
+		{"http://localhost.evil.example:8080", false},
+		{"http://localhost:8081", false},
+		{"http://evil.example@localhost:8080", false},
+		{"http://localhost:8080/", false},
+		{"http://localhost:8080#", false},
+		{"http://localhost:8080?", false},
+		{"http://localhost:8080 https://evil.example", false},
+		{"chrome-extension://abcdefghijklmnopabcdefghijklmnop.evil.example", false},
+		{"chrome-extension://abcdefghijklmnopabcdefghijklmnop:80", false},
+		{"chrome-extension://zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz", false},
+		{"null", false},
+	} {
+		t.Run(tc.origin, func(t *testing.T) {
+			for _, method := range []string{http.MethodOptions, http.MethodGet, http.MethodPost} {
+				before := s.handler.GetMappingExpiration()
+				body := fmt.Sprintf(`{"ttl_seconds":%d}`, before.TTLSeconds+1)
+				req := httptest.NewRequest(method, "/api/pii/mapping-expiration", strings.NewReader(body))
+				if tc.origin != "" {
+					req.Header.Set("Origin", tc.origin)
+				}
+				w := httptest.NewRecorder()
+				s.handleMappingExpiration(w, req)
+				if tc.allowed {
+					if w.Code != 200 {
+						t.Fatalf("trusted origin blocked: %d %s", w.Code, w.Body.String())
+					}
+					continue
+				}
+				if w.Code != http.StatusForbidden || w.Header().Get("Access-Control-Allow-Origin") != "" {
+					t.Fatalf("untrusted origin accepted: %d %v", w.Code, w.Header())
+				}
+				if after := s.handler.GetMappingExpiration(); after != before {
+					t.Fatal("blocked request changed policy")
+				}
+			}
+		})
+	}
+	for _, headers := range []http.Header{
+		{"Origin": []string{"http://localhost:8080", "https://evil.example"}},
+		{"Origin": []string{""}},
+		{"Sec-Fetch-Site": []string{"cross-site"}},
+	} {
+		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"ttl_seconds":1}`))
+		req.Header = headers
+		w := httptest.NewRecorder()
+		s.handleMappingExpiration(w, req)
+		if w.Code != http.StatusForbidden {
+			t.Fatalf("ambiguous origin accepted: %d", w.Code)
+		}
+	}
+}
+
+func TestStartupRetainsDatabasePolicyWhenSettingsUnavailable(t *testing.T) {
+	for _, failure := range []string{"missing", "malformed", "unreadable", "invalid-policy"} {
+		t.Run(failure, func(t *testing.T) {
+			s := expirationTestServer(t)
+			retained := config.MappingExpirationConfig{TTLSeconds: 0}
+			if err := s.handler.SetMappingExpiration(retained); err != nil {
+				t.Fatal(err)
+			}
+			raw, err := sql.Open("sqlite", s.config.Database.Path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := raw.Exec(`INSERT INTO pii_mappings(original_pii,dummy_pii,pii_type,created_at) VALUES ('Alice','dummy','FIRSTNAME',datetime('now','-30 days'))`); err != nil {
+				t.Fatal(err)
+			}
+			if err := raw.Close(); err != nil {
+				t.Fatal(err)
+			}
+			if err := s.handler.Close(); err != nil {
+				t.Fatal(err)
+			}
+			path := config.PIISettingsPath()
+			if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+				t.Fatal(err)
+			}
+			switch failure {
+			case "malformed":
+				if err := os.WriteFile(path, []byte(`{"broken":`), 0600); err != nil {
+					t.Fatal(err)
+				}
+			case "unreadable":
+				if err := os.Mkdir(path, 0700); err != nil {
+					t.Fatal(err)
+				}
+			case "invalid-policy":
+				if err := os.WriteFile(path, []byte(`{"mapping_expiration":{"ttl_seconds":-1}}`), 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			cfg := config.DefaultConfig()
+			cfg.Database.Path = s.config.Database.Path
+			cfg.Detectors = []string{config.DetectorTypeRegex}
+			if failure != "missing" {
+				// Even a stale explicit static policy must not replace the last UI choice.
+				if err := json.Unmarshal([]byte(`{"mapping_expiration":{"ttl_seconds":300}}`), cfg); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := cfg.LoadPersistedPIISettings(); (err != nil) != (failure != "missing") {
+				t.Fatalf("settings recovery: %v", err)
+			}
+			h, err := proxy.NewHandler(cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer h.Close()
+			if got := h.GetMappingExpiration(); got != retained {
+				t.Fatalf("saved policy replaced: %+v", got)
+			}
+			raw, err = sql.Open("sqlite", cfg.Database.Path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer raw.Close()
+			var count int
+			if err := raw.QueryRow(`SELECT COUNT(*) FROM pii_mappings`).Scan(&count); err != nil || count != 1 {
+				t.Fatalf("restart deleted retained PII: %d %v", count, err)
+			}
+			if failure == "malformed" || failure == "invalid-policy" {
+				repaired := &Server{handler: h, config: cfg}
+				if err := repaired.savePIISettings(); err != nil {
+					t.Fatal(err)
+				}
+				saved, err := config.LoadPIISettings()
+				if err != nil || saved.MappingExpiration == nil || *saved.MappingExpiration != retained {
+					t.Fatalf("settings repair lost recovered policy: %+v %v", saved, err)
+				}
+			}
+		})
+	}
+}
+
+func TestMappingExpirationTTLOnlyAPI(t *testing.T) {
+	s := expirationTestServer(t)
+	for _, seconds := range []int{0, 300, 0, 60} {
+		previous := s.handler.GetMappingExpiration()
+		expected, err := json.Marshal(previous)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body := fmt.Sprintf(`{"ttl_seconds":%d,"expected":%s}`, seconds, expected)
+		w := httptest.NewRecorder()
+		s.handleMappingExpiration(w, httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body)))
+		if w.Code != 200 {
+			t.Fatalf("TTL-only save: %d %s", w.Code, w.Body.String())
+		}
+		want := config.MappingExpirationConfig{TTLSeconds: seconds}
+		if got := s.handler.GetMappingExpiration(); got != want {
+			t.Fatalf("runtime: %+v, want %+v", got, want)
+		}
+		saved, err := config.LoadPIISettings()
+		if err != nil || saved.MappingExpiration == nil || *saved.MappingExpiration != want {
+			t.Fatalf("saved: %+v %v", saved, err)
+		}
 	}
 }

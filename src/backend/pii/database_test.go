@@ -225,7 +225,7 @@ func TestGetMappingsCount_Empty(t *testing.T) {
 func TestCleanupOldMappings(t *testing.T) {
 	db := newTestDB(t)
 	policy := db.MappingExpiration()
-	policy.Enabled = false
+	policy.TTLSeconds = 0
 	if err := db.SetMappingExpiration(policy); err != nil {
 		t.Fatal(err)
 	}

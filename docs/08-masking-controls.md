@@ -36,8 +36,9 @@ These controls live in the **macOS desktop app** (the Electron UI). Open them fr
 
 ## Mapping expiration
 
-Mappings expire **300 seconds after creation** by default. Set the duration as a
-whole number of seconds (1–2147483647), or turn expiration off:
+On fresh installs, mappings expire **300 seconds after creation** by default. Set the duration as a
+whole number of seconds (0–2147483647). **0 disables expiration**; any positive
+value enables it. Both apps have one lifetime field, with no separate toggle:
 
 - **Mac app:** Settings → PII Settings → Mapping expiration → Save expiration settings.
 - **Chrome extension:** Settings → Mapping expiration → Save expiration settings.
@@ -46,7 +47,6 @@ whole number of seconds (1–2147483647), or turn expiration off:
 ```json
 {
   "mapping_expiration": {
-    "enabled": true,
     "ttl_seconds": 300
   }
 }
@@ -57,8 +57,13 @@ clients. Changes take effect without restarting and apply to existing mappings
 based on their original creation time. UI changes are saved in
 `pii_settings.json` in the application data directory and override the static
 config on restart. Remove that file's `mapping_expiration` property to return
-control to the static config. Older settings files without this property keep
-the config value (or the 300-second default). Saving entity or regex settings
+control to an explicitly supplied static config. Without an explicit policy,
+the database retains its saved policy. Legacy databases containing mappings
+start with expiration disabled until you enable it in the UI or config; upgrading
+does not delete those mappings. If the settings file is unreadable or malformed,
+the database policy is preserved even when the static config differs.
+An omitted duration defaults to 300 seconds; negative, fractional, and excessive
+durations are rejected. There is no `enabled` parameter. Saving entity or regex settings
 preserves an existing expiration override but does not create one; only an
 explicit expiration save takes control away from the static config.
 
@@ -99,13 +104,13 @@ the lifetime. Turning expiration off retains mappings until they are deleted;
 it does not recover expired rows. This setting controls mappings, not the
 separate activity logs.
 
-A placeholder is never recycled after expiry or deletion. If the generator
-proposes a previously used value (including a deterministic custom-pattern
-placeholder), the new mapping gets a fresh opaque `[REDACTED_…]` token. Compact
-SHA-256 fingerprints of used placeholders remain in the database across restarts
-and clearing mappings; these reservations contain no original PII and grow with
-the number of distinct placeholders. Existing live mappings keep their current
-placeholders during migration.
+Placeholders become reusable when their mappings expire or are deleted. If a
+candidate belongs to another live mapping, Kiji retries the generator up to eight
+times before using a fresh opaque `[REDACTED_…]` token. No permanent reservation
+table is retained. A standalone unmask of an old placeholder can therefore return
+a newer person's value after reuse. Active responses still use their own saved
+pairs and restore the original person, even if the placeholder has been reassigned.
+Existing live mappings keep their placeholders during migration.
 
 Each proxied request takes a mapping snapshot before detection and uses it
 across all message fields. The mappings actually used by that request remain
@@ -146,13 +151,20 @@ Stream audit logs capture exactly the restored deltas and flushed tails emitted
 to the client, without duplicating final payloads.
 
 For automation, `GET /api/pii/mapping-expiration` returns the active
-`{ "enabled": true, "ttl_seconds": 300 }` policy. `POST` to the same endpoint with
-both fields changes and persists it. The route is available on both proxy ports,
-with the same access rules as the other `/api/pii/*` settings endpoints.
+`{ "ttl_seconds": 300 }` policy. `POST` to the same endpoint with
+`{ "ttl_seconds": 0 }` to disable expiration, or a positive duration to enable it.
+The route is available on both proxy ports.
+Browser origins are restricted to the local app's HTTP port, installed Chrome
+extensions with host permission, and exact origins in the optional config list
+`"mapping_expiration_allowed_origins": ["https://settings.example.com"]`.
+For frontend development, add `"http://localhost:3000"` to that list.
+Other website origins (including `null`) receive HTTP 403 before any policy
+change. Native/CLI requests without an Origin remain supported; this browser
+protection does not authenticate clients that can reach the server directly.
 Interactive clients also send an `expected` object containing the last loaded
-`enabled` and `ttl_seconds` values. If these differ from the current policy, the
+`ttl_seconds` value. If this differs from the current policy, the
 server returns HTTP 409 with the current policy and makes no changes. Omitting
-`expected` preserves unconditional updates for existing API callers.
+`expected` allows unconditional updates for automation.
 
 ---
 

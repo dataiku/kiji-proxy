@@ -1018,7 +1018,7 @@ func NewHandler(cfg *config.Config) (*Handler, error) {
 	ctx := context.Background()
 	dbConfig := piiServices.DatabaseConfig{
 		Path:              cfg.Database.Path,
-		MappingExpiration: &cfg.MappingExpiration,
+		MappingExpiration: cfg.StartupMappingExpiration(),
 	}
 	db, dbErr := piiServices.NewSQLitePIIMappingDB(ctx, dbConfig)
 	if dbErr != nil {

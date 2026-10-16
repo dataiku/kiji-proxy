@@ -64,14 +64,14 @@ func TestMappingExpirationReadsDoNotRenewAndPolicyChangesApply(t *testing.T) {
 	if _, ok := unmaskForTest(t, m, "dummy"); !ok {
 		t.Fatal("reverse mapping expired early")
 	}
-	if err := db.SetMappingExpiration(config.MappingExpirationConfig{Enabled: true, TTLSeconds: 60}); err != nil {
+	if err := db.SetMappingExpiration(config.MappingExpirationConfig{TTLSeconds: 60}); err != nil {
 		t.Fatal(err)
 	}
 	if _, ok := unmaskForTest(t, m, "dummy"); ok {
 		t.Fatal("reads renewed creation time or changed policy was ignored")
 	}
 	// Disabling does not resurrect a row already invalidated.
-	if err := db.SetMappingExpiration(config.MappingExpirationConfig{Enabled: false, TTLSeconds: 60}); err != nil {
+	if err := db.SetMappingExpiration(config.MappingExpirationConfig{TTLSeconds: 0}); err != nil {
 		t.Fatal(err)
 	}
 	if _, ok := dummyForTest(t, m, "Alice"); ok {
@@ -162,7 +162,7 @@ func TestMaskingSnapshotSurvivesExpiryButNextRequestUsesFreshMapping(t *testing.
 }
 
 func TestMappingExpirationPolicyChangeDoesNotReviveExpiredRows(t *testing.T) {
-	for _, policy := range []config.MappingExpirationConfig{{Enabled: true, TTLSeconds: 900}, {Enabled: false, TTLSeconds: 300}} {
+	for _, policy := range []config.MappingExpirationConfig{{TTLSeconds: 900}, {TTLSeconds: 0}} {
 		db := newTestDB(t)
 		m := NewPIIMappingWithDB(db, true)
 		if _, err := m.AddMapping(context.Background(), "Alice", "old-dummy", "FIRSTNAME", 1); err != nil {
@@ -186,10 +186,10 @@ func TestMappingExpirationShortenThenExtendWithoutLookup(t *testing.T) {
 		t.Fatal(err)
 	}
 	backdateMapping(t, db, "-120 seconds")
-	if err := db.SetMappingExpiration(config.MappingExpirationConfig{Enabled: true, TTLSeconds: 60}); err != nil {
+	if err := db.SetMappingExpiration(config.MappingExpirationConfig{TTLSeconds: 60}); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.SetMappingExpiration(config.MappingExpirationConfig{Enabled: true, TTLSeconds: 900}); err != nil {
+	if err := db.SetMappingExpiration(config.MappingExpirationConfig{TTLSeconds: 900}); err != nil {
 		t.Fatal(err)
 	}
 	if _, found := unmaskForTest(t, m, "old-dummy"); found {
@@ -208,7 +208,7 @@ func TestMappingExpirationExtensionPreservesLiveCreationTime(t *testing.T) {
 	if err := db.db.QueryRow(`SELECT created_at FROM pii_mappings`).Scan(&before); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.SetMappingExpiration(config.MappingExpirationConfig{Enabled: true, TTLSeconds: 900}); err != nil {
+	if err := db.SetMappingExpiration(config.MappingExpirationConfig{TTLSeconds: 900}); err != nil {
 		t.Fatal(err)
 	}
 	if got, found := unmaskForTest(t, m, "live-dummy"); !found || got != "Alice" {
@@ -236,7 +236,7 @@ func TestMappingExpirationRestartWithExtendedPolicy(t *testing.T) {
 	if err := db.Close(); err != nil {
 		t.Fatal(err)
 	}
-	desired := config.MappingExpirationConfig{Enabled: false, TTLSeconds: 900}
+	desired := config.MappingExpirationConfig{TTLSeconds: 0}
 	reopened, err := NewSQLitePIIMappingDB(ctx, DatabaseConfig{Path: path, MappingExpiration: &desired})
 	if err != nil {
 		t.Fatal(err)
@@ -258,7 +258,7 @@ func TestMappingExpirationFailedPolicyTransitionIsAtomic(t *testing.T) {
 	if _, err := db.db.Exec(`CREATE TRIGGER reject_policy BEFORE UPDATE ON pii_mapping_policy BEGIN SELECT RAISE(ABORT, 'test failure'); END`); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.SetMappingExpiration(config.MappingExpirationConfig{Enabled: false, TTLSeconds: 900}); err == nil {
+	if err := db.SetMappingExpiration(config.MappingExpirationConfig{TTLSeconds: 0}); err == nil {
 		t.Fatal("expected transaction failure")
 	}
 	if got := db.MappingExpiration(); got != before {
@@ -282,10 +282,10 @@ func TestRecreatedCustomMappingDoesNotChangeInFlightResponse(t *testing.T) {
 	first := mustMaskText(t, svc, text, "test")
 	backdateMapping(t, db, "-301 seconds")
 	// The generic generator proposes the exact same token again. The database
-	// must reserve a new lifetime without changing the in-flight request.
+	// may reuse it without changing the in-flight request.
 	second := mustMaskText(t, svc, text, "test")
-	if second.MaskedText == first.MaskedText {
-		t.Fatal("recycled expired placeholder")
+	if second.MaskedText != first.MaskedText {
+		t.Fatal("expired placeholder was not released")
 	}
 	if got := svc.RestorePII(first.MaskedText, first.MaskedToOriginal); got != text {
 		t.Fatalf("in-flight request lost its mapping: %q", got)
@@ -294,8 +294,45 @@ func TestRecreatedCustomMappingDoesNotChangeInFlightResponse(t *testing.T) {
 		t.Fatalf("new response failed restoration: %q", got)
 	}
 	for old := range first.MaskedToOriginal {
-		if _, found := unmaskForTest(t, m, old); found {
-			t.Fatal("old token still unmaskable")
+		if got, found := unmaskForTest(t, m, old); !found || got != "EMP-123" {
+			t.Fatal("reused placeholder did not resolve to its current mapping")
 		}
+	}
+}
+
+func TestZeroTTLRetainsMappingsAcrossRestartAndReenableExpiresThem(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "zero-ttl.db")
+	policy := config.MappingExpirationConfig{TTLSeconds: 0}
+	db, err := NewSQLitePIIMappingDB(ctx, DatabaseConfig{Path: path, MappingExpiration: &policy})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.StoreMapping(ctx, "Alice", "dummy", "FIRSTNAME", 1); err != nil {
+		t.Fatal(err)
+	}
+	backdateMapping(t, db, "-30 days")
+	if err := db.cleanupExpiredMappings(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	db, err = NewSQLitePIIMappingDB(ctx, DatabaseConfig{Path: path})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if got := db.MappingExpiration(); got.TTLSeconds != 0 {
+		t.Fatalf("zero policy lost: %+v", got)
+	}
+	if got, found, err := lookupForTest(ctx, db, "dummy", false); err != nil || !found || got != "Alice" {
+		t.Fatalf("zero expired mapping: %q %v %v", got, found, err)
+	}
+	if err := db.SetMappingExpiration(config.MappingExpirationConfig{TTLSeconds: 300}); err != nil {
+		t.Fatal(err)
+	}
+	if _, found, err := lookupForTest(ctx, db, "dummy", false); err != nil || found {
+		t.Fatalf("positive TTL did not expire old mapping: %v", err)
 	}
 }
