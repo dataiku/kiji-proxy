@@ -136,6 +136,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const expirationSeconds = document.getElementById("expiration-seconds");
   const expirationStatus = document.getElementById("expiration-status");
   let expirationBase = null;
+  let expirationPolicy = null;
   let expirationLoadSeq = 0;
 
   async function loadExpiration() {
@@ -153,6 +154,7 @@ document.addEventListener("DOMContentLoaded", () => {
       expirationSeconds.value = policy.ttl_seconds;
       expirationSeconds.disabled = !policy.enabled;
       expirationBase = base;
+      expirationPolicy = { enabled: policy.enabled, ttl_seconds: policy.ttl_seconds };
       expirationFields.disabled = false;
       expirationStatus.textContent = "";
     } catch {
@@ -184,10 +186,18 @@ document.addEventListener("DOMContentLoaded", () => {
       const res = await fetch(`${base}/api/pii/mapping-expiration`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ enabled: expirationEnabled.checked, ttl_seconds: ttl }),
+        body: JSON.stringify({ enabled: expirationEnabled.checked, ttl_seconds: ttl, expected: expirationPolicy }),
       });
+      if (res.status === 409) {
+        if (seq === expirationLoadSeq) expirationStatus.textContent = "Settings changed in another client. Your edits were kept. Reload settings to discard them and review the current policy.";
+        return;
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      if (seq === expirationLoadSeq) expirationStatus.textContent = "Saved.";
+      const saved = await res.json();
+      if (seq === expirationLoadSeq) {
+        expirationPolicy = { enabled: saved.enabled, ttl_seconds: saved.ttl_seconds };
+        expirationStatus.textContent = "Saved.";
+      }
     } catch {
       if (seq === expirationLoadSeq) expirationStatus.textContent = "Unable to save settings. Check the server connection and try again.";
     } finally {

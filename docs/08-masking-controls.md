@@ -60,6 +60,13 @@ config on restart. Remove that file's `mapping_expiration` property to return
 control to the static config. Older settings files without this property keep
 the config value (or the 300-second default).
 
+The Mac settings refresh when the window regains focus or becomes visible, and
+every five seconds while Settings remains visible. A
+refresh preserves unsaved edits; if another client changed the policy, choose
+**Use server settings** or **Keep my edits** before saving. Saves check the policy
+the editor originally loaded, so changes arriving just before a save are also
+detected. Chrome reports conflicting saves and lets you reload the server settings.
+
 Expiration is checked during masking, unmasking, response restoration (including
 streamed responses), mapping list/count reads, and policy changes. A policy
 change removes rows expired under either the old or new policy in one
@@ -91,6 +98,10 @@ For automation, `GET /api/pii/mapping-expiration` returns the active
 `{ "enabled": true, "ttl_seconds": 300 }` policy. `POST` to the same endpoint with
 both fields changes and persists it. The route is available on both proxy ports,
 with the same access rules as the other `/api/pii/*` settings endpoints.
+Interactive clients also send an `expected` object containing the last loaded
+`enabled` and `ttl_seconds` values. If these differ from the current policy, the
+server returns HTTP 409 with the current policy and makes no changes. Omitting
+`expected` preserves unconditional updates for existing API callers.
 
 ---
 

@@ -109,7 +109,14 @@
       "save": "Save expiration settings",
       "help": "Default: 300 seconds from creation. Applies to all clients connected to this server, including existing mappings. Expired values stay masked; using a mapping does not extend its lifetime.",
       "error": "Could not load or save expiration settings. Check the server connection and reopen Settings to retry.",
-      "invalid": "Enter a whole number from 1 to 2147483647."
+      "invalid": "Enter a whole number from 1 to 2147483647.",
+      "refresh": "Refresh settings",
+      "unsaved": "Unsaved changes.",
+      "conflict": "Settings changed in another client: expiration {{state}}, {{seconds}} seconds. Your edits are preserved. Choose which settings to use before saving.",
+      "on": "on",
+      "off": "off",
+      "useServer": "Use server settings",
+      "keepEdits": "Keep my edits"
     }
   },
   "advanced": {

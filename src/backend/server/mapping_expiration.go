@@ -12,6 +12,7 @@ import (
 // handleMappingExpiration shares one persisted policy across desktop and Chrome.
 func (s *Server) handleMappingExpiration(w http.ResponseWriter, r *http.Request) {
 	s.corsHandler(w, r)
+	w.Header().Set("Cache-Control", "no-store")
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusOK)
 		return
@@ -22,8 +23,9 @@ func (s *Server) handleMappingExpiration(w http.ResponseWriter, r *http.Request)
 	case http.MethodGet:
 	case http.MethodPost:
 		var req struct {
-			Enabled    *bool `json:"enabled"`
-			TTLSeconds *int  `json:"ttl_seconds"`
+			Enabled    *bool                           `json:"enabled"`
+			TTLSeconds *int                            `json:"ttl_seconds"`
+			Expected   *config.MappingExpirationConfig `json:"expected,omitempty"`
 		}
 		dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096))
 		dec.DisallowUnknownFields()
@@ -41,6 +43,15 @@ func (s *Server) handleMappingExpiration(w http.ResponseWriter, r *http.Request)
 			return
 		}
 		previous := s.handler.GetMappingExpiration()
+		// Compare and save under piiSettingsMu so another client cannot change
+		// the policy between this check and the write. Legacy API callers may
+		// omit expected; interactive clients send the policy they edited.
+		if req.Expected != nil && *req.Expected != previous {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusConflict)
+			_ = json.NewEncoder(w).Encode(previous)
+			return
+		}
 		settings := &config.PIISettings{
 			DisabledEntities:  s.handler.GetDisabledEntities(),
 			CustomRegexes:     s.handler.GetCustomRegexes(),

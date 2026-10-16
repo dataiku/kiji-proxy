@@ -117,3 +117,84 @@ func TestMappingExpirationAPIRevertsSavedPolicyOnDatabaseFailure(t *testing.T) {
 		t.Fatal("failed transition left inconsistent policies")
 	}
 }
+
+// Two clients can edit the same policy. Reject the stale client before either
+// persisting its settings or deleting mappings under its proposed shorter TTL.
+func TestMappingExpirationRejectsStaleSave(t *testing.T) {
+	s := expirationTestServer(t)
+	call := func(body string) *httptest.ResponseRecorder {
+		w := httptest.NewRecorder()
+		s.handleMappingExpiration(w, httptest.NewRequest(http.MethodPost, "/api/pii/mapping-expiration", strings.NewReader(body)))
+		return w
+	}
+	if w := call(`{"enabled":true,"ttl_seconds":120,"expected":{"enabled":true,"ttl_seconds":300}}`); w.Code != 200 {
+		t.Fatalf("initial save: %d", w.Code)
+	}
+	db, err := sql.Open("sqlite", s.config.Database.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if _, err := db.Exec(`INSERT INTO pii_mappings(original_pii,dummy_pii,pii_type,created_at) VALUES ('Alice','test-dummy','FIRSTNAME',datetime('now','-60 seconds'))`); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.ReadFile(config.PIISettingsPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := call(`{"enabled":true,"ttl_seconds":1,"expected":{"enabled":true,"ttl_seconds":300}}`)
+	if w.Code != http.StatusConflict {
+		t.Fatalf("stale save accepted: %d", w.Code)
+	}
+	var current config.MappingExpirationConfig
+	if err := json.Unmarshal(w.Body.Bytes(), &current); err != nil {
+		t.Fatal(err)
+	}
+	if !current.Enabled || current.TTLSeconds != 120 || current != s.handler.GetMappingExpiration() {
+		t.Fatalf("wrong conflict policy: %+v", current)
+	}
+	after, err := os.ReadFile(config.PIISettingsPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(before) != string(after) {
+		t.Fatal("stale save changed persisted settings")
+	}
+	var count int
+	if err := db.QueryRow(`SELECT count(*) FROM pii_mappings`).Scan(&count); err != nil || count != 1 {
+		t.Fatalf("stale save deleted mapping: %d %v", count, err)
+	}
+	if w := call(`{"enabled":false,"ttl_seconds":120,"expected":{"enabled":true,"ttl_seconds":120}}`); w.Code != 200 {
+		t.Fatalf("resolved save: %d", w.Code)
+	}
+	// A toggle-only change must also conflict.
+	if w := call(`{"enabled":true,"ttl_seconds":90,"expected":{"enabled":true,"ttl_seconds":120}}`); w.Code != 409 {
+		t.Fatalf("toggle conflict missed: %d", w.Code)
+	}
+}
+
+func TestMappingExpirationConcurrentConditionalSaves(t *testing.T) {
+	s := expirationTestServer(t)
+	codes := make(chan int, 2)
+	for _, body := range []string{
+		`{"enabled":true,"ttl_seconds":60,"expected":{"enabled":true,"ttl_seconds":300}}`,
+		`{"enabled":false,"ttl_seconds":90,"expected":{"enabled":true,"ttl_seconds":300}}`,
+	} {
+		go func(body string) {
+			w := httptest.NewRecorder()
+			s.handleMappingExpiration(w, httptest.NewRequest(http.MethodPost, "/api/pii/mapping-expiration", strings.NewReader(body)))
+			codes <- w.Code
+		}(body)
+	}
+	first, second := <-codes, <-codes
+	if (first != 200 || second != 409) && (first != 409 || second != 200) {
+		t.Fatalf("non-atomic conditional writes: %d %d", first, second)
+	}
+	saved, err := config.LoadPIISettings()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved.MappingExpiration == nil || *saved.MappingExpiration != s.handler.GetMappingExpiration() {
+		t.Fatal("persistence disagrees with winning save")
+	}
+}

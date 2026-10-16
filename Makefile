@@ -1,6 +1,6 @@
 .PHONY: help install install-dev venv
 .PHONY: format lint lint-go lint-frontend lint-frontend-fix lint-all typecheck typecheck-frontend check check-all ruff-fix ruff-all
-.PHONY: test test-go test-all test-e2e test-e2e-dataset
+.PHONY: test test-go test-frontend test-all test-e2e test-e2e-dataset
 .PHONY: clean clean-venv clean-all
 .PHONY: build-dmg build-linux verify-linux build-go build-go-embed
 .PHONY: setup-onnx setup-tokenizers
@@ -176,7 +176,10 @@ test-go: ## Run Go tests
 	CGO_LDFLAGS="$(CGO_LDFLAGS)" go test ./... -v
 	@echo "$(GREEN)✅ Go tests complete$(NC)"
 
-test-all: test test-go ## Run all tests (Python, Go)
+test-frontend: ## Run frontend settings regression tests
+	@cd src/frontend && npm test
+
+test-all: test test-go test-frontend ## Run all tests (Python, Go, Frontend)
 	@echo "$(GREEN)✅ All tests complete$(NC)"
 
 test-e2e: ## Run end-to-end evaluation harness (requires running backend + OPENAI_API_KEY)
