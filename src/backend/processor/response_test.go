@@ -85,6 +85,28 @@ func newTestOpenAIProvider() providers.Provider {
 	return providers.NewOpenAIProvider("api.openai.com", "sk-test", nil)
 }
 
+// decodeFirstChoiceContent unmarshals a ProcessResponse result and returns the
+// decoded body plus choices[0].message.content, failing the test (rather than
+// panicking) if the Chat Completions shape didn't survive.
+func decodeFirstChoiceContent(t *testing.T, got []byte) (map[string]interface{}, string) {
+	t.Helper()
+	var out map[string]interface{}
+	if err := json.Unmarshal(got, &out); err != nil {
+		t.Fatalf("ProcessResponse produced invalid JSON: %v (body: %s)", err, got)
+	}
+	choices, _ := out["choices"].([]interface{})
+	if len(choices) != 1 {
+		t.Fatalf("expected 1 choice to survive, got %#v", out["choices"])
+	}
+	choice, _ := choices[0].(map[string]interface{})
+	message, _ := choice["message"].(map[string]interface{})
+	content, ok := message["content"].(string)
+	if !ok {
+		t.Fatalf("expected choices[0].message.content to be a string, got %#v", choices[0])
+	}
+	return out, content
+}
+
 func TestProcessResponse_NonJSONContentType_PassesThroughUnchanged(t *testing.T) {
 	rp := NewResponseProcessor(nil, stubLoggingConfig{})
 	provider := newTestOpenAIProvider()
@@ -92,8 +114,8 @@ func TestProcessResponse_NonJSONContentType_PassesThroughUnchanged(t *testing.T)
 	// If ProcessResponse mistakenly tried to restore this as JSON, it would be
 	// altered (masked value replaced) or rejected; either way it wouldn't come
 	// back byte-for-byte identical.
-	body := []byte("plain text response containing DUMMY_NAME, not JSON at all")
-	got := rp.ProcessResponse(body, "text/plain; charset=utf-8", map[string]string{"DUMMY_NAME": "Alice"}, &provider)
+	body := []byte("plain text response addressed to Kofi Thomas, not JSON at all")
+	got := rp.ProcessResponse(body, "text/plain; charset=utf-8", map[string]string{"Kofi Thomas": "Alice Martin"}, &provider)
 
 	if string(got) != string(body) {
 		t.Errorf("ProcessResponse changed a non-JSON body: got %q, want unchanged %q", got, body)
@@ -121,25 +143,20 @@ func TestProcessResponse_RestoresPIIAndStampsMetadata(t *testing.T) {
 	rp := NewResponseProcessor(nil, stubLoggingConfig{addProxyNotice: false})
 	provider := newTestOpenAIProvider()
 
-	body := []byte(`{"choices":[{"message":{"content":"Hello DUMMY_NAME, how can I help?"}}]}`)
-	maskedToOriginal := map[string]string{"DUMMY_NAME": "Alice"}
+	// Dummies look like what generators/ actually produce: realistic names and
+	// emails, not placeholder tokens.
+	body := []byte(`{"choices":[{"message":{"content":"Hello Kofi Thomas, I'll reply to yuki.anderson@test.com."}}]}`)
+	maskedToOriginal := map[string]string{
+		"Kofi Thomas":            "Alice Martin",
+		"yuki.anderson@test.com": "alice.martin@example.org",
+	}
 
 	// "application/json; charset=utf-8" must still match the substring-based
 	// content-type gate in ProcessResponse.
 	got := rp.ProcessResponse(body, "application/json; charset=utf-8", maskedToOriginal, &provider)
 
-	var out map[string]interface{}
-	if err := json.Unmarshal(got, &out); err != nil {
-		t.Fatalf("ProcessResponse produced invalid JSON: %v (body: %s)", err, got)
-	}
-
-	choices, _ := out["choices"].([]interface{})
-	if len(choices) != 1 {
-		t.Fatalf("expected 1 choice to survive, got %#v", out["choices"])
-	}
-	message, _ := choices[0].(map[string]interface{})["message"].(map[string]interface{})
-	content, _ := message["content"].(string)
-	if content != "Hello Alice, how can I help?" {
+	out, content := decodeFirstChoiceContent(t, got)
+	if content != "Hello Alice Martin, I'll reply to alice.martin@example.org." {
 		t.Errorf("restored content = %q, want PII restored to the original", content)
 	}
 
@@ -177,26 +194,21 @@ func TestProcessResponse_RestoresPIIAndStampsMetadata(t *testing.T) {
 // from context rather than actually produced by masking). RestorePII/
 // BuildRestorer only replace keys present in the map, so an unmapped token is
 // left exactly as the model wrote it — it is not blanked out, corrupted, or
-// mistaken for a different key.
+// mistaken for a different key. A mapped value in the same text is still
+// restored, so a partial miss doesn't disable restoration for the rest.
 func TestProcessResponse_MappingMissLeavesTextUntouched(t *testing.T) {
 	rp := NewResponseProcessor(nil, stubLoggingConfig{})
 	provider := newTestOpenAIProvider()
 
-	body := []byte(`{"choices":[{"message":{"content":"Your code is UNMAPPED_TOKEN_123"}}]}`)
-	// Mapping only covers a different token; UNMAPPED_TOKEN_123 has no entry.
-	maskedToOriginal := map[string]string{"DUMMY_OTHER": "SomeoneElse"}
+	body := []byte(`{"choices":[{"message":{"content":"Thanks Kofi Thomas, I emailed yuki.anderson@test.com."}}]}`)
+	// The name is mapped; the email dummy has no entry.
+	maskedToOriginal := map[string]string{"Kofi Thomas": "Alice Martin"}
 
 	got := rp.ProcessResponse(body, "application/json", maskedToOriginal, &provider)
 
-	var out map[string]interface{}
-	if err := json.Unmarshal(got, &out); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
-	}
-	choices, _ := out["choices"].([]interface{})
-	message, _ := choices[0].(map[string]interface{})["message"].(map[string]interface{})
-	content, _ := message["content"].(string)
-	if content != "Your code is UNMAPPED_TOKEN_123" {
-		t.Errorf("expected unmapped token to pass through unchanged, got %q", content)
+	_, content := decodeFirstChoiceContent(t, got)
+	if want := "Thanks Alice Martin, I emailed yuki.anderson@test.com."; content != want {
+		t.Errorf("content = %q, want mapped name restored and unmapped email left as-is (%q)", content, want)
 	}
 }
 
@@ -244,13 +256,7 @@ func TestProcessResponse_AddProxyNoticeIsWiredToProvider(t *testing.T) {
 	body := []byte(`{"choices":[{"message":{"content":"plain content"}}]}`)
 	got := rp.ProcessResponse(body, "application/json", map[string]string{}, &provider)
 
-	var out map[string]interface{}
-	if err := json.Unmarshal(got, &out); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
-	}
-	choices, _ := out["choices"].([]interface{})
-	message, _ := choices[0].(map[string]interface{})["message"].(map[string]interface{})
-	content, _ := message["content"].(string)
+	_, content := decodeFirstChoiceContent(t, got)
 	if want := "plain content\n\n[This response was intercepted and processed by Kiji Privacy Proxy service]"; content != want {
 		t.Errorf("content = %q, want %q", content, want)
 	}
