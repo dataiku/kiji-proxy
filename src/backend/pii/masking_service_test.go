@@ -7,6 +7,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
+	"github.com/dataiku/kiji-proxy/src/backend/config"
 	detectors "github.com/dataiku/kiji-proxy/src/backend/pii/detectors"
 )
 
@@ -18,8 +19,9 @@ import (
 // what this file tests, not real NER/regex detection, which is already covered
 // under pii/detectors.
 type stubDetector struct {
-	entities []detectors.Entity
-	err      error
+	entities  []detectors.Entity
+	err       error
+	lastInput detectors.DetectorInput
 }
 
 func (d *stubDetector) GetName() string                        { return "stub" }
@@ -27,6 +29,7 @@ func (d *stubDetector) Close() error                           { return nil }
 func (d *stubDetector) SetEntityConfidenceThreshold(_ float64) {}
 func (d *stubDetector) EntityTypes() []string                  { return nil }
 func (d *stubDetector) Detect(_ context.Context, input detectors.DetectorInput) (detectors.DetectorOutput, error) {
+	d.lastInput = input
 	if d.err != nil {
 		return detectors.DetectorOutput{}, d.err
 	}
@@ -35,15 +38,39 @@ func (d *stubDetector) Detect(_ context.Context, input detectors.DetectorInput) 
 
 // stubDetectorProvider implements DetectorProvider, optionally failing.
 type stubDetectorProvider struct {
-	detector detectors.Detector
-	err      error
+	detector  detectors.Detector
+	err       error
+	lastExtra []detectors.Detector
 }
 
-func (p *stubDetectorProvider) GetDetector() (detectors.Detector, error) {
+func (p *stubDetectorProvider) GetDetectorWith(extra ...detectors.Detector) (detectors.Detector, error) {
+	p.lastExtra = extra
 	if p.err != nil {
 		return nil, p.err
 	}
 	return p.detector, nil
+}
+
+// resolveTestProfile builds a ResolvedProfile through a ProfileStore (no
+// persistence, regex detector enabled) so tests exercise the real compilation.
+func resolveTestProfile(t *testing.T, p config.PIIProfile) *ResolvedProfile {
+	t.Helper()
+	p.ID = "test"
+	if p.Name == "" {
+		p.Name = "Test"
+	}
+	if p.Confidence == 0 {
+		p.Confidence = config.DefaultPIIConfidence
+	}
+	store, err := NewProfileStore(&config.PIIProfiles{DefaultProfile: "test", Profiles: []config.PIIProfile{p}}, true, nil, nil)
+	if err != nil {
+		t.Fatalf("NewProfileStore: %v", err)
+	}
+	r, err := store.Resolve("")
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	return r
 }
 
 // newTestMaskingService wires a MaskingService around a stub detector and a
@@ -92,7 +119,7 @@ func TestMaskText_MultiplePIITypes(t *testing.T) {
 	}
 	svc := newTestMaskingService(t, entities)
 
-	result := svc.MaskText(text, "[test]")
+	result := svc.MaskText(text, nil, "[test]")
 
 	if len(result.Entities) != 3 {
 		t.Fatalf("expected 3 entities to survive filtering, got %d", len(result.Entities))
@@ -131,7 +158,7 @@ func TestMaskText_NoPII_PassesThroughUnchanged(t *testing.T) {
 	svc := newTestMaskingService(t, nil)
 	text := "Just a normal sentence with no sensitive data."
 
-	result := svc.MaskText(text, "[test]")
+	result := svc.MaskText(text, nil, "[test]")
 
 	if result.MaskedText != text {
 		t.Errorf("MaskedText = %q, want unchanged %q", result.MaskedText, text)
@@ -152,7 +179,7 @@ func TestMaskText_NoPII_PassesThroughUnchanged(t *testing.T) {
 func TestMaskText_EmptyInput(t *testing.T) {
 	svc := newTestMaskingService(t, nil)
 
-	result := svc.MaskText("", "[test]")
+	result := svc.MaskText("", nil, "[test]")
 
 	if result.MaskedText != "" {
 		t.Errorf("MaskedText = %q, want empty", result.MaskedText)
@@ -175,7 +202,7 @@ func TestMaskText_RepeatedIdenticalPII_SweepsAllOccurrences(t *testing.T) {
 	entities := []detectors.Entity{entityAt(t, text, "Jane", "FIRSTNAME")}
 	svc := newTestMaskingService(t, entities)
 
-	result := svc.MaskText(text, "[test]")
+	result := svc.MaskText(text, nil, "[test]")
 
 	if strings.Contains(result.MaskedText, "Jane") {
 		t.Fatalf("expected every occurrence of the repeated PII to be masked, got %q", result.MaskedText)
@@ -208,11 +235,11 @@ func TestMaskText_RepeatedIdenticalPII_SameDummyAcrossSession(t *testing.T) {
 
 	text1 := "My name is Alice."
 	provider.detector = &stubDetector{entities: []detectors.Entity{entityAt(t, text1, "Alice", "FIRSTNAME")}}
-	result1 := svc.MaskText(text1, "[req1]")
+	result1 := svc.MaskText(text1, nil, "[req1]")
 
 	text2 := "Alice signed the form again."
 	provider.detector = &stubDetector{entities: []detectors.Entity{entityAt(t, text2, "Alice", "FIRSTNAME")}}
-	result2 := svc.MaskText(text2, "[req2]")
+	result2 := svc.MaskText(text2, nil, "[req2]")
 
 	var dummy1, dummy2 string
 	for masked := range result1.MaskedToOriginal {
@@ -243,7 +270,7 @@ func TestMaskText_PIIAtStringBoundaries(t *testing.T) {
 	}
 	svc := newTestMaskingService(t, entities)
 
-	result := svc.MaskText(text, "[test]")
+	result := svc.MaskText(text, nil, "[test]")
 
 	if strings.Contains(result.MaskedText, "555-000-1111") || strings.Contains(result.MaskedText, "Marley") {
 		t.Errorf("boundary entities were not fully masked: %q", result.MaskedText)
@@ -271,7 +298,7 @@ func TestMaskText_InvalidPositionsFallsBackToStringReplace(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			svc := newTestMaskingService(t, []detectors.Entity{tc.entity})
-			result := svc.MaskText(text, "[test]")
+			result := svc.MaskText(text, nil, "[test]")
 			if strings.Contains(result.MaskedText, "Frank Miller") {
 				t.Errorf("expected fallback string-replace to still mask the entity, got %q", result.MaskedText)
 			}
@@ -295,7 +322,7 @@ func TestMaskText_UnicodeInput(t *testing.T) {
 	entities := []detectors.Entity{entityAt(t, text, name, "SURNAME")}
 	svc := newTestMaskingService(t, entities)
 
-	result := svc.MaskText(text, "[test]")
+	result := svc.MaskText(text, nil, "[test]")
 
 	if !strings.HasPrefix(result.MaskedText, "Résumé from ") {
 		t.Fatalf("expected unicode prefix to survive intact, got %q", result.MaskedText)
@@ -322,9 +349,9 @@ func TestMaskText_DisabledEntityTypePassesThrough(t *testing.T) {
 		entityAt(t, text, "555-999-8888", "PHONENUMBER"),
 	}
 	svc := newTestMaskingService(t, entities)
-	svc.SetDisabledEntities([]string{"EMAIL"})
+	profile := resolveTestProfile(t, config.PIIProfile{DisabledEntities: []string{"EMAIL"}})
 
-	result := svc.MaskText(text, "[test]")
+	result := svc.MaskText(text, profile, "[test]")
 
 	if !strings.Contains(result.MaskedText, "jane@example.com") {
 		t.Errorf("expected disabled entity type EMAIL to pass through unmasked, got %q", result.MaskedText)
@@ -354,7 +381,7 @@ func TestMaskText_DetectorFailure_ReturnsUnmaskedTextUnflagged(t *testing.T) {
 	provider := &stubDetectorProvider{err: errors.New("model unavailable")}
 	svc := NewMaskingService(provider, NewGeneratorService(), nil)
 
-	result := svc.MaskText(text, "[test]")
+	result := svc.MaskText(text, nil, "[test]")
 
 	if result.MaskedText != text {
 		t.Errorf("MaskedText = %q, want original text unchanged on detector error", result.MaskedText)
@@ -371,46 +398,54 @@ func TestMaskText_DetectFailure_SameFailOpenBehavior(t *testing.T) {
 	provider := &stubDetectorProvider{detector: &stubDetector{err: errors.New("inference failed")}}
 	svc := NewMaskingService(provider, NewGeneratorService(), nil)
 
-	result := svc.MaskText(text, "[test]")
+	result := svc.MaskText(text, nil, "[test]")
 
 	if result.MaskedText != text {
 		t.Errorf("MaskedText = %q, want original text unchanged when Detect() errors", result.MaskedText)
 	}
 }
 
-// --- disabled-entities accessors ---
+// --- profile-driven detection ---
 
-func TestSetGetDisabledEntities_RoundTrip(t *testing.T) {
-	svc := newTestMaskingService(t, nil)
-	svc.SetDisabledEntities([]string{"EMAIL", "PHONENUMBER"})
+// TestMaskText_EmptyDisabledMasksEverything covers the fail-closed default: a
+// profile with no disabled entities masks every detected type.
+func TestMaskText_EmptyDisabledMasksEverything(t *testing.T) {
+	text := "Email jane@example.com"
+	svc := newTestMaskingService(t, []detectors.Entity{entityAt(t, text, "jane@example.com", "EMAIL")})
+	profile := resolveTestProfile(t, config.PIIProfile{})
 
-	got := svc.GetDisabledEntities()
-	want := []string{"EMAIL", "PHONENUMBER"} // sorted alphabetically per GetDisabledEntities' contract
-	if len(got) != len(want) {
-		t.Fatalf("GetDisabledEntities() = %v, want %v", got, want)
-	}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Errorf("GetDisabledEntities()[%d] = %q, want %q", i, got[i], want[i])
-		}
+	result := svc.MaskText(text, profile, "[test]")
+
+	if strings.Contains(result.MaskedText, "jane@example.com") {
+		t.Errorf("expected EMAIL to be masked with no disabled entities, got %q", result.MaskedText)
 	}
 }
 
-// TestSetDisabledEntities_EmptyClearsToFailClosed covers the documented safety
-// property: passing an empty (or nil) slice must clear back to "mask
-// everything", not silently leave the previous exclusion list in place, and
-// never panic on a nil slice.
-func TestSetDisabledEntities_EmptyClearsToFailClosed(t *testing.T) {
-	svc := newTestMaskingService(t, nil)
-	svc.SetDisabledEntities([]string{"EMAIL"})
-	if len(svc.GetDisabledEntities()) != 1 {
-		t.Fatal("setup: expected EMAIL to be disabled before the clearing call")
+// TestMaskText_PassesProfileThresholdAndRegexDetector checks that the profile's
+// confidence reaches the detector call and its regex detector is added to the
+// detectors for this call only.
+func TestMaskText_PassesProfileThresholdAndRegexDetector(t *testing.T) {
+	stub := &stubDetector{}
+	provider := &stubDetectorProvider{detector: stub}
+	svc := NewMaskingService(provider, NewGeneratorService(), nil)
+	profile := resolveTestProfile(t, config.PIIProfile{
+		Confidence:    0.6,
+		CustomRegexes: []config.RegexPatternConfig{{Name: "TICKET", Pattern: `TICK-\d+`}},
+	})
+
+	svc.MaskText("TICK-42", profile, "[test]")
+
+	if stub.lastInput.EntityConfidenceThreshold != 0.6 {
+		t.Errorf("EntityConfidenceThreshold = %v, want 0.6", stub.lastInput.EntityConfidenceThreshold)
+	}
+	if len(provider.lastExtra) != 1 || provider.lastExtra[0] != profile.regex {
+		t.Errorf("expected the profile's regex detector as the only extra detector, got %v", provider.lastExtra)
 	}
 
-	svc.SetDisabledEntities(nil)
-
-	if got := svc.GetDisabledEntities(); len(got) != 0 {
-		t.Errorf("expected disabled set to be cleared (mask everything), got %v", got)
+	svc.MaskText("TICK-42", nil, "[test]")
+	if stub.lastInput.EntityConfidenceThreshold != 0 || len(provider.lastExtra) != 0 {
+		t.Errorf("nil profile should use detector defaults and no extras, got threshold %v extras %v",
+			stub.lastInput.EntityConfidenceThreshold, provider.lastExtra)
 	}
 }
 

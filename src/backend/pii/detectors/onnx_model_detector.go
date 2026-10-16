@@ -232,7 +232,9 @@ func (d *ONNXModelDetectorSimple) GetName() string {
 	return "onnx_model_detector_simple"
 }
 
-// SetEntityConfidenceThreshold updates the minimum confidence threshold for entity detection
+// SetEntityConfidenceThreshold sets the default minimum confidence threshold
+// for entity detection. It is not synchronized with Detect, so call it only
+// before the detector is shared; per-call thresholds go in DetectorInput.
 func (d *ONNXModelDetectorSimple) SetEntityConfidenceThreshold(threshold float64) {
 	d.entityConfidenceThreshold = threshold
 }
@@ -276,6 +278,10 @@ func (d *ONNXModelDetectorSimple) Detect(ctx context.Context, input DetectorInpu
 	// Split tokens into chunks for processing long texts
 	chunks := chunkTokens(tokenIDs, encoding.Offsets)
 
+	// A per-call threshold (e.g. from the request's PII profile) overrides the
+	// detector's construction-time default.
+	threshold := input.effectiveThreshold(d.entityConfidenceThreshold)
+
 	// Process each chunk and collect entities
 	var chunkEntities [][]Entity
 	for _, chunk := range chunks {
@@ -304,7 +310,7 @@ func (d *ONNXModelDetectorSimple) Detect(ctx context.Context, input DetectorInpu
 
 		// Process results for this chunk
 		// Offsets in chunk already contain absolute character positions from original text
-		entities := d.processOutputInline(input.Text, chunk.tokenIDs, chunk.offsets)
+		entities := d.processOutputInline(input.Text, chunk.tokenIDs, chunk.offsets, threshold)
 		chunkEntities = append(chunkEntities, entities)
 	}
 
@@ -499,14 +505,15 @@ func (d *ONNXModelDetectorSimple) decodeEntityToken(
 	outputData []float32,
 	bestLabels []int,
 	currentEntity *Entity,
+	threshold float64,
 ) decodedEntityToken {
 	label, confidence := d.decodedTokenLabel(index, outputData, bestLabels)
 	tokenText := tokenTextAt(originalText, offsets, index)
 
-	if confidence < d.entityConfidenceThreshold {
+	if confidence < threshold {
 		label = "O"
 	}
-	label, confidence = d.bridgeJoinerToken(index, tokenText, label, confidence, outputData, bestLabels, currentEntity)
+	label, confidence = d.bridgeJoinerToken(index, tokenText, label, confidence, outputData, bestLabels, currentEntity, threshold)
 
 	baseLabel, isBeginning, isInside := splitBIOLabel(label)
 	return decodedEntityToken{
@@ -529,6 +536,7 @@ func (d *ONNXModelDetectorSimple) bridgeJoinerToken(
 	outputData []float32,
 	bestLabels []int,
 	currentEntity *Entity,
+	threshold float64,
 ) (string, float64) {
 	if label != "O" || currentEntity == nil || !isEntityJoinerToken(tokenText) {
 		return label, confidence
@@ -536,7 +544,7 @@ func (d *ONNXModelDetectorSimple) bridgeJoinerToken(
 
 	nextLabel, nextConfidence := d.decodedTokenLabel(index+1, outputData, bestLabels)
 	nextBaseLabel, nextIsBeginning, nextIsInside := splitBIOLabel(nextLabel)
-	if nextConfidence >= d.entityConfidenceThreshold &&
+	if nextConfidence >= threshold &&
 		(nextIsBeginning || nextIsInside) &&
 		nextBaseLabel == currentEntity.Label {
 		return "I-" + currentEntity.Label, currentEntity.Confidence
@@ -603,7 +611,7 @@ func filterEmptyEntities(entities []Entity) []Entity {
 }
 
 // processOutputInline converts model output to entities (inline to avoid compilation issues)
-func (d *ONNXModelDetectorSimple) processOutputInline(originalText string, tokenIDs []uint32, offsets []tokenizers.Offset) []Entity {
+func (d *ONNXModelDetectorSimple) processOutputInline(originalText string, tokenIDs []uint32, offsets []tokenizers.Offset, threshold float64) []Entity {
 	outputData := d.outputTensor.GetData()
 
 	// Ensure we don't process more tokens than we have
@@ -633,7 +641,7 @@ func (d *ONNXModelDetectorSimple) processOutputInline(originalText string, token
 			break // Reached end of output data
 		}
 
-		token := d.decodeEntityToken(i, tokenIDs[i], originalText, offsets, outputData, bestLabels, state.currentEntity)
+		token := d.decodeEntityToken(i, tokenIDs[i], originalText, offsets, outputData, bestLabels, state.currentEntity, threshold)
 		fmt.Printf("[ONNX Model Response] Token %d: id=%d text=%q offset=(%d,%d) label=%q confidence=%.4f\n",
 			i, token.tokenID, token.text, offsets[i][0], offsets[i][1], token.label, token.confidence)
 

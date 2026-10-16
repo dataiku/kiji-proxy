@@ -5,7 +5,6 @@ import (
 	"log"
 	"sort"
 	"strings"
-	"sync"
 
 	detectors "github.com/dataiku/kiji-proxy/src/backend/pii/detectors"
 	"github.com/dataiku/kiji-proxy/src/backend/processor"
@@ -24,9 +23,10 @@ type MaskedResult struct {
 }
 
 // DetectorProvider is an interface for getting the current detector
-// This allows MaskingService to always use the latest detector after hot reloads
+// This allows MaskingService to always use the latest detector after hot reloads.
+// extra detectors (e.g. a profile's regex detector) run alongside the model.
 type DetectorProvider interface {
-	GetDetector() (detectors.Detector, error)
+	GetDetectorWith(extra ...detectors.Detector) (detectors.Detector, error)
 }
 
 // MaskingService handles PII detection and masking
@@ -34,16 +34,6 @@ type MaskingService struct {
 	detectorProvider DetectorProvider
 	generator        *GeneratorService
 	mapping          *PIIMapping // optional persistent original<->dummy store; nil disables reuse
-
-	// disabledEntities is the set of base entity labels the user has chosen NOT
-	// to mask (they pass through to the provider unchanged). This is an exclusion
-	// list on purpose: a nil or empty set means "nothing is excluded, mask
-	// everything", so the default — and any accidental clearing of the
-	// selection — fails closed toward masking rather than leaking PII. Guarded by
-	// mu so it can be updated at runtime via the settings API without recreating
-	// the service (the selection therefore survives model hot-reloads).
-	mu               sync.RWMutex
-	disabledEntities map[string]struct{}
 }
 
 // NewMaskingService creates a new masking service.
@@ -57,9 +47,20 @@ func NewMaskingService(detectorProvider DetectorProvider, generator *GeneratorSe
 	}
 }
 
-// MaskText detects PII in text and returns masked text with mappings
-func (s *MaskingService) MaskText(text string, logPrefix string) MaskedResult {
-	detector, err := s.detectorProvider.GetDetector()
+// MaskText detects PII in text using the given profile's settings (threshold,
+// custom regexes, disabled entities) and returns masked text with mappings. A
+// nil profile runs the model alone with its default threshold and masks
+// everything it finds.
+func (s *MaskingService) MaskText(text string, profile *ResolvedProfile, logPrefix string) MaskedResult {
+	var extra []detectors.Detector
+	input := detectors.DetectorInput{Text: text}
+	if profile != nil {
+		if profile.regex != nil {
+			extra = append(extra, profile.regex)
+		}
+		input.EntityConfidenceThreshold = profile.Confidence
+	}
+	detector, err := s.detectorProvider.GetDetectorWith(extra...)
 	if err != nil {
 		log.Printf("%s ❌ Failed to get detector: %v", logPrefix, err)
 		return MaskedResult{
@@ -69,7 +70,7 @@ func (s *MaskingService) MaskText(text string, logPrefix string) MaskedResult {
 		}
 	}
 
-	piiFound, err := detector.Detect(context.Background(), detectors.DetectorInput{Text: text})
+	piiFound, err := detector.Detect(context.Background(), input)
 	if err != nil {
 		log.Printf("%s ❌ Failed to detect PII: %v", logPrefix, err)
 		return MaskedResult{
@@ -79,10 +80,12 @@ func (s *MaskingService) MaskText(text string, logPrefix string) MaskedResult {
 		}
 	}
 
-	// Drop entities whose type the user has disabled. Disabled types pass through
-	// unmasked. This runs before any masking so both the masked text and the
-	// returned Entities reflect only the active selection.
-	piiFound.Entities = s.filterDisabledEntities(piiFound.Entities)
+	// Drop entities whose type the profile has disabled. Disabled types pass
+	// through unmasked. This runs before any masking so both the masked text and
+	// the returned Entities reflect only the active selection.
+	if profile != nil {
+		piiFound.Entities = filterDisabledEntities(piiFound.Entities, profile.disabled)
+	}
 
 	if len(piiFound.Entities) == 0 {
 		log.Printf("%s No PII detected", logPrefix)
@@ -174,14 +177,10 @@ func (s *MaskingService) MaskText(text string, logPrefix string) MaskedResult {
 	}
 }
 
-// filterDisabledEntities removes entities whose base label the user has disabled
+// filterDisabledEntities removes entities whose base label is in disabled
 // (those pass through unmasked). An empty exclusion set means "nothing is
 // disabled", so everything is masked — the fail-closed default.
-func (s *MaskingService) filterDisabledEntities(entities []detectors.Entity) []detectors.Entity {
-	s.mu.RLock()
-	disabled := s.disabledEntities
-	s.mu.RUnlock()
-
+func filterDisabledEntities(entities []detectors.Entity, disabled map[string]struct{}) []detectors.Entity {
 	if len(disabled) == 0 {
 		return entities
 	}
@@ -195,41 +194,10 @@ func (s *MaskingService) filterDisabledEntities(entities []detectors.Entity) []d
 	return filtered
 }
 
-// SetDisabledEntities sets the labels to leave unmasked. An empty (or nil) slice
-// clears the exclusion list, which means "mask everything" — so an accidental
-// empty selection fails closed toward masking rather than leaking PII.
-func (s *MaskingService) SetDisabledEntities(labels []string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if len(labels) == 0 {
-		s.disabledEntities = nil
-		return
-	}
-	set := make(map[string]struct{}, len(labels))
-	for _, label := range labels {
-		set[label] = struct{}{}
-	}
-	s.disabledEntities = set
-}
-
-// GetDisabledEntities returns the sorted set of labels currently left unmasked.
-// An empty result means everything is masked.
-func (s *MaskingService) GetDisabledEntities() []string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	labels := make([]string, 0, len(s.disabledEntities))
-	for label := range s.disabledEntities {
-		labels = append(labels, label)
-	}
-	sort.Strings(labels)
-	return labels
-}
-
-// GetAvailableEntityTypes returns the maximum set of selectable entity labels,
-// sourced from the currently loaded model.
+// GetAvailableEntityTypes returns the entity labels the configured detectors
+// can emit, excluding any profile's custom regexes.
 func (s *MaskingService) GetAvailableEntityTypes() ([]string, error) {
-	detector, err := s.detectorProvider.GetDetector()
+	detector, err := s.detectorProvider.GetDetectorWith()
 	if err != nil {
 		return nil, err
 	}

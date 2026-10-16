@@ -50,8 +50,9 @@ export default function AppShell() {
       window.removeEventListener(ADMIN_ROLE_CHOSEN_EVENT, handleAdminChosen);
     };
   }, []);
-  // Bumped after a successful provider save so the Playground re-reads its
-  // cached provider config (the selector ✓ marks, active provider, etc.).
+  // Bumped after a successful provider save or a PII profile list change so the
+  // Playground re-reads its cached provider config (the selector ✓ marks,
+  // active provider, etc.) and its PII profile picker.
   const [settingsReloadN, setSettingsReloadN] = useState(0);
 
   const { serverStatus, serverHealth, modelSignature, version, uptimeSeconds } =
@@ -84,6 +85,7 @@ export default function AppShell() {
         {resolvedView === "settings" && (
           <SettingsView
             onProvidersSaved={() => setSettingsReloadN((n) => n + 1)}
+            onPIIProfilesChanged={() => setSettingsReloadN((n) => n + 1)}
           />
         )}
         {resolvedView === "about" && <AboutView />}

@@ -110,13 +110,13 @@ type Config struct {
 	// Detectors selects which PII detectors run, in order. Recognized values are
 	// "onnx" and "regex" (see DetectorType* constants). Defaults to both.
 	Detectors []string `json:"detectors"`
-	// CustomRegexes are user-defined regex patterns for the regex detector. Each
-	// entry pairs a name (used as the detected entity type) with a regular
-	// expression. Empty means no custom regex detection.
+	// CustomRegexes seed the default PII profile's regex patterns on first run
+	// (when no pii_profiles.json exists yet). Each entry pairs a name (used as
+	// the detected entity type) with a regular expression.
 	CustomRegexes []RegexPatternConfig `json:"custom_regexes"`
-	// DisabledEntities is the set of entity labels the user has chosen to leave
-	// UNMASKED. Empty/nil means "mask everything" (fail closed). Persisted via
-	// pii_settings.json and reapplied at startup (see PIISettings).
+	// DisabledEntities seeds the default PII profile's set of entity labels left
+	// UNMASKED on first run. Empty/nil means "mask everything" (fail closed).
+	// After that, profiles are managed via pii_profiles.json (see PIIProfiles).
 	DisabledEntities []string `json:"disabled_entities"`
 }
 

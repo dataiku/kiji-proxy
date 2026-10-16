@@ -150,6 +150,29 @@ func TestRegexDetector_Threshold(t *testing.T) {
 	}
 }
 
+func TestRegexDetector_PerCallThresholdOverridesDefault(t *testing.T) {
+	d := newTestRegexDetector(t, ssnPattern)
+	d.SetEntityConfidenceThreshold(regexMatchConfidence)
+
+	// A per-call threshold wins over the stored default.
+	out, err := d.Detect(context.Background(), DetectorInput{Text: "ssn 123-45-6789", EntityConfidenceThreshold: 1.5})
+	if err != nil {
+		t.Fatalf("Detect failed: %v", err)
+	}
+	if len(out.Entities) != 0 {
+		t.Errorf("expected per-call threshold 1.5 to suppress matches, got %d", len(out.Entities))
+	}
+
+	// Zero means "use the default".
+	out, err = d.Detect(context.Background(), DetectorInput{Text: "ssn 123-45-6789"})
+	if err != nil {
+		t.Fatalf("Detect failed: %v", err)
+	}
+	if len(out.Entities) != 1 {
+		t.Errorf("expected 1 entity with the default threshold, got %d", len(out.Entities))
+	}
+}
+
 func TestRegexDetector_ContextCancellation(t *testing.T) {
 	d := newTestRegexDetector(t, ssnPattern)
 	ctx, cancel := context.WithCancel(context.Background())

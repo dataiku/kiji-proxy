@@ -130,362 +130,78 @@ document.addEventListener("DOMContentLoaded", () => {
     return (backendUrl || DEFAULT_API_BASE).replace(/\/+$/, "");
   }
 
-  // ── PII entity types ──────────────────────────────────────────────────────
-  // GET /api/pii/entities → { available, disabled }. Checked = masked; the
-  // unchecked types are POSTed back as the `disabled` (passthrough) set. The
-  // backend stores this server-side, so /api/pii/check needs no per-request
-  // label list.
+  // ── PII profile ───────────────────────────────────────────────────────────
+  // GET /api/pii/profiles → { default, profiles: [{ id, name, is_default }] }.
+  // The chosen profile id is stored locally and sent with every
+  // /api/pii/check; "" lets the server apply its default profile. Profiles
+  // themselves are edited in the Kiji app.
 
-  const labelGrid = document.getElementById("label-grid");
-  const saveLabelBtn = document.getElementById("save-labels-btn");
-  const labelsStatus = document.getElementById("labels-status");
-  const toggleAllLink = document.getElementById("toggle-all");
+  const profileSelect = document.getElementById("pii-profile");
+  const profileStatus = document.getElementById("profile-status");
 
-  // Unsaved user edits, keyed by label. Only labels the user actually toggled
-  // are tracked, so a refresh shows the backend's saved state for everything
-  // else (including changes made from the desktop app) while keeping pending
-  // edits. Entries are cleared once a save persists them.
-  const dirtyLabels = new Map();
-  // Latest set of entity types the backend reported, used to reject custom
-  // pattern names that collide with built-in types.
-  let availableLabels = [];
-  // Guards against out-of-order responses when refreshes overlap: only the
-  // most recently started load may touch the grid.
-  let labelLoadSeq = 0;
+  async function loadProfiles() {
+    const [{ piiProfile }, base] = await Promise.all([
+      chrome.storage.sync.get({ piiProfile: "" }),
+      getBackendUrl(),
+    ]);
 
-  async function loadLabels() {
-    const seq = ++labelLoadSeq;
-    // Keep the current grid visible while refreshing; only show a placeholder
-    // on the very first load, when there is nothing to show yet.
-    if (!labelGrid.querySelector("input[type=checkbox]")) {
-      labelGrid.innerHTML =
-        '<span class="label-loading">Loading entity types…</span>';
-    }
-
-    const base = await getBackendUrl();
-    let available = [];
-    let disabled = [];
+    let profiles = [];
+    let reachable = false;
     try {
-      const resp = await fetch(`${base}/api/pii/entities`);
+      const resp = await fetch(`${base}/api/pii/profiles`);
       if (resp.ok) {
         const data = await resp.json();
-        available = data.available || [];
-        disabled = data.disabled || [];
+        profiles = data.profiles || [];
+        reachable = true;
       }
     } catch {
-      // backend not reachable — grid stays empty
+      // backend not reachable — only "Server default" is offered
     }
 
-    if (seq !== labelLoadSeq) return; // a newer load superseded this one
-
-    if (available.length === 0) {
-      labelGrid.innerHTML =
-        '<span class="label-loading">Backend unreachable — start the proxy first.</span>';
-      return;
+    profileSelect.replaceChildren(new Option("Server default", ""));
+    for (const p of profiles) {
+      const label = p.is_default ? `${p.name} (default)` : p.name;
+      profileSelect.appendChild(new Option(label, p.id));
     }
 
-    availableLabels = available;
-    const disabledSet = new Set(disabled);
-    const availableSet = new Set(available);
-    for (const label of dirtyLabels.keys()) {
-      if (!availableSet.has(label)) dirtyLabels.delete(label);
-    }
-
-    labelGrid.innerHTML = "";
-    for (const label of available) {
-      const item = document.createElement("label");
-      item.className = "label-item";
-      const cb = document.createElement("input");
-      cb.type = "checkbox";
-      cb.value = label;
-      cb.checked = dirtyLabels.has(label)
-        ? dirtyLabels.get(label)
-        : !disabledSet.has(label);
-      item.appendChild(cb);
-      item.appendChild(document.createTextNode(label));
-      labelGrid.appendChild(item);
-    }
-
-    updateToggleAllText();
-  }
-
-  function updateToggleAllText() {
-    const checkboxes = labelGrid.querySelectorAll("input[type=checkbox]");
-    const anyChecked = Array.from(checkboxes).some((cb) => cb.checked);
-    toggleAllLink.textContent = anyChecked ? "Disable all" : "Enable all";
-  }
-
-  toggleAllLink.addEventListener("click", (e) => {
-    e.preventDefault();
-    const checkboxes = labelGrid.querySelectorAll("input[type=checkbox]");
-    const anyChecked = Array.from(checkboxes).some((cb) => cb.checked);
-    checkboxes.forEach((cb) => {
-      cb.checked = !anyChecked;
-      dirtyLabels.set(cb.value, cb.checked);
-    });
-    updateToggleAllText();
-  });
-
-  labelGrid.addEventListener("change", (e) => {
-    const cb = e.target;
-    if (cb instanceof HTMLInputElement && cb.type === "checkbox") {
-      dirtyLabels.set(cb.value, cb.checked);
-    }
-    updateToggleAllText();
-  });
-
-  saveLabelBtn.addEventListener("click", async () => {
-    const checkboxes = labelGrid.querySelectorAll("input[type=checkbox]");
-    // No checkboxes means the grid never loaded (still loading or backend
-    // unreachable). Saving an empty `disabled` set would re-enable every type
-    // the user had previously turned off, silently wiping their config.
-    if (checkboxes.length === 0) {
-      showLabelStatus("No entity types loaded — start the proxy first.", true);
-      return;
-    }
-    const saved = new Map(
-      Array.from(checkboxes).map((cb) => [cb.value, cb.checked])
-    );
-    const disabled = Array.from(saved)
-      .filter(([, checked]) => !checked)
-      .map(([label]) => label);
-    const base = await getBackendUrl();
-    try {
-      const resp = await fetch(`${base}/api/pii/entities`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ disabled }),
-      });
-      if (!resp.ok) throw new Error((await resp.text()).slice(0, 200));
-      // Clear only edits that this POST persisted; a toggle made while it was
-      // in flight differs from the saved value and stays pending.
-      for (const [label, checked] of saved) {
-        if (dirtyLabels.get(label) === checked) dirtyLabels.delete(label);
+    if (piiProfile && !profiles.some((p) => p.id === piiProfile)) {
+      // Keep the stored choice visible rather than silently switching it, so
+      // the user notices: checks fail until they pick an existing profile.
+      profileSelect.appendChild(
+        new Option(`${piiProfile} (not found)`, piiProfile)
+      );
+      if (reachable) {
+        showProfileStatus(
+          `Profile "${piiProfile}" no longer exists — PII checks will fail until you choose another.`,
+          true
+        );
       }
-      showLabelStatus("Saved.", false);
-      loadLabels();
-    } catch (e) {
-      showLabelStatus(`Failed to save: ${e.message}`, true);
     }
+    profileSelect.value = piiProfile;
+
+    if (!reachable) {
+      showProfileStatus("Backend unreachable — start the proxy first.", true);
+    }
+  }
+
+  profileSelect.addEventListener("change", () => {
+    chrome.storage.sync.set({ piiProfile: profileSelect.value }, () => {
+      showProfileStatus("Saved.", false);
+    });
   });
 
-  function showLabelStatus(text, isError) {
-    labelsStatus.textContent = text;
-    labelsStatus.className = isError
+  function showProfileStatus(text, isError) {
+    profileStatus.textContent = text;
+    profileStatus.className = isError
       ? "save-status save-error"
       : "save-status save-success";
     if (!isError) {
       setTimeout(() => {
-        labelsStatus.textContent = "";
-        labelsStatus.className = "save-status";
+        profileStatus.textContent = "";
+        profileStatus.className = "save-status";
       }, 2000);
     }
   }
 
-  loadLabels();
-
-  // ── Custom patterns ───────────────────────────────────────────────────────
-  // GET /api/pii/regexes → { regexes: [{ name, pattern }] }. POST replaces the
-  // whole set, so Add/Remove rebuild the local list and re-POST it. Custom
-  // names become maskable entity types, so the label grid is refreshed on
-  // every change.
-
-  const patternForm = document.getElementById("pattern-form");
-  const patternName = document.getElementById("pattern-name");
-  const patternRegex = document.getElementById("pattern-regex");
-  const patternSample = document.getElementById("pattern-sample");
-  const patternPreviewResult = document.getElementById(
-    "pattern-preview-result"
-  );
-  const patternRegexError = document.getElementById("pattern-regex-error");
-  const patternList = document.getElementById("pattern-list");
-
-  let regexes = [];
-
-  // The backend compiles patterns with Go's regexp (RE2), which—unlike the JS
-  // RegExp used for the live preview—rejects lookaround and backreferences. We
-  // flag them here so a pattern that previews fine doesn't fail (or silently
-  // never match) once saved.
-  function re2Incompatibility(value) {
-    // Scan token by token so escaped literals like `\(?=` or `\\1` (a literal
-    // backslash then "1") are not mistaken for lookaround/backreferences.
-    let inClass = false;
-    for (let i = 0; i < value.length; i++) {
-      const c = value[i];
-      if (c === "\\") {
-        if (/[1-9]/.test(value[i + 1] || "")) {
-          return "Backreferences are not supported by the backend regex engine.";
-        }
-        i++; // skip the escaped character
-      } else if (inClass) {
-        if (c === "]") inClass = false;
-      } else if (c === "[") {
-        inClass = true;
-        if (value[i + 1] === "]") i++; // leading `]` is a literal in a class
-      } else if (c === "(" && /^\?<?[=!]/.test(value.slice(i + 1))) {
-        return "Lookahead/lookbehind is not supported by the backend regex engine.";
-      }
-    }
-    return null;
-  }
-
-  function validateRegex(value) {
-    if (!value) return null;
-    try {
-      new RegExp(value);
-    } catch (e) {
-      return e.message;
-    }
-    return re2Incompatibility(value);
-  }
-
-  function updatePreview() {
-    const regexVal = patternRegex.value.trim();
-    const sample = patternSample.value;
-    const error = validateRegex(regexVal);
-
-    patternRegexError.textContent = error || "";
-
-    if (!error && regexVal && sample) {
-      const re = new RegExp(regexVal, "g");
-      const matches = sample.match(re) || [];
-      patternPreviewResult.textContent =
-        matches.length > 0
-          ? `✓ ${matches.length} match${matches.length > 1 ? "es" : ""}: ${matches.join(", ")}`
-          : "No matches";
-      patternPreviewResult.style.color =
-        matches.length > 0 ? "var(--ok)" : "var(--text-muted)";
-    } else {
-      patternPreviewResult.textContent = "";
-    }
-  }
-
-  patternRegex.addEventListener("input", updatePreview);
-  patternSample.addEventListener("input", updatePreview);
-
-  async function loadPatterns() {
-    const base = await getBackendUrl();
-    try {
-      const resp = await fetch(`${base}/api/pii/regexes`);
-      if (!resp.ok) throw new Error();
-      const data = await resp.json();
-      regexes = data.regexes || [];
-    } catch {
-      regexes = [];
-    }
-    renderPatterns();
-  }
-
-  // Replace the whole pattern set on the backend, then refresh the label grid
-  // so new/removed custom names appear in the entity-type toggles.
-  async function savePatterns() {
-    const base = await getBackendUrl();
-    const resp = await fetch(`${base}/api/pii/regexes`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ regexes }),
-    });
-    if (!resp.ok) throw new Error((await resp.text()).slice(0, 200));
-    // The server persisted the set once it returned 2xx; don't let a malformed
-    // (non-JSON) body throw past here, or the caller's catch would roll back a
-    // change the backend already kept, desyncing the UI.
-    const data = await resp.json().catch(() => null);
-    regexes = (data && data.regexes) || regexes;
-    renderPatterns();
-    loadLabels();
-  }
-
-  function renderPatterns() {
-    if (regexes.length === 0) {
-      patternList.innerHTML =
-        '<p class="label-loading">No custom patterns yet.</p>';
-      return;
-    }
-
-    patternList.innerHTML = "";
-    regexes.forEach((p) => {
-      const row = document.createElement("div");
-      row.className = "pattern-row";
-      row.innerHTML = `
-        <span class="pattern-name">${escHtml(p.name)}</span>
-        <code class="pattern-regex-val">${escHtml(p.pattern)}</code>
-        <button class="btn-danger" data-action="delete">Remove</button>
-      `;
-      // Capture the pattern object, not its index: a concurrent delete can
-      // re-render and shift indices, so an index captured here would point at
-      // the wrong (or a missing) entry by the time this handler runs.
-      row
-        .querySelector("[data-action=delete]")
-        .addEventListener("click", async () => {
-          const idx = regexes.indexOf(p);
-          regexes = regexes.filter((r) => r !== p);
-          try {
-            await savePatterns();
-          } catch (e) {
-            // Restore only this entry; replacing the whole array would also
-            // undo any add/remove that completed while this POST was pending.
-            if (!regexes.includes(p)) {
-              regexes = [...regexes];
-              regexes.splice(Math.min(Math.max(idx, 0), regexes.length), 0, p);
-            }
-            renderPatterns();
-            alert(`Failed to delete pattern: ${e.message}`);
-          }
-        });
-      patternList.appendChild(row);
-    });
-  }
-
-  patternForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const name = patternName.value.trim().toUpperCase();
-    const pattern = patternRegex.value.trim();
-
-    // `required` only blocks an empty field, not whitespace; a blank trimmed
-    // name would create an unnamed entity type.
-    if (!name) {
-      patternRegexError.textContent = "Name is required.";
-      return;
-    }
-    if (regexes.some((r) => r.name === name)) {
-      patternRegexError.textContent = `A pattern named ${name} already exists.`;
-      return;
-    }
-    // Custom names share the entity-type namespace with the model's labels;
-    // reusing one (e.g. EMAIL) would make that toggle ambiguous.
-    const customNames = new Set(regexes.map((r) => r.name));
-    if (availableLabels.some((l) => l === name && !customNames.has(l))) {
-      patternRegexError.textContent = `${name} is a built-in entity type; choose another name.`;
-      return;
-    }
-
-    const error = validateRegex(pattern);
-    if (error) {
-      patternRegexError.textContent = error;
-      return;
-    }
-
-    const added = { name, pattern };
-    regexes = [...regexes, added];
-    try {
-      await savePatterns();
-      patternForm.reset();
-      patternPreviewResult.textContent = "";
-    } catch (err) {
-      // Remove this entry specifically: a concurrent delete may have replaced
-      // the array, so the last element is not necessarily ours.
-      regexes = regexes.filter((r) => r !== added);
-      patternRegexError.textContent = `Failed to save: ${err.message}`;
-    }
-  });
-
-  function escHtml(str) {
-    return str
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
-  }
-
-  loadPatterns();
+  loadProfiles();
 });

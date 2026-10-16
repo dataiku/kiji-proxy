@@ -20,6 +20,7 @@ import { useServerHealth } from "../hooks/useServerHealth";
 import { useElectronSettings } from "../hooks/useElectronSettings";
 import { useMisclassificationReport } from "../hooks/useMisclassificationReport";
 import { useProxySubmit } from "../hooks/useProxySubmit";
+import { usePIIProfiles } from "../hooks/usePIIProfiles";
 import {
   getConfidenceColor,
   GO_SERVER_PORT,
@@ -27,6 +28,15 @@ import {
 } from "../utils/providerHelpers";
 import type { ProviderType } from "../types/provider";
 import { PROVIDER_NAMES } from "../types/provider";
+import { PLAYGROUND_PROFILE_STORAGE_KEY } from "../types/piiProfile";
+
+const readStoredProfile = (): string => {
+  try {
+    return localStorage.getItem(PLAYGROUND_PROFILE_STORAGE_KEY) ?? "";
+  } catch {
+    return "";
+  }
+};
 
 export interface PrivacyProxyUIProps {
   /**
@@ -87,6 +97,26 @@ export default function PrivacyProxyUI({
   const { serverStatus, serverHealth, modelSignature, version } =
     useServerHealth(isElectron);
 
+  // PII profile picker. "" means the server's default profile. The choice is
+  // remembered per browser; a stored id whose profile was since deleted falls
+  // back to the default.
+  const { profiles: piiProfiles, defaultId: defaultProfileId } =
+    usePIIProfiles(reloadSettingsSignal);
+  const [storedProfile, setStoredProfile] = useState(readStoredProfile);
+  const selectedProfile = piiProfiles.some((p) => p.id === storedProfile)
+    ? storedProfile
+    : "";
+  const defaultProfileName =
+    piiProfiles.find((p) => p.id === defaultProfileId)?.name ?? "";
+  const handleProfileChange = (id: string) => {
+    setStoredProfile(id);
+    try {
+      localStorage.setItem(PLAYGROUND_PROFILE_STORAGE_KEY, id);
+    } catch {
+      // Storage unavailable (e.g. private mode): the choice lasts this session.
+    }
+  };
+
   // Proxy submit & input/output state
   const {
     inputData,
@@ -94,6 +124,7 @@ export default function PrivacyProxyUI({
     maskedInput,
     isProcessing,
     resultProvider,
+    resultProfileName,
     detectedEntities,
     responseDetectedEntities,
     averageConfidence,
@@ -108,6 +139,7 @@ export default function PrivacyProxyUI({
     providersConfig: settings.providersConfig,
     apiKey: settings.apiKey,
     isElectron,
+    profile: selectedProfile,
   });
 
   // Misclassification reporting
@@ -168,142 +200,147 @@ export default function PrivacyProxyUI({
       <div className={embedded ? "" : "max-w-7xl mx-auto"}>
         {/* Header — only when standalone; the shell provides nav + status */}
         {!embedded && (
-        <div
-          className={`sticky top-0 z-40 transition-all duration-300 -mx-4 md:-mx-8 px-4 md:px-8 py-4 mb-8 ${
-            isScrolled
-              ? "glass shadow-soft py-2.5"
-              : "bg-transparent"
-          }`}
-        >
-          <div className="relative">
-            {isElectron && (
-              <div
-                className="absolute left-0 top-1/2 -translate-y-1/2 z-50"
-                ref={menuRef}
-              >
-                <button
-                  onClick={() => setIsMenuOpen(!isMenuOpen)}
-                  className="p-2 text-stone-500 hover:text-brand-700 hover:bg-stone-100 rounded-lg transition-colors"
-                  title={t("menu.label")}
+          <div
+            className={`sticky top-0 z-40 transition-all duration-300 -mx-4 md:-mx-8 px-4 md:px-8 py-4 mb-8 ${
+              isScrolled ? "glass shadow-soft py-2.5" : "bg-transparent"
+            }`}
+          >
+            <div className="relative">
+              {isElectron && (
+                <div
+                  className="absolute left-0 top-1/2 -translate-y-1/2 z-50"
+                  ref={menuRef}
                 >
-                  <Menu className="w-6 h-6" />
-                </button>
-                {isMenuOpen && (
-                  <div className="absolute left-0 mt-2 w-52 bg-white rounded-xl shadow-lift ring-1 ring-brand-900/10 z-50 p-1.5 animate-rise-in">
-                    <button
-                      onClick={() => {
-                        onRequestSettings?.();
-                        setIsMenuOpen(false);
-                      }}
-                      className="w-full text-left px-3 py-2.5 text-sm text-stone-700 hover:bg-brand-50 hover:text-brand-800 rounded-lg transition-colors flex items-center gap-2.5"
-                    >
-                      <Settings className="w-4 h-4 text-stone-400" />
-                      {t("actions.settings")}
-                    </button>
-                    <button
-                      onClick={() => {
-                        onRequestAbout?.();
-                        setIsMenuOpen(false);
-                      }}
-                      className="w-full text-left px-3 py-2.5 text-sm text-stone-700 hover:bg-brand-50 hover:text-brand-800 rounded-lg transition-colors flex items-center gap-2.5"
-                    >
-                      <Info className="w-4 h-4 text-stone-400" />
-                      {t("actions.about")}
-                    </button>
+                  <button
+                    onClick={() => setIsMenuOpen(!isMenuOpen)}
+                    className="p-2 text-stone-500 hover:text-brand-700 hover:bg-stone-100 rounded-lg transition-colors"
+                    title={t("menu.label")}
+                  >
+                    <Menu className="w-6 h-6" />
+                  </button>
+                  {isMenuOpen && (
+                    <div className="absolute left-0 mt-2 w-52 bg-white rounded-xl shadow-lift ring-1 ring-brand-900/10 z-50 p-1.5 animate-rise-in">
+                      <button
+                        onClick={() => {
+                          onRequestSettings?.();
+                          setIsMenuOpen(false);
+                        }}
+                        className="w-full text-left px-3 py-2.5 text-sm text-stone-700 hover:bg-brand-50 hover:text-brand-800 rounded-lg transition-colors flex items-center gap-2.5"
+                      >
+                        <Settings className="w-4 h-4 text-stone-400" />
+                        {t("actions.settings")}
+                      </button>
+                      <button
+                        onClick={() => {
+                          onRequestAbout?.();
+                          setIsMenuOpen(false);
+                        }}
+                        className="w-full text-left px-3 py-2.5 text-sm text-stone-700 hover:bg-brand-50 hover:text-brand-800 rounded-lg transition-colors flex items-center gap-2.5"
+                      >
+                        <Info className="w-4 h-4 text-stone-400" />
+                        {t("actions.about")}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+              <div
+                className={`flex flex-col items-center justify-center transition-all duration-300 ${
+                  isScrolled ? "scale-95" : "scale-100"
+                }`}
+              >
+                <div className="flex items-center justify-center gap-3">
+                  <img
+                    src={logoImage}
+                    alt={t("playground.logoAlt")}
+                    className={`transition-all duration-300 ${
+                      isScrolled ? "w-8 h-8" : "w-12 h-12"
+                    }`}
+                  />
+                  <h1
+                    className={`font-semibold text-brand-900 tracking-tight transition-all duration-300 ${
+                      isScrolled ? "text-2xl" : "text-[2.5rem] leading-none"
+                    }`}
+                  >
+                    Kiji{" "}
+                    <span className="font-normal text-brand-700">
+                      Privacy Proxy
+                    </span>
+                  </h1>
+                </div>
+                {!isScrolled && (
+                  <div className="mt-3 flex flex-col items-center gap-3 animate-fade-in">
+                    <p className="text-stone-500 text-base tracking-tight">
+                      {t("tagline")}
+                    </p>
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-50 text-brand-700 ring-1 ring-brand-200 px-3 py-1 font-medium">
+                        <span className="w-1.5 h-1.5 rounded-full bg-brand-500" />
+                        {t("badges.localProxy")}
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-white text-stone-500 ring-1 ring-stone-200 px-3 py-1 font-medium">
+                        {t("badges.onDeviceDetection")}
+                      </span>
+                    </div>
                   </div>
                 )}
               </div>
-            )}
-            <div
-              className={`flex flex-col items-center justify-center transition-all duration-300 ${
-                isScrolled ? "scale-95" : "scale-100"
-              }`}
-            >
-              <div className="flex items-center justify-center gap-3">
-                <img
-                  src={logoImage}
-                  alt={t("playground.logoAlt")}
-                  className={`transition-all duration-300 ${
-                    isScrolled ? "w-8 h-8" : "w-12 h-12"
-                  }`}
-                />
-                <h1
-                  className={`font-semibold text-brand-900 tracking-tight transition-all duration-300 ${
-                    isScrolled ? "text-2xl" : "text-[2.5rem] leading-none"
-                  }`}
-                >
-                  Kiji <span className="font-normal text-brand-700">Privacy Proxy</span>
-                </h1>
-              </div>
-              {!isScrolled && (
-                <div className="mt-3 flex flex-col items-center gap-3 animate-fade-in">
-                  <p className="text-stone-500 text-base tracking-tight">
-                    {t("tagline")}
+            </div>
+
+            {/* Model Health Banner */}
+            {serverHealth.status === "online" && !serverHealth.modelHealthy && (
+              <div className="mt-5 p-4 bg-red-50 ring-1 ring-red-200 rounded-xl block mx-auto max-w-2xl text-left">
+                <p className="text-sm text-red-900 flex items-center gap-2">
+                  <AlertCircle className="w-5 h-5" />
+                  <span className="font-semibold">
+                    {t("modelHealth.unhealthy")}
+                  </span>
+                </p>
+                {serverHealth.modelError && (
+                  <p className="text-xs text-red-700 mt-2 break-all">
+                    {serverHealth.modelError}
                   </p>
-                  <div className="flex items-center gap-2 text-xs">
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-50 text-brand-700 ring-1 ring-brand-200 px-3 py-1 font-medium">
-                      <span className="w-1.5 h-1.5 rounded-full bg-brand-500" />
-                      {t("badges.localProxy")}
+                )}
+                <p className="text-xs text-red-700 mt-2">
+                  <Trans
+                    i18nKey="modelHealth.checkConfig"
+                    ns="common"
+                    components={{
+                      settingsAction: isElectron ? (
+                        <button
+                          onClick={() => onRequestSettings?.()}
+                          className="underline font-semibold"
+                        />
+                      ) : (
+                        <span />
+                      ),
+                    }}
+                  />
+                </p>
+              </div>
+            )}
+
+            {isElectron &&
+              !settings.apiKey &&
+              settings.activeProvider !== "custom" && (
+                <div className="mt-5 px-3.5 py-2.5 bg-amber-50 ring-1 ring-amber-200 rounded-xl inline-block">
+                  <p className="text-xs text-amber-800 flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>
+                      {t("apiKey.notConfigured", {
+                        provider: PROVIDER_NAMES[settings.activeProvider],
+                      })}{" "}
                     </span>
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white text-stone-500 ring-1 ring-stone-200 px-3 py-1 font-medium">
-                      {t("badges.onDeviceDetection")}
-                    </span>
-                  </div>
+                    <button
+                      onClick={() => onRequestSettings?.()}
+                      className="underline font-semibold"
+                    >
+                      {t("apiKey.configureInSettings")}
+                    </button>
+                  </p>
                 </div>
               )}
-            </div>
           </div>
-
-          {/* Model Health Banner */}
-          {serverHealth.status === "online" && !serverHealth.modelHealthy && (
-            <div className="mt-5 p-4 bg-red-50 ring-1 ring-red-200 rounded-xl block mx-auto max-w-2xl text-left">
-              <p className="text-sm text-red-900 flex items-center gap-2">
-                <AlertCircle className="w-5 h-5" />
-                <span className="font-semibold">{t("modelHealth.unhealthy")}</span>
-              </p>
-              {serverHealth.modelError && (
-                <p className="text-xs text-red-700 mt-2 break-all">
-                  {serverHealth.modelError}
-                </p>
-              )}
-              <p className="text-xs text-red-700 mt-2">
-                <Trans
-                  i18nKey="modelHealth.checkConfig"
-                  ns="common"
-                  components={{
-                    settingsAction: isElectron ? (
-                      <button
-                        onClick={() => onRequestSettings?.()}
-                        className="underline font-semibold"
-                      />
-                    ) : (
-                      <span />
-                    ),
-                  }}
-                />
-              </p>
-            </div>
-          )}
-
-          {isElectron && !settings.apiKey && settings.activeProvider !== "custom" && (
-            <div className="mt-5 px-3.5 py-2.5 bg-amber-50 ring-1 ring-amber-200 rounded-xl inline-block">
-              <p className="text-xs text-amber-800 flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>
-                  {t("apiKey.notConfigured", {
-                    provider: PROVIDER_NAMES[settings.activeProvider],
-                  })}{" "}
-                </span>
-                <button
-                  onClick={() => onRequestSettings?.()}
-                  className="underline font-semibold"
-                >
-                  {t("apiKey.configureInSettings")}
-                </button>
-              </p>
-            </div>
-          )}
-        </div>
         )}
 
         {/* Input Section */}
@@ -312,7 +349,29 @@ export default function PrivacyProxyUI({
             <span className="eyebrow text-stone-400">
               {t("playground.yourRequest")}
             </span>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <label
+                className="text-sm text-stone-500"
+                htmlFor="kiji-pii-profile-select"
+              >
+                {t("playground.profile")}
+              </label>
+              <select
+                id="kiji-pii-profile-select"
+                value={selectedProfile}
+                onChange={(e) => handleProfileChange(e.target.value)}
+                disabled={isProcessing}
+                className="px-3 py-2 border border-stone-200 rounded-lg focus:border-brand-500 focus:ring-2 focus:ring-brand-100 focus:outline-none text-sm bg-white font-medium text-stone-700 transition-shadow"
+              >
+                <option value="">
+                  {t("playground.profileDefault", { name: defaultProfileName })}
+                </option>
+                {piiProfiles.map((profile) => (
+                  <option key={profile.id} value={profile.id}>
+                    {profile.name}
+                  </option>
+                ))}
+              </select>
               <label className="text-sm text-stone-500">
                 {t("playground.sendTo")}
               </label>
@@ -362,9 +421,7 @@ export default function PrivacyProxyUI({
               }
               className="btn-brand flex items-center gap-2 px-6 py-3 text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed font-medium tracking-tight"
               title={
-                serverStatus === "offline"
-                  ? t("playground.backendOffline")
-                  : ""
+                serverStatus === "offline" ? t("playground.backendOffline") : ""
               }
             >
               {isProcessing ? (
@@ -448,6 +505,13 @@ export default function PrivacyProxyUI({
                         {t("playground.request.piiDetected", {
                           count: detectedEntities.length,
                         })}
+                        {resultProfileName && (
+                          <span className="ml-2 text-xs font-normal text-stone-500">
+                            {t("playground.request.profileUsed", {
+                              name: resultProfileName,
+                            })}
+                          </span>
+                        )}
                       </p>
                       <p
                         className="text-sm font-semibold"
@@ -542,7 +606,9 @@ export default function PrivacyProxyUI({
 
                   <div className="flex flex-col">
                     <div className="text-sm font-medium text-stone-600 mb-2 flex items-center gap-2">
-                      <span>{t("playground.response.personalInfoRestored")}</span>
+                      <span>
+                        {t("playground.response.personalInfoRestored")}
+                      </span>
                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-brand-50 text-brand-700 ring-1 ring-brand-200 text-[11px] font-semibold">
                         <ShieldCheck className="w-3 h-3" />
                         {t("playground.response.restoredBadge")}
@@ -677,58 +743,60 @@ export default function PrivacyProxyUI({
 
       {/* Status Bar — only when standalone; the shell sidebar shows server status */}
       {!embedded && (
-      <div className="fixed bottom-0 left-0 right-0 bg-brand-900 text-brand-100/90 px-4 py-2 flex items-center justify-between border-t border-brand-950/50">
-        <div className="flex items-center gap-2">
-          <div
-            className={`w-2.5 h-2.5 rounded-full ${
-              serverStatus === "online" ? "bg-brand-400 shadow-[0_0_8px_rgba(93,193,166,0.7)]" : "bg-red-500"
-            } ${serverStatus === "online" ? "animate-pulse" : ""}`}
-            title={
-              serverStatus === "online"
-                ? t("status.serverOnline")
-                : t("status.serverOffline")
-            }
-          />
-          <span className="text-sm">
-            {serverStatus === "online" ? (
-              t("status.serverOnline")
-            ) : (
-              <span className="flex items-center gap-2 text-red-200">
-                {t("status.serverOfflineDetail", { port: GO_SERVER_PORT })}
-              </span>
-            )}
-          </span>
-        </div>
-        {modelSignature && (
-          <div className="relative">
+        <div className="fixed bottom-0 left-0 right-0 bg-brand-900 text-brand-100/90 px-4 py-2 flex items-center justify-between border-t border-brand-950/50">
+          <div className="flex items-center gap-2">
             <div
-              className="flex items-center gap-2 cursor-help"
-              role="status"
-              aria-label={t("status.modelSignature")}
-              onMouseEnter={() => setShowModelTooltip(true)}
-              onMouseLeave={() => setShowModelTooltip(false)}
-            >
-              <span className="text-xs text-brand-300/80">
-                {t("status.model")}
-              </span>
-              <code
-                className="text-xs font-mono text-brand-100 bg-brand-950/50 px-1.5 py-0.5 rounded"
-                aria-label={t("status.modelSignatureLabel", {
-                  signature: modelSignature,
-                })}
-              >
-                {modelSignature}
-              </code>
-            </div>
-            {showModelTooltip && (
-              <div className="absolute bottom-full right-0 mb-2 px-2 py-1 text-xs text-white bg-brand-950 border border-brand-800 rounded shadow-lg whitespace-nowrap z-50">
-                {t("status.verifiedModelSignature")}
-                <div className="absolute top-full right-2 border-l-4 border-r-4 border-t-4 border-transparent border-t-brand-950"></div>
-              </div>
-            )}
+              className={`w-2.5 h-2.5 rounded-full ${
+                serverStatus === "online"
+                  ? "bg-brand-400 shadow-[0_0_8px_rgba(93,193,166,0.7)]"
+                  : "bg-red-500"
+              } ${serverStatus === "online" ? "animate-pulse" : ""}`}
+              title={
+                serverStatus === "online"
+                  ? t("status.serverOnline")
+                  : t("status.serverOffline")
+              }
+            />
+            <span className="text-sm">
+              {serverStatus === "online" ? (
+                t("status.serverOnline")
+              ) : (
+                <span className="flex items-center gap-2 text-red-200">
+                  {t("status.serverOfflineDetail", { port: GO_SERVER_PORT })}
+                </span>
+              )}
+            </span>
           </div>
-        )}
-      </div>
+          {modelSignature && (
+            <div className="relative">
+              <div
+                className="flex items-center gap-2 cursor-help"
+                role="status"
+                aria-label={t("status.modelSignature")}
+                onMouseEnter={() => setShowModelTooltip(true)}
+                onMouseLeave={() => setShowModelTooltip(false)}
+              >
+                <span className="text-xs text-brand-300/80">
+                  {t("status.model")}
+                </span>
+                <code
+                  className="text-xs font-mono text-brand-100 bg-brand-950/50 px-1.5 py-0.5 rounded"
+                  aria-label={t("status.modelSignatureLabel", {
+                    signature: modelSignature,
+                  })}
+                >
+                  {modelSignature}
+                </code>
+              </div>
+              {showModelTooltip && (
+                <div className="absolute bottom-full right-0 mb-2 px-2 py-1 text-xs text-white bg-brand-950 border border-brand-800 rounded shadow-lg whitespace-nowrap z-50">
+                  {t("status.verifiedModelSignature")}
+                  <div className="absolute top-full right-2 border-l-4 border-r-4 border-t-4 border-transparent border-t-brand-950"></div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       )}
 
       {/* Misclassification Modal */}
