@@ -13,10 +13,16 @@ class LabelUtils:
     correct_surname = '{"value": "Patel", "label": "SURNAME"}'
 
     # Single source of truth: Label code to human-readable description mapping
-    # This dictionary defines all available PII labels and their descriptions
+    # This dictionary defines all available PII labels. Each entry has:
+    #   name        - short display name
+    #   description - one-line definition used in generation and labeling prompts
+    #   color       - Label Studio background color
+    #   chance      - selection weight when sampling labels for a text
+    #   hints       - extra generation instructions
     LABEL_DESCRIPTIONS: ClassVar[dict[str, dict]] = {
         "SURNAME": {
             "name": "Last name",
+            "description": "A person's family name",
             "color": "#e74c3c",
             "chance": 0.5,
             "hints": [
@@ -29,6 +35,7 @@ class LabelUtils:
         },
         "FIRSTNAME": {
             "name": "First name",
+            "description": "A person's given name",
             "color": "#3498db",
             "chance": 0.5,
             "hints": [
@@ -42,24 +49,28 @@ class LabelUtils:
         },
         "BUILDINGNUM": {
             "name": "Building number",
+            "description": "The house or building number of a postal address",
             "color": "#f39c12",
             "chance": 0.1,
             "hints": ["Consider different formats applicable to the geographic area"],
         },
         "DATEOFBIRTH": {
             "name": "Date of birth",
+            "description": "A person's date of birth",
             "color": "#d35400",
             "chance": 0.1,
             "hints": ["Use the correct date format applicable in the geographic area"],
         },
         "EMAIL": {
             "name": "Email",
+            "description": "An email address",
             "color": "#9b59b6",
             "chance": 0.1,
             "hints": ["Use a diverse set of email providers and web domains"],
         },
         "PHONENUMBER": {
             "name": "Phone number",
+            "description": "A telephone or mobile number",
             "color": "#27ae60",
             "chance": 0.1,
             "hints": [
@@ -68,83 +79,131 @@ class LabelUtils:
         },
         "CITY": {
             "name": "City",
+            "description": "A city, town or ward in a postal address",
             "color": "#16a085",
             "chance": 0.1,
             "hints": [
                 'Use diverse city names, avoid common ones like "New York", "Los Angeles", "London", "Paris", etc.'
             ],
         },
-        "URL": {"name": "URL", "color": "#e67e22", "chance": 0.1, "hints": []},
+        "URL": {
+            "name": "URL",
+            "description": "A web address",
+            "color": "#e67e22",
+            "chance": 0.1,
+            "hints": [],
+        },
         "COMPANYNAME": {
             "name": "Company name",
+            "description": "The name of a company or employer tied to a person",
             "color": "#795548",
             "chance": 0.1,
             "hints": [],
         },
-        "STATE": {"name": "State", "color": "#8e44ad", "chance": 0.1, "hints": []},
-        "ZIP": {"name": "Zip code", "color": "#e91e63", "chance": 0.1, "hints": []},
+        "STATE": {
+            "name": "State",
+            "description": "A state, province, prefecture or region",
+            "color": "#8e44ad",
+            "chance": 0.1,
+            "hints": [],
+        },
+        "ZIP": {
+            "name": "Zip code",
+            "description": "A postal code",
+            "color": "#e91e63",
+            "chance": 0.1,
+            "hints": [],
+        },
         "STREET": {
             "name": "Street",
+            "description": "The street name of a postal address",
             "color": "#c0392b",
             "chance": 0.1,
             "hints": [
                 'Use diverse street names and avoid common ones like "Main Street", and "Oak Avenue".'
             ],
         },
-        "COUNTRY": {"name": "Country", "color": "#2c3e50", "chance": 0.1, "hints": []},
+        "COUNTRY": {
+            "name": "Country",
+            "description": "A country in a postal address",
+            "color": "#2c3e50",
+            "chance": 0.1,
+            "hints": [],
+        },
         "SSN": {
             "name": "Social Security Number",
+            "description": "A social security number",
             "color": "#c2185b",
             "chance": 0.1,
             "hints": [],
         },
         "DRIVERLICENSENUM": {
             "name": "Driver's License Number",
+            "description": "A driver's licence number",
             "color": "#00bcd4",
             "chance": 0.1,
             "hints": [],
         },
         "PASSPORTID": {
             "name": "Passport ID",
+            "description": "A passport number",
             "color": "#ff5722",
             "chance": 0.1,
             "hints": [],
         },
         "NATIONALID": {
             "name": "National ID",
+            "description": "A national identity number (My Number, resident registration number, BSN, ...)",
             "color": "#4caf50",
             "chance": 0.1,
             "hints": [],
         },
         "IDCARDNUM": {
             "name": "ID Card Number",
+            "description": "An identity card number",
             "color": "#9c27b0",
             "chance": 0.1,
             "hints": [],
         },
         "TAXNUM": {
             "name": "Tax Number",
+            "description": "A tax identification number (codice fiscale, CPF, NIF, ...)",
             "color": "#607d8b",
             "chance": 0.1,
             "hints": [],
         },
         "LICENSEPLATENUM": {
             "name": "License Plate Number",
+            "description": "A vehicle licence plate",
             "color": "#ffc107",
             "chance": 0.1,
             "hints": [],
         },
         "PASSWORD": {
             "name": "Password",
+            "description": "A password",
             "color": "#f44336",
             "chance": 0.1,
             "hints": ["Use different complexities of passwords"],
         },
-        "IBAN": {"name": "IBAN", "color": "#673ab7", "chance": 0.1, "hints": []},
-        "AGE": {"name": "Age", "color": "#2980b9", "chance": 0.1, "hints": []},
+        "IBAN": {
+            "name": "IBAN",
+            "description": "A bank account number or IBAN",
+            "color": "#673ab7",
+            "chance": 0.1,
+            "hints": [],
+        },
+        "AGE": {
+            "name": "Age",
+            "description": "A person's age",
+            "color": "#2980b9",
+            "chance": 0.1,
+            "hints": [],
+        },
         "SECURITYTOKEN": {
             "name": "API Security Tokens",
-            "color": "#9c27b0",
+            "description": "An API key or security token",
+            "color": "#5c6bc0",
             "chance": 0.1,
             "hints": [
                 "Mimic API security tokens similar to AWS, Google Cloud, Microsoft, OpenAI, etc. "
@@ -152,12 +211,14 @@ class LabelUtils:
         },
         "CREDITCARDNUMBER": {
             "name": "Credit Card Number",
+            "description": "A payment card number",
             "color": "#2ecc71",
             "chance": 0.1,
             "hints": [],
         },
         "USERNAME": {
             "name": "Username",
+            "description": "A username or social media handle",
             "color": "#325e8b",
             "chance": 0.1,
             "hints": [],
@@ -291,6 +352,12 @@ class LabelUtils:
         return label2id, id2label
 
     @classmethod
+    def get_label_description(cls, label: str) -> str:
+        """Return the one-line definition of a label (falls back to its name)."""
+        info = cls.LABEL_DESCRIPTIONS.get(label, {})
+        return info.get("description") or info.get("name") or label
+
+    @classmethod
     def select_label_subset(
         cls, labels: dict[str, dict], return_count: int, seed: int | None = None
     ) -> dict[str, dict]:
@@ -351,7 +418,9 @@ class LabelUtils:
         return {key: labels[key] for key in selected_keys}
 
     @classmethod
-    def generate_labelstudio_config(cls, output_path: str | Path | None = None) -> str:
+    def generate_labelstudio_config(
+        cls, output_path: str | Path | None = None, granularity: str = "word"
+    ) -> str:
         """
         Generate Label Studio configuration XML based on LABEL_DESCRIPTIONS.
 
@@ -359,6 +428,9 @@ class LabelUtils:
             output_path: Optional path to write the configuration file.
                         If None, returns the XML string without writing.
                         Defaults to model/dataset/labelstudio/LabelingConfig.txt
+            granularity: Text selection granularity ("word" or "symbol").
+                        Use "symbol" for languages without word delimiters
+                        such as Japanese, Korean and Chinese.
 
         Returns:
             The generated XML configuration as a string
@@ -385,10 +457,23 @@ class LabelUtils:
                 "TAXNUM",
                 "LICENSEPLATENUM",
             ],
-            "Financial Information": ["IBAN"],
+            "Financial Information": ["IBAN", "CREDITCARDNUMBER"],
             "Organization Information": ["COMPANYNAME"],
-            "Security Information": ["PASSWORD", "SECURITY_TOKEN"],
+            "Account & Security Information": [
+                "USERNAME",
+                "PASSWORD",
+                "SECURITYTOKEN",
+            ],
         }
+        # Any label defined in LABEL_DESCRIPTIONS but not listed above still
+        # gets a <Label>, so adding an entity type never silently drops it
+        # from the labeling interface.
+        categorized = {code for codes in categories.values() for code in codes}
+        uncategorized = [
+            code for code in cls.LABEL_DESCRIPTIONS if code not in categorized
+        ]
+        if uncategorized:
+            categories["Other Labels"] = uncategorized
 
         # Start building the XML
         xml_lines = [
@@ -420,7 +505,7 @@ class LabelUtils:
                 "",
                 "  </Labels>",
                 "",
-                '  <Text name="text" value="$text" granularity="word"/>',
+                f'  <Text name="text" value="$text" granularity="{granularity}"/>',
                 "",
                 "  <Relations>",
                 '    <Relation value="refers-to"/>',

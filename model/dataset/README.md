@@ -14,6 +14,18 @@ model/dataset/
 │   ├── doubleword_client.py     # Doubleword API client
 │   └── result_processor.py      # Result processing
 │
+├── multilingual/                # LLM writes, decision model labels (ten languages)
+│   ├── pipeline.py              # CLI: generation → decision labeling → Label Studio
+│   ├── ui.py                    # Web UI to start runs and track progress
+│   ├── clef_server.py           # Serves Clef locally (standalone uv script)
+│   ├── backends/                # Pluggable generators (Workers AI, vLLM, Doubleword)
+│   │                            # and decision models (Clef, Laya), plus fakes
+│   ├── entity_labeler.py        # Turns candidate spans into choice questions
+│   ├── labelstudio_tasks.py     # Builds Label Studio tasks with per-entity scores
+│   ├── progress.py              # Thread-safe progress tracking and cancellation
+│   ├── prompts.py               # Generation prompt and JSON schema
+│   └── config.py                # Ten languages (incl. ja/ko/zh) and twelve text types
+│
 ├── openai/                      # Direct generation via OpenAI API
 │   ├── training_set.py          # Training set generator
 │   ├── api_clients.py           # OpenAI API client
@@ -88,6 +100,37 @@ uv run python -m model.dataset.openai.training_set --num_samples=100 --api_url=$
 uv run python -m model.dataset.openai.training_set --num_samples=1000 --max_workers=12
 ```
 
+### Option 3: Multilingual Generation with a Decision-Model Labeler
+
+Generates texts of twelve types in ten languages (including Japanese, Korean and
+Simplified Chinese). An LLM backend writes the text and proposes candidate spans
+and a decision-model backend determines the PII label of every span with a
+probability. Backends are swappable: Qwen3.8-27B on Cloudflare Workers AI, a
+local OpenAI-compatible server (vLLM) or Doubleword for generation; Cloudflare
+Clef-flash (hosted or served locally from the open weights) or a locally served
+Laya for labeling.
+
+```bash
+# Cloudflare Workers AI for both (Qwen3.8-27B + Clef-flash)
+export CLOUDFLARE_ACCOUNT_ID="..." CLOUDFLARE_API_TOKEN="..."
+uv run python -m model.dataset.multilingual.pipeline --num_samples=100
+
+# Doubleword for generation, Laya (laya-serve) for labeling
+export DOUBLEWORD_API_KEY="..."
+uv run python -m model.dataset.multilingual.pipeline --num_samples=100 \
+  --generator_backend=doubleword --decision_backend=laya
+
+# Clef-flash served locally instead of Workers AI
+uv run model/dataset/multilingual/clef_server.py &
+uv run python -m model.dataset.multilingual.pipeline --num_samples=100 \
+  --decision_backend=clef-local
+
+# Web UI: start runs and watch progress at http://127.0.0.1:8787
+uv run python -m model.dataset.multilingual.ui
+```
+
+**See [multilingual/README.md](./multilingual/README.md) for the full documentation.**
+
 ### HuggingFace Dataset Sharing
 
 The dataset can be shared via HuggingFace Hub as a Parquet-backed dataset. The upload script converts from the internal Label Studio format to a clean training format with `text`, `privacy_mask`, `coreferences`, `language`, and `country` columns, then creates train/test splits.
@@ -160,6 +203,7 @@ uv run python model/dataset/huggingface/upload_model_to_hf.py \
 |--------|----------|------|------|
 | **Doubleword** | Large datasets (100+) | Automated, resumable, cost-effective batch pricing | Requires waiting for batch completion |
 | **OpenAI** | Quick testing, small datasets | Immediate results, real-time feedback | Higher cost per sample |
+| **Multilingual** | Multilingual datasets (CJK), confidence-scored labels | Ten languages, swappable generator/labeler backends, web UI, resumable | The decision model only labels spans the generator proposes |
 
 **Recommendation:** Use **Doubleword** for production datasets (>100 samples), use **OpenAI** for testing and iteration.
 
@@ -238,32 +282,36 @@ Generated samples follow this JSON structure:
 
 ## Supported PII Labels
 
+All labels are defined in `label_utils.py` (`LabelUtils.LABEL_DESCRIPTIONS`), which is the single source of truth for generation prompts, Clef options and the Label Studio config.
+
 | Label | Description |
 |-------|-------------|
-| `FIRSTNAME` | Given names |
-| `SURNAME` | Family names |
-| `EMAIL` | Email addresses |
-| `PHONENUMBER` | Phone numbers |
-| `DATEOFBIRTH` | Birth dates |
-| `SSN` | Social Security Numbers |
-| `CREDITCARDNUMBER` | Credit card numbers |
-| `STREET` | Street addresses |
-| `BUILDINGNUM` | Building/house numbers |
-| `CITY` | City names |
-| `STATE` | State/province names |
-| `ZIP` | ZIP/postal codes |
-| `COUNTRY` | Country names |
-| `IBAN` | International Bank Account Numbers |
-| `DRIVERLICENSENUM` | Driver's license numbers |
-| `PASSPORTID` | Passport ID |
-| `NATIONALID` | National ID |
-| `TAXNUM` | Tax identification numbers |
-| `COMPANYNAME` | Company/organization names |
-| `URL` | Website URLs |
-| `USERNAME` | Usernames |
-| `PASSWORD` | Passwords |
-| `LICENSEPLATENUM` | Vehicle license plates |
-| `AGE` | Age values |
+| `SURNAME` | A person's family name |
+| `FIRSTNAME` | A person's given name |
+| `BUILDINGNUM` | The house or building number of a postal address |
+| `DATEOFBIRTH` | A person's date of birth |
+| `EMAIL` | An email address |
+| `PHONENUMBER` | A telephone or mobile number |
+| `CITY` | A city, town or ward in a postal address |
+| `URL` | A web address |
+| `COMPANYNAME` | The name of a company or employer tied to a person |
+| `STATE` | A state, province, prefecture or region |
+| `ZIP` | A postal code |
+| `STREET` | The street name of a postal address |
+| `COUNTRY` | A country in a postal address |
+| `SSN` | A social security number |
+| `DRIVERLICENSENUM` | A driver's licence number |
+| `PASSPORTID` | A passport number |
+| `NATIONALID` | A national identity number (My Number, resident registration number, BSN, ...) |
+| `IDCARDNUM` | An identity card number |
+| `TAXNUM` | A tax identification number (codice fiscale, CPF, NIF, ...) |
+| `LICENSEPLATENUM` | A vehicle licence plate |
+| `PASSWORD` | A password |
+| `IBAN` | A bank account number or IBAN |
+| `AGE` | A person's age |
+| `SECURITYTOKEN` | An API key or security token |
+| `CREDITCARDNUMBER` | A payment card number |
+| `USERNAME` | A username or social media handle |
 
 ## Generation Pipelines
 
