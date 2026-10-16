@@ -194,8 +194,8 @@ func (c *openaiCodec) flushTail() []byte {
 			continue
 		}
 		kind := c.kind[key]
-		restored := c.flushCarry(tail, argumentsChannel(kind))
 		if kind != "" {
+			restored := c.flushCarry(tail, argumentsChannel(kind))
 			d := map[string]interface{}{jsonKeyType: kind, jsonKeyDelta: restored}
 			b, _ := json.Marshal(d)
 			out = append(out, []byte("event: "+kind+"\n")...)
@@ -210,6 +210,7 @@ func (c *openaiCodec) flushTail() []byte {
 		if _, err := fmt.Sscanf(key, "chat:%d", &idx); err != nil || strings.Contains(key, ":tc:") {
 			continue
 		}
+		restored := c.flushCarry(tail, false)
 		chunk := map[string]interface{}{
 			"object": "chat.completion.chunk",
 			"choices": []interface{}{map[string]interface{}{

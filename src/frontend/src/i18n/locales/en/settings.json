@@ -101,6 +101,22 @@
       "SECURITYTOKEN": "Security Token",
       "CREDITCARDNUMBER": "Credit Card Number",
       "USERNAME": "Username"
+    },
+    "expiration": {
+      "uncertain": "The save could not be confirmed and may already have reached the server. Your edits are kept; refresh or retry to check the current settings.",
+      "title": "Mapping expiration",
+      "seconds": "Mapping lifetime (seconds)",
+      "save": "Save expiration settings",
+      "help": "Default: 300 seconds from creation. Set to 0 to disable expiration. Applies to all clients and existing mappings. Active requests keep their mappings until the response finishes.",
+      "error": "Could not load or save expiration settings. Check the server connection and reopen Settings to retry.",
+      "invalid": "Enter a whole number from 0 to 2147483647.",
+      "refresh": "Refresh settings",
+      "unsaved": "Unsaved changes.",
+      "conflict": "Settings changed in another client: expiration {{state}}, {{seconds}} seconds. Your edits are preserved. Choose which settings to use before saving.",
+      "on": "on",
+      "off": "off",
+      "useServer": "Use server settings",
+      "keepEdits": "Keep my edits"
     }
   },
   "advanced": {

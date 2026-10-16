@@ -3,8 +3,10 @@ package main
 import (
 	"embed"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"io/fs"
 	"log"
 	"os"
@@ -81,7 +83,9 @@ func run(configPath *string) error {
 	cfg := config.DefaultConfig()
 
 	if *configPath != "" {
-		loadConfigFromFile(*configPath, cfg)
+		if err := loadConfigFromFile(*configPath, cfg); err != nil {
+			return err
+		}
 	}
 	loadConfigFromEnv(cfg)
 	expandConfigPaths(cfg)
@@ -89,13 +93,8 @@ func run(configPath *string) error {
 	// Overlay PII settings the UI persisted via the POST endpoints (custom regexes
 	// and disabled labels). These are the user's latest runtime choices, so they
 	// take precedence over the config defaults and survive restarts.
-	if settings, err := config.LoadPIISettings(); err != nil {
-		log.Printf("Failed to load persisted PII settings, using config defaults: %v", err)
-	} else if settings != nil {
-		cfg.CustomRegexes = settings.CustomRegexes
-		cfg.DisabledEntities = settings.DisabledEntities
-		log.Printf("Loaded persisted PII settings: %d custom regex(es), %d disabled label(s)",
-			len(settings.CustomRegexes), len(settings.DisabledEntities))
+	if err := cfg.LoadPersistedPIISettings(); err != nil {
+		log.Printf("Failed to load entity and regex settings: %v", err)
 	}
 
 	if err := cfg.ValidateConfig(); err != nil {
@@ -165,12 +164,11 @@ func run(configPath *string) error {
 }
 
 // loadConfigFromFile loads configuration from a JSON file
-func loadConfigFromFile(path string, cfg *config.Config) {
+func loadConfigFromFile(path string, cfg *config.Config) error {
 	// #nosec G304 - Config file path is controlled by application, not user input
 	file, err := os.Open(path)
 	if err != nil {
-		log.Printf("Failed to open config file: %v", err)
-		return
+		return fmt.Errorf("open config file: %w", err)
 	}
 	defer func() {
 		if err := file.Close(); err != nil {
@@ -180,8 +178,19 @@ func loadConfigFromFile(path string, cfg *config.Config) {
 
 	decoder := json.NewDecoder(file)
 	if err := decoder.Decode(cfg); err != nil {
-		log.Printf("Failed to decode config file: %v", err)
+		return fmt.Errorf("decode config file: %w", err)
 	}
+	if err := decoder.Decode(new(interface{})); err != io.EOF {
+		if err != nil {
+			var syntax *json.SyntaxError
+			if errors.As(err, &syntax) {
+				return fmt.Errorf("decode trailing config content at byte %d: %w", syntax.Offset, err)
+			}
+			return fmt.Errorf("decode trailing config content: %w", err)
+		}
+		return fmt.Errorf("config file must contain exactly one JSON object")
+	}
+	return nil
 }
 
 // expandConfigPaths normalizes all path-bearing fields on the config in place,
