@@ -74,6 +74,15 @@ cannot overwrite newer settings. A timed-out save remains uncertain until a
 refresh confirms it. If a later retry receives a definite server error, the UI
 shows that error while still reconciling the earlier save and preserving newer edits.
 
+The Mac app exposes the shared lifetime in seconds:
+
+![Mapping expiration enabled with the default 300-second lifetime](images/mapping-expiration-settings.jpg)
+
+If another client saves 45 seconds while the Mac app has an unsaved 90-second
+draft, the draft is preserved and saving pauses until the conflict is resolved:
+
+![Unsaved 90-second draft preserved after another client saves 45 seconds](images/mapping-expiration-conflict.jpg)
+
 Expiration is checked when a masking request or standalone unmask operation
 starts, on global mapping lookups, on mapping list/count reads, and on policy
 changes. A policy
