@@ -128,20 +128,17 @@ func (c *MappingExpirationConfig) UnmarshalJSON(data []byte) error {
 // Config holds all configuration for the PII proxy service
 type Config struct {
 	mappingExpirationExplicit bool
-	preserveMappingPolicy     bool
-	// Additional trusted browser origins for the expiration settings endpoint.
-	MappingExpirationAllowedOrigins []string                `json:"mapping_expiration_allowed_origins,omitempty"`
-	MappingExpiration               MappingExpirationConfig `json:"mapping_expiration"`
-	Providers                       ProvidersConfig         `json:"providers"`
-	ProxyPort                       string
-	UnixSocketPath                  string
-	Database                        DatabaseConfig
-	Logging                         LoggingConfig
-	ONNXModelPath                   string
-	TokenizerPath                   string
-	ModelVariant                    string // "trained" (full precision) or "quantized" (INT8). Used to derive ONNXModelDirectory when it isn't set.
-	ONNXModelDirectory              string // Explicit override; takes precedence over ModelVariant.
-	UIPath                          string
+	MappingExpiration         MappingExpirationConfig `json:"mapping_expiration"`
+	Providers                 ProvidersConfig         `json:"providers"`
+	ProxyPort                 string
+	UnixSocketPath            string
+	Database                  DatabaseConfig
+	Logging                   LoggingConfig
+	ONNXModelPath             string
+	TokenizerPath             string
+	ModelVariant              string // "trained" (full precision) or "quantized" (INT8). Used to derive ONNXModelDirectory when it isn't set.
+	ONNXModelDirectory        string // Explicit override; takes precedence over ModelVariant.
+	UIPath                    string
 	// ServeUI controls whether the embedded web UI is served on "/". Defaults to
 	// true; set the KIJI_SERVE_UI=false env var for an API-only (headless) server.
 	ServeUI bool `json:"serve_ui"`
@@ -200,6 +197,9 @@ func (c *Config) ResolveModelDirectory() string {
 
 // UnmarshalJSON distinguishes an explicit policy from the first-run default.
 func (c *Config) UnmarshalJSON(data []byte) error {
+	if bytes.Equal(bytes.TrimSpace(data), []byte("null")) {
+		return fmt.Errorf("config must be a JSON object")
+	}
 	type plain Config
 	decoded := plain(*c)
 	if err := json.Unmarshal(data, &decoded); err != nil {
@@ -218,12 +218,9 @@ func (c *Config) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// StartupMappingExpiration leaves an existing database policy authoritative when
-// no policy was supplied, or the runtime settings could not be recovered.
+// StartupMappingExpiration applies an explicit config value at startup. When
+// omitted, SQLite retains its saved policy (or initializes the default).
 func (c *Config) StartupMappingExpiration() *MappingExpirationConfig {
-	if c.preserveMappingPolicy {
-		return nil
-	}
 	defaults := MappingExpirationConfig{TTLSeconds: DefaultMappingTTLSeconds}
 	if !c.mappingExpirationExplicit && c.MappingExpiration == defaults {
 		return nil
@@ -231,9 +228,6 @@ func (c *Config) StartupMappingExpiration() *MappingExpirationConfig {
 	policy := c.MappingExpiration
 	return &policy
 }
-
-// PreservingMappingPolicy reports startup recovery from unreadable UI settings.
-func (c *Config) PreservingMappingPolicy() bool { return c.preserveMappingPolicy }
 
 func (c *Config) ValidateConfig() error {
 	var errs []string

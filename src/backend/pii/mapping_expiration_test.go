@@ -1,13 +1,114 @@
 package pii
 
 import (
+	"bytes"
 	"context"
+	"fmt"
+	"log"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/dataiku/kiji-proxy/src/backend/config"
 	detectors "github.com/dataiku/kiji-proxy/src/backend/pii/detectors"
 )
+
+func TestStartupConfigLogsOnlyCommittedPolicyChanges(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		saved   int
+		desired int // -1 means omitted
+		fresh   bool
+		fail    bool
+	}{
+		{name: "enable expiration", saved: 0, desired: 300},
+		{name: "disable expiration", saved: 300, desired: 0},
+		{name: "shorten expiration", saved: 900, desired: 60},
+		{name: "unchanged", saved: 300, desired: 300},
+		{name: "omitted", saved: 90, desired: -1},
+		{name: "new database", desired: 60, fresh: true},
+		{name: "failed update", saved: 0, desired: 300, fail: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			path := filepath.Join(t.TempDir(), "startup.db")
+			if !tc.fresh {
+				seed, err := NewSQLitePIIMappingDB(ctx, DatabaseConfig{Path: path, MappingExpiration: &config.MappingExpirationConfig{TTLSeconds: tc.saved}})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if tc.fail {
+					if _, err := seed.db.Exec(`CREATE TRIGGER reject_policy BEFORE UPDATE ON pii_mapping_policy BEGIN SELECT RAISE(ABORT, 'test failure'); END`); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if err := seed.Close(); err != nil {
+					t.Fatal(err)
+				}
+			}
+			var desired *config.MappingExpirationConfig
+			if tc.desired >= 0 {
+				desired = &config.MappingExpirationConfig{TTLSeconds: tc.desired}
+			}
+			var output bytes.Buffer
+			previousWriter := log.Writer()
+			log.SetOutput(&output)
+			defer log.SetOutput(previousWriter)
+			db, err := NewSQLitePIIMappingDB(ctx, DatabaseConfig{Path: path, MappingExpiration: desired})
+			if (err != nil) != tc.fail {
+				t.Fatalf("startup error: %v", err)
+			}
+			if db != nil {
+				if err := db.Close(); err != nil {
+					t.Fatal(err)
+				}
+			}
+			wantLog := !tc.fresh && !tc.fail && desired != nil && tc.saved != tc.desired
+			if got := strings.Contains(output.String(), "Startup config changed mapping expiration:"); got != wantLog {
+				t.Fatalf("change log present=%v want=%v: %s", got, wantLog, output.String())
+			}
+			if wantLog && !strings.Contains(output.String(), fmt.Sprintf("ttl_seconds %d -> %d", tc.saved, tc.desired)) {
+				t.Fatalf("log omitted old/new TTL: %s", output.String())
+			}
+		})
+	}
+}
+
+func TestStartupConfigExpiresMappingsPastNewLifetime(t *testing.T) {
+	for _, saved := range []int{0, 900} {
+		ctx := context.Background()
+		path := filepath.Join(t.TempDir(), "shorten.db")
+		db, err := NewSQLitePIIMappingDB(ctx, DatabaseConfig{Path: path, MappingExpiration: &config.MappingExpirationConfig{TTLSeconds: saved}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := db.StoreMapping(ctx, "Alice", "old-dummy", "FIRSTNAME", 1); err != nil {
+			t.Fatal(err)
+		}
+		backdateMapping(t, db, "-120 seconds")
+		if err := db.StoreMapping(ctx, "Bob", "fresh-dummy", "FIRSTNAME", 1); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.Close(); err != nil {
+			t.Fatal(err)
+		}
+		reopened, err := NewSQLitePIIMappingDB(ctx, DatabaseConfig{Path: path, MappingExpiration: &config.MappingExpirationConfig{TTLSeconds: 60}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer reopened.Close()
+		var old, fresh int
+		if err := reopened.db.QueryRow(`SELECT COUNT(*) FROM pii_mappings WHERE dummy_pii = 'old-dummy'`).Scan(&old); err != nil {
+			t.Fatal(err)
+		}
+		if err := reopened.db.QueryRow(`SELECT COUNT(*) FROM pii_mappings WHERE dummy_pii = 'fresh-dummy'`).Scan(&fresh); err != nil {
+			t.Fatal(err)
+		}
+		if old != 0 || fresh != 1 {
+			t.Fatalf("startup TTL deleted wrong rows: old=%d fresh=%d", old, fresh)
+		}
+	}
+}
 
 func backdateMapping(t *testing.T, db *SQLitePIIMappingDB, age string) {
 	t.Helper()

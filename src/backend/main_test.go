@@ -1,12 +1,76 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/dataiku/kiji-proxy/src/backend/config"
+	"github.com/dataiku/kiji-proxy/src/backend/pii"
 )
+
+func TestRepositoryDevelopmentConfigLoads(t *testing.T) {
+	cfg := config.DefaultConfig()
+	if err := loadConfigFromFile("config/config.development.json", cfg); err != nil {
+		t.Fatal(err)
+	}
+	if err := cfg.ValidateConfig(); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.MappingExpiration.TTLSeconds != 300 {
+		t.Fatal("development config changed the default TTL")
+	}
+	if cfg.StartupMappingExpiration() != nil {
+		t.Fatal("development config must leave the saved UI policy in control")
+	}
+}
+
+func TestDevelopmentConfigPreservesSavedExpirationOnRestart(t *testing.T) {
+	for _, seconds := range []int{0, 90} {
+		ctx := context.Background()
+		path := filepath.Join(t.TempDir(), "dev.db")
+		db, err := pii.NewSQLitePIIMappingDB(ctx, pii.DatabaseConfig{Path: path})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := db.SetMappingExpiration(config.MappingExpirationConfig{TTLSeconds: seconds}); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.Close(); err != nil {
+			t.Fatal(err)
+		}
+		cfg := config.DefaultConfig()
+		if err := loadConfigFromFile("config/config.development.json", cfg); err != nil {
+			t.Fatal(err)
+		}
+		reopened, err := pii.NewSQLitePIIMappingDB(ctx, pii.DatabaseConfig{Path: path, MappingExpiration: cfg.StartupMappingExpiration()})
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := reopened.MappingExpiration().TTLSeconds
+		if err := reopened.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if got != seconds {
+			t.Fatalf("dev restart reset TTL %d to %d", seconds, got)
+		}
+	}
+}
+
+func TestLoadConfigPreservesTrailingSyntaxError(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	if err := os.WriteFile(path, []byte(`{} trailing`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	err := loadConfigFromFile(path, config.DefaultConfig())
+	var syntax *json.SyntaxError
+	if !errors.As(err, &syntax) || syntax.Offset <= 2 {
+		t.Fatalf("lost trailing syntax error/offset: %v", err)
+	}
+}
 
 func TestExpandPath(t *testing.T) {
 	home, err := os.UserHomeDir()
@@ -95,5 +159,42 @@ func TestLoadApplicationConfigUnixSocket(t *testing.T) {
 
 	if cfg.UnixSocketPath != "/tmp/kiji-proxy.sock" {
 		t.Errorf("UnixSocketPath = %q, want %q", cfg.UnixSocketPath, "/tmp/kiji-proxy.sock")
+	}
+}
+
+func TestLoadConfigFromFileRejectsErrorsInsteadOfStartingWithDefaults(t *testing.T) {
+	for _, body := range []string{
+		`{"Database":{"Path":"/tmp/intended.db"},"ProxyPort":42}`,
+		`{"Database":{"Path":"/tmp/intended.db"},"mapping_expiration":{"ttl_seconds":"invalid"}}`,
+		`{"Database":{"Path":"/tmp/intended.db"},"mapping_expiration":{"enabled":false}}`,
+		`{"Database":{"Path":"/tmp/intended.db"}`, `null`, `{} {}`, `{} trailing`,
+	} {
+		t.Run(body, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "config.json")
+			if err := os.WriteFile(path, []byte(body), 0600); err != nil {
+				t.Fatal(err)
+			}
+			if err := loadConfigFromFile(path, config.DefaultConfig()); err == nil {
+				t.Fatal("bad explicit config was accepted")
+			}
+		})
+	}
+	if err := loadConfigFromFile(filepath.Join(t.TempDir(), "missing.json"), config.DefaultConfig()); err == nil {
+		t.Fatal("missing explicit config was accepted")
+	}
+}
+
+func TestLoadConfigFromFileKeepsValidSettings(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	body := `{"Database":{"Path":"/tmp/intended.db"},"ProxyPort":":9123","mapping_expiration":{"ttl_seconds":0}}`
+	if err := os.WriteFile(path, []byte(body), 0600); err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.DefaultConfig()
+	if err := loadConfigFromFile(path, cfg); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Database.Path != "/tmp/intended.db" || cfg.ProxyPort != ":9123" || cfg.StartupMappingExpiration() == nil || cfg.MappingExpiration.TTLSeconds != 0 {
+		t.Fatal("explicit settings lost")
 	}
 }

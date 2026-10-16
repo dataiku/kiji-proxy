@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,9 +22,8 @@ const PIISettingsFileName = "pii_settings.json"
 // at runtime (via the POST endpoints) and that must survive restarts. It is
 // persisted separately from the static --config file so the two never collide.
 type PIISettings struct {
-	MappingExpiration *MappingExpirationConfig `json:"mapping_expiration,omitempty"`
-	DisabledEntities  []string                 `json:"disabled_entities"`
-	CustomRegexes     []RegexPatternConfig     `json:"custom_regexes"`
+	DisabledEntities []string             `json:"disabled_entities"`
+	CustomRegexes    []RegexPatternConfig `json:"custom_regexes"`
 }
 
 // PIISettingsPath returns the absolute path to the persisted PII settings file.
@@ -33,7 +33,7 @@ func PIISettingsPath() string {
 
 // LoadPIISettings reads the persisted PII settings. It returns (nil, nil) when
 // the file does not exist yet (first run), so callers fall back to config
-// defaults. A malformed file is reported as an error rather than silently reset.
+// defaults. Malformed JSON and I/O failures return nil settings with an error.
 func LoadPIISettings() (*PIISettings, error) {
 	path := PIISettingsPath()
 	data, err := os.ReadFile(path) // #nosec G304 — path derived from app data dir, not user input
@@ -43,16 +43,14 @@ func LoadPIISettings() (*PIISettings, error) {
 		}
 		return nil, fmt.Errorf("read %s: %w", path, err)
 	}
-	var s PIISettings
-	if err := json.Unmarshal(data, &s); err != nil {
+	if bytes.Equal(bytes.TrimSpace(data), []byte("null")) {
+		return nil, fmt.Errorf("%w: %s must contain a JSON object", ErrMalformedPIISettings, path)
+	}
+	s := &PIISettings{}
+	if err := json.Unmarshal(data, s); err != nil {
 		return nil, fmt.Errorf("%w: parse %s: %w", ErrMalformedPIISettings, path, err)
 	}
-	if s.MappingExpiration != nil {
-		if err := s.MappingExpiration.Validate(); err != nil {
-			return nil, fmt.Errorf("%w: %w", ErrMalformedPIISettings, err)
-		}
-	}
-	return &s, nil
+	return s, nil
 }
 
 // SavePIISettings writes the PII settings to disk, creating the application data
@@ -77,20 +75,12 @@ func SavePIISettings(s *PIISettings) error {
 	return nil
 }
 
-// LoadPersistedPIISettings applies UI overrides. On failure the database retains
-// its last policy rather than applying defaults or an older static configuration.
+// LoadPersistedPIISettings applies entity and regex settings. Mapping expiration
+// is persisted independently in SQLite and cannot be changed by this file.
 func (c *Config) LoadPersistedPIISettings() error {
 	settings, err := LoadPIISettings()
-	if err != nil {
-		c.preserveMappingPolicy = true
+	if err != nil || settings == nil {
 		return err
-	}
-	if settings == nil {
-		return nil
-	}
-	if settings.MappingExpiration != nil {
-		c.MappingExpiration = *settings.MappingExpiration
-		c.mappingExpirationExplicit = true
 	}
 	c.CustomRegexes = settings.CustomRegexes
 	c.DisabledEntities = settings.DisabledEntities

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"log"
 	"time"
 
 	"github.com/dataiku/kiji-proxy/src/backend/config"
@@ -33,8 +34,8 @@ func expireMappingsWithPolicy(ctx context.Context, db mappingExecer, policy conf
 	return err
 }
 
-// initializeMappingPolicy upgrades existing databases without changing live
-// placeholders. Expiration is opt-in for legacy databases containing mappings.
+// initializeMappingPolicy loads the single persisted policy. An explicit config
+// value is applied on startup; otherwise the saved value is retained.
 func (s *SQLitePIIMappingDB) initializeMappingPolicy(ctx context.Context, desired *config.MappingExpirationConfig) error {
 	initial := config.MappingExpirationConfig{TTLSeconds: config.DefaultMappingTTLSeconds}
 	if desired != nil {
@@ -48,36 +49,10 @@ func (s *SQLitePIIMappingDB) initializeMappingPolicy(ctx context.Context, desire
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
-	for _, query := range []string{
-		`CREATE TABLE IF NOT EXISTS pii_mapping_policy (id INTEGER PRIMARY KEY CHECK(id = 1), ttl_seconds INTEGER NOT NULL)`,
-		`DROP TABLE IF EXISTS pii_used_dummies`,
-	} {
-		if _, err := tx.ExecContext(ctx, query); err != nil {
-			return err
-		}
-	}
-	var oldPolicy bool
-	if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM pragma_table_info('pii_mapping_policy') WHERE name = 'enabled')`).Scan(&oldPolicy); err != nil {
+	if _, err := tx.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS pii_mapping_policy (id INTEGER PRIMARY KEY CHECK(id = 1), ttl_seconds INTEGER NOT NULL)`); err != nil {
 		return err
 	}
-	if oldPolicy {
-		if _, err := tx.ExecContext(ctx, `UPDATE pii_mapping_policy SET ttl_seconds = 0 WHERE enabled = 0`); err != nil {
-			return err
-		}
-		if _, err := tx.ExecContext(ctx, `ALTER TABLE pii_mapping_policy DROP COLUMN enabled`); err != nil {
-			return err
-		}
-	}
-	if desired == nil {
-		var hasMappings bool
-		if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM pii_mappings)`).Scan(&hasMappings); err != nil {
-			return err
-		}
-		if hasMappings {
-			initial.TTLSeconds = 0
-		}
-	}
-	if _, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO pii_mapping_policy VALUES (1, ?)`, initial.TTLSeconds); err != nil {
+	if _, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO pii_mapping_policy(id, ttl_seconds) VALUES (1, ?)`, initial.TTLSeconds); err != nil {
 		return err
 	}
 	var previous config.MappingExpirationConfig
@@ -94,8 +69,14 @@ func (s *SQLitePIIMappingDB) initializeMappingPolicy(ctx context.Context, desire
 	if desired == nil {
 		initial = previous
 	}
-	// Expire under the previous policy before applying a config changed at restart.
-	return s.SetMappingExpiration(initial)
+	// Retire already-expired mappings before applying a longer or disabled TTL.
+	if err := s.SetMappingExpiration(initial); err != nil {
+		return err
+	}
+	if desired != nil && previous != initial {
+		log.Printf("Startup config changed mapping expiration: ttl_seconds %d -> %d (0 disables expiration)", previous.TTLSeconds, initial.TTLSeconds)
+	}
+	return nil
 }
 
 // SetMappingExpiration atomically retires rows under both the old and the new
@@ -181,7 +162,14 @@ func (s *SQLitePIIMappingDB) storeMapping(ctx context.Context, original, dummy, 
 
 // Try several realistic candidates before falling back to a fresh opaque token.
 func availableDummy(ctx context.Context, tx *sql.Tx, candidate string, generate func() string) (string, error) {
+	seen := make(map[string]struct{})
 	for attempt := 0; attempt < 12; attempt++ {
+		// This writer transaction already established that each seen candidate
+		// is occupied. Fixed or cycling generators cannot make it available.
+		if _, repeated := seen[candidate]; repeated {
+			candidate = freshMappingPlaceholder()
+		}
+		seen[candidate] = struct{}{}
 		var used bool
 		if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM pii_mappings WHERE dummy_pii = ?)`, candidate).Scan(&used); err != nil {
 			return "", err

@@ -217,10 +217,14 @@ For more details, see:
 ### Mapping expiration
 
 `mapping_expiration` controls mapping lifetime in seconds. The default is
-`{"enabled": true, "ttl_seconds": 300}`. Set `enabled` to `false` to disable
-expiration; `ttl_seconds` must remain a positive integer (maximum 2147483647).
+`{"ttl_seconds": 300}`. Set `ttl_seconds` to `0` to disable expiration.
+The value must be an integer from 0 through 2147483647.
 The Mac app and Chrome extension can update this shared policy at runtime.
-Persisted UI settings override the static file on restart. See
+SQLite stores the policy. An explicit config value updates it at startup;
+omitting `mapping_expiration` preserves the saved value. The development config
+omits it so UI changes survive restarts. Applying a shorter TTL or enabling
+expiration at startup deletes mappings already past that lifetime, just as a UI
+save does; startup logs report changes to the saved policy. See
 [Mapping expiration](../../../docs/08-masking-controls.md#mapping-expiration)
 for precedence and masking/unmasking behavior. The legacy `Database.CleanupHours`
 field does not control this expiration policy.

@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/fs"
 	"log"
@@ -78,7 +77,6 @@ func (rl *RateLimiter) CleanupOldVisitors() {
 // Server represents the HTTP server
 type Server struct {
 	piiSettingsMu           sync.Mutex
-	expirationOverride      *config.MappingExpirationConfig
 	config                  *config.Config
 	handler                 *proxy.Handler
 	transparentProxy        *proxy.TransparentProxy
@@ -142,7 +140,6 @@ func NewServer(cfg *config.Config, version string) (*Server, error) {
 		transparentProxyEnabled: cfg.Proxy.TransparentEnabled,
 	}
 
-	_, _ = s.persistedExpiration() // Remember the startup override for malformed-file recovery.
 	// Wire up the enabled check function to the transparent proxy
 	if transparentProxy != nil {
 		transparentProxy.SetEnabledFunc(s.IsTransparentProxyEnabled)
@@ -193,7 +190,6 @@ func NewServerWithEmbedded(cfg *config.Config, uiFS, modelFS fs.FS, version stri
 		transparentProxyEnabled: cfg.Proxy.TransparentEnabled,
 	}
 
-	_, _ = s.persistedExpiration() // Remember the startup override for malformed-file recovery.
 	// Wire up the enabled check function to the transparent proxy
 	if transparentProxy != nil {
 		transparentProxy.SetEnabledFunc(s.IsTransparentProxyEnabled)
@@ -882,38 +878,11 @@ func (s *Server) handlePIIConfidence(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// persistedExpiration preserves the distinction between static configuration and
-// an explicit override. Malformed JSON can be repaired from runtime settings;
-// an I/O failure must be reported, never treated as an empty settings file.
-// Callers hold piiSettingsMu (or are constructing the server).
-func (s *Server) persistedExpiration() (*config.MappingExpirationConfig, error) {
-	previous, err := config.LoadPIISettings()
-	if err != nil {
-		if errors.Is(err, config.ErrMalformedPIISettings) {
-			if s.expirationOverride == nil && s.config.PreservingMappingPolicy() {
-				policy := s.handler.GetMappingExpiration()
-				s.expirationOverride = &policy
-			}
-			return s.expirationOverride, nil
-		}
-		return nil, err
-	}
-	s.expirationOverride = nil
-	if previous != nil {
-		s.expirationOverride = previous.MappingExpiration
-	}
-	return s.expirationOverride, nil
-}
-
+// savePIISettings replaces the saved entity and regex settings with runtime values.
 func (s *Server) savePIISettings() error {
-	expiration, err := s.persistedExpiration()
-	if err != nil {
-		return err
-	}
 	return config.SavePIISettings(&config.PIISettings{
-		MappingExpiration: expiration,
-		DisabledEntities:  s.handler.GetDisabledEntities(),
-		CustomRegexes:     s.handler.GetCustomRegexes(),
+		DisabledEntities: s.handler.GetDisabledEntities(),
+		CustomRegexes:    s.handler.GetCustomRegexes(),
 	})
 }
 

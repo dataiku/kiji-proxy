@@ -36,31 +36,6 @@ func TestMappingExpirationConfig(t *testing.T) {
 	}
 }
 
-func TestPersistMappingExpiration(t *testing.T) {
-	redirectDataDir(t)
-	for _, seconds := range []int{0, 42} {
-		policy := MappingExpirationConfig{TTLSeconds: seconds}
-		if err := SavePIISettings(&PIISettings{MappingExpiration: &policy}); err != nil {
-			t.Fatal(err)
-		}
-		settings, err := LoadPIISettings()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if settings.MappingExpiration == nil || *settings.MappingExpiration != policy {
-			t.Fatal("policy did not survive reload")
-		}
-	}
-	// Old settings files do not override the new config default with zero values.
-	if err := SavePIISettings(&PIISettings{DisabledEntities: []string{"EMAIL"}}); err != nil {
-		t.Fatal(err)
-	}
-	settings, err := LoadPIISettings()
-	if err != nil || settings.MappingExpiration != nil {
-		t.Fatalf("legacy settings: %+v %v", settings, err)
-	}
-}
-
 func TestStartupMappingExpirationSources(t *testing.T) {
 	for _, tc := range []struct {
 		input    string
@@ -86,23 +61,5 @@ func TestStartupMappingExpirationSources(t *testing.T) {
 		if policy != nil && policy.TTLSeconds != cfg.MappingExpiration.TTLSeconds {
 			t.Fatalf("configured duration changed: %+v", policy)
 		}
-	}
-}
-
-func TestPersistedMappingPolicyOverridesExplicitStaticDefault(t *testing.T) {
-	redirectDataDir(t)
-	saved := MappingExpirationConfig{TTLSeconds: 0}
-	if err := SavePIISettings(&PIISettings{MappingExpiration: &saved}); err != nil {
-		t.Fatal(err)
-	}
-	cfg := DefaultConfig()
-	if err := json.Unmarshal([]byte(`{"mapping_expiration":{"ttl_seconds":300}}`), cfg); err != nil {
-		t.Fatal(err)
-	}
-	if err := cfg.LoadPersistedPIISettings(); err != nil {
-		t.Fatal(err)
-	}
-	if got := cfg.StartupMappingExpiration(); got == nil || got.TTLSeconds != 0 {
-		t.Fatalf("saved policy ignored: %+v", got)
 	}
 }

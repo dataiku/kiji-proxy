@@ -54,18 +54,19 @@ value enables it. Both apps have one lifetime field, with no separate toggle:
 
 Both UIs read and change the connected server's policy, so it applies to all its
 clients. Changes take effect without restarting and apply to existing mappings
-based on their original creation time. UI changes are saved in
-`pii_settings.json` in the application data directory and override the static
-config on restart. Remove that file's `mapping_expiration` property to return
-control to an explicitly supplied static config. Without an explicit policy,
-the database retains its saved policy. Legacy databases containing mappings
-start with expiration disabled until you enable it in the UI or config; upgrading
-does not delete those mappings. If the settings file is unreadable or malformed,
-the database policy is preserved even when the static config differs.
+based on their original creation time. SQLite is the single source of truth for
+the policy. UI changes are saved directly to the database. An explicit
+`mapping_expiration` in the config updates the database policy at startup;
+omitting it keeps the saved value. A new database defaults to 300 seconds.
+The development config omits this setting so UI changes survive app restarts.
+Applying a shorter TTL or enabling expiration at startup deletes mappings already
+past that lifetime, just as a UI save does; startup logs report changes to the saved policy.
+`pii_settings.json` stores only entity and regex settings, so a missing, malformed,
+or unreadable settings file cannot reset or prevent saving expiration settings.
 An omitted duration defaults to 300 seconds; negative, fractional, and excessive
-durations are rejected. There is no `enabled` parameter. Saving entity or regex settings
-preserves an existing expiration override but does not create one; only an
-explicit expiration save takes control away from the static config.
+durations are rejected. An unreadable or invalid explicit `-config` file stops
+startup instead of silently using defaults. There is no `enabled` parameter.
+Saving entity or regex settings does not change the database policy.
 
 The Mac settings refresh when the window regains focus or becomes visible, and
 every five seconds while Settings remains visible. A
@@ -106,7 +107,8 @@ separate activity logs.
 
 Placeholders become reusable when their mappings expire or are deleted. If a
 candidate belongs to another live mapping, Kiji retries the generator up to eight
-times before using a fresh opaque `[REDACTED_…]` token. No permanent reservation
+times before using a fresh opaque `[REDACTED_…]` token. A repeated candidate
+immediately triggers that fallback without another lookup of the same value. No permanent reservation
 table is retained. A standalone unmask of an old placeholder can therefore return
 a newer person's value after reuse. Active responses still use their own saved
 pairs and restore the original person, even if the placeholder has been reassigned.
@@ -154,13 +156,7 @@ For automation, `GET /api/pii/mapping-expiration` returns the active
 `{ "ttl_seconds": 300 }` policy. `POST` to the same endpoint with
 `{ "ttl_seconds": 0 }` to disable expiration, or a positive duration to enable it.
 The route is available on both proxy ports.
-Browser origins are restricted to the local app's HTTP port, installed Chrome
-extensions with host permission, and exact origins in the optional config list
-`"mapping_expiration_allowed_origins": ["https://settings.example.com"]`.
-For frontend development, add `"http://localhost:3000"` to that list.
-Other website origins (including `null`) receive HTTP 403 before any policy
-change. Native/CLI requests without an Origin remain supported; this browser
-protection does not authenticate clients that can reach the server directly.
+It uses the same CORS handling as the other API endpoints.
 Interactive clients also send an `expected` object containing the last loaded
 `ttl_seconds` value. If this differs from the current policy, the
 server returns HTTP 409 with the current policy and makes no changes. Omitting
@@ -174,9 +170,9 @@ matches the submitted policy, the app accepts it while preserving any newer
 local edits. Different server settings still require conflict resolution.
 
 Entity and regex saves report persistence errors and restore the previous runtime
-values on failure. A malformed settings file can be repaired by saving settings;
-the server retains the last known explicit expiration override, or its absence.
-Filesystem read/write failures are reported rather than treated as missing data.
+values on failure. A malformed settings file can be repaired by saving entity or
+regex settings; the expiration policy remains in SQLite.
+Saving replaces the file without reading it first; write failures are reported.
 
 ## PII detection sensitivity
 
