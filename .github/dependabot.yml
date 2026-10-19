@@ -21,9 +21,10 @@ updates:
     # Even with SHA pinning, Dependabot will update to newer SHAs
     # and add comments showing the version tags
 
-  # npm - Frontend dependencies
+  # npm - Root + workspaces (src/frontend). The only lockfile is the root
+  # package-lock.json, so updates must run from "/" to keep it in sync.
   - package-ecosystem: "npm"
-    directory: "/src/frontend"
+    directory: "/"
     schedule:
       interval: "monthly"
       day: "monday"
@@ -35,8 +36,15 @@ updates:
     labels:
       - "dependencies"
       - "javascript"
-    # Group updates by type
+    # Dependabot assigns each dependency to the first matching group
     groups:
+      # Keep Tailwind/lightningcss and their pinned native binaries in lockstep
+      tailwind-css:
+        patterns:
+          - "tailwindcss"
+          - "@tailwindcss/*"
+          - "lightningcss"
+          - "lightningcss-*"
       development-dependencies:
         dependency-type: "development"
       production-dependencies:
@@ -45,25 +53,6 @@ updates:
       # Ignore major version updates for stability
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
-
-  # npm - Root dependencies (changesets, etc.)
-  - package-ecosystem: "npm"
-    directory: "/"
-    schedule:
-      interval: "monthly"
-      day: "monday"
-      time: "09:00"
-    commit-message:
-      prefix: "deps"
-      include: "scope"
-    labels:
-      - "dependencies"
-      - "javascript"
-    # Group all root dependency updates into a single PR
-    groups:
-      root-dependencies:
-        patterns:
-          - "*"
 
   # Go modules
   - package-ecosystem: "gomod"
