@@ -27,16 +27,16 @@
   "dependencies": {
     "@sentry/electron": "^7.15.0",
     "@types/dompurify": "^3.2.0",
-    "dompurify": "^3.4.11",
+    "dompurify": "^3.4.17",
     "electron-updater": "^6.8.9",
-    "express": "^5.2.1",
+    "express": "^5.3.0",
     "http-proxy-middleware": "^4.2.0",
-    "i18next": "^26.3.4",
+    "i18next": "^26.4.7",
     "i18next-browser-languagedetector": "^8.2.1",
-    "lucide-react": "^1.23.0",
-    "react": "^19.2.7",
-    "react-dom": "^19.2.7",
-    "react-i18next": "^17.0.8"
+    "lucide-react": "^1.58.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-i18next": "^17.0.20"
   },
   "devDependencies": {
     "@babel/core": "^8.0.1",
@@ -46,8 +46,8 @@
     "@changesets/cli": "^2.31.0",
     "@electron/notarize": "^3.1.1",
     "@tailwindcss/postcss": "^4.3.2",
-    "@types/react": "^19.2.17",
-    "@types/react-dom": "^19.2.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "@typescript-eslint/eslint-plugin": "^8.63.0",
     "@typescript-eslint/parser": "^8.60.1",
     "autoprefixer": "^10.5.2",
@@ -71,12 +71,12 @@
     "webpack-dev-server": "^6.0.0"
   },
   "optionalDependencies": {
-    "@tailwindcss/oxide-darwin-arm64": "4.3.2",
-    "@tailwindcss/oxide-darwin-x64": "4.3.2",
-    "@tailwindcss/oxide-linux-x64-gnu": "4.3.2",
-    "lightningcss-darwin-arm64": "1.32.0",
-    "lightningcss-darwin-x64": "1.32.0",
-    "lightningcss-linux-x64-gnu": "1.32.0"
+    "@tailwindcss/oxide-darwin-arm64": "4.3.3",
+    "@tailwindcss/oxide-darwin-x64": "4.3.3",
+    "@tailwindcss/oxide-linux-x64-gnu": "4.3.3",
+    "lightningcss-darwin-arm64": "1.33.0",
+    "lightningcss-darwin-x64": "1.33.0",
+    "lightningcss-linux-x64-gnu": "1.33.0"
   },
   "build": {
     "appId": "com.kiji.proxy",
