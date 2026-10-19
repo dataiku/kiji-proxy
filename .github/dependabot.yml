@@ -21,49 +21,42 @@ updates:
     # Even with SHA pinning, Dependabot will update to newer SHAs
     # and add comments showing the version tags
 
-  # npm - Frontend dependencies
-  - package-ecosystem: "npm"
-    directory: "/src/frontend"
-    schedule:
-      interval: "monthly"
-      day: "monday"
-      time: "09:00"
-    commit-message:
-      prefix: "deps"
-      prefix-development: "deps-dev"
-      include: "scope"
-    labels:
-      - "dependencies"
-      - "javascript"
-    # Group updates by type
-    groups:
-      development-dependencies:
-        dependency-type: "development"
-      production-dependencies:
-        dependency-type: "production"
-    ignore:
-      # Ignore major version updates for stability
-      - dependency-name: "*"
-        update-types: ["version-update:semver-major"]
-
-  # npm - Root dependencies (changesets, etc.)
+  # npm - Root + workspaces (src/frontend). The only lockfile is the root
+  # package-lock.json, so updates must run from "/" to keep it in sync.
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
       interval: "monthly"
       day: "monday"
       time: "09:00"
+    # Default is 5; majors open one PR each on top of the grouped PRs
+    open-pull-requests-limit: 10
+    # No prefix-development: grouped dev PRs would be titled
+    # "deps-dev(...)", which semantic-pr.yml rejects. The scope still shows
+    # deps vs deps-dev.
     commit-message:
       prefix: "deps"
       include: "scope"
     labels:
       - "dependencies"
       - "javascript"
-    # Group all root dependency updates into a single PR
+    # Dependabot assigns each dependency to the first matching group
     groups:
-      root-dependencies:
+      # Keep Tailwind/lightningcss and their pinned native binaries in lockstep
+      tailwind-css:
         patterns:
-          - "*"
+          - "tailwindcss"
+          - "@tailwindcss/*"
+          - "lightningcss"
+          - "lightningcss-*"
+      # Majors match no group below, so each one gets its own PR and a
+      # blocked major never holds up the minor/patch batch
+      development-dependencies:
+        dependency-type: "development"
+        update-types: ["minor", "patch"]
+      production-dependencies:
+        dependency-type: "production"
+        update-types: ["minor", "patch"]
 
   # Go modules
   - package-ecosystem: "gomod"
