@@ -14,6 +14,7 @@ import (
 
 	"github.com/dataiku/kiji-proxy/src/backend/config"
 	"github.com/dataiku/kiji-proxy/src/backend/proxy"
+	"golang.org/x/time/rate"
 )
 
 // --- test harness ---
@@ -335,18 +336,27 @@ func TestHandlePIICheck_DetectsAndMasksRealPII(t *testing.T) {
 
 func TestHandlePIICheck_RateLimitExceeded(t *testing.T) {
 	s := newTestServer(t)
-	const sameIP = "8.8.8.8:1234" // NewRateLimiter(10, 20) is hardcoded in NewServer
+	// Swap in a limiter that effectively never refills, so the outcome doesn't
+	// depend on how fast the loop runs or on NewServer's production limits.
+	const burst = 3
+	s.rateLimiter = NewRateLimiter(rate.Every(time.Hour), burst)
+	const sameIP = "8.8.8.8:1234"
 
-	var last *httptest.ResponseRecorder
-	for i := 0; i < 25; i++ {
+	send := func() int {
 		req := httptest.NewRequest(http.MethodPost, "/api/pii/check", strings.NewReader(`{"message":"hi"}`))
 		req.RemoteAddr = sameIP
 		rec := httptest.NewRecorder()
 		s.handlePIICheck(rec, req)
-		last = rec
+		return rec.Code
 	}
-	if last.Code != http.StatusTooManyRequests {
-		t.Errorf("status after exceeding the burst = %d, want 429", last.Code)
+
+	for i := 0; i < burst; i++ {
+		if code := send(); code != http.StatusOK {
+			t.Fatalf("request %d within the burst: status = %d, want 200", i, code)
+		}
+	}
+	if code := send(); code != http.StatusTooManyRequests {
+		t.Errorf("status after exceeding the burst = %d, want 429", code)
 	}
 }
 
@@ -397,8 +407,10 @@ func TestHandlePIIConfidence_GetReturnsDefault(t *testing.T) {
 		Confidence float64 `json:"confidence"`
 	}
 	decodeJSON(t, rec, &body)
-	if body.Confidence != 0.25 {
-		t.Errorf("default confidence = %v, want 0.25", body.Confidence)
+	// Compare against the handler rather than a copied literal, so a change to
+	// the model's default threshold doesn't break this test for no reason.
+	if want := s.handler.GetEntityConfidenceThreshold(); body.Confidence != want {
+		t.Errorf("default confidence = %v, want %v", body.Confidence, want)
 	}
 }
 
@@ -423,15 +435,25 @@ func TestHandlePIIConfidence_PostValidValueRoundTrips(t *testing.T) {
 	}
 }
 
-func TestHandlePIIConfidence_PostOutOfRangeRejected(t *testing.T) {
+// TestHandlePIIConfidence_RangeBoundaries pins the inclusive [0.05, 0.95]
+// range enforced by handlePIIConfidence, right at its edges.
+func TestHandlePIIConfidence_RangeBoundaries(t *testing.T) {
 	s := newTestServer(t)
-	tests := []string{`{"confidence":0.01}`, `{"confidence":0.99}`}
-	for _, body := range tests {
-		req := httptest.NewRequest(http.MethodPost, "/api/pii/confidence", strings.NewReader(body))
+	tests := []struct {
+		body string
+		want int
+	}{
+		{`{"confidence":0.05}`, http.StatusOK},
+		{`{"confidence":0.95}`, http.StatusOK},
+		{`{"confidence":0.049}`, http.StatusBadRequest},
+		{`{"confidence":0.951}`, http.StatusBadRequest},
+	}
+	for _, tt := range tests {
+		req := httptest.NewRequest(http.MethodPost, "/api/pii/confidence", strings.NewReader(tt.body))
 		rec := httptest.NewRecorder()
 		s.handlePIIConfidence(rec, req)
-		if rec.Code != http.StatusBadRequest {
-			t.Errorf("body %s: status = %d, want 400", body, rec.Code)
+		if rec.Code != tt.want {
+			t.Errorf("body %s: status = %d, want %d", tt.body, rec.Code, tt.want)
 		}
 	}
 }
@@ -832,8 +854,17 @@ func TestMappingsHandler_DeleteRoutesOnIDParam(t *testing.T) {
 	deleteReq.RemoteAddr = "2.0.0.4:1"
 	deleteRec := httptest.NewRecorder()
 	s.mappingsHandler(deleteRec, deleteReq)
-	if deleteRec.Code == http.StatusOK {
-		t.Error("expected deleting a nonexistent mapping id to NOT report success")
+	if deleteRec.Code != http.StatusNotFound {
+		t.Errorf("DELETE with unknown id: status = %d, want 404", deleteRec.Code)
+	}
+
+	// A non-numeric id is a client error, not a not-found.
+	badReq := httptest.NewRequest(http.MethodDelete, "/api/mappings?id=abc", nil)
+	badReq.RemoteAddr = "2.0.0.6:1"
+	badRec := httptest.NewRecorder()
+	s.mappingsHandler(badRec, badReq)
+	if badRec.Code != http.StatusBadRequest {
+		t.Errorf("DELETE with invalid id: status = %d, want 400", badRec.Code)
 	}
 }
 
