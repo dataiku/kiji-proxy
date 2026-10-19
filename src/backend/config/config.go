@@ -1,6 +1,8 @@
 package config
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -88,18 +90,55 @@ type ProxyConfig struct {
 	EnablePAC          bool   `json:"enable_pac"` // Enable PAC (Proxy Auto-Config) for automatic system proxy setup
 }
 
+// MappingExpirationConfig controls the fixed lifetime of mappings from creation.
+// Changing the policy applies to existing mappings as well as new ones.
+type MappingExpirationConfig struct {
+	TTLSeconds int `json:"ttl_seconds"`
+}
+
+const DefaultMappingTTLSeconds = 300
+const MaxMappingTTLSeconds = 2147483647
+
+func (c MappingExpirationConfig) Validate() error {
+	if c.TTLSeconds < 0 || c.TTLSeconds > MaxMappingTTLSeconds {
+		return fmt.Errorf("mapping expiration ttl_seconds must be an integer between 0 and %d", MaxMappingTTLSeconds)
+	}
+	return nil
+}
+
+// UnmarshalJSON supplies the default for an omitted duration and rejects obsolete
+// policy fields, so a misspelled setting cannot silently change retention.
+func (c *MappingExpirationConfig) UnmarshalJSON(data []byte) error {
+	seconds := DefaultMappingTTLSeconds
+	decoded := struct {
+		TTLSeconds *int `json:"ttl_seconds"`
+	}{TTLSeconds: &seconds}
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&decoded); err != nil {
+		return err
+	}
+	if decoded.TTLSeconds == nil {
+		return fmt.Errorf("mapping expiration ttl_seconds must be an integer")
+	}
+	c.TTLSeconds = *decoded.TTLSeconds
+	return nil
+}
+
 // Config holds all configuration for the PII proxy service
 type Config struct {
-	Providers          ProvidersConfig `json:"providers"`
-	ProxyPort          string
-	UnixSocketPath     string
-	Database           DatabaseConfig
-	Logging            LoggingConfig
-	ONNXModelPath      string
-	TokenizerPath      string
-	ModelVariant       string // "trained" (full precision) or "quantized" (INT8). Used to derive ONNXModelDirectory when it isn't set.
-	ONNXModelDirectory string // Explicit override; takes precedence over ModelVariant.
-	UIPath             string
+	mappingExpirationExplicit bool
+	MappingExpiration         MappingExpirationConfig `json:"mapping_expiration"`
+	Providers                 ProvidersConfig         `json:"providers"`
+	ProxyPort                 string
+	UnixSocketPath            string
+	Database                  DatabaseConfig
+	Logging                   LoggingConfig
+	ONNXModelPath             string
+	TokenizerPath             string
+	ModelVariant              string // "trained" (full precision) or "quantized" (INT8). Used to derive ONNXModelDirectory when it isn't set.
+	ONNXModelDirectory        string // Explicit override; takes precedence over ModelVariant.
+	UIPath                    string
 	// ServeUI controls whether the embedded web UI is served on "/". Defaults to
 	// true; set the KIJI_SERVE_UI=false env var for an API-only (headless) server.
 	ServeUI bool `json:"serve_ui"`
@@ -156,8 +195,45 @@ func (c *Config) ResolveModelDirectory() string {
 	return filepath.Join("model", variant)
 }
 
+// UnmarshalJSON distinguishes an explicit policy from the first-run default.
+func (c *Config) UnmarshalJSON(data []byte) error {
+	if bytes.Equal(bytes.TrimSpace(data), []byte("null")) {
+		return fmt.Errorf("config must be a JSON object")
+	}
+	type plain Config
+	decoded := plain(*c)
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+	*c = Config(decoded)
+	for name, policy := range fields {
+		if strings.EqualFold(name, "mapping_expiration") && string(policy) != "null" {
+			c.mappingExpirationExplicit = true
+		}
+	}
+	return nil
+}
+
+// StartupMappingExpiration applies an explicit config value at startup. When
+// omitted, SQLite retains its saved policy (or initializes the default).
+func (c *Config) StartupMappingExpiration() *MappingExpirationConfig {
+	defaults := MappingExpirationConfig{TTLSeconds: DefaultMappingTTLSeconds}
+	if !c.mappingExpirationExplicit && c.MappingExpiration == defaults {
+		return nil
+	}
+	policy := c.MappingExpiration
+	return &policy
+}
+
 func (c *Config) ValidateConfig() error {
 	var errs []string
+	if err := c.MappingExpiration.Validate(); err != nil {
+		errs = append(errs, err.Error())
+	}
 
 	if c.UnixSocketPath == "" {
 		// Validate ProxyPort format (":port")
@@ -299,6 +375,7 @@ func DefaultConfig() *Config {
 	dbPath := filepath.Join(appDataDir, "kiji_privacy_proxy.db")
 
 	return &Config{
+		MappingExpiration: MappingExpirationConfig{TTLSeconds: DefaultMappingTTLSeconds},
 		Providers: ProvidersConfig{
 			DefaultProvidersConfig:  defaultProvidersConfig,
 			OpenAIProviderConfig:    defaultOpenAIProviderConfig,

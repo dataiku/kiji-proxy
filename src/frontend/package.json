@@ -21,7 +21,8 @@
     "i18n:check": "node scripts/check-i18n-parity.js",
     "changeset": "changeset",
     "version": "changeset version",
-    "release": "changeset publish"
+    "release": "changeset publish",
+    "test": "node --test tests/*.test.cjs"
   },
   "dependencies": {
     "@sentry/electron": "^7.15.0",

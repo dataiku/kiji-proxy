@@ -47,7 +47,7 @@ type Handler struct {
 	maskingService    *piiServices.MaskingService
 	loggingDB         piiServices.LoggingDB    // Database or in-memory storage for logging
 	mappingDB         piiServices.PIIMappingDB // Same instance as loggingDB, for mapping operations
-	piiMapping        *piiServices.PIIMapping  // Cache+DB wrapper; used for cache-consistent clear/delete
+	piiMapping        *piiServices.PIIMapping  // Standalone mapping lookups and deletion; responses hold request-owned pairs
 	metrics           *metrics.Collector       // In-memory dashboard aggregates (GET /api/dashboard)
 }
 
@@ -225,7 +225,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	processed, err := h.ProcessRequestBody(r.Context(), body, provider)
 	if err != nil {
 		log.Printf("[Proxy] ❌ Failed to process request: %v", err)
-		http.Error(w, "Failed to process request", http.StatusInternalServerError)
+		http.Error(w, "Failed to process request", maskingErrorStatus(err))
 		return
 	}
 	requestMaskTime := time.Since(processStart)
@@ -542,18 +542,33 @@ func (h *Handler) readRequestBody(r *http.Request) ([]byte, error) {
 }
 
 // maskPIIInText detects PII in text and returns masked text with mappings
-func (h *Handler) maskPIIInText(text string, logPrefix string) (string, map[string]string, []pii.Entity) {
+func (h *Handler) maskPIIInText(ctx context.Context, text string, logPrefix string) (string, map[string]string, []pii.Entity, error) {
 	if h.maskingService == nil {
-		// Model is unhealthy - return text unchanged
-		return text, make(map[string]string), []pii.Entity{}
+		return text, make(map[string]string), []pii.Entity{}, ctx.Err()
 	}
-	result := h.maskingService.MaskText(text, logPrefix)
-	return result.MaskedText, result.MaskedToOriginal, result.Entities
+	result, err := h.maskingService.MaskText(ctx, text, logPrefix)
+	return result.MaskedText, result.MaskedToOriginal, result.Entities, err
 }
 
-// MaskPIIInText is the public version of maskPIIInText for use by other packages
-func (h *Handler) MaskPIIInText(text string) (string, map[string]string, []pii.Entity) {
-	return h.maskPIIInText(text, "[PIICheck]")
+// One snapshot spans detection and every field. Acquisition must succeed before
+// the provider visits any text; a cancelled/saturated reader never bypasses it.
+func (h *Handler) requestMasker(ctx context.Context) (func(string, string) (string, map[string]string, []pii.Entity), func() error, error) {
+	if h.maskingService == nil {
+		return func(text, _ string) (string, map[string]string, []pii.Entity) { return text, map[string]string{}, nil }, func() error { return ctx.Err() }, ctx.Err()
+	}
+	request, err := h.maskingService.BeginRequest(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	return func(text, prefix string) (string, map[string]string, []pii.Entity) {
+		result := request.MaskText(text, prefix)
+		return result.MaskedText, result.MaskedToOriginal, result.Entities
+	}, func() error { request.Close(); return request.Err() }, nil
+}
+
+// MaskPIIInText is the public standalone masking entry point.
+func (h *Handler) MaskPIIInText(ctx context.Context, text string) (string, map[string]string, []pii.Entity, error) {
+	return h.maskPIIInText(ctx, text, "[PIICheck]")
 }
 
 // MaskPIIInTextWithLogging masks PII in a plain text input and records
@@ -563,11 +578,14 @@ func (h *Handler) MaskPIIInText(text string) (string, map[string]string, []pii.E
 // proxy flow uses, which lets the frontend pair them. site (hostname of the
 // page that triggered the check) is recorded as the "model" column so calls
 // from different AI providers are distinguishable in the UI.
-func (h *Handler) MaskPIIInTextWithLogging(ctx context.Context, text, site string) (string, map[string]string, []pii.Entity) {
-	maskedText, maskedToOriginal, entities := h.maskPIIInText(text, "[PIICheck]")
+func (h *Handler) MaskPIIInTextWithLogging(ctx context.Context, text, site string) (string, map[string]string, []pii.Entity, error) {
+	maskedText, maskedToOriginal, entities, err := h.maskPIIInText(ctx, text, "[PIICheck]")
+	if err != nil {
+		return "", nil, nil, err
+	}
 
 	if h.loggingDB == nil {
-		return maskedText, maskedToOriginal, entities
+		return maskedText, maskedToOriginal, entities, nil
 	}
 
 	transactionID := uuid.New().String()
@@ -584,7 +602,7 @@ func (h *Handler) MaskPIIInTextWithLogging(ctx context.Context, text, site strin
 		log.Printf("[PIICheck] ⚠️  Failed to log masked request: %v", err)
 	}
 
-	return maskedText, maskedToOriginal, entities
+	return maskedText, maskedToOriginal, entities, nil
 }
 
 // wrapPIICheckMessage wraps a plain-text PII check input in an OpenAI-style
@@ -611,7 +629,8 @@ func wrapPIICheckMessage(text, site, transactionID string) string {
 
 // ProcessedRequest contains the result of processing a request through the PII pipeline
 type ProcessedRequest struct {
-	RedactedBody     []byte
+	RedactedBody []byte
+	// Request-owned mappings survive global expiry through upstream wait and restoration.
 	MaskedToOriginal map[string]string
 	Entities         []pii.Entity
 	TransactionID    string // UUID to correlate all 4 log entries
@@ -624,7 +643,10 @@ func (h *Handler) ProcessRequestBody(ctx context.Context, body []byte, provider 
 	transactionID := uuid.New().String()
 
 	// Check for PII in the request and get redacted body
-	redactedBody, maskedToOriginal, entities := h.checkRequestPII(string(body), provider)
+	redactedBody, maskedToOriginal, entities, err := h.checkRequestPII(ctx, string(body), provider)
+	if err != nil {
+		return nil, err
+	}
 
 	// Log both original and masked requests with shared context
 	if h.loggingDB != nil {
@@ -655,7 +677,8 @@ func (h *Handler) ProcessRequestBody(ctx context.Context, body []byte, provider 
 // ProcessResponseBody processes a response body through PII restoration
 // This is the shared entry point for all response sources (handler, transparent proxy)
 func (h *Handler) ProcessResponseBody(ctx context.Context, body []byte, contentType string, maskedToOriginal map[string]string, transactionID string, provider *providers.Provider) []byte {
-	// Process the response to restore PII first
+	// These mappings belong to the originating request. Do not revalidate them
+	// against global expiry after an upstream wait or while restoring a response.
 	modifiedBody := h.responseProcessor.ProcessResponse(body, contentType, maskedToOriginal, provider)
 
 	// Log both masked and restored responses with shared context
@@ -739,20 +762,25 @@ func (h *Handler) addTransactionID(message string, transactionID string) string 
 
 // checkRequestPII checks for PII in the request body and creates mappings
 // It only redacts PII from message content, not from other fields like "model"
-func (h *Handler) checkRequestPII(body string, provider *providers.Provider) (string, map[string]string, []pii.Entity) {
+func (h *Handler) checkRequestPII(ctx context.Context, body string, provider *providers.Provider) (masked string, pairs map[string]string, found []pii.Entity, resultErr error) {
 	log.Println("[Proxy] Checking for PII in request...")
+	mask, closeSnapshot, err := h.requestMasker(ctx)
+	if err != nil {
+		return "", nil, nil, err
+	}
+	defer func() { resultErr = errors.Join(resultErr, closeSnapshot()) }()
 
 	// Parse the JSON request
 	var requestData map[string]interface{}
 	if err := json.Unmarshal([]byte(body), &requestData); err != nil {
 		// If JSON parsing fails, fall back to treating entire body as text
 		log.Printf("[Proxy] Failed to parse JSON, treating as plain text: %v", err)
-		maskedBody, maskedToOriginal, entities := h.maskPIIInText(body, "[Proxy]")
-		return maskedBody, maskedToOriginal, entities
+		maskedBody, maskedToOriginal, entities := mask(body, "[Proxy]")
+		return maskedBody, maskedToOriginal, entities, ctx.Err()
 	}
 
 	// Use createMaskedRequest to properly mask only message content
-	maskedRequest, maskedToOriginal, entities := h.createMaskedRequest(requestData, provider)
+	maskedRequest, maskedToOriginal, entities := h.createMaskedRequest(requestData, provider, mask)
 
 	if len(entities) > 0 && h.config.Logging.LogPIIChanges {
 		log.Printf("PII masked: %d entities replaced", len(entities))
@@ -766,10 +794,10 @@ func (h *Handler) checkRequestPII(body string, provider *providers.Provider) (st
 	if err != nil {
 		log.Printf("[Proxy] Failed to marshal masked request: %v", err)
 		// Return original body if marshaling fails
-		return body, make(map[string]string), entities
+		return body, make(map[string]string), entities, ctx.Err()
 	}
 
-	return string(maskedBodyBytes), maskedToOriginal, entities
+	return string(maskedBodyBytes), maskedToOriginal, entities, ctx.Err()
 }
 
 // createAndSendProxyRequest creates and sends the proxy request to provider
@@ -989,7 +1017,8 @@ func NewHandler(cfg *config.Config) (*Handler, error) {
 	// Initialize SQLite database
 	ctx := context.Background()
 	dbConfig := piiServices.DatabaseConfig{
-		Path: cfg.Database.Path,
+		Path:              cfg.Database.Path,
+		MappingExpiration: cfg.StartupMappingExpiration(),
 	}
 	db, dbErr := piiServices.NewSQLitePIIMappingDB(ctx, dbConfig)
 	if dbErr != nil {
@@ -1055,7 +1084,8 @@ func NewHandler(cfg *config.Config) (*Handler, error) {
 }
 
 // createMaskedRequest creates a masked version of the request by detecting and masking PII in messages
-func (h *Handler) createMaskedRequest(originalRequest map[string]interface{}, provider *providers.Provider) (map[string]interface{}, map[string]string, []pii.Entity) {
+func (h *Handler) createMaskedRequest(originalRequest map[string]interface{}, provider *providers.Provider,
+	mask func(string, string) (string, map[string]string, []pii.Entity)) (map[string]interface{}, map[string]string, []pii.Entity) {
 	// Create a deep copy of the originalRequest
 	requestBytes, err := json.Marshal(originalRequest)
 	if err != nil {
@@ -1069,7 +1099,7 @@ func (h *Handler) createMaskedRequest(originalRequest map[string]interface{}, pr
 		return originalRequest, make(map[string]string), []pii.Entity{}
 	}
 
-	maskedToOriginal, entities, err := (*provider).CreateMaskedRequest(maskedRequest, h.maskPIIInText)
+	maskedToOriginal, entities, err := (*provider).CreateMaskedRequest(maskedRequest, mask)
 	if err != nil {
 		log.Printf("Provider failed to create masked request: %v", err)
 	}
@@ -1409,9 +1439,17 @@ func (h *Handler) HandleUnmask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	results := make([]UnmaskResult, 0, len(values))
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+	snapshot, err := h.piiMapping.UnmaskMappings(ctx, values)
+	if err != nil {
+		log.Printf("Failed to resolve unmask mappings: %v", err)
+		http.Error(w, "Failed to read mappings", http.StatusServiceUnavailable)
+		return
+	}
 	foundCount := 0
 	for _, masked := range values {
-		original, found := h.piiMapping.GetOriginal(masked)
+		original, found := snapshot[masked]
 		if found {
 			foundCount++
 		}
@@ -1447,8 +1485,8 @@ func (h *Handler) HandleClearMappings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Route through the cache wrapper so the in-memory cache is cleared too,
-	// not just the database row store.
+	// Use the shared mapping store so subsequent masking and restoration see
+	// the deletion immediately.
 	h.handleClearOperation(w, r, "PII mappings", func(context.Context) error {
 		return h.piiMapping.ClearAll()
 	})
@@ -1520,4 +1558,11 @@ func (h *Handler) Close() error {
 		}
 	}
 	return err
+}
+
+func maskingErrorStatus(err error) int {
+	if errors.Is(err, piiServices.ErrMappingUnavailable) || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return http.StatusServiceUnavailable
+	}
+	return http.StatusInternalServerError
 }

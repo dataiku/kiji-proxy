@@ -1,13 +1,18 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/dataiku/kiji-proxy/src/backend/paths"
 )
+
+// ErrMalformedPIISettings distinguishes repairable JSON from filesystem failures.
+var ErrMalformedPIISettings = errors.New("malformed PII settings")
 
 // PIISettingsFileName is the name of the file holding the runtime-tunable PII
 // settings, stored in the application data directory next to the database/certs.
@@ -28,7 +33,7 @@ func PIISettingsPath() string {
 
 // LoadPIISettings reads the persisted PII settings. It returns (nil, nil) when
 // the file does not exist yet (first run), so callers fall back to config
-// defaults. A malformed file is reported as an error rather than silently reset.
+// defaults. Malformed JSON and I/O failures return nil settings with an error.
 func LoadPIISettings() (*PIISettings, error) {
 	path := PIISettingsPath()
 	data, err := os.ReadFile(path) // #nosec G304 — path derived from app data dir, not user input
@@ -38,11 +43,14 @@ func LoadPIISettings() (*PIISettings, error) {
 		}
 		return nil, fmt.Errorf("read %s: %w", path, err)
 	}
-	var s PIISettings
-	if err := json.Unmarshal(data, &s); err != nil {
-		return nil, fmt.Errorf("parse %s: %w", path, err)
+	if bytes.Equal(bytes.TrimSpace(data), []byte("null")) {
+		return nil, fmt.Errorf("%w: %s must contain a JSON object", ErrMalformedPIISettings, path)
 	}
-	return &s, nil
+	s := &PIISettings{}
+	if err := json.Unmarshal(data, s); err != nil {
+		return nil, fmt.Errorf("%w: parse %s: %w", ErrMalformedPIISettings, path, err)
+	}
+	return s, nil
 }
 
 // SavePIISettings writes the PII settings to disk, creating the application data
@@ -64,5 +72,17 @@ func SavePIISettings(s *PIISettings) error {
 	if err := os.Rename(tmp, path); err != nil {
 		return fmt.Errorf("rename %s -> %s: %w", tmp, path, err)
 	}
+	return nil
+}
+
+// LoadPersistedPIISettings applies entity and regex settings. Mapping expiration
+// is persisted independently in SQLite and cannot be changed by this file.
+func (c *Config) LoadPersistedPIISettings() error {
+	settings, err := LoadPIISettings()
+	if err != nil || settings == nil {
+		return err
+	}
+	c.CustomRegexes = settings.CustomRegexes
+	c.DisabledEntities = settings.DisabledEntities
 	return nil
 }
