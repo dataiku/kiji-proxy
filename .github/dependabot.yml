@@ -29,9 +29,13 @@ updates:
       interval: "monthly"
       day: "monday"
       time: "09:00"
+    # Default is 5; majors open one PR each on top of the grouped PRs
+    open-pull-requests-limit: 10
+    # No prefix-development: grouped dev PRs would be titled
+    # "deps-dev(...)", which semantic-pr.yml rejects. The scope still shows
+    # deps vs deps-dev.
     commit-message:
       prefix: "deps"
-      prefix-development: "deps-dev"
       include: "scope"
     labels:
       - "dependencies"
