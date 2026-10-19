@@ -45,14 +45,14 @@ updates:
           - "@tailwindcss/*"
           - "lightningcss"
           - "lightningcss-*"
+      # Majors match no group below, so each one gets its own PR and a
+      # blocked major never holds up the minor/patch batch
       development-dependencies:
         dependency-type: "development"
+        update-types: ["minor", "patch"]
       production-dependencies:
         dependency-type: "production"
-    ignore:
-      # Ignore major version updates for stability
-      - dependency-name: "*"
-        update-types: ["version-update:semver-major"]
+        update-types: ["minor", "patch"]
 
   # Go modules
   - package-ecosystem: "gomod"
