@@ -1,5 +1,11 @@
 # kiji-privacy-proxy
 
+## 1.6.5
+
+### Patch Changes
+
+- 987d086: Load PII generator word pools (names, cities, streets, states, countries, company names) from embedded data files and expand them
+
 ## 1.6.4
 
 ### Patch Changes
