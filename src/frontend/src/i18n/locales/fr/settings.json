@@ -119,6 +119,22 @@
       "SECURITYTOKEN": "Jeton de sécurité",
       "CREDITCARDNUMBER": "Numéro de carte bancaire",
       "USERNAME": "Nom d'utilisateur"
+    },
+    "expiration": {
+      "uncertain": "L’enregistrement n’a pas pu être confirmé et a peut-être déjà été appliqué sur le serveur. Vos modifications sont conservées ; actualisez ou réessayez pour vérifier les paramètres.",
+      "title": "Expiration des correspondances",
+      "seconds": "Durée de vie des correspondances (secondes)",
+      "save": "Enregistrer l’expiration",
+      "help": "Par défaut : 300 secondes après la création. Saisissez 0 pour désactiver l’expiration. S’applique à tous les clients et aux correspondances existantes. Les requêtes en cours conservent leurs correspondances jusqu’à la fin de la réponse.",
+      "error": "Impossible de charger ou d’enregistrer les paramètres. Vérifiez la connexion au serveur et rouvrez les paramètres pour réessayer.",
+      "invalid": "Saisissez un nombre entier entre 0 et 2147483647.",
+      "refresh": "Actualiser les paramètres",
+      "unsaved": "Modifications non enregistrées.",
+      "conflict": "Les paramètres ont changé dans un autre client : expiration {{state}}, {{seconds}} secondes. Vos modifications sont conservées. Choisissez les paramètres à utiliser avant d’enregistrer.",
+      "on": "activée",
+      "off": "désactivée",
+      "useServer": "Utiliser les paramètres du serveur",
+      "keepEdits": "Conserver mes modifications"
     }
   },
   "advanced": {

@@ -47,11 +47,65 @@ func NewMaskingService(detectorProvider DetectorProvider, generator *GeneratorSe
 	}
 }
 
-// MaskText detects PII in text using the given profile's settings (threshold,
-// custom regexes, disabled entities) and returns masked text with mappings. A
-// nil profile runs the model alone with its default threshold and masks
-// everything it finds.
-func (s *MaskingService) MaskText(text string, profile *ResolvedProfile, logPrefix string) MaskedResult {
+// MaskText detects PII in text and returns masked text with mappings
+func (s *MaskingService) MaskText(ctx context.Context, text string, profile *ResolvedProfile, logPrefix string) (MaskedResult, error) {
+	request, err := s.BeginRequest(ctx, profile)
+	if err != nil {
+		return MaskedResult{}, err
+	}
+	defer request.Close()
+	result := request.MaskText(text, logPrefix)
+	return result, request.Err()
+}
+
+// MaskingRequest pins reuse decisions across detection and all fields of one
+// request. Returned mappings belong to that request until its response finishes.
+type MaskingRequest struct {
+	service *MaskingService
+	ctx     context.Context
+	err     error
+	session *mappingSession
+	profile *ResolvedProfile
+}
+
+func (s *MaskingService) BeginRequest(ctx context.Context, profile *ResolvedProfile) (*MaskingRequest, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	r := &MaskingRequest{service: s, ctx: ctx, profile: profile}
+	if s.mapping != nil {
+		var err error
+		r.session, err = s.mapping.beginMasking(ctx)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return r, nil
+}
+
+// Close releases the database view after all fields have been masked.
+// Already returned maps remain valid throughout the response.
+func (r *MaskingRequest) Close() {
+	if r.session != nil {
+		r.session.close()
+	}
+}
+
+// Err retains the first mapping failure so provider callbacks cannot turn it
+// into a missing value and continue creating mappings in later fields.
+func (r *MaskingRequest) Err() error {
+	if r.err != nil {
+		return r.err
+	}
+	return r.ctx.Err()
+}
+
+func (r *MaskingRequest) MaskText(text string, logPrefix string) MaskedResult {
+	if r.Err() != nil {
+		return MaskedResult{}
+	}
+	s := r.service
+	profile := r.profile
 	var extra []detectors.Detector
 	input := detectors.DetectorInput{Text: text}
 	if profile != nil {
@@ -61,6 +115,7 @@ func (s *MaskingService) MaskText(text string, profile *ResolvedProfile, logPref
 		input.EntityConfidenceThreshold = profile.Confidence
 	}
 	detector, err := s.detectorProvider.GetDetectorWith(extra...)
+
 	if err != nil {
 		log.Printf("%s ❌ Failed to get detector: %v", logPrefix, err)
 		return MaskedResult{
@@ -70,7 +125,7 @@ func (s *MaskingService) MaskText(text string, profile *ResolvedProfile, logPref
 		}
 	}
 
-	piiFound, err := detector.Detect(context.Background(), input)
+	piiFound, err := detector.Detect(r.ctx, input)
 	if err != nil {
 		log.Printf("%s ❌ Failed to detect PII: %v", logPrefix, err)
 		return MaskedResult{
@@ -78,6 +133,11 @@ func (s *MaskingService) MaskText(text string, profile *ResolvedProfile, logPref
 			MaskedToOriginal: make(map[string]string),
 			Entities:         []detectors.Entity{},
 		}
+	}
+
+	if err := r.ctx.Err(); err != nil {
+		r.err = err
+		return MaskedResult{}
 	}
 
 	// Drop entities whose type the profile has disabled. Disabled types pass
@@ -116,6 +176,10 @@ func (s *MaskingService) MaskText(text string, profile *ResolvedProfile, logPref
 	// Entities are sorted by StartPos descending, so replacing from end to start
 	// preserves earlier byte offsets.
 	for _, entity := range entities {
+		if err := r.ctx.Err(); err != nil {
+			r.err = err
+			return MaskedResult{}
+		}
 		originalText := entity.Text
 		if originalText == "" {
 			continue
@@ -124,12 +188,28 @@ func (s *MaskingService) MaskText(text string, profile *ResolvedProfile, logPref
 		// Reuse a previously assigned dummy if we have one, so the same original
 		// PII maps to the same dummy across requests. Generate + persist on miss.
 		var maskedEntityText string
-		if s.mapping != nil {
-			if dummy, ok := s.mapping.GetDummy(originalText); ok {
+		if r.session != nil {
+			dummy, ok, err := r.session.dummy(r.ctx, originalText)
+			if err != nil {
+				r.err = err
+				return MaskedResult{}
+			}
+			if ok {
 				maskedEntityText = dummy
 			} else {
 				maskedEntityText = s.generator.GenerateReplacement(entity.Label, originalText)
-				s.mapping.AddMapping(originalText, maskedEntityText, entity.Label, entity.Confidence)
+				if stored, err := s.mapping.AddMapping(r.ctx, originalText, maskedEntityText, entity.Label, entity.Confidence, func() string { return s.generator.GenerateReplacement(entity.Label, originalText) }); err == nil {
+					maskedEntityText = stored
+				} else {
+					if r.ctx.Err() != nil {
+						r.err = r.ctx.Err()
+						return MaskedResult{}
+					}
+					// Never emit a reused token if storage failed: it could unmask to someone
+					// else's value. Only this request can restore an unrecorded fresh token.
+					maskedEntityText = freshMappingPlaceholder()
+				}
+				r.session.remember(originalText, maskedEntityText)
 			}
 		} else {
 			maskedEntityText = s.generator.GenerateReplacement(entity.Label, originalText)
@@ -204,8 +284,9 @@ func (s *MaskingService) GetAvailableEntityTypes() ([]string, error) {
 	return detector.EntityTypes(), nil
 }
 
-// RestorePII restores masked PII text back to original text using the stored
-// mapping. It uses a single-pass replacer so a restored value is never
+// RestorePII restores using the mappings captured while masking this request,
+// even if their global lifetime ended while waiting for the response.
+// It uses a single-pass replacer so a restored value is never
 // re-substituted; see processor.BuildRestorer.
 func (s *MaskingService) RestorePII(text string, maskedToOriginal map[string]string) string {
 	return processor.BuildRestorer(maskedToOriginal).Replace(text)

@@ -102,6 +102,9 @@ jobs:
           cache: "npm"
           cache-dependency-path: "package-lock.json"
 
+      - name: Check native binary pins
+        run: node .github/scripts/check-native-pins.js
+
       - name: Install dependencies
         working-directory: src/frontend
         run: npm ci
@@ -117,6 +120,10 @@ jobs:
       - name: Check i18n translation parity
         working-directory: src/frontend
         run: npm run i18n:check
+
+      - name: Test frontend settings
+        working-directory: src/frontend
+        run: npm test
 
   actionlint:
     runs-on: ubuntu-latest

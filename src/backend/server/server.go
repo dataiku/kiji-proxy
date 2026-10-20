@@ -74,6 +74,7 @@ func (rl *RateLimiter) CleanupOldVisitors() {
 
 // Server represents the HTTP server
 type Server struct {
+	piiSettingsMu           sync.Mutex
 	config                  *config.Config
 	handler                 *proxy.Handler
 	transparentProxy        *proxy.TransparentProxy
@@ -272,6 +273,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/pii/entities", s.handlePIIEntities)
 	mux.HandleFunc(piiProfilesPath, s.handlePIIProfiles)
 	mux.HandleFunc(piiProfilesPath+"/", s.handlePIIProfiles)
+	mux.HandleFunc("/api/pii/mapping-expiration", s.handleMappingExpiration)
 
 	// Dashboard API
 	mux.HandleFunc("/api/dashboard", s.dashboardHandler)
@@ -433,6 +435,8 @@ func (s *Server) startTransparentProxy() {
 			s.handlePIICheck(w, r)
 		case "/api/pii/entities":
 			s.handlePIIEntities(w, r)
+		case "/api/pii/mapping-expiration":
+			s.handleMappingExpiration(w, r)
 		default:
 			// All other HTTP/HTTPS requests go to transparent proxy
 			s.transparentProxy.ServeHTTP(w, r)
@@ -794,7 +798,11 @@ func (s *Server) handlePIICheck(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Mask + persist request_original / request_masked so the call appears in /logs.
-	maskedText, maskedToOriginal, entities := s.handler.MaskPIIInTextWithLogging(r.Context(), req.Message, req.Site, profile)
+	maskedText, maskedToOriginal, entities, err := s.handler.MaskPIIInTextWithLogging(r.Context(), req.Message, req.Site, profile)
+	if err != nil {
+		http.Error(w, "Failed to acquire or read mappings", http.StatusServiceUnavailable)
+		return
+	}
 
 	// masked -> original map (consumed by UI)
 	entityDetails := make(map[string]string)

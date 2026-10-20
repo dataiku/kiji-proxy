@@ -318,3 +318,24 @@ select:focus,
   font-size: 12px;
   color: var(--text-muted);
 }
+
+/* Mapping expiration shares the connected backend's policy. */
+#expiration-fields {
+  border: 0;
+  padding: 0;
+  margin: 0 0 12px;
+  min-width: 0;
+}
+
+#expiration-fields:disabled,
+#expiration-seconds:disabled {
+  opacity: 0.5;
+}
+
+#expiration-reload {
+  background: none;
+  border: 0;
+  padding: 0;
+  margin-right: 12px;
+  cursor: pointer;
+}

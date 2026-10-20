@@ -1,3 +1,4 @@
+import MappingExpirationControl from "./MappingExpirationControl";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
@@ -390,6 +391,7 @@ export default function PIISection({ onProfilesChanged }: PIISectionProps) {
       </div>
 
       <div className="space-y-6">
+        <MappingExpirationControl />
         {/* Profile picker + actions */}
         <div>
           <label

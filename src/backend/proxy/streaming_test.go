@@ -614,3 +614,42 @@ func TestStreamSSEResponse_FlushesCarryTailOnEOF(t *testing.T) {
 		t.Errorf("client-assembled deltas = %q, want %q (carry tail dropped on EOF)", assembled, "Hello Jane")
 	}
 }
+
+// A split token, JSON arguments and final text all use the same immutable
+// request snapshot, even if the caller subsequently changes its map.
+func TestStreamMappingSnapshotSurvivesBetweenDeltas(t *testing.T) {
+	mapping := map[string]string{"[DUMMY]": "Alice"}
+	core := newRestoreCore(mapping)
+	emit, hold := core.streamRestore("Hello [DUM", false)
+	if emit != "Hello " || hold != "[DUM" {
+		t.Fatalf("unexpected initial delta: %q, %q", emit, hold)
+	}
+	delete(mapping, "[DUMMY]")
+	emit, hold = core.streamRestore(hold+"MY]", false)
+	if emit != "Alice" || hold != "" {
+		t.Fatalf("request snapshot lost: %q, %q", emit, hold)
+	}
+	if got := core.restore("[DUMMY]"); got != "Alice" {
+		t.Fatal("final text differs from request snapshot")
+	}
+	if got := core.restoreJSON("[DUMMY]"); got != "Alice" {
+		t.Fatal("JSON differs from request snapshot")
+	}
+	if got, _ := core.streamRestore("[DUMMY]", true); got != "Alice" {
+		t.Fatal("streamed JSON differs from request snapshot")
+	}
+}
+
+func TestStreamSnapshotRestoredOnFlush(t *testing.T) {
+	core := newRestoreCore(map[string]string{"dummy": "Alice", "dummy suffix": "Bob"})
+	for _, jsonCtx := range []bool{false, true} {
+		// A complete shorter dummy is held while a longer dummy might still arrive.
+		emit, hold := core.streamRestore("dummy", jsonCtx)
+		if emit != "" || hold != "dummy" {
+			t.Fatalf("expected held prefix, got %q %q", emit, hold)
+		}
+		if got := core.flushCarry(hold, jsonCtx); got != "Alice" {
+			t.Fatalf("request snapshot lost during flush: %q", got)
+		}
+	}
+}

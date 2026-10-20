@@ -2,12 +2,38 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 )
+
+func TestInvalidPIISettingsRootPreservesConfiguredSettings(t *testing.T) {
+	for _, body := range []string{"null", " \n null \t", "", " \n ", "[]", "42"} {
+		t.Run(body, func(t *testing.T) {
+			redirectDataDir(t)
+			writeLegacyPIISettings(t, &PIISettings{})
+			if err := os.WriteFile(PIISettingsPath(), []byte(body), 0600); err != nil {
+				t.Fatal(err)
+			}
+			cfg := DefaultConfig()
+			cfg.DisabledEntities = []string{"EMAIL"}
+			cfg.CustomRegexes = []RegexPatternConfig{{Name: "EMPLOYEE", Pattern: "EMP-[0-9]+"}}
+			before := *cfg
+			if err := loadMigratedSettingsForTest(cfg); !errors.Is(err, ErrMalformedPIISettings) {
+				t.Fatalf("invalid settings accepted: %v", err)
+			}
+			if !reflect.DeepEqual(cfg.DisabledEntities, before.DisabledEntities) || !reflect.DeepEqual(cfg.CustomRegexes, before.CustomRegexes) {
+				t.Fatal("invalid root erased configured settings")
+			}
+			if cfg.StartupMappingExpiration() != nil {
+				t.Fatal("invalid settings replaced database policy or provenance")
+			}
+		})
+	}
+}
 
 // redirectDataDir points paths.AppDataDir() (and thus the PII settings/profile
 // paths) at a fresh
@@ -82,4 +108,51 @@ func TestLoadPIISettings_MalformedReturnsError(t *testing.T) {
 	} else if !strings.Contains(err.Error(), "parse") {
 		t.Errorf("error = %q, want it to mention 'parse'", err)
 	}
+}
+
+func TestPIISettingsIgnoreUnrelatedExpirationField(t *testing.T) {
+	for _, expiration := range []string{`{"ttl_seconds":-1}`, `{"ttl_seconds":"bad"}`, `{"ttl_seconds":null}`, `{"ttl_seconds":2147483648}`, `{"enabled":false}`, `false`, `[]`} {
+		t.Run(expiration, func(t *testing.T) {
+			redirectDataDir(t)
+			if err := os.MkdirAll(filepath.Dir(PIISettingsPath()), 0700); err != nil {
+				t.Fatal(err)
+			}
+			body := `{"mapping_expiration":` + expiration + `,"disabled_entities":["EMAIL"],"custom_regexes":[{"name":"EMPLOYEE_ID","pattern":"EMP-[0-9]+"}]}`
+			if err := os.WriteFile(PIISettingsPath(), []byte(body), 0600); err != nil {
+				t.Fatal(err)
+			}
+			saved, err := LoadPIISettings()
+			if err != nil || saved == nil {
+				t.Fatalf("unrelated field interfered with settings: %+v %v", saved, err)
+			}
+			if !reflect.DeepEqual(saved.DisabledEntities, []string{"EMAIL"}) || len(saved.CustomRegexes) != 1 {
+				t.Fatalf("valid settings discarded: %+v", saved)
+			}
+			cfg := DefaultConfig()
+			if err := loadMigratedSettingsForTest(cfg); err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(cfg.DisabledEntities, saved.DisabledEntities) || !reflect.DeepEqual(cfg.CustomRegexes, saved.CustomRegexes) {
+				t.Fatal("startup ignored valid fields")
+			}
+			if cfg.StartupMappingExpiration() != nil {
+				t.Fatal("bad expiration replaced saved database policy")
+			}
+			after, err := os.ReadFile(PIISettingsPath())
+			if err != nil || string(after) != body {
+				t.Fatal("read changed settings file")
+			}
+		})
+	}
+}
+
+// Exercise the profile migration path while retaining expiration independence checks.
+func loadMigratedSettingsForTest(cfg *Config) error {
+	profiles, err := LoadOrMigratePIIProfiles(cfg)
+	if err != nil {
+		return err
+	}
+	cfg.DisabledEntities = profiles.Profiles[0].DisabledEntities
+	cfg.CustomRegexes = profiles.Profiles[0].CustomRegexes
+	return nil
 }

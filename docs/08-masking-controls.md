@@ -12,6 +12,7 @@ This chapter covers the controls that decide **what** Kiji masks and let you **r
 
 - [Where to find these controls](#where-to-find-these-controls)
 - [PII profiles](#pii-profiles)
+- [Mapping expiration](#mapping-expiration)
 - [PII detection sensitivity](#pii-detection-sensitivity)
 - [Choosing which entities to mask](#choosing-which-entities-to-mask)
 - [Custom regex patterns](#custom-regex-patterns)
@@ -74,6 +75,146 @@ A request that names a profile that doesn't exist is **rejected with HTTP 400** 
 Profiles are stored in `pii_profiles.json` in the application data directory. On the first start after upgrading, Kiji creates a `Default` profile (ID `default`) from your previous settings in `pii_settings.json`. The old file is left in place.
 
 ---
+
+## Mapping expiration
+
+On fresh installs, mappings expire **300 seconds after creation** by default. Set the duration as a
+whole number of seconds (0–2147483647). **0 disables expiration**; any positive
+value enables it. Both apps have one lifetime field, with no separate toggle:
+
+- **Mac app:** Settings → PII Settings → Mapping expiration → Save expiration settings.
+- **Chrome extension:** Settings → Mapping expiration → Save expiration settings.
+- **Linux server:** add this block to the JSON file passed to `-config`:
+
+```json
+{
+  "mapping_expiration": {
+    "ttl_seconds": 300
+  }
+}
+```
+
+Both UIs read and change the connected server's policy, so it applies to all its
+clients. Changes take effect without restarting and apply to existing mappings
+based on their original creation time. SQLite is the single source of truth for
+the policy. UI changes are saved directly to the database. An explicit
+`mapping_expiration` in the config updates the database policy at startup;
+omitting it keeps the saved value. A new database defaults to 300 seconds.
+The development config omits this setting so UI changes survive app restarts.
+Applying a shorter TTL or enabling expiration at startup deletes mappings already
+past that lifetime, just as a UI save does; startup logs report changes to the saved policy.
+`pii_profiles.json` stores detection profiles (migrated from `pii_settings.json`), so a missing, malformed,
+or unreadable settings file cannot reset or prevent saving expiration settings.
+An omitted duration defaults to 300 seconds; negative, fractional, and excessive
+durations are rejected. An unreadable or invalid explicit `-config` file stops
+startup instead of silently using defaults. There is no `enabled` parameter.
+Saving entity or regex settings does not change the database policy.
+
+The Mac settings refresh when the window regains focus or becomes visible, and
+every five seconds while Settings remains visible. A
+refresh preserves unsaved edits; if another client changed the policy, choose
+**Use server settings** or **Keep my edits** before saving. Saves check the policy
+the editor originally loaded, so changes arriving just before a save are also
+detected. Chrome reports conflicting saves and lets you reload the server settings.
+Mac settings requests time out after ten seconds, allowing polling to recover
+without discarding drafts. Superseded requests are cancelled, and late responses
+cannot overwrite newer settings. A timed-out save remains uncertain until a
+refresh confirms it. If a later retry receives a definite server error, the UI
+shows that error while still reconciling the earlier save and preserving newer edits.
+
+The Mac app exposes the shared lifetime in seconds:
+
+![Mapping expiration enabled with the default 300-second lifetime](images/mapping-expiration-settings.jpg)
+
+If another client saves 45 seconds while the Mac app has an unsaved 90-second
+draft, the draft is preserved and saving pauses until the conflict is resolved:
+
+![Unsaved 90-second draft preserved after another client saves 45 seconds](images/mapping-expiration-conflict.jpg)
+
+Expiration is checked when a masking request or standalone unmask operation
+starts, on global mapping lookups, on mapping list/count reads, and on policy
+changes. A policy
+change removes rows expired under either the old or new policy in one
+transaction; extending or disabling expiration cannot revive them. The previous
+policy is retained in the database so changing the config during a restart
+cannot revive them either. A background cleanup runs every second, independently
+of request traffic, and retries after database contention. This removes expired
+rows even on idle servers; it does not guarantee immediate secure erasure from
+SQLite files or backups. Active request snapshots retain their original view. Masking
+an expired original creates a new mapping. Unmasking an expired dummy returns
+not found. Reads do not renew
+the lifetime. Turning expiration off retains mappings until they are deleted;
+it does not recover expired rows. This setting controls mappings, not the
+separate activity logs.
+
+Placeholders become reusable when their mappings expire or are deleted. If a
+candidate belongs to another live mapping, Kiji retries the generator up to eight
+times before using a fresh opaque `[REDACTED_…]` token. A repeated candidate
+immediately triggers that fallback without another lookup of the same value. No permanent reservation
+table is retained. A standalone unmask of an old placeholder can therefore return
+a newer person's value after reuse. Active responses still use their own saved
+pairs and restore the original person, even if the placeholder has been reassigned.
+Existing live mappings keep their placeholders during migration.
+
+Each proxied request takes a mapping snapshot before detection and uses it
+across all message fields. The mappings actually used by that request remain
+available in memory through the upstream wait and the complete response,
+including streamed deltas, final payloads, tool arguments, and buffered replies.
+Expiration, deletion, or an expiration-settings change during the request does
+not change those mappings. After the request finishes, its snapshot is discarded;
+a later request or standalone unmask call cannot reuse an expired pair. A
+standalone batch unmask also uses one snapshot for its whole operation.
+
+The database snapshot stays open only during detection and masking. Indexed
+lookups read just the detected values, and a per-request cache reuses them across
+fields. Before waiting for the upstream response, the database snapshot closes;
+only used pairs remain in the response map. Standalone unmasking likewise reads
+only the requested dummy values and returns a service error if the database read
+fails, rather than reporting those values as missing.
+
+Read connections are capped at 16. Acquisition occurs before detection, observes
+request cancellation, and waits at most five seconds for a slot. This acquisition
+deadline does not shorten an acquired snapshot's lifetime. Exhausted acquisition
+or failed mapping reads return HTTP 503 without forwarding the request.
+Cancellation stops remaining lookups and mapping creation. Long detection inference can
+still delay WAL checkpoints; snapshots close before the upstream wait.
+
+Taking a snapshot is read-only. Each reused pair is counted once per masking
+request or standalone unmask batch. Counts are updated in one best-effort batch
+by a background worker after closing the snapshot. Requests never wait for this
+write. The worker uses a separate connection with a fixed 100-millisecond busy
+timeout and a 100-millisecond operation budget. Its queue holds at most 64 batches;
+batches exceeding 1024 pairs or 128 KiB are skipped. Counts may be dropped under
+load or at shutdown, but cannot discard resolved unmask results.
+Response restoration does not touch the database or inflate access statistics.
+In addition to periodic cleanup, mapping creation, list/count reads, and policy
+changes retire expired rows. Missing or expired snapshot
+lookups do not issue cleanup writes.
+The request snapshot neither renews timestamps nor recreates expired rows.
+Stream audit logs capture exactly the restored deltas and flushed tails emitted
+to the client, without duplicating final payloads.
+
+For automation, `GET /api/pii/mapping-expiration` returns the active
+`{ "ttl_seconds": 300 }` policy. `POST` to the same endpoint with
+`{ "ttl_seconds": 0 }` to disable expiration, or a positive duration to enable it.
+The route is available on both proxy ports.
+It uses the same CORS handling as the other API endpoints.
+Interactive clients also send an `expected` object containing the last loaded
+`ttl_seconds` value. If this differs from the current policy, the
+server returns HTTP 409 with the current policy and makes no changes. Omitting
+`expected` allows unconditional updates for automation.
+
+---
+
+A save with an unconfirmed response may already have been applied. The Mac app
+explains this uncertainty and checks the server before retrying. When the server
+matches the submitted policy, the app accepts it while preserving any newer
+local edits. Different server settings still require conflict resolution.
+
+Entity and regex saves report persistence errors and restore the previous runtime
+values on failure. A malformed settings file can be repaired by saving entity or
+regex settings; the expiration policy remains in SQLite.
+Saving replaces the file without reading it first; write failures are reported.
 
 ## PII detection sensitivity
 

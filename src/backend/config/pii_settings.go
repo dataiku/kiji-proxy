@@ -1,13 +1,18 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/dataiku/kiji-proxy/src/backend/paths"
 )
+
+// ErrMalformedPIISettings distinguishes repairable JSON from filesystem failures.
+var ErrMalformedPIISettings = errors.New("malformed PII settings")
 
 // PIISettingsFileName is the name of the legacy (pre-profiles) PII settings
 // file. It is only read to migrate into the default PII profile; see
@@ -28,7 +33,7 @@ func PIISettingsPath() string {
 
 // LoadPIISettings reads the persisted PII settings. It returns (nil, nil) when
 // the file does not exist yet (first run), so callers fall back to config
-// defaults. A malformed file is reported as an error rather than silently reset.
+// defaults. Malformed JSON and I/O failures return nil settings with an error.
 func LoadPIISettings() (*PIISettings, error) {
 	path := PIISettingsPath()
 	data, err := os.ReadFile(path) // #nosec G304 — path derived from app data dir, not user input
@@ -38,9 +43,12 @@ func LoadPIISettings() (*PIISettings, error) {
 		}
 		return nil, fmt.Errorf("read %s: %w", path, err)
 	}
-	var s PIISettings
-	if err := json.Unmarshal(data, &s); err != nil {
-		return nil, fmt.Errorf("parse %s: %w", path, err)
+	if bytes.Equal(bytes.TrimSpace(data), []byte("null")) {
+		return nil, fmt.Errorf("%w: %s must contain a JSON object", ErrMalformedPIISettings, path)
 	}
-	return &s, nil
+	s := &PIISettings{}
+	if err := json.Unmarshal(data, s); err != nil {
+		return nil, fmt.Errorf("%w: parse %s: %w", ErrMalformedPIISettings, path, err)
+	}
+	return s, nil
 }

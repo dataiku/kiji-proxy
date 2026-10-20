@@ -3,8 +3,10 @@ package main
 import (
 	"embed"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"io/fs"
 	"log"
 	"os"
@@ -81,7 +83,9 @@ func run(configPath *string) error {
 	cfg := config.DefaultConfig()
 
 	if *configPath != "" {
-		loadConfigFromFile(*configPath, cfg)
+		if err := loadConfigFromFile(*configPath, cfg); err != nil {
+			return err
+		}
 	}
 	loadConfigFromEnv(cfg)
 	expandConfigPaths(cfg)
@@ -153,12 +157,11 @@ func run(configPath *string) error {
 }
 
 // loadConfigFromFile loads configuration from a JSON file
-func loadConfigFromFile(path string, cfg *config.Config) {
+func loadConfigFromFile(path string, cfg *config.Config) error {
 	// #nosec G304 - Config file path is controlled by application, not user input
 	file, err := os.Open(path)
 	if err != nil {
-		log.Printf("Failed to open config file: %v", err)
-		return
+		return fmt.Errorf("open config file: %w", err)
 	}
 	defer func() {
 		if err := file.Close(); err != nil {
@@ -168,8 +171,19 @@ func loadConfigFromFile(path string, cfg *config.Config) {
 
 	decoder := json.NewDecoder(file)
 	if err := decoder.Decode(cfg); err != nil {
-		log.Printf("Failed to decode config file: %v", err)
+		return fmt.Errorf("decode config file: %w", err)
 	}
+	if err := decoder.Decode(new(interface{})); err != io.EOF {
+		if err != nil {
+			var syntax *json.SyntaxError
+			if errors.As(err, &syntax) {
+				return fmt.Errorf("decode trailing config content at byte %d: %w", syntax.Offset, err)
+			}
+			return fmt.Errorf("decode trailing config content: %w", err)
+		}
+		return fmt.Errorf("config file must contain exactly one JSON object")
+	}
+	return nil
 }
 
 // expandConfigPaths normalizes all path-bearing fields on the config in place,

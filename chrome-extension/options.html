@@ -74,6 +74,27 @@
         </div>
       </div>
 
+      <div class="card" id="mapping-expiration-card">
+        <header class="card-header">
+          <div class="card-title"><span class="card-name">Mapping expiration</span></div>
+        </header>
+        <div class="card-body">
+          <form id="expiration-form">
+            <fieldset id="expiration-fields" disabled>
+              <div class="form-group">
+                <label for="expiration-seconds">Lifetime (seconds)</label>
+                <input id="expiration-seconds" class="input-mono" type="number" min="0" max="2147483647" step="1" value="300" required />
+                <p class="form-help">Default: 300 seconds from creation. Set to 0 to disable expiration. Applies to all clients and existing mappings. Active requests keep their mappings until the response finishes.</p>
+                <p class="form-help">Changes are saved in the server's database. An explicit mapping_expiration setting in the server config replaces this value on every restart; otherwise your saved value is kept.</p>
+              </div>
+              <button type="submit" class="btn-primary">Save expiration settings</button>
+            </fieldset>
+            <button type="button" id="expiration-reload" class="link">Reload settings</button>
+            <span id="expiration-status" class="save-status" role="status"></span>
+          </form>
+        </div>
+      </div>
+
       <div class="card" id="pii-profile-card">
         <header class="card-header">
           <div class="card-title">

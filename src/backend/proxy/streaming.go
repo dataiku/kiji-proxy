@@ -129,6 +129,8 @@ type streamCodec interface {
 	// maskedOutput returns the raw model output (pre-restore) accumulated across
 	// the stream, for audit logging.
 	maskedOutput() string
+	// restoredOutput is captured as deltas and tails are emitted, never recomputed.
+	restoredOutput() string
 }
 
 // restoreCore holds the provider-agnostic restore state shared by every codec:
@@ -143,6 +145,7 @@ type restoreCore struct {
 	replacer     *strings.Replacer // single-pass plain restorer (audit / final flush)
 	jsonReplacer *strings.Replacer // single-pass restorer with JSON-escaped originals
 	keep         int               // longest dummy length - 1 (max possible hold-back)
+	restored     strings.Builder   // transformed deltas/tails, excluding repeated done payloads
 	masked       strings.Builder   // raw model output (pre-restore), accumulated for logging
 }
 
@@ -217,6 +220,7 @@ func (c *restoreCore) restoreJSON(text string) string {
 // an incomplete trailing UTF-8 rune is withheld, and text is only ever split on
 // rune boundaries so multi-byte characters are never corrupted.
 func (c *restoreCore) streamRestore(buf string, jsonCtx bool) (emit, hold string) {
+	defer func() { c.restored.WriteString(emit) }()
 	vals := c.vals
 	if jsonCtx {
 		vals = c.jsonVals
@@ -261,11 +265,17 @@ func (c *restoreCore) streamRestore(buf string, jsonCtx bool) (emit, hold string
 // terminates (content_block_stop / *.done / stream EOF) and no more input can
 // complete a partial placeholder.
 func (c *restoreCore) flushCarry(raw string, jsonCtx bool) string {
+	var emitted string
 	if jsonCtx {
-		return c.jsonReplacer.Replace(raw)
+		emitted = c.restoreJSON(raw)
+	} else {
+		emitted = c.restore(raw)
 	}
-	return c.replacer.Replace(raw)
+	c.restored.WriteString(emitted)
+	return emitted
 }
+
+func (c *restoreCore) restoredOutput() string { return c.restored.String() }
 
 func (c *restoreCore) maskedOutput() string {
 	return c.masked.String()
