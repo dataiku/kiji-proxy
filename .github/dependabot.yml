@@ -40,7 +40,9 @@ updates:
     labels:
       - "dependencies"
       - "javascript"
-    # Dependabot assigns each dependency to the first matching group
+    # Keep groups disjoint: without exclude-patterns, Dependabot put
+    # @tailwindcss/postcss and the native pins in the dev/prod groups instead of
+    # tailwind-css (#639, #641, #642).
     groups:
       # Keep Tailwind/lightningcss and their pinned native binaries in lockstep
       tailwind-css:
@@ -54,9 +56,25 @@ updates:
       development-dependencies:
         dependency-type: "development"
         update-types: ["minor", "patch"]
+        exclude-patterns:
+          - "tailwindcss"
+          - "@tailwindcss/*"
+          - "lightningcss"
+          - "lightningcss-*"
       production-dependencies:
         dependency-type: "production"
         update-types: ["minor", "patch"]
+        exclude-patterns:
+          - "tailwindcss"
+          - "@tailwindcss/*"
+          - "lightningcss"
+          - "lightningcss-*"
+    ignore:
+      # The lightningcss-* pins in src/frontend/package.json (#583) must match
+      # the lightningcss version that @tailwindcss/node pins, not the latest
+      # release. Bump them by hand; .github/scripts/check-native-pins.js fails
+      # CI when they drift.
+      - dependency-name: "lightningcss-*"
 
   # Go modules
   - package-ecosystem: "gomod"

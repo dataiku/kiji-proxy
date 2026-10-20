@@ -102,6 +102,9 @@ jobs:
           cache: "npm"
           cache-dependency-path: "package-lock.json"
 
+      - name: Check native binary pins
+        run: node .github/scripts/check-native-pins.js
+
       - name: Install dependencies
         working-directory: src/frontend
         run: npm ci
