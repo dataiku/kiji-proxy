@@ -1,12 +1,7 @@
 // TypeScript declarations for Electron API exposed via preload script
 
 // Provider types for multi-provider support
-type ProviderType =
-  | "openai"
-  | "anthropic"
-  | "gemini"
-  | "mistral"
-  | "custom";
+type ProviderType = "openai" | "anthropic" | "gemini" | "mistral" | "custom";
 
 interface ProviderSettings {
   hasApiKey: boolean;
@@ -64,9 +59,7 @@ interface ElectronAPI {
   ) => Promise<{ success: boolean; error?: string }>;
   // Admin flag
   getAdmin: () => Promise<boolean>;
-  setAdmin: (
-    admin: boolean
-  ) => Promise<{ success: boolean; error?: string }>;
+  setAdmin: (admin: boolean) => Promise<{ success: boolean; error?: string }>;
 
   // Telemetry (crash & error reporting) opt-in. Off by default.
   getTelemetryEnabled: () => Promise<boolean>;
@@ -98,34 +91,6 @@ interface ElectronAPI {
   getTransparentProxyEnabled: () => Promise<boolean>;
   setTransparentProxyEnabled: (
     enabled: boolean
-  ) => Promise<{ success: boolean; error?: string }>;
-
-  // PII detection confidence threshold
-  getEntityConfidence: () => Promise<number>;
-  setEntityConfidence: (
-    confidence: number
-  ) => Promise<{ success: boolean; error?: string }>;
-
-  // PII entities to mask. The stored value is the exclusion list (types left
-  // unmasked); empty means "mask everything".
-  getAvailableEntities: () => Promise<{
-    available?: string[];
-    disabled?: string[];
-    error?: string;
-  }>;
-  getDisabledEntities: () => Promise<string[] | null>;
-  setDisabledEntities: (
-    entities: string[]
-  ) => Promise<{ success: boolean; error?: string }>;
-
-  // PII custom regex patterns (name + pattern), read live from / written to the
-  // backend regex detector. Name is used as the detected entity type.
-  getCustomRegexes: () => Promise<{
-    regexes?: Array<{ name: string; pattern: string }>;
-    error?: string;
-  }>;
-  setCustomRegexes: (
-    regexes: Array<{ name: string; pattern: string }>
   ) => Promise<{ success: boolean; error?: string }>;
 
   // Platform and version info

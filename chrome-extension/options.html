@@ -95,69 +95,28 @@
         </div>
       </div>
 
-      <div class="card" id="pii-types-card">
+      <div class="card" id="pii-profile-card">
         <header class="card-header">
           <div class="card-title">
-            <span class="card-name">PII entity types</span>
-            <span class="card-sub">Uncheck types you want to leave unmasked</span>
+            <span class="card-name">PII profile</span>
+            <span class="card-sub">Detection settings applied to your prompts</span>
           </div>
-          <a href="#" id="toggle-all" class="link">Disable all</a>
         </header>
         <div class="card-body">
-          <div id="label-grid" class="label-grid">
-            <span class="label-loading">Loading entity types…</span>
+          <div class="form-group">
+            <label for="pii-profile">Profile</label>
+            <select id="pii-profile">
+              <option value="">Server default</option>
+            </select>
+            <p class="form-help">
+              Profiles (which entity types to mask, sensitivity and custom
+              patterns) are managed in the Kiji app under Settings → PII
+              Detection. “Server default” follows whichever profile is the
+              default there.
+            </p>
           </div>
           <div class="form-actions">
-            <button id="save-labels-btn" type="button" class="btn-primary">
-              Save
-            </button>
-            <span id="labels-status" class="save-status" role="status"></span>
-          </div>
-        </div>
-      </div>
-
-      <div class="card" id="patterns-card">
-        <header class="card-header">
-          <div class="card-title">
-            <span class="card-name">Custom patterns</span>
-            <span class="card-sub">Domain-specific regex rules applied on top of the model</span>
-          </div>
-        </header>
-        <div class="card-body">
-          <form id="pattern-form" class="pattern-form" autocomplete="off">
-            <div class="pattern-form-row">
-              <input
-                type="text"
-                id="pattern-name"
-                class="input-mono"
-                placeholder="NAME"
-                title="Name for this entity type (e.g. EMPLOYEE_ID)"
-                required
-              />
-              <input
-                type="text"
-                id="pattern-regex"
-                class="input-mono"
-                placeholder="Regex"
-                title="Regular expression pattern (e.g. EMP-\d{6})"
-                required
-              />
-              <button type="submit" class="btn-primary">Add</button>
-            </div>
-            <div class="pattern-preview-row">
-              <input
-                type="text"
-                id="pattern-sample"
-                class="input-mono"
-                placeholder="Sample text to test against"
-              />
-              <span id="pattern-preview-result" class="pattern-preview-result"></span>
-            </div>
-            <p id="pattern-regex-error" class="form-help pattern-error"></p>
-          </form>
-
-          <div id="pattern-list" class="pattern-list">
-            <span class="label-loading">Loading patterns…</span>
+            <span id="profile-status" class="save-status" role="status"></span>
           </div>
         </div>
       </div>

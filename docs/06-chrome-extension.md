@@ -56,7 +56,7 @@ chrome-extension/
 ├── content.js         # Content script: intercepts input, calls API, shows PII modal
 ├── styles.css         # Modal and toast styles (injected into target pages)
 ├── popup.html/js/css  # Extension popup: connection status, stats
-├── options.html/js/css# Settings page: backend URL, intercept domains, PII entity types, custom patterns
+├── options.html/js/css# Settings page: backend URL, intercept domains, PII profile
 └── icons/             # Extension icons (16, 48, 128)
 ```
 
@@ -73,8 +73,7 @@ All settings are accessible via the extension's options page (right-click extens
 
 - **Backend URL** — The Kiji Privacy Proxy server address (default: `http://localhost:8081`)
 - **Intercept domains** — URL match patterns where the extension is active (one per line)
-- **PII entity types** — Checkbox grid of the entity types the active model can detect (fetched from `GET /api/pii/entities`). Unchecking a type adds it to the backend's `disabled` (passthrough) set so it is left unmasked; the selection is saved with `POST /api/pii/entities`. The set is stored server-side, so it also applies to the proxy pipeline and the Linux server.
-- **Custom patterns** — Add named regular expressions (`name` + `pattern`) that are masked on top of the model's detections. A live preview tests the regex against sample text before saving. Patterns are read from `GET /api/pii/regexes` and the whole set is replaced with `POST /api/pii/regexes` on each add/remove. Each custom name also becomes a selectable entity type in the grid above.
+- **PII profile** — Which [PII profile](08-masking-controls.md#pii-profiles) to apply to your prompts. The list comes from `GET /api/pii/profiles`. The chosen profile ID is stored locally and sent as `profile` with every `/api/pii/check` call. **Server default** follows whichever profile is the default in the Kiji app. Profiles themselves (sensitivity, entity types to mask, custom patterns) are edited in the Kiji app under **Settings → PII Detection**. If the chosen profile is later deleted, checks fail with an "unknown PII profile" error until you pick another one.
 
 Default domains:
 ```
@@ -182,7 +181,7 @@ Required for any extension that handles user data. Host it at a public URL (GitH
 
 - **What data is collected:** Text from chat input fields on configured domains, only at the moment of submission
 - **Where data is sent:** To a user-configured backend server (default: localhost). No data is sent to third parties.
-- **What is stored:** The extension stores settings (backend URL, domain list) and session statistics (check count, masked PII entity count) locally. No message content is stored.
+- **What is stored:** The extension stores settings (backend URL, domain list, PII profile ID) and session statistics (check count, masked PII entity count) locally. No message content is stored.
 - **Data retention:** Session statistics are cleared on extension reinstall. No message content is retained.
 - **User control:** Users choose which domains are intercepted and where data is sent. All PII checking can be bypassed via "Send Anyway."
 

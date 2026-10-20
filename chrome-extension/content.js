@@ -287,6 +287,7 @@
   // Last error message returned by the background worker, surfaced in the
   // toast so users can diagnose without opening devtools.
   let lastCheckError = null;
+  let blockSubmission = false;
   let contextInvalidated = false;
 
   function countMaskedEntities(result) {
@@ -320,6 +321,7 @@
   // Check for PII via background script (to avoid CORS issues)
   async function checkPII(text) {
     lastCheckError = null;
+    blockSubmission = false;
 
     if (!isExtensionAlive()) {
       lastCheckError = "Extension context invalidated — reload the page";
@@ -341,6 +343,7 @@
       }
 
       if (!response.success) {
+        blockSubmission = response.blockSubmission === true || response.status === 400;
         lastCheckError = response.error || "Unknown error";
         console.error(
           "Kiji Privacy Proxy Extension: API error",
@@ -364,6 +367,9 @@
   // Handle submit button click
   async function handleSubmit(event) {
     if (isChecking) {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
       return;
     }
 
@@ -392,6 +398,13 @@
       const result = await checkPII(text);
 
       if (result === null) {
+        if (blockSubmission) {
+          showToast(
+            `Message not sent: ${lastCheckError}. Choose a valid PII profile in the extension settings and try again.`,
+            "warning"
+          );
+          return;
+        }
         if (contextInvalidated) {
           // Don't silently bypass PII checks — detachListeners() was already
           // called, so the user's next click goes straight to ChatGPT's own

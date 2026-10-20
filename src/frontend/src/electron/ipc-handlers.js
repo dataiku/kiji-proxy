@@ -513,66 +513,6 @@ const registerIpcHandlers = ({
         notifyBackendBestEffort("/api/proxy/transparent/toggle", { enabled }),
     }
   );
-
-  // ---- PII Detection Confidence Threshold ----
-  defineConfigField(
-    "entityConfidence",
-    "get-entity-confidence",
-    "set-entity-confidence",
-    {
-      defaultValue: 0.25,
-      onChange: (confidence) =>
-        notifyBackendBestEffort("/api/pii/confidence", { confidence }),
-    }
-  );
-
-  // ---- PII Entities to Mask ----
-  // Persist the exclusion list — the entity types to leave UNMASKED — and push
-  // it to the backend on change. Storing the exclusion (rather than the masked
-  // set) is deliberate: null/empty means "nothing excluded, mask everything", so
-  // the default and any accidental clearing fail closed toward masking.
-  defineConfigField(
-    "disabledEntities",
-    "get-disabled-entities",
-    "set-disabled-entities",
-    {
-      defaultValue: null,
-      onChange: (disabled) =>
-        notifyBackendBestEffort("/api/pii/entities", { disabled }),
-    }
-  );
-
-  // The full set of selectable entity types comes from the loaded model, so it
-  // is read live from the backend rather than persisted in the config.
-  ipcMain.handle("get-available-entities", async () => {
-    try {
-      return await backendRequest("GET", "/api/pii/entities");
-    } catch (error) {
-      console.error("Error getting available entities:", error);
-      return { error: error.message };
-    }
-  });
-
-  // ---- PII Custom Regexes ----
-  // The regex detector is the source of truth (seeded from the backend config),
-  // so patterns are read live from the backend and written straight through.
-  ipcMain.handle("get-custom-regexes", async () => {
-    try {
-      return await backendRequest("GET", "/api/pii/regexes");
-    } catch (error) {
-      console.error("Error getting custom regexes:", error);
-      return { error: error.message };
-    }
-  });
-
-  ipcMain.handle("set-custom-regexes", async (_event, regexes) => {
-    try {
-      return await backendRequest("POST", "/api/pii/regexes", { regexes });
-    } catch (error) {
-      console.error("Error setting custom regexes:", error);
-      return { success: false, error: error.message };
-    }
-  });
 };
 
 module.exports = { registerIpcHandlers };

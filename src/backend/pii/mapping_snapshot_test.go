@@ -82,8 +82,10 @@ func TestMaskingSnapshotTakenBeforeDetection(t *testing.T) {
 func TestMaskingSessionKeepsNewMappingsAcrossFields(t *testing.T) {
 	db := newTestDB(t)
 	mapping := NewPIIMappingWithDB(db, true)
-	svc := NewMaskingService(&stubDetectorProvider{detector: &stubDetector{entities: []detectors.Entity{entity("Alice", "FIRSTNAME", 0, 5)}}}, NewGeneratorService(), mapping)
-	request, err := svc.BeginRequest(context.Background())
+	detector := &stubDetector{entities: []detectors.Entity{entity("Alice", "FIRSTNAME", 0, 5)}}
+	svc := NewMaskingService(&stubDetectorProvider{detector: detector}, NewGeneratorService(), mapping)
+	profile := resolveTestProfile(t, config.PIIProfile{Confidence: 0.6})
+	request, err := svc.BeginRequest(context.Background(), profile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,6 +96,12 @@ func TestMaskingSessionKeepsNewMappingsAcrossFields(t *testing.T) {
 		t.Fatal(err)
 	}
 	second := request.MaskText("Alice", "second field")
+	if err := request.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if detector.lastInput.EntityConfidenceThreshold != profile.Confidence {
+		t.Fatal("mapping snapshot lost the request's profile threshold")
+	}
 	if first.MaskedText != second.MaskedText {
 		t.Fatalf("fields used different generations: %q / %q", first.MaskedText, second.MaskedText)
 	}

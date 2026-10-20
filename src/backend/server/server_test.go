@@ -395,213 +395,92 @@ func TestHandlePIICheck_ConcurrentRequestsFromDistinctIPs(t *testing.T) {
 	}
 }
 
-// --- handlePIIConfidence ---
-
-func TestHandlePIIConfidence_GetReturnsDefault(t *testing.T) {
-	s := newTestServer(t)
-	req := httptest.NewRequest(http.MethodGet, "/api/pii/confidence", nil)
-	rec := httptest.NewRecorder()
-	s.handlePIIConfidence(rec, req)
-
-	var body struct {
-		Confidence float64 `json:"confidence"`
+// Profile endpoints supersede the legacy confidence/entities/regex mutation APIs.
+func TestHandleProfiles_SettingsRoundTrip(t *testing.T) {
+	s := newTestServer(t, withCustomRegexes(config.RegexPatternConfig{Name: "EMPLOYEEID", Pattern: `EMP-\d{4}`}))
+	path := piiProfilesPath + "/" + s.handler.Profiles().DefaultID()
+	get := httptest.NewRecorder()
+	s.handlePIIProfiles(get, httptest.NewRequest(http.MethodGet, path, nil))
+	var initial config.PIIProfile
+	decodeJSON(t, get, &initial)
+	if initial.Confidence != config.DefaultPIIConfidence || len(initial.CustomRegexes) != 1 {
+		t.Fatalf("initial profile: %+v", initial)
 	}
-	decodeJSON(t, rec, &body)
-	// Compare against the handler rather than a copied literal, so a change to
-	// the model's default threshold doesn't break this test for no reason.
-	if want := s.handler.GetEntityConfidenceThreshold(); body.Confidence != want {
-		t.Errorf("default confidence = %v, want %v", body.Confidence, want)
-	}
-}
-
-func TestHandlePIIConfidence_PostValidValueRoundTrips(t *testing.T) {
-	s := newTestServer(t)
-	postReq := httptest.NewRequest(http.MethodPost, "/api/pii/confidence", strings.NewReader(`{"confidence":0.5}`))
-	postRec := httptest.NewRecorder()
-	s.handlePIIConfidence(postRec, postReq)
-	if postRec.Code != http.StatusOK {
-		t.Fatalf("POST status = %d, want 200", postRec.Code)
-	}
-
-	getReq := httptest.NewRequest(http.MethodGet, "/api/pii/confidence", nil)
-	getRec := httptest.NewRecorder()
-	s.handlePIIConfidence(getRec, getReq)
-	var body struct {
-		Confidence float64 `json:"confidence"`
-	}
-	decodeJSON(t, getRec, &body)
-	if body.Confidence != 0.5 {
-		t.Errorf("confidence after POST = %v, want 0.5 (the earlier POST did not take effect)", body.Confidence)
-	}
-}
-
-// TestHandlePIIConfidence_RangeBoundaries pins the inclusive [0.05, 0.95]
-// range enforced by handlePIIConfidence, right at its edges.
-func TestHandlePIIConfidence_RangeBoundaries(t *testing.T) {
-	s := newTestServer(t)
-	tests := []struct {
-		body string
-		want int
-	}{
-		{`{"confidence":0.05}`, http.StatusOK},
-		{`{"confidence":0.95}`, http.StatusOK},
-		{`{"confidence":0.049}`, http.StatusBadRequest},
-		{`{"confidence":0.951}`, http.StatusBadRequest},
-	}
-	for _, tt := range tests {
-		req := httptest.NewRequest(http.MethodPost, "/api/pii/confidence", strings.NewReader(tt.body))
+	for _, confidence := range []float64{0.05, 0.5, 0.95} {
+		initial.Confidence = confidence
+		initial.DisabledEntities = []string{"EMPLOYEEID"}
+		body, _ := json.Marshal(initial)
 		rec := httptest.NewRecorder()
-		s.handlePIIConfidence(rec, req)
-		if rec.Code != tt.want {
-			t.Errorf("body %s: status = %d, want %d", tt.body, rec.Code, tt.want)
+		s.handlePIIProfiles(rec, httptest.NewRequest(http.MethodPut, path, strings.NewReader(string(body))))
+		if rec.Code != http.StatusOK {
+			t.Fatalf("update: %d %s", rec.Code, rec.Body.String())
+		}
+		got, err := s.handler.Profiles().Get(initial.ID)
+		if err != nil || got.Confidence != confidence || len(got.DisabledEntities) != 1 {
+			t.Fatalf("saved profile: %+v %v", got, err)
 		}
 	}
 }
 
-func TestHandlePIIConfidence_MethodNotAllowed(t *testing.T) {
-	s := newTestServer(t)
-	req := httptest.NewRequest(http.MethodDelete, "/api/pii/confidence", nil)
-	rec := httptest.NewRecorder()
-	s.handlePIIConfidence(rec, req)
-	if rec.Code != http.StatusMethodNotAllowed {
-		t.Errorf("status = %d, want 405", rec.Code)
+func TestHandleProfiles_RejectInvalidSettings(t *testing.T) {
+	for _, body := range []string{
+		`{"name":"Default","confidence":0.049}`,
+		`{"name":"Default","confidence":0.951}`,
+		`not json`,
+		`{"name":"Default","custom_regexes":[{"name":"BAD","pattern":"(unclosed"}]}`,
+	} {
+		t.Run(body, func(t *testing.T) {
+			s := newTestServer(t)
+			rec := httptest.NewRecorder()
+			s.handlePIIProfiles(rec, httptest.NewRequest(http.MethodPut, piiProfilesPath+"/"+s.handler.Profiles().DefaultID(), strings.NewReader(body)))
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("status: %d %s", rec.Code, rec.Body.String())
+			}
+		})
 	}
 }
 
-// --- handlePIIEntities ---
-
-func TestHandlePIIEntities_GetListsAvailableAndDisabled(t *testing.T) {
-	s := newTestServer(t, withCustomRegexes(config.RegexPatternConfig{Name: "EMPLOYEEID", Pattern: `EMP-\d{4}`}))
-	req := httptest.NewRequest(http.MethodGet, "/api/pii/entities", nil)
+func TestHandleProfiles_RejectRegexWhenDetectorDisabled(t *testing.T) {
+	s := newTestServer(t, withoutRegexDetector())
 	rec := httptest.NewRecorder()
-	s.handlePIIEntities(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200", rec.Code)
+	s.handlePIIProfiles(rec, httptest.NewRequest(http.MethodPut, piiProfilesPath+"/"+s.handler.Profiles().DefaultID(), strings.NewReader(`{"name":"Default","custom_regexes":[{"name":"X","pattern":"x"}]}`)))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status: %d", rec.Code)
 	}
+}
+
+func TestHandlePIIEntities_GetListsAvailable(t *testing.T) {
+	s := newTestServer(t, withCustomRegexes(config.RegexPatternConfig{Name: "EMPLOYEEID", Pattern: `EMP-\d{4}`}))
+	rec := httptest.NewRecorder()
+	s.handlePIIEntities(rec, httptest.NewRequest(http.MethodGet, "/api/pii/entities", nil))
 	var body struct {
 		Available []string `json:"available"`
-		Disabled  []string `json:"disabled"`
 	}
 	decodeJSON(t, rec, &body)
-	found := false
-	for _, a := range body.Available {
-		if a == "EMPLOYEEID" {
-			found = true
-		}
-	}
-	if !found {
-		t.Errorf("expected EMPLOYEEID in available entity types, got %v", body.Available)
-	}
-	if len(body.Disabled) != 0 {
-		t.Errorf("expected no entities disabled by default, got %v", body.Disabled)
+	if len(body.Available) != 1 || body.Available[0] != "EMPLOYEEID" {
+		t.Fatalf("available: %v", body.Available)
 	}
 }
 
-// TestHandlePIIEntities_GetWhenModelUnavailableReturns503 uses a server with
-// no fallback detector at all (see withoutRegexDetector), so
-// GetAvailableEntityTypes() genuinely fails.
-func TestHandlePIIEntities_GetWhenModelUnavailableReturns503(t *testing.T) {
+func TestHandlePIIEntities_UnavailableModelReturnsEmptyLabels(t *testing.T) {
 	s := newTestServer(t, withoutRegexDetector())
-	req := httptest.NewRequest(http.MethodGet, "/api/pii/entities", nil)
 	rec := httptest.NewRecorder()
-	s.handlePIIEntities(rec, req)
-	if rec.Code != http.StatusServiceUnavailable {
-		t.Errorf("status = %d, want 503 when no detector is available", rec.Code)
-	}
-}
-
-func TestHandlePIIEntities_PostValidLabelPersists(t *testing.T) {
-	s := newTestServer(t, withCustomRegexes(config.RegexPatternConfig{Name: "EMPLOYEEID", Pattern: `EMP-\d{4}`}))
-	req := httptest.NewRequest(http.MethodPost, "/api/pii/entities", strings.NewReader(`{"disabled":["EMPLOYEEID"]}`))
-	rec := httptest.NewRecorder()
-	s.handlePIIEntities(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200 (body: %s)", rec.Code, rec.Body.String())
-	}
-	if got := s.handler.GetDisabledEntities(); len(got) != 1 || got[0] != "EMPLOYEEID" {
-		t.Errorf("GetDisabledEntities() = %v, want [EMPLOYEEID]", got)
-	}
-}
-
-// TestHandlePIIEntities_PostUnknownLabelRejected covers the validation that
-// keeps the disabled-entity selection meaningful: a label the loaded model
-// can't produce must be rejected rather than silently accepted.
-func TestHandlePIIEntities_PostUnknownLabelRejected(t *testing.T) {
-	s := newTestServer(t, withCustomRegexes(config.RegexPatternConfig{Name: "EMPLOYEEID", Pattern: `EMP-\d{4}`}))
-	req := httptest.NewRequest(http.MethodPost, "/api/pii/entities", strings.NewReader(`{"disabled":["NOT_A_REAL_LABEL"]}`))
-	rec := httptest.NewRecorder()
-	s.handlePIIEntities(rec, req)
-	if rec.Code != http.StatusBadRequest {
-		t.Errorf("status = %d, want 400 for an unrecognized entity label", rec.Code)
-	}
-}
-
-func TestHandlePIIEntities_PostMalformedJSON(t *testing.T) {
-	s := newTestServer(t)
-	req := httptest.NewRequest(http.MethodPost, "/api/pii/entities", strings.NewReader(`not json`))
-	rec := httptest.NewRecorder()
-	s.handlePIIEntities(rec, req)
-	if rec.Code != http.StatusBadRequest {
-		t.Errorf("status = %d, want 400", rec.Code)
-	}
-}
-
-// --- handlePIIRegexes ---
-
-func TestHandlePIIRegexes_GetReturnsConfigured(t *testing.T) {
-	s := newTestServer(t, withCustomRegexes(config.RegexPatternConfig{Name: "EMPLOYEEID", Pattern: `EMP-\d{4}`}))
-	req := httptest.NewRequest(http.MethodGet, "/api/pii/regexes", nil)
-	rec := httptest.NewRecorder()
-	s.handlePIIRegexes(rec, req)
-
+	s.handlePIIEntities(rec, httptest.NewRequest(http.MethodGet, "/api/pii/entities", nil))
 	var body struct {
-		Regexes []config.RegexPatternConfig `json:"regexes"`
+		Available []string `json:"available"`
 	}
 	decodeJSON(t, rec, &body)
-	if len(body.Regexes) != 1 || body.Regexes[0].Name != "EMPLOYEEID" {
-		t.Errorf("regexes = %v, want [{EMPLOYEEID ...}]", body.Regexes)
+	if len(body.Available) != 0 {
+		t.Fatalf("available: %v", body.Available)
 	}
 }
 
-func TestHandlePIIRegexes_PostValidPatternPersists(t *testing.T) {
+func TestHandlePIIEntities_PostNotAllowed(t *testing.T) {
 	s := newTestServer(t)
-	req := httptest.NewRequest(http.MethodPost, "/api/pii/regexes", strings.NewReader(`{"regexes":[{"name":"CASEID","pattern":"CASE-\\d+"}]}`))
 	rec := httptest.NewRecorder()
-	s.handlePIIRegexes(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200 (body: %s)", rec.Code, rec.Body.String())
-	}
-	got := s.handler.GetCustomRegexes()
-	if len(got) != 1 || got[0].Name != "CASEID" {
-		t.Errorf("GetCustomRegexes() = %v, want [{CASEID ...}]", got)
-	}
-}
-
-// TestHandlePIIRegexes_PostInvalidPatternRejected covers a genuinely malformed
-// regex (unbalanced group) — the underlying RE2 compiler must reject it, and
-// the handler must surface that as 400 rather than 500 or a silently-accepted
-// broken pattern.
-func TestHandlePIIRegexes_PostInvalidPatternRejected(t *testing.T) {
-	s := newTestServer(t)
-	req := httptest.NewRequest(http.MethodPost, "/api/pii/regexes", strings.NewReader(`{"regexes":[{"name":"BAD","pattern":"(unclosed"}]}`))
-	rec := httptest.NewRecorder()
-	s.handlePIIRegexes(rec, req)
-	if rec.Code != http.StatusBadRequest {
-		t.Errorf("status = %d, want 400 for an invalid regex pattern", rec.Code)
-	}
-}
-
-// TestHandlePIIRegexes_PostWhenDetectorDisabledRejected covers the "regex
-// detector not enabled" error path.
-func TestHandlePIIRegexes_PostWhenDetectorDisabledRejected(t *testing.T) {
-	s := newTestServer(t, withoutRegexDetector())
-	req := httptest.NewRequest(http.MethodPost, "/api/pii/regexes", strings.NewReader(`{"regexes":[{"name":"X","pattern":"x"}]}`))
-	rec := httptest.NewRecorder()
-	s.handlePIIRegexes(rec, req)
-	if rec.Code != http.StatusBadRequest {
-		t.Errorf("status = %d, want 400 when the regex detector isn't enabled", rec.Code)
+	s.handlePIIEntities(rec, httptest.NewRequest(http.MethodPost, "/api/pii/entities", strings.NewReader(`{"disabled":[]}`)))
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("status: %d", rec.Code)
 	}
 }
 

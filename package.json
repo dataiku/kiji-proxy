@@ -10,7 +10,9 @@
   "workspaces": [
     "src/frontend"
   ],
+  "_comment_babel": "@babel/core 8 is pinned at the root so the hoisted babel-loader resolves it. Without it, eslint-plugin-react-hooks hoists @babel/core 7 here, babel-loader runs the frontend Babel 8 presets on it, and TypeScript generics such as useRef<T>(null) leak into the bundle as comparisons. Keep it in sync with src/frontend/package.json.",
   "devDependencies": {
+    "@babel/core": "^8.0.1",
     "@changesets/cli": "^2.31.0",
     "@electron/notarize": "^3.1.1"
   },
