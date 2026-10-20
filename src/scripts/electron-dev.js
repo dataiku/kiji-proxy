@@ -220,7 +220,11 @@ function launchElectron(server) {
   const electron = spawn("npm", ["run", "electron:dev"], {
     cwd: frontendDir,
     stdio: "inherit",
-    env: { ...process.env, EXTERNAL_BACKEND: "true" },
+    env: {
+      ...process.env,
+      EXTERNAL_BACKEND: "true",
+      ELECTRON_DEV_SERVER: "true",
+    },
   });
 
   let toreDown = false;
