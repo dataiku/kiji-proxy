@@ -13,6 +13,10 @@ const { spawn } = require("child_process");
 const { registerIpcHandlers } = require("./ipc-handlers");
 const { setMenuLanguage, mt } = require("./menu-i18n");
 const isDev = process.env.NODE_ENV === "development";
+// Load the UI from the webpack dev server (HMR) instead of the Go backend.
+// Set only by `make electron-dev`, which actually starts the dev server;
+// `make electron` runs in development mode but serves the built dist via :8080.
+const useDevServer = process.env.ELECTRON_DEV_SERVER === "true";
 
 // Global safety net: log (and, if telemetry is on, report) any promise
 // rejection or exception that escaped a local handler instead of letting Node
@@ -822,9 +826,11 @@ function createWindow() {
   });
 
   // Load the app
-  // In development, use the webpack dev server for full React errors and HMR.
-  // In production, load the UI served by the Go backend.
-  const startUrl = isDev ? "http://localhost:3000" : "http://localhost:8080";
+  // With the dev server, use webpack for full React errors and HMR.
+  // Otherwise, load the UI served by the Go backend.
+  const startUrl = useDevServer
+    ? "http://localhost:3000"
+    : "http://localhost:8080";
 
   console.log("[DEBUG] Mode:", isDev ? "development" : "production");
   console.log("[DEBUG] Loading UI at:", startUrl);
