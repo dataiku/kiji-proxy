@@ -42,7 +42,7 @@ func TestMappingExpirationRejectsStaleSave(t *testing.T) {
 	if w := call(`{"ttl_seconds":120,"expected":{"ttl_seconds":300}}`); w.Code != 200 {
 		t.Fatalf("initial save: %d", w.Code)
 	}
-	db, err := sql.Open("sqlite", s.config.Database.Path)
+	db, err := sql.Open("sqlite", "file:"+s.config.Database.Path+"?_pragma=busy_timeout(5000)")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,7 +156,7 @@ func TestPIICheckRejectsCancelledSnapshotAcquisition(t *testing.T) {
 
 func persistedPolicy(t *testing.T, s *Server) config.MappingExpirationConfig {
 	t.Helper()
-	db, err := sql.Open("sqlite", s.config.Database.Path)
+	db, err := sql.Open("sqlite", "file:"+s.config.Database.Path+"?_pragma=busy_timeout(5000)")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -214,7 +214,7 @@ func TestMappingExpirationAPI(t *testing.T) {
 
 func TestMappingExpirationDatabaseFailureIsAtomic(t *testing.T) {
 	s := expirationTestServer(t)
-	db, err := sql.Open("sqlite", s.config.Database.Path)
+	db, err := sql.Open("sqlite", "file:"+s.config.Database.Path+"?_pragma=busy_timeout(5000)")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -288,7 +288,7 @@ func TestSQLitePolicySurvivesSettingsFailuresAndRepairs(t *testing.T) {
 				if w.Code != 200 {
 					t.Fatalf("independent policy save failed: %d %s", w.Code, w.Body.String())
 				}
-				db, err := sql.Open("sqlite", s.config.Database.Path)
+				db, err := sql.Open("sqlite", "file:"+s.config.Database.Path+"?_pragma=busy_timeout(5000)")
 				if err != nil {
 					t.Fatal(err)
 				}

@@ -287,7 +287,7 @@ func TestUnmaskStatisticsBudgetAlsoBoundsExternalWriterContention(t *testing.T) 
 	if err := db.db.QueryRow(`PRAGMA database_list`).Scan(&seq, &name, &path); err != nil {
 		t.Fatal(err)
 	}
-	external, err := sql.Open("sqlite", path)
+	external, err := sql.Open("sqlite", "file:"+path+"?_pragma=busy_timeout(5000)")
 	if err != nil {
 		t.Fatal(err)
 	}
