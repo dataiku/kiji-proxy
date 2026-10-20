@@ -1,3 +1,4 @@
+import { createProfileSaveQueue, type ProfilePatch } from "./profileSaveQueue";
 import MappingExpirationControl from "./MappingExpirationControl";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
@@ -149,49 +150,25 @@ export default function PIISection({ onProfilesChanged }: PIISectionProps) {
     onProfilesChanged?.();
   };
 
-  // PUT the full profile with `patch` applied on top of the latest state. The
-  // edit is shown optimistically and rolled back if the save fails. On
-  // failure, `status` carries the HTTP status (absent for network errors) so
-  // callers can pick a message.
-  const saveProfile = async (
-    patch: Partial<
-      Pick<
-        PIIProfile,
-        "name" | "confidence" | "disabled_entities" | "custom_regexes"
-      >
-    >
-  ): Promise<{ ok: boolean; status?: number }> => {
-    const prev = profileRef.current;
-    if (!prev) return { ok: false };
-    const next = { ...prev, ...patch };
-    applyProfile(next);
-    const rollback = () => {
-      // Only undo if no later edit has been applied on top of this one.
-      if (profileRef.current === next) applyProfile(prev);
-    };
-    try {
-      const res = await fetch(profileUrl(prev.id), {
-        method: "PUT",
-        headers: jsonHeaders,
-        body: JSON.stringify({
-          name: next.name,
-          confidence: next.confidence,
-          disabled_entities: next.disabled_entities,
-          custom_regexes: next.custom_regexes,
-        }),
-      });
-      if (!res.ok) {
-        rollback();
-        return { ok: false, status: res.status };
-      }
-      const saved: PIIProfile = await res.json();
-      if (profileRef.current === next) applyProfile(saved);
-      return { ok: true };
-    } catch (error) {
-      console.error("Error saving PII profile:", error);
-      rollback();
-      return { ok: false };
+  const saveQueueRef = useRef<ReturnType<typeof createProfileSaveQueue> | null>(null);
+  const saveProfile = (patch: ProfilePatch) => {
+    if (!saveQueueRef.current) {
+      saveQueueRef.current = createProfileSaveQueue(
+        () => profileRef.current,
+        applyProfile,
+        (next) => fetch(profileUrl(next.id), {
+          method: "PUT",
+          headers: jsonHeaders,
+          body: JSON.stringify({
+            name: next.name,
+            confidence: next.confidence,
+            disabled_entities: next.disabled_entities,
+            custom_regexes: next.custom_regexes,
+          }),
+        })
+      );
     }
+    return saveQueueRef.current(patch);
   };
 
   // --- profile list actions ---

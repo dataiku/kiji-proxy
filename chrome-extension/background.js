@@ -188,7 +188,7 @@ async function handlePIICheck(text, site) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       // An empty profile lets the server apply its default PII profile; an
-      // unknown one is rejected with a 400, surfaced below like other errors.
+      // unknown one is rejected with a 400 and must block submission.
       body: JSON.stringify({
         message: text,
         site: site || "",
@@ -213,7 +213,7 @@ async function handlePIICheck(text, site) {
       detail ? " — " + detail : ""
     }`;
     console.error("Kiji Privacy Proxy Extension: PII check failed", error);
-    return { success: false, error, status: response.status, url };
+    return { success: false, error, status: response.status, blockSubmission: response.status === 400, url };
   }
 
   let data;
