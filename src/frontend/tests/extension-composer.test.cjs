@@ -1,0 +1,161 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+
+// Minimal DOM fixture: hidden composer precedes the visible, current ChatGPT
+// composer, with a nested icon in its accessible-name-only Send button.
+function fixture({ legacy = false, response } = {}) {
+  const listeners = {};
+  const requests = [];
+  const sent = [];
+  class Element {
+    constructor(tag = 'div', attrs = {}, parent = null) {
+      Object.assign(this, { tag, attrs, parent, children: [], visible: true,
+        isConnected: true, innerText: '', value: '', disabled: false });
+      this.classList = new Set();
+      this.classList.remove = this.classList.delete;
+      parent?.children.push(this);
+    }
+    matches(selector) {
+      return selector.split(',').some(part => {
+        const s = part.trim();
+        if (s.startsWith('#')) return this.attrs.id === s.slice(1);
+        const m = s.match(/^(\w+)?(?:\[([^=\]]+)(?:="([^"]*)")?\])?$/);
+        return m && (!m[1] || m[1] === this.tag) &&
+          (!m[2] || (m[3] === undefined ? m[2] in this.attrs : this.attrs[m[2]] === m[3]));
+      });
+    }
+    closest(s) { return this.matches(s) ? this : this.parent?.closest(s); }
+    querySelectorAll(s) {
+      return this.children.flatMap(c => [...(c.matches(s) ? [c] : []), ...c.querySelectorAll(s)]);
+    }
+    getAttribute(key) { return this.attrs[key] ?? null; }
+    getClientRects() { return this.visible ? [{}] : []; }
+    appendChild(c) { this.children.push(c); }
+    replaceChildren(...children) { this.children = children; }
+    dispatchEvent() {}
+    click() { const e = emit('click', this); if (!e.defaultPrevented && this === send) sent.push(input.innerText); }
+  }
+  const root = new Element();
+  const hidden = new Element('div', { contenteditable: 'true' }, root);
+  hidden.visible = false;
+  hidden.innerText = 'hidden draft';
+  const composer = new Element('div', { 'data-composer-body': '' }, root);
+  const input = new Element('div', { contenteditable: 'true' }, composer);
+  input.innerText = 'Ticket QA-123456';
+  const paragraph = new Element('p', {}, input);
+  const send = new Element('button', legacy ? { 'data-testid': 'send-button' } : { 'aria-label': 'Send' }, composer);
+  const icon = new Element('svg', {}, send);
+  const unrelated = new Element('button', { 'aria-label': 'Send' }, root);
+  const ids = {};
+  for (const name of ['overlay', 'entities', 'masked', 'sub', 'cancel', 'use-masked', 'send-anyway']) {
+    ids[`kiji-pii-${name}`] = new Element();
+  }
+  function emit(type, target, extras = {}) {
+    const event = { target, defaultPrevented: false, preventDefault() { this.defaultPrevented = true; },
+      stopPropagation() {}, stopImmediatePropagation() {}, ...extras };
+    listeners[type]?.(event);
+    return event;
+  }
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../../../chrome-extension/content.js'), 'utf8'), {
+    document: { readyState: 'complete', activeElement: null, body: root,
+      getElementById: id => ids[id], createElement: tag => new Element(tag),
+      querySelectorAll: s => root.querySelectorAll(s),
+      addEventListener: (type, callback) => { listeners[type] = callback; },
+      removeEventListener: type => { delete listeners[type]; } },
+    chrome: { runtime: { id: 'test', sendMessage: async message => {
+      requests.push(message);
+      return message.type === 'check-pii-text' ? (response ? response(message) : {
+        success: true, data: { pii_found: true, masked_message: 'Ticket [MASKED]',
+          entities: { '[MASKED]': 'QA-123456' } } }) : undefined;
+    } } },
+    window: { location: { hostname: 'chatgpt.com' } },
+    getComputedStyle: () => ({ visibility: 'visible' }),
+    Event: class {}, console: { log() {}, warn() {}, error: console.error }, setTimeout,
+  });
+  return { input, hidden, paragraph, send, icon, unrelated, requests, sent, ids, emit,
+    checks: () => requests.filter(r => r.type === 'check-pii-text') };
+}
+const settle = () => new Promise(resolve => setImmediate(resolve));
+
+for (const method of ['Send', 'Enter']) {
+  test(`${method} checks the visible editor and blocks submission for review`, async () => {
+    const f = fixture();
+    const event = method === 'Send' ? f.emit('click', f.icon) : f.emit('keydown', f.paragraph, { key: 'Enter' });
+    assert.equal(event.defaultPrevented, true);
+    await settle();
+    assert.equal(f.checks()[0].text, 'Ticket QA-123456');
+    assert.equal(f.ids['kiji-pii-overlay'].classList.has('is-open'), true);
+    assert.deepEqual(f.sent, []);
+    f.ids['kiji-pii-use-masked'].onclick();
+    assert.equal(f.input.innerText, 'Ticket [MASKED]');
+    assert.equal(f.hidden.innerText, 'hidden draft');
+    f.send.click();
+    await settle();
+    assert.deepEqual(f.sent, ['Ticket [MASKED]']);
+    assert.equal(f.checks().length, 1);
+  });
+}
+for (const legacy of [false, true]) {
+  test(`clean text submits exactly once (${legacy ? 'legacy' : 'current'} button)`, async () => {
+    const f = fixture({ legacy, response: () => ({ success: true, data: { pii_found: false } }) });
+    f.send.click();
+    await settle();
+    assert.equal(f.checks().length, 1);
+    assert.deepEqual(f.sent, ['Ticket QA-123456']);
+  });
+}
+test('Shift+Enter, IME composition and unrelated Send are not intercepted', () => {
+  const f = fixture();
+  for (const extra of [{ shiftKey: true }, { isComposing: true }, { keyCode: 229 }]) {
+    assert.equal(f.emit('keydown', f.input, { key: 'Enter', ...extra }).defaultPrevented, false);
+  }
+  assert.equal(f.emit('click', f.unrelated).defaultPrevented, false);
+  assert.equal(f.checks().length, 0);
+});
+test('duplicate sends are blocked while checking; edited text is not auto-submitted', async () => {
+  let resolve;
+  const f = fixture({ response: () => new Promise(r => { resolve = r; }) });
+  f.send.click();
+  f.send.click();
+  assert.equal(f.checks().length, 1);
+  assert.deepEqual(f.sent, []);
+  f.input.innerText = 'Changed while checking';
+  resolve({ success: true, data: { pii_found: false } });
+  await settle();
+  assert.deepEqual(f.sent, []);
+});
+test('editing masked text requires another check', async () => {
+  const f = fixture();
+  f.send.click();
+  await settle();
+  f.ids['kiji-pii-use-masked'].onclick();
+  f.input.innerText += ' QA-654321';
+  f.send.click();
+  await settle();
+  assert.equal(f.checks().length, 2);
+  assert.deepEqual(f.sent, []);
+});
+test('Enter accepts reviewed masked text without another check', async () => {
+  const f = fixture();
+  f.emit('keydown', f.input, { key: 'Enter' });
+  await settle();
+  f.ids['kiji-pii-use-masked'].onclick();
+  assert.equal(f.emit('keydown', f.input, { key: 'Enter' }).defaultPrevented, false);
+  assert.equal(f.checks().length, 1);
+});
+test('Cancel preserves draft; Send as-is submits once', async () => {
+  const f = fixture();
+  f.send.click();
+  await settle();
+  f.ids['kiji-pii-cancel'].onclick();
+  assert.deepEqual(f.sent, []);
+  assert.equal(f.input.innerText, 'Ticket QA-123456');
+  f.send.click();
+  await settle();
+  f.ids['kiji-pii-send-anyway'].onclick();
+  assert.deepEqual(f.sent, ['Ticket QA-123456']);
+  assert.equal(f.checks().length, 2);
+});

@@ -215,54 +215,54 @@
     }
   }
 
-  // Get text from ChatGPT input
-  function getInputText() {
-    // Try multiple selectors for the input area
-    const selectors = [
-      "#prompt-textarea",
-      '[data-testid="prompt-textarea"]',
-      'div[contenteditable="true"]',
-      "textarea",
-    ];
+  const INPUT_SELECTOR =
+    '#prompt-textarea, [data-testid="prompt-textarea"], div[contenteditable="true"], textarea';
+  const SEND_BUTTON_SELECTOR =
+    '[data-testid="send-button"], #composer-submit-button, button[aria-label="Send"]';
 
-    for (const selector of selectors) {
-      const element = document.querySelector(selector);
-      if (element) {
-        // Handle contenteditable div
-        if (element.getAttribute("contenteditable") === "true") {
-          return element.innerText || element.textContent || "";
-        }
-        // Handle textarea
-        return element.value || element.innerText || element.textContent || "";
-      }
-    }
-    return "";
+  function isVisible(element) {
+    if (!element || !element.isConnected || element.getClientRects().length === 0) return false;
+    const style = getComputedStyle(element);
+    return style.visibility !== "hidden" && style.visibility !== "collapse";
   }
 
-  // Set text in ChatGPT input
-  function setInputText(text) {
-    const selectors = [
-      "#prompt-textarea",
-      '[data-testid="prompt-textarea"]',
-      'div[contenteditable="true"]',
-      "textarea",
-    ];
-
-    for (const selector of selectors) {
-      const element = document.querySelector(selector);
-      if (element) {
-        if (element.getAttribute("contenteditable") === "true") {
-          element.innerText = text;
-          // Trigger input event for React
-          element.dispatchEvent(new Event("input", { bubbles: true }));
-        } else {
-          element.value = text;
-          element.dispatchEvent(new Event("input", { bubbles: true }));
-        }
-        return true;
-      }
+  // ChatGPT keeps hidden composers mounted. Prefer the event's editor or the
+  // focused editor, and never read a hidden editor just because it comes first.
+  function getInputElement(target) {
+    const candidates = [target, document.activeElement];
+    for (const candidate of candidates) {
+      const input = candidate?.closest?.(INPUT_SELECTOR);
+      if (isVisible(input)) return input;
     }
-    return false;
+    return Array.from(document.querySelectorAll(INPUT_SELECTOR)).find(isVisible);
+  }
+
+  function getInputText(element) {
+    if (!element) return "";
+    return element.getAttribute("contenteditable") === "true"
+      ? element.innerText || element.textContent || ""
+      : element.value || "";
+  }
+
+  function setInputText(text, element) {
+    if (!isVisible(element)) return false;
+    if (element.getAttribute("contenteditable") === "true") {
+      element.innerText = text;
+    } else {
+      element.value = text;
+    }
+    element.dispatchEvent(new Event("input", { bubbles: true }));
+    return true;
+  }
+
+  function getSendButton(input) {
+    // Scope the generic accessible name to the composer so unrelated Send
+    // buttons elsewhere on the page are never intercepted or clicked.
+    const scope = input?.closest('[data-composer-body], form');
+    const selector = scope ? SEND_BUTTON_SELECTOR
+      : '[data-testid="send-button"], #composer-submit-button';
+    return Array.from((scope || document).querySelectorAll(selector))
+      .find(button => isVisible(button) && !button.disabled);
   }
 
   // Show a toast notification
@@ -362,21 +362,24 @@
   }
 
   // Handle submit button click
-  async function handleSubmit(event) {
+  async function handleSubmit(event, input) {
     if (isChecking) {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
       return;
     }
 
     if (maskedTextPending !== null) {
-      const currentText = getInputText().trim();
-      if (currentText === maskedTextPending) {
+      const currentText = getInputText(input).trim();
+      if (input === maskedTextPending.input && currentText === maskedTextPending.text) {
         maskedTextPending = null;
         return; // Text unchanged since masking, allow submit without re-check
       }
       maskedTextPending = null; // Text was edited after masking, re-check
     }
 
-    const text = getInputText().trim();
+    const text = getInputText(input).trim();
     if (!text) {
       return;
     }
@@ -390,6 +393,8 @@
 
     try {
       const result = await checkPII(text);
+      // A check only authorizes the exact editor contents it inspected.
+      if (!isVisible(input) || getInputText(input).trim() !== text) return;
 
       if (result === null) {
         if (contextInvalidated) {
@@ -410,7 +415,7 @@
           `Kiji Privacy Proxy check failed${detail}. Message sent without PII check.`,
           "warning"
         );
-        triggerSubmit();
+        triggerSubmit(input);
         return;
       }
 
@@ -422,8 +427,8 @@
               // Do nothing
               break;
             case "use-masked":
-              setInputText(maskedText);
-              maskedTextPending = maskedText;
+              if (!setInputText(maskedText, input)) break;
+              maskedTextPending = { input, text: maskedText.trim() };
               if (isExtensionAlive()) {
                 try {
                   chrome.runtime.sendMessage({
@@ -437,17 +442,17 @@
               // Don't auto-submit, let user review the masked text first
               break;
             case "send-anyway":
-              triggerSubmit();
+              triggerSubmit(input);
               break;
           }
         });
       } else {
         console.log("Kiji Privacy Proxy Extension: No PII detected, proceeding");
-        triggerSubmit();
+        triggerSubmit(input);
       }
     } catch (error) {
       console.error("Kiji Privacy Proxy Extension: Error", error);
-      triggerSubmit();
+      triggerSubmit(input);
     } finally {
       isChecking = false;
     }
@@ -457,30 +462,31 @@
   // a listener attached to a specific button node dies the moment React swaps
   // it out. We delegate from `document` instead — the listener survives every
   // re-render and also covers buttons that didn't exist at init time.
-  const SEND_BUTTON_SELECTOR =
-    '[data-testid="send-button"], #composer-submit-button';
-
-  // Set when triggerSubmit() programmatically clicks the send button so the
-  // delegated handler doesn't intercept the synthetic click and recurse.
-  let bypassNextSendClick = false;
+  // Only the exact programmatic click gets a bypass, never a later user click.
+  let bypassSendButton = null;
 
   function handleSendClick(event) {
-    if (bypassNextSendClick) {
-      bypassNextSendClick = false;
-      return;
-    }
-    const target = event.target;
-    if (!target || !target.closest) return;
-    if (!target.closest(SEND_BUTTON_SELECTOR)) return;
-    handleSubmit(event);
+    const button = event.target?.closest?.(SEND_BUTTON_SELECTOR);
+    if (!button) return;
+    if (button === bypassSendButton) return;
+    const scope = button.closest('[data-composer-body], form');
+    const input = scope
+      ? Array.from(scope.querySelectorAll(INPUT_SELECTOR)).find(isVisible)
+      : getInputElement();
+    if (!input || getSendButton(input) !== button) return;
+    handleSubmit(event, input);
   }
 
-  // Trigger the actual submit
-  function triggerSubmit() {
-    const button = document.querySelector(SEND_BUTTON_SELECTOR);
+  function triggerSubmit(input) {
+    if (!isVisible(input)) return;
+    const button = getSendButton(input);
     if (button) {
-      bypassNextSendClick = true;
-      button.click();
+      bypassSendButton = button;
+      try {
+        button.click();
+      } finally {
+        bypassSendButton = null;
+      }
     }
   }
 
@@ -497,16 +503,9 @@
 
   // Also intercept keyboard submit (Enter key)
   function handleKeydown(event) {
-    if (event.key === "Enter" && !event.shiftKey) {
-      const input = event.target;
-      if (
-        input.matches(
-          '#prompt-textarea, [data-testid="prompt-textarea"], div[contenteditable="true"]'
-        )
-      ) {
-        handleSubmit(event);
-      }
-    }
+    if (event.key !== "Enter" || event.shiftKey || event.isComposing || event.keyCode === 229) return;
+    const input = event.target?.closest?.(INPUT_SELECTOR);
+    if (isVisible(input)) handleSubmit(event, input);
   }
 
   // Initialize
