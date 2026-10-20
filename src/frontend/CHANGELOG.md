@@ -1,5 +1,11 @@
 # kiji-privacy-proxy
 
+## 1.6.6
+
+### Patch Changes
+
+- a3b7825: Fix blank window on `make electron`: load the UI from the Go backend instead of the unstarted webpack dev server, which is now used only by `make electron-dev`
+
 ## 1.6.5
 
 ### Patch Changes
