@@ -903,9 +903,14 @@ func enabledDetectorSet(names []string) map[string]bool {
 }
 
 func NewHandler(cfg *config.Config) (*Handler, error) {
+	// Resolve persisted detection settings before allocating resources or changing
+	// the database. Never serve requests with weaker settings after a load error.
+	loadedProfiles, err := config.LoadOrMigratePIIProfiles(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load PII profiles: %w", err)
+	}
 	var modelManager *piiServices.ModelManager
 	var detector pii.Detector
-	var err error
 
 	// Initialize model manager for ONNX detector
 	modelDir := cfg.ResolveModelDirectory()
@@ -998,10 +1003,11 @@ func NewHandler(cfg *config.Config) (*Handler, error) {
 	piiMapping := piiServices.NewPIIMappingWithDB(db, true)
 	maskingService := piiServices.NewMaskingService(modelManager, generatorService, piiMapping)
 
-	profiles, err := newProfileStore(cfg, enabled[config.DetectorTypeRegex], maskingService)
+	profiles, err := piiServices.NewProfileStore(loadedProfiles, enabled[config.DetectorTypeRegex], maskingService.GetAvailableEntityTypes, config.SavePIIProfiles)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to initialize PII profiles: %w", err)
 	}
+	log.Printf("[Handler] Loaded %d PII profile(s); default %q", len(loadedProfiles.Profiles), loadedProfiles.DefaultProfile)
 
 	var responseProcessor *processor.ResponseProcessor
 	if detector != nil {
@@ -1043,32 +1049,6 @@ func NewHandler(cfg *config.Config) (*Handler, error) {
 	go h.seedMetricsFromLogs()
 
 	return h, nil
-}
-
-// newProfileStore loads the persisted PII profiles (creating/migrating them on
-// first run) and builds the store. A file that can't be loaded falls back to a
-// single default profile from cfg so the proxy still starts.
-func newProfileStore(cfg *config.Config, regexEnabled bool, maskingService *piiServices.MaskingService) (*piiServices.ProfileStore, error) {
-	loaded, err := config.LoadOrMigratePIIProfiles(cfg)
-	if err != nil {
-		log.Printf("[Handler] ⚠️  Failed to load PII profiles from %s, using a default profile: %v", config.PIIProfilesPath(), err)
-		loaded = &config.PIIProfiles{
-			DefaultProfile: config.DefaultPIIProfileID,
-			Profiles: []config.PIIProfile{{
-				ID:               config.DefaultPIIProfileID,
-				Name:             config.DefaultPIIProfileName,
-				Confidence:       config.DefaultPIIConfidence,
-				DisabledEntities: cfg.DisabledEntities,
-				CustomRegexes:    cfg.CustomRegexes,
-			}},
-		}
-	}
-	log.Printf("[Handler] Loaded %d PII profile(s); default %q", len(loaded.Profiles), loaded.DefaultProfile)
-	store, err := piiServices.NewProfileStore(loaded, regexEnabled, maskingService.GetAvailableEntityTypes, config.SavePIIProfiles)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize PII profiles: %w", err)
-	}
-	return store, nil
 }
 
 // createMaskedRequest creates a masked version of the request by detecting and masking PII in messages

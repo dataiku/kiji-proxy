@@ -72,7 +72,7 @@ Every profile has a stable **ID**, shown under its name (e.g. `X-Kiji-Profile: h
 
 A request that names a profile that doesn't exist is **rejected with HTTP 400** rather than silently masked with other settings.
 
-Profiles are stored in `pii_profiles.json` in the application data directory. On the first start after upgrading, Kiji creates a `Default` profile (ID `default`) from your previous settings in `pii_settings.json`. The old file is left in place.
+Profiles are stored in `pii_profiles.json` in the application data directory. On the first start after upgrading, Kiji creates a `Default` profile (ID `default`) from your previous settings in `pii_settings.json`. The old file is left in place. If loading, validation, or migration (including saving the migrated profiles) fails, startup stops with an error. Repair the file or filesystem problem and restart; the proxy never substitutes static settings after a profile-loading failure.
 
 ---
 
@@ -103,8 +103,9 @@ omitting it keeps the saved value. A new database defaults to 300 seconds.
 The development config omits this setting so UI changes survive app restarts.
 Applying a shorter TTL or enabling expiration at startup deletes mappings already
 past that lifetime, just as a UI save does; startup logs report changes to the saved policy.
-`pii_profiles.json` stores detection profiles (migrated from `pii_settings.json`), so a missing, malformed,
-or unreadable settings file cannot reset or prevent saving expiration settings.
+`pii_profiles.json` stores detection profiles separately from the expiration policy.
+Profile-loading failures stop startup without changing the saved expiration policy.
+Once profiles have been migrated, the legacy `pii_settings.json` is no longer used.
 An omitted duration defaults to 300 seconds; negative, fractional, and excessive
 durations are rejected. An unreadable or invalid explicit `-config` file stops
 startup instead of silently using defaults. There is no `enabled` parameter.
@@ -211,10 +212,10 @@ explains this uncertainty and checks the server before retrying. When the server
 matches the submitted policy, the app accepts it while preserving any newer
 local edits. Different server settings still require conflict resolution.
 
-Entity and regex saves report persistence errors and restore the previous runtime
-values on failure. A malformed settings file can be repaired by saving entity or
-regex settings; the expiration policy remains in SQLite.
-Saving replaces the file without reading it first; write failures are reported.
+Profile saves report persistence errors and retain the previous runtime values
+on failure. Repair invalid profile files before restarting; the expiration policy
+remains in SQLite. Saving replaces the file without reading it first; write failures
+are reported.
 
 ## PII detection sensitivity
 
