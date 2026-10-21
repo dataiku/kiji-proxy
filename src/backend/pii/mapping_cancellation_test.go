@@ -70,7 +70,7 @@ func TestMaskingStopsOnCancellationAndLookupFailures(t *testing.T) {
 				wrapped.beforeCreate = cancel
 			}
 			svc := NewMaskingService(&stubDetectorProvider{detector: detector}, NewGeneratorService(), NewPIIMappingWithDB(wrapped, true))
-			request, err := svc.BeginRequest(ctx)
+			request, err := svc.BeginRequest(ctx, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

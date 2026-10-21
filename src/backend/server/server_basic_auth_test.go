@@ -22,7 +22,7 @@ func TestIsBasicAuthPublicPath(t *testing.T) {
 		{"/v1beta/models/gemini-pro:generateContent", true},
 		{"/api/pii/check", true},
 		{"/api/pii/entities", true},
-		{"/api/pii/confidence", true},
+		{"/api/pii/profiles", true},
 		{"/api/health", true},
 		{"/api/version", true},
 		{"/api/auth/status", true},

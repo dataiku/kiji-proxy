@@ -174,8 +174,9 @@ async function handlePIICheck(text, site) {
   // Pull the latest backendUrl every time — the service worker may have been
   // torn down since startup, which resets in-memory `backendUrl` to the
   // default even if the user configured a different one in options.
-  const { backendUrl: storedUrl } = await chrome.storage.sync.get({
+  const { backendUrl: storedUrl, piiProfile } = await chrome.storage.sync.get({
     backendUrl: DEFAULT_API_BASE,
+    piiProfile: "",
   });
   backendUrl = storedUrl || DEFAULT_API_BASE;
 
@@ -186,7 +187,13 @@ async function handlePIICheck(text, site) {
     response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: text, site: site || "" }),
+      // An empty profile lets the server apply its default PII profile; an
+      // unknown one is rejected with a 400 and must block submission.
+      body: JSON.stringify({
+        message: text,
+        site: site || "",
+        profile: piiProfile || "",
+      }),
       signal: AbortSignal.timeout(10000),
     });
   } catch (e) {
@@ -206,7 +213,7 @@ async function handlePIICheck(text, site) {
       detail ? " — " + detail : ""
     }`;
     console.error("Kiji Privacy Proxy Extension: PII check failed", error);
-    return { success: false, error, status: response.status, url };
+    return { success: false, error, status: response.status, blockSubmission: response.status === 400, url };
   }
 
   let data;

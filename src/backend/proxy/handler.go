@@ -42,7 +42,7 @@ type Handler struct {
 	modelManager      *piiServices.ModelManager
 	providers         *providers.Providers
 	detector          *pii.Detector
-	regexDetector     *pii.RegexDetector // nil when the regex detector is not enabled
+	profiles          *piiServices.ProfileStore // PII detection profiles; requests pick one via X-Kiji-Profile
 	responseProcessor *processor.ResponseProcessor
 	maskingService    *piiServices.MaskingService
 	loggingDB         piiServices.LoggingDB    // Database or in-memory storage for logging
@@ -91,72 +91,38 @@ func (h *Handler) GetModelError() error {
 	return h.modelManager.GetLastError()
 }
 
-// SetEntityConfidenceThreshold updates the PII detection confidence threshold
-func (h *Handler) SetEntityConfidenceThreshold(threshold float64) {
-	if h.modelManager != nil {
-		h.modelManager.SetEntityConfidenceThreshold(threshold)
-	}
+// Profiles returns the PII detection profile store.
+func (h *Handler) Profiles() *piiServices.ProfileStore {
+	return h.profiles
 }
 
-// GetEntityConfidenceThreshold returns the current PII detection confidence threshold
-func (h *Handler) GetEntityConfidenceThreshold() float64 {
-	if h.modelManager == nil {
-		return 0.25
+// ProfileHeader is the request header naming the PII profile (by id) to apply.
+// It is consumed by the proxy and never forwarded upstream.
+const ProfileHeader = "X-Kiji-Profile"
+
+// ResolveProfile returns the profile with the given id, or the default profile
+// when id is empty. Unknown ids return an error wrapping
+// piiServices.ErrUnknownProfile.
+func (h *Handler) ResolveProfile(id string) (*piiServices.ResolvedProfile, error) {
+	if h.profiles == nil {
+		if id != "" {
+			return nil, fmt.Errorf("%w: %s", piiServices.ErrUnknownProfile, id)
+		}
+		return nil, nil
 	}
-	return h.modelManager.GetEntityConfidenceThreshold()
+	return h.profiles.Resolve(strings.TrimSpace(id))
 }
 
-// SetDisabledEntities updates which entity types are left unmasked. An empty
-// list clears the exclusion (mask everything).
-func (h *Handler) SetDisabledEntities(labels []string) {
-	if h.maskingService != nil {
-		h.maskingService.SetDisabledEntities(labels)
-	}
+// profileFromRequest resolves the profile named by the X-Kiji-Profile header.
+func (h *Handler) profileFromRequest(r *http.Request) (*piiServices.ResolvedProfile, error) {
+	return h.ResolveProfile(r.Header.Get(ProfileHeader))
 }
 
-// GetDisabledEntities returns the entity types currently left unmasked.
-func (h *Handler) GetDisabledEntities() []string {
-	if h.maskingService == nil {
-		return []string{}
-	}
-	return h.maskingService.GetDisabledEntities()
-}
-
-// GetAvailableEntityTypes returns the full set of entity types the loaded model
-// can detect (the maximum selectable set).
-func (h *Handler) GetAvailableEntityTypes() ([]string, error) {
-	if h.maskingService == nil {
-		return nil, fmt.Errorf("masking service not initialized")
-	}
-	return h.maskingService.GetAvailableEntityTypes()
-}
-
-// GetCustomRegexes returns the regex detector's current patterns. It returns an
-// empty slice when the regex detector is not enabled.
-func (h *Handler) GetCustomRegexes() []config.RegexPatternConfig {
-	if h.regexDetector == nil {
-		return []config.RegexPatternConfig{}
-	}
-	patterns := h.regexDetector.Patterns()
-	out := make([]config.RegexPatternConfig, len(patterns))
-	for i, p := range patterns {
-		out[i] = config.RegexPatternConfig{Name: p.Name, Pattern: p.Pattern}
-	}
-	return out
-}
-
-// SetCustomRegexes validates and replaces the regex detector's patterns. It
-// returns an error if the regex detector is not enabled or a pattern is invalid;
-// on error the existing patterns are left unchanged.
-func (h *Handler) SetCustomRegexes(regexes []config.RegexPatternConfig) error {
-	if h.regexDetector == nil {
-		return fmt.Errorf("regex detector is not enabled")
-	}
-	patterns := make([]pii.RegexPattern, len(regexes))
-	for i, r := range regexes {
-		patterns[i] = pii.RegexPattern{Name: r.Name, Pattern: r.Pattern}
-	}
-	return h.regexDetector.SetPatterns(patterns)
+// WriteUnknownProfileError writes the 400 response for an unknown profile.
+func WriteUnknownProfileError(w http.ResponseWriter, err error) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusBadRequest)
+	_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
 }
 
 // GetModelInfo returns information about the current model state
@@ -185,6 +151,15 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("[Proxy] Request body size: %d bytes", len(body))
 	log.Printf("[Timing] Request body read: %v", time.Since(startTime))
+
+	// Resolve the PII profile before anything is sent upstream, so an unknown
+	// profile fails loudly instead of silently masking with other settings.
+	profile, err := h.profileFromRequest(r)
+	if err != nil {
+		log.Printf("[Proxy] ❌ %v", err)
+		WriteUnknownProfileError(w, err)
+		return
+	}
 
 	// Determine provider for current request
 	provider, err := h.providers.GetProviderFromPath(r.Host, r.URL.Path, &body, "[Proxy]")
@@ -222,7 +197,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Process request through shared PII pipeline
 	processStart := time.Now()
-	processed, err := h.ProcessRequestBody(r.Context(), body, provider)
+	processed, err := h.ProcessRequestBody(r.Context(), body, provider, profile)
 	if err != nil {
 		log.Printf("[Proxy] ❌ Failed to process request: %v", err)
 		http.Error(w, "Failed to process request", maskingErrorStatus(err))
@@ -325,6 +300,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				"masked_response":   maskedResponseText, // Just the response text
 				"unmasked_response": responseText,       // Just the response text
 				"pii_entities":      piiEntities,        // Entity details
+			}
+			if profile != nil {
+				responseData["x_pii_details"].(map[string]interface{})["profile"] = map[string]string{
+					"id":   profile.ID,
+					"name": profile.Name,
+				}
 			}
 
 			// Re-marshal the enhanced response
@@ -542,21 +523,21 @@ func (h *Handler) readRequestBody(r *http.Request) ([]byte, error) {
 }
 
 // maskPIIInText detects PII in text and returns masked text with mappings
-func (h *Handler) maskPIIInText(ctx context.Context, text string, logPrefix string) (string, map[string]string, []pii.Entity, error) {
+func (h *Handler) maskPIIInText(ctx context.Context, text string, profile *piiServices.ResolvedProfile, logPrefix string) (string, map[string]string, []pii.Entity, error) {
 	if h.maskingService == nil {
 		return text, make(map[string]string), []pii.Entity{}, ctx.Err()
 	}
-	result, err := h.maskingService.MaskText(ctx, text, logPrefix)
+	result, err := h.maskingService.MaskText(ctx, text, profile, logPrefix)
 	return result.MaskedText, result.MaskedToOriginal, result.Entities, err
 }
 
 // One snapshot spans detection and every field. Acquisition must succeed before
 // the provider visits any text; a cancelled/saturated reader never bypasses it.
-func (h *Handler) requestMasker(ctx context.Context) (func(string, string) (string, map[string]string, []pii.Entity), func() error, error) {
+func (h *Handler) requestMasker(ctx context.Context, profile *piiServices.ResolvedProfile) (func(string, string) (string, map[string]string, []pii.Entity), func() error, error) {
 	if h.maskingService == nil {
 		return func(text, _ string) (string, map[string]string, []pii.Entity) { return text, map[string]string{}, nil }, func() error { return ctx.Err() }, ctx.Err()
 	}
-	request, err := h.maskingService.BeginRequest(ctx)
+	request, err := h.maskingService.BeginRequest(ctx, profile)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -567,8 +548,8 @@ func (h *Handler) requestMasker(ctx context.Context) (func(string, string) (stri
 }
 
 // MaskPIIInText is the public standalone masking entry point.
-func (h *Handler) MaskPIIInText(ctx context.Context, text string) (string, map[string]string, []pii.Entity, error) {
-	return h.maskPIIInText(ctx, text, "[PIICheck]")
+func (h *Handler) MaskPIIInText(ctx context.Context, text string, profile *piiServices.ResolvedProfile) (string, map[string]string, []pii.Entity, error) {
+	return h.maskPIIInText(ctx, text, profile, "[PIICheck]")
 }
 
 // MaskPIIInTextWithLogging masks PII in a plain text input and records
@@ -578,8 +559,8 @@ func (h *Handler) MaskPIIInText(ctx context.Context, text string) (string, map[s
 // proxy flow uses, which lets the frontend pair them. site (hostname of the
 // page that triggered the check) is recorded as the "model" column so calls
 // from different AI providers are distinguishable in the UI.
-func (h *Handler) MaskPIIInTextWithLogging(ctx context.Context, text, site string) (string, map[string]string, []pii.Entity, error) {
-	maskedText, maskedToOriginal, entities, err := h.maskPIIInText(ctx, text, "[PIICheck]")
+func (h *Handler) MaskPIIInTextWithLogging(ctx context.Context, text, site string, profile *piiServices.ResolvedProfile) (string, map[string]string, []pii.Entity, error) {
+	maskedText, maskedToOriginal, entities, err := h.maskPIIInText(ctx, text, profile, "[PIICheck]")
 	if err != nil {
 		return "", nil, nil, err
 	}
@@ -637,13 +618,14 @@ type ProcessedRequest struct {
 }
 
 // ProcessRequestBody processes a request body through PII detection and masking
-// This is the shared entry point for all request sources (handler, transparent proxy)
-func (h *Handler) ProcessRequestBody(ctx context.Context, body []byte, provider *providers.Provider) (*ProcessedRequest, error) {
+// This is the shared entry point for all request sources (handler, transparent proxy).
+// profile selects the PII detection settings; nil uses the model alone.
+func (h *Handler) ProcessRequestBody(ctx context.Context, body []byte, provider *providers.Provider, profile *piiServices.ResolvedProfile) (*ProcessedRequest, error) {
 	// Generate transaction ID to link all 4 log entries
 	transactionID := uuid.New().String()
 
 	// Check for PII in the request and get redacted body
-	redactedBody, maskedToOriginal, entities, err := h.checkRequestPII(ctx, string(body), provider)
+	redactedBody, maskedToOriginal, entities, err := h.checkRequestPII(ctx, string(body), provider, profile)
 	if err != nil {
 		return nil, err
 	}
@@ -762,9 +744,9 @@ func (h *Handler) addTransactionID(message string, transactionID string) string 
 
 // checkRequestPII checks for PII in the request body and creates mappings
 // It only redacts PII from message content, not from other fields like "model"
-func (h *Handler) checkRequestPII(ctx context.Context, body string, provider *providers.Provider) (masked string, pairs map[string]string, found []pii.Entity, resultErr error) {
+func (h *Handler) checkRequestPII(ctx context.Context, body string, provider *providers.Provider, profile *piiServices.ResolvedProfile) (masked string, pairs map[string]string, found []pii.Entity, resultErr error) {
 	log.Println("[Proxy] Checking for PII in request...")
-	mask, closeSnapshot, err := h.requestMasker(ctx)
+	mask, closeSnapshot, err := h.requestMasker(ctx, profile)
 	if err != nil {
 		return "", nil, nil, err
 	}
@@ -875,8 +857,11 @@ func (h *Handler) buildTargetURL(r *http.Request, provider *providers.Provider, 
 // copyHeaders copies headers from source to destination
 func (h *Handler) copyHeaders(source, destination http.Header) {
 	for key, values := range source {
-		// Skip Accept-Encoding to avoid requesting compressed responses
-		if strings.ToLower(key) == "accept-encoding" {
+		// Skip Accept-Encoding to avoid requesting compressed responses, and
+		// Kiji's own control headers (X-Kiji-Profile, X-Kiji-Source), which are
+		// meant for the proxy and must not leak to the provider.
+		lower := strings.ToLower(key)
+		if lower == "accept-encoding" || strings.HasPrefix(lower, "x-kiji-") {
 			continue
 		}
 		for _, value := range values {
@@ -917,48 +902,28 @@ func enabledDetectorSet(names []string) map[string]bool {
 	return enabled
 }
 
-// buildExtraDetectors constructs the non-ONNX detectors enabled in config. ONNX is
-// managed separately by ModelManager. A regex set that fails to compile is logged
-// and skipped so a single bad pattern can't stop the proxy from starting. The
-// concrete regex detector is also returned (nil when disabled or invalid) so the
-// handler can expose it for runtime get/set.
-func buildExtraDetectors(cfg *config.Config, enabled map[string]bool) ([]pii.Detector, *pii.RegexDetector) {
-	var extra []pii.Detector
-	var regexDetector *pii.RegexDetector
-
-	if enabled[config.DetectorTypeRegex] {
-		patterns := make([]pii.RegexPattern, 0, len(cfg.CustomRegexes))
-		for _, p := range cfg.CustomRegexes {
-			patterns = append(patterns, pii.RegexPattern{Name: p.Name, Pattern: p.Pattern})
-		}
-		if rd, err := pii.NewRegexDetector(patterns); err != nil {
-			log.Printf("[Handler] Skipping regex detector due to config error: %v", err)
-		} else {
-			log.Printf("[Handler] Regex detector enabled with %d pattern(s)", len(patterns))
-			regexDetector = rd
-			extra = append(extra, rd)
-		}
-	}
-
-	return extra, regexDetector
-}
-
 func NewHandler(cfg *config.Config) (*Handler, error) {
+	// Resolve persisted detection settings before allocating resources or changing
+	// the database. Never serve requests with weaker settings after a load error.
+	loadedProfiles, err := config.LoadOrMigratePIIProfiles(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load PII profiles: %w", err)
+	}
 	var modelManager *piiServices.ModelManager
 	var detector pii.Detector
-	var err error
 
 	// Initialize model manager for ONNX detector
 	modelDir := cfg.ResolveModelDirectory()
 
 	// Determine which detectors are enabled from config (default: onnx + regex) and
 	// build the static (non-ONNX) detectors. ONNX is managed by ModelManager itself.
+	// Custom regexes are per PII profile, so the regex detector is built per
+	// profile by the ProfileStore rather than registered here.
 	enabled := enabledDetectorSet(cfg.Detectors)
 	onnxEnabled := enabled[config.DetectorTypeONNX]
-	extraDetectors, regexDetector := buildExtraDetectors(cfg, enabled)
 
-	log.Printf("[Handler] Initializing ModelManager with directory: %s (variant=%q, onnx=%t, extraDetectors=%d)", modelDir, cfg.ModelVariant, onnxEnabled, len(extraDetectors))
-	modelManager, err = piiServices.NewModelManager(modelDir, onnxEnabled, extraDetectors...)
+	log.Printf("[Handler] Initializing ModelManager with directory: %s (variant=%q, onnx=%t, regex=%t)", modelDir, cfg.ModelVariant, onnxEnabled, enabled[config.DetectorTypeRegex])
+	modelManager, err = piiServices.NewModelManager(modelDir, onnxEnabled)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize model manager: %w", err)
 	}
@@ -1037,9 +1002,12 @@ func NewHandler(cfg *config.Config) (*Handler, error) {
 	generatorService := piiServices.NewGeneratorService()
 	piiMapping := piiServices.NewPIIMappingWithDB(db, true)
 	maskingService := piiServices.NewMaskingService(modelManager, generatorService, piiMapping)
-	// Seed the disabled (passthrough) entity labels persisted from a previous run.
-	// Empty/nil leaves everything masked (fail closed).
-	maskingService.SetDisabledEntities(cfg.DisabledEntities)
+
+	profiles, err := piiServices.NewProfileStore(loadedProfiles, enabled[config.DetectorTypeRegex], maskingService.GetAvailableEntityTypes, config.SavePIIProfiles)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize PII profiles: %w", err)
+	}
+	log.Printf("[Handler] Loaded %d PII profile(s); default %q", len(loadedProfiles.Profiles), loadedProfiles.DefaultProfile)
 
 	var responseProcessor *processor.ResponseProcessor
 	if detector != nil {
@@ -1066,7 +1034,7 @@ func NewHandler(cfg *config.Config) (*Handler, error) {
 		modelManager:      modelManager,
 		providers:         &providers,
 		detector:          &detector,
-		regexDetector:     regexDetector,
+		profiles:          profiles,
 		responseProcessor: responseProcessor,
 		maskingService:    maskingService,
 		loggingDB:         loggingDB,

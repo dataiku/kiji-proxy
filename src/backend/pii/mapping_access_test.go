@@ -238,7 +238,7 @@ func TestReadPoolCapAndCancellableMaskingAcquisition(t *testing.T) {
 	waitingCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	done := make(chan error, 1)
-	go func() { _, err := svc.MaskText(waitingCtx, "Alice", "test"); done <- err }()
+	go func() { _, err := svc.MaskText(waitingCtx, "Alice", nil, "test"); done <- err }()
 	deadline := time.After(time.Second)
 	for db.readDB.Stats().WaitCount == stats.WaitCount {
 		select {
@@ -267,7 +267,7 @@ func TestReadPoolCapAndCancellableMaskingAcquisition(t *testing.T) {
 	}
 	// Releasing one slot permits a fresh request; cancelling its acquisition
 	// timer on success must not invalidate the acquired transaction.
-	result, err := svc.MaskText(ctx, "Alice", "test")
+	result, err := svc.MaskText(ctx, "Alice", nil, "test")
 	if err != nil || result.MaskedText == "Alice" || result.MaskedText == "" {
 		t.Fatalf("pool failed to recover: %v %v", result, err)
 	}
@@ -326,7 +326,7 @@ func TestMaskingReturnsItsSnapshotDespiteStatisticsTimeout(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	result, err := svc.MaskText(ctx, "Alice", "test")
+	result, err := svc.MaskText(ctx, "Alice", nil, "test")
 	if err != nil || result.MaskedText != "dummy" || result.MaskedToOriginal["dummy"] != "Alice" {
 		t.Fatalf("statistics failure lost masking result: %v %v", result, err)
 	}

@@ -43,7 +43,7 @@ type mockDetectorProvider struct {
 	detector pii.Detector
 }
 
-func (p *mockDetectorProvider) GetDetector() (pii.Detector, error) {
+func (p *mockDetectorProvider) GetDetectorWith(_ ...pii.Detector) (pii.Detector, error) {
 	return p.detector, nil
 }
 
@@ -294,6 +294,15 @@ func newTestHandler(t *testing.T, detector *mockDetector, upstreamServer *httpte
 	piiMapping := piiServices.NewPIIMappingWithDB(mappingDB, true)
 	maskingService := piiServices.NewMaskingService(detectorProvider, generatorService, piiMapping)
 	responseProcessor := processor.NewResponseProcessor(&det, cfg.Logging)
+	profiles, err := piiServices.NewProfileStore(&config.PIIProfiles{
+		DefaultProfile: config.DefaultPIIProfileID,
+		Profiles: []config.PIIProfile{{
+			ID: config.DefaultPIIProfileID, Name: config.DefaultPIIProfileName, Confidence: config.DefaultPIIConfidence,
+		}},
+	}, true, maskingService.GetAvailableEntityTypes, nil)
+	if err != nil {
+		t.Fatalf("NewProfileStore() error = %v", err)
+	}
 
 	// If upstream server provided, use its URL as base; otherwise use a default client
 	client := http.DefaultClient
@@ -308,10 +317,28 @@ func newTestHandler(t *testing.T, detector *mockDetector, upstreamServer *httpte
 		detector:          &det,
 		responseProcessor: responseProcessor,
 		maskingService:    maskingService,
+		profiles:          profiles,
 		loggingDB:         loggingDB,
 		mappingDB:         mappingDB,
 		piiMapping:        piiMapping,
 	}
+}
+
+// addTestProfile creates a profile on h and returns it resolved.
+func addTestProfile(t *testing.T, h *Handler, p config.PIIProfile) *piiServices.ResolvedProfile {
+	t.Helper()
+	if p.Confidence == 0 {
+		p.Confidence = config.DefaultPIIConfidence
+	}
+	created, err := h.profiles.Create(p)
+	if err != nil {
+		t.Fatalf("Create profile: %v", err)
+	}
+	r, err := h.profiles.Resolve(created.ID)
+	if err != nil {
+		t.Fatalf("Resolve profile: %v", err)
+	}
+	return r
 }
 
 // --- Handler Unit Tests ---
@@ -363,6 +390,23 @@ func TestHandler_CopyHeaders(t *testing.T) {
 		}
 		if got := dst.Get("Accept-Encoding"); got != "" {
 			t.Errorf("Accept-Encoding should be skipped, got %q", got)
+		}
+	})
+
+	t.Run("strips Kiji control headers", func(t *testing.T) {
+		src := http.Header{
+			"X-Kiji-Profile": {"healthcare"},
+			"X-Kiji-Source":  {"Kiji Playground"},
+			"X-Other":        {"kept"},
+		}
+		dst := http.Header{}
+		h.CopyHeaders(src, dst)
+
+		if dst.Get("X-Kiji-Profile") != "" || dst.Get("X-Kiji-Source") != "" {
+			t.Errorf("X-Kiji-* headers must not be forwarded upstream, got %v", dst)
+		}
+		if dst.Get("X-Other") != "kept" {
+			t.Errorf("X-Other should be forwarded, got %v", dst)
 		}
 	})
 
@@ -477,7 +521,7 @@ func TestHandler_ProcessRequestBody(t *testing.T) {
 		var provider providers.Provider = openAIProvider
 
 		body := []byte(`{"model":"gpt-4","messages":[{"role":"user","content":"Hello world"}]}`)
-		processed, err := h.ProcessRequestBody(context.Background(), body, &provider)
+		processed, err := h.ProcessRequestBody(context.Background(), body, &provider, nil)
 		if err != nil {
 			t.Fatalf("ProcessRequestBody() error = %v", err)
 		}
@@ -501,7 +545,7 @@ func TestHandler_ProcessRequestBody(t *testing.T) {
 		var provider providers.Provider = openAIProvider
 
 		body := []byte(`{"model":"gpt-4","messages":[{"role":"user","content":"Hello"}]}`)
-		_, err := h.ProcessRequestBody(context.Background(), body, &provider)
+		_, err := h.ProcessRequestBody(context.Background(), body, &provider, nil)
 		if err != nil {
 			t.Fatalf("ProcessRequestBody() error = %v", err)
 		}
@@ -998,6 +1042,106 @@ func TestHandler_ServeHTTP_DetailsQueryParam(t *testing.T) {
 	}
 }
 
+// newProfileTestHandler wires h to an upstream that records the request body
+// it receives.
+func newProfileTestHandler(t *testing.T, detector *mockDetector, upstreamBody *string, upstreamCalls *int) *Handler {
+	t.Helper()
+	upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		*upstreamCalls++
+		if r.Header.Get(ProfileHeader) != "" {
+			t.Errorf("%s must not be forwarded upstream", ProfileHeader)
+		}
+		b, _ := io.ReadAll(r.Body)
+		*upstreamBody = string(b)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"choices":[{"message":{"role":"assistant","content":"ok"}}]}`))
+	}))
+	t.Cleanup(upstream.Close)
+
+	h := newTestHandler(t, detector, upstream)
+	defaultProviders, _ := providers.NewDefaultProviders(providers.ProviderTypeOpenAI)
+	h.providers = &providers.Providers{
+		DefaultProviders:  defaultProviders,
+		OpenAIProvider:    providers.NewOpenAIProvider(strings.TrimPrefix(upstream.URL, "https://"), "sk-test", nil),
+		AnthropicProvider: providers.NewAnthropicProvider("api.anthropic.com", "sk-ant", nil),
+		GeminiProvider:    providers.NewGeminiProvider("generativelanguage.googleapis.com", "key", nil),
+		MistralProvider:   providers.NewMistralProvider("api.mistral.ai", "key", nil),
+		CustomProvider:    providers.NewCustomProvider("custom.example.com", "key", nil),
+	}
+	return h
+}
+
+func TestHandler_ServeHTTP_ProfileHeaderSelectsProfile(t *testing.T) {
+	text := "Mail a@b.com"
+	detector := &mockDetector{
+		entities:    []pii.Entity{{Text: "a@b.com", Label: "EMAIL", StartPos: 5, EndPos: 12, Confidence: 0.95}},
+		entityTypes: []string{"EMAIL"},
+	}
+	var upstreamBody string
+	var calls int
+	h := newProfileTestHandler(t, detector, &upstreamBody, &calls)
+	profile := addTestProfile(t, h, config.PIIProfile{Name: "Consumer", DisabledEntities: []string{"EMAIL"}})
+
+	send := func(profileID string) map[string]interface{} {
+		body := `{"model":"gpt-4","messages":[{"role":"user","content":"` + text + `"}]}`
+		req := httptest.NewRequest("POST", "/v1/chat/completions?details=true", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		if profileID != "" {
+			req.Header.Set(ProfileHeader, profileID)
+		}
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
+		}
+		var data map[string]interface{}
+		if err := json.Unmarshal(w.Body.Bytes(), &data); err != nil {
+			t.Fatalf("json.Unmarshal failed: %v", err)
+		}
+		return data["x_pii_details"].(map[string]interface{})
+	}
+
+	// The selected profile disables EMAIL, so it reaches the provider unmasked.
+	details := send(profile.ID)
+	if !strings.Contains(upstreamBody, "a@b.com") {
+		t.Errorf("expected EMAIL to pass through with profile %q, upstream got %s", profile.ID, upstreamBody)
+	}
+	if got := details["profile"].(map[string]interface{})["id"]; got != profile.ID {
+		t.Errorf("x_pii_details.profile.id = %v, want %q", got, profile.ID)
+	}
+
+	// Without the header the default profile applies and EMAIL is masked.
+	details = send("")
+	if strings.Contains(upstreamBody, "a@b.com") {
+		t.Errorf("expected EMAIL to be masked by the default profile, upstream got %s", upstreamBody)
+	}
+	if got := details["profile"].(map[string]interface{})["id"]; got != config.DefaultPIIProfileID {
+		t.Errorf("x_pii_details.profile.id = %v, want the default", got)
+	}
+}
+
+func TestHandler_ServeHTTP_UnknownProfileRejected(t *testing.T) {
+	var upstreamBody string
+	var calls int
+	h := newProfileTestHandler(t, &mockDetector{}, &upstreamBody, &calls)
+
+	body := `{"model":"gpt-4","messages":[{"role":"user","content":"hi"}]}`
+	req := httptest.NewRequest("POST", "/v1/chat/completions", strings.NewReader(body))
+	req.Header.Set(ProfileHeader, "nope")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "unknown PII profile") {
+		t.Errorf("body = %s, want an unknown-profile error", w.Body.String())
+	}
+	if calls != 0 {
+		t.Errorf("upstream must not be called for an unknown profile, got %d calls", calls)
+	}
+}
+
 func TestHandler_MaskPIIInText(t *testing.T) {
 	detector := &mockDetector{
 		entities: []pii.Entity{
@@ -1006,7 +1150,7 @@ func TestHandler_MaskPIIInText(t *testing.T) {
 	}
 	h := newTestHandler(t, detector, nil)
 
-	maskedText, mapping, entities, err := h.maskPIIInText(context.Background(), "Hello John", "[test]")
+	maskedText, mapping, entities, err := h.maskPIIInText(context.Background(), "Hello John", nil, "[test]")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1026,7 +1170,7 @@ func TestHandler_MaskPIIInText_NoPII(t *testing.T) {
 	detector := &mockDetector{entities: []pii.Entity{}}
 	h := newTestHandler(t, detector, nil)
 
-	maskedText, mapping, entities, err := h.maskPIIInText(context.Background(), "Hello world", "[test]")
+	maskedText, mapping, entities, err := h.maskPIIInText(context.Background(), "Hello world", nil, "[test]")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1054,9 +1198,9 @@ func TestHandler_MaskPIIInText_DisabledEntityPassesThrough(t *testing.T) {
 	h := newTestHandler(t, detector, nil)
 
 	// Disable EMAIL only; it must pass through unmasked while FIRSTNAME is masked.
-	h.SetDisabledEntities([]string{"EMAIL"})
+	profile := addTestProfile(t, h, config.PIIProfile{Name: "No email", DisabledEntities: []string{"EMAIL"}})
 
-	maskedText, mapping, entities, err := h.maskPIIInText(context.Background(), "John a@b.com", "[test]")
+	maskedText, mapping, entities, err := h.maskPIIInText(context.Background(), "John a@b.com", profile, "[test]")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1086,9 +1230,10 @@ func TestHandler_MaskPIIInText_EmptyDisabledMasksAll(t *testing.T) {
 	}
 	h := newTestHandler(t, detector, nil)
 
-	h.SetDisabledEntities([]string{}) // explicit empty => mask everything
+	// explicit empty => mask everything
+	profile := addTestProfile(t, h, config.PIIProfile{Name: "All", DisabledEntities: []string{}})
 
-	maskedText, mapping, entities, err := h.maskPIIInText(context.Background(), "John here", "[test]")
+	maskedText, mapping, entities, err := h.maskPIIInText(context.Background(), "John here", profile, "[test]")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1101,11 +1246,11 @@ func TestHandler_MaskPIIInText_EmptyDisabledMasksAll(t *testing.T) {
 	}
 }
 
-func TestHandler_EntityTypeAccessors(t *testing.T) {
+func TestHandler_ProfileAvailableEntities(t *testing.T) {
 	detector := &mockDetector{entityTypes: []string{"EMAIL", "FIRSTNAME"}}
 	h := newTestHandler(t, detector, nil)
 
-	available, err := h.GetAvailableEntityTypes()
+	available, err := h.Profiles().AvailableEntities("")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1113,10 +1258,10 @@ func TestHandler_EntityTypeAccessors(t *testing.T) {
 		t.Errorf("unexpected available types: %v", available)
 	}
 
-	// With no explicit selection, nothing is disabled (everything is masked).
-	disabled := h.GetDisabledEntities()
-	if len(disabled) != 0 {
-		t.Errorf("expected no disabled entities by default, got %v", disabled)
+	// The default profile disables nothing (everything is masked).
+	def, err := h.Profiles().Get(config.DefaultPIIProfileID)
+	if err != nil || len(def.DisabledEntities) != 0 {
+		t.Errorf("expected no disabled entities by default, got %v (err %v)", def.DisabledEntities, err)
 	}
 }
 

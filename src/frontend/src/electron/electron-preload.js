@@ -183,37 +183,4 @@ contextBridge.exposeInMainWorld("electronAPI", {
   setTransparentProxyEnabled: async (enabled) => {
     return await ipcRenderer.invoke("set-transparent-proxy-enabled", enabled);
   },
-
-  // PII detection confidence threshold
-  getEntityConfidence: async () => {
-    return await ipcRenderer.invoke("get-entity-confidence");
-  },
-
-  setEntityConfidence: async (confidence) => {
-    return await ipcRenderer.invoke("set-entity-confidence", confidence);
-  },
-
-  // PII entities to mask. The stored value is the exclusion list (types left
-  // unmasked); empty means "mask everything".
-  getAvailableEntities: async () => {
-    return await ipcRenderer.invoke("get-available-entities");
-  },
-
-  getDisabledEntities: async () => {
-    return await ipcRenderer.invoke("get-disabled-entities");
-  },
-
-  setDisabledEntities: async (entities) => {
-    return await ipcRenderer.invoke("set-disabled-entities", entities);
-  },
-
-  // PII custom regex patterns (name + pattern), read live from / written to the
-  // backend regex detector.
-  getCustomRegexes: async () => {
-    return await ipcRenderer.invoke("get-custom-regexes");
-  },
-
-  setCustomRegexes: async (regexes) => {
-    return await ipcRenderer.invoke("set-custom-regexes", regexes);
-  },
 });
