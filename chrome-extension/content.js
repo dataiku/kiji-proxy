@@ -233,7 +233,10 @@
   // prefer the outer form: ChatGPT may put the button outside the editor's
   // [data-composer-body] wrapper.
   function getComposerScope(element) {
-    return element?.closest?.("form") || element?.closest?.("[data-composer-body]") || null;
+    const form = element?.closest?.("form");
+    // A generic form with a textarea and Send button is not a ChatGPT composer.
+    if (form?.querySelector(`${PRIMARY_INPUT_SELECTOR}, [data-composer-body]`)) return form;
+    return element?.closest?.("[data-composer-body]") || null;
   }
 
   // ChatGPT keeps hidden composers mounted. Never read a hidden editor just

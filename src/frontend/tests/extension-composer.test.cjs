@@ -7,7 +7,7 @@ const vm = require('node:vm');
 // Minimal DOM fixture: hidden composer precedes the visible, current ChatGPT
 // composer, with a nested icon in its accessible-name-only Send button. `split`
 // wraps it in a form whose Send button sits outside [data-composer-body].
-function fixture({ legacy = false, split = false, response } = {}) {
+function fixture({ legacy = false, split = false, unrelatedForm = false, response } = {}) {
   const listeners = {};
   const requests = [];
   const sent = [];
@@ -29,6 +29,7 @@ function fixture({ legacy = false, split = false, response } = {}) {
       });
     }
     closest(s) { return this.matches(s) ? this : this.parent?.closest(s); }
+    querySelector(s) { return this.querySelectorAll(s)[0] || null; }
     querySelectorAll(s) {
       return this.children.flatMap(c => [...(c.matches(s) ? [c] : []), ...c.querySelectorAll(s)]);
     }
@@ -51,8 +52,9 @@ function fixture({ legacy = false, split = false, response } = {}) {
   const send = new Element('button', legacy ? { 'data-testid': 'send-button' } : { 'aria-label': 'Send' },
     split ? form : composer);
   const icon = new Element('svg', {}, send);
-  const unrelated = new Element('button', { 'aria-label': 'Send' }, root);
-  const other = new Element('textarea', {}, root);
+  const otherScope = unrelatedForm ? new Element('form', {}, root) : root;
+  const unrelated = new Element('button', { 'aria-label': 'Send' }, otherScope);
+  const other = new Element('textarea', {}, otherScope);
   other.value = 'Be concise.';
   const ids = {};
   for (const name of ['overlay', 'entities', 'masked', 'sub', 'cancel', 'use-masked', 'send-anyway']) {
@@ -183,5 +185,19 @@ test('Enter in a textarea outside any composer is not intercepted', async () => 
   assert.equal(f.emit('keydown', f.other, { key: 'Enter' }).defaultPrevented, false);
   await settle();
   assert.equal(f.checks().length, 0);
+  assert.deepEqual(f.sent, []);
+});
+
+test('an unrelated form does not intercept Enter or its Send button', async () => {
+  const f = fixture({ unrelatedForm: true,
+    response: () => ({ success: true, data: { pii_found: false } }) });
+  let unrelatedClicks = 0;
+  f.unrelated.click = () => { unrelatedClicks++; };
+  assert.equal(f.emit('keydown', f.other, { key: 'Enter' }).defaultPrevented, false);
+  assert.equal(f.emit('click', f.unrelated).defaultPrevented, false);
+  await settle();
+  assert.equal(f.checks().length, 0);
+  assert.equal(unrelatedClicks, 0);
+  assert.equal(f.other.value, 'Be concise.');
   assert.deepEqual(f.sent, []);
 });
