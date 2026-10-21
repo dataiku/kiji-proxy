@@ -60,7 +60,7 @@ jobs:
   # ──────────────────────────────────────────────────────────────────────
   # DMG build is temporarily disabled. To re-enable: uncomment this job, add
   # build-dmg back to create-release's `needs`, and uncomment publish-homebrew-tap
-  # below (the cask is built from the DMG).
+  # below (the cask is built from the DMG), and restore the macOS release notes.
   # build-dmg:
   #   name: Build DMG
   #   needs: gate
@@ -119,47 +119,21 @@ jobs:
       - name: List downloaded artifacts
         run: find release-assets -type f | sort
 
+      # The macOS download line and "macOS Installation" section were replaced by a
+      # "builds paused" note while the DMG build is disabled; restore them from git
+      # history (or revert this change) when re-enabling.
       - name: Create Release Notes
         run: |
           cat > release_notes.md << 'NOTES_EOF'
           ## Kiji Privacy Proxy v${{ steps.version.outputs.version }}
 
+          > **Note:** macOS builds are temporarily paused. This release does not include a DMG
+          > and the Homebrew cask is not updated. macOS users can keep using the previous release.
+
           ### Downloads
-          - **macOS**: DMG installer (Apple Silicon and Intel) - Desktop app with UI
           - **Linux**: Standalone binary archive (amd64) - serves the web UI at http://localhost:8080
           - **Linux (.deb)**: Debian/Ubuntu package (amd64) with systemd unit
           - **Chrome Extension**: Browser extension for PII detection in web forms
-
-          ### macOS Installation
-
-          **Homebrew (recommended):**
-          ```bash
-          brew install --cask dataiku/tap/kiji-privacy-proxy
-          ```
-
-          **Or download manually:**
-          1. Download `Kiji-Privacy-Proxy-${{ steps.version.outputs.version }}.dmg`
-          2. Open the DMG and drag to Applications
-          3. Launch "Kiji Privacy Proxy"
-
-          **HTTPS Support - Install CA Certificate:**
-
-          For HTTPS interception to work, you must trust the proxy's CA certificate:
-
-          ```bash
-          # System-wide trust (recommended)
-          sudo security add-trusted-cert \
-            -d \
-            -r trustRoot \
-            -k /Library/Keychains/System.keychain \
-            ~/.kiji-proxy/certs/ca.crt
-          ```
-
-          Or use **Keychain Access**:
-          1. Open Keychain Access app
-          2. File → Import Items → `~/.kiji-proxy/certs/ca.crt`
-          3. Double-click "Kiji Privacy Proxy CA" certificate
-          4. Expand **Trust** → Set to **Always Trust**
 
           ### Linux Installation
 
