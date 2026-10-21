@@ -13,7 +13,7 @@
 
   <p>
     <img src="https://img.shields.io/badge/go-%3E%3D1.25-00ADD8?logo=go" alt="Go Version">
-    <img src="https://img.shields.io/badge/node-%3E%3D20-339933?logo=node.js&logoColor=white" alt="Node Version">
+    <img src="https://img.shields.io/badge/node-24.11%2B-339933?logo=node.js&logoColor=white" alt="Node Version">
     <img src="https://img.shields.io/badge/python-%3E%3D3.13-3776AB?logo=python&logoColor=white" alt="Python Version">
     <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey" alt="Platform">
   </p>
@@ -342,7 +342,7 @@ Pull requests are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines
 ### Prerequisites
 
 - **Go 1.25+** with CGO enabled
-- **Node.js 20+**
+- **Node.js 24.x (24.11.0 or newer)**
 - **Python 3.13+**
 - **Rust toolchain**
 

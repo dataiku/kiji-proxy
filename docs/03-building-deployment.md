@@ -43,7 +43,7 @@ Both builds include:
 ### Common Requirements
 
 - **Go:** 1.25+ with CGO enabled
-- **Node.js:** 20.x+
+- **Node.js:** 24.x (24.11.0 or newer)
 - **Rust/Cargo:** Latest stable
 - **Git LFS:** For model files
 - **Disk Space:** 2GB free
@@ -64,7 +64,7 @@ Both builds include:
 ```bash
 # Check versions
 go version          # >= 1.25
-node --version      # >= 20
+node --version      # 24.x, >= 24.11.0
 rustc --version     # >= 1.56
 git lfs version     # >= 2.0
 

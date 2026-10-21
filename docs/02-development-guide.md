@@ -19,7 +19,7 @@ This guide covers setting up your development environment, debugging workflows, 
 
 **Required:**
 - **Go 1.25+** with CGO enabled
-- **Node.js 20+** and npm
+- **Node.js 24.x (24.11.0 or newer)** and npm
 - **Rust toolchain** (latest stable)
 - **Git LFS** for model files
 - **VSCode or Cursor** (recommended IDE)
@@ -33,6 +33,23 @@ This guide covers setting up your development environment, debugging workflows, 
 **Linux:**
 - Build essentials: `sudo apt-get install build-essential gcc g++`
 - pkg-config, libssl-dev
+
+### Node.js version
+
+CI and local development use the Node.js version in `.nvmrc` (also pinned in
+`.tool-versions` for asdf/mise). From the repository root, select it before
+installing dependencies:
+
+```bash
+nvm install
+nvm use
+npm ci
+```
+
+With asdf or mise, install the tools in `.tool-versions` instead. Keep its Node.js
+pin and `.nvmrc` in sync when updating. Both npm workspace manifests require
+Node.js 24.x, at least 24.11.0, because Babel 8 requires that minimum on Node 24;
+this also satisfies Electron tooling and webpack-dev-server.
 
 ### Quick Setup
 

@@ -146,7 +146,7 @@ The workflows assume these toolchain versions are available (some are installed 
 |------|---------|--------|
 | Go | from `go.mod` | `actions/setup-go@v6` with `go-version-file: go.mod` |
 | Python | 3.13 | `actions/setup-python@v6` |
-| Node.js | 20 | `actions/setup-node@v6` |
+| Node.js | 24.18.0 (via `.nvmrc`; minimum 24.11.0) | `actions/setup-node@v6` |
 | Rust | stable | `dtolnay/rust-toolchain` (SHA pinned) |
 | uv | latest (cached) | `astral-sh/setup-uv` (SHA pinned) |
 | `golangci-lint` | from `.tool-versions` | `golangci/golangci-lint-action` (SHA pinned) |
