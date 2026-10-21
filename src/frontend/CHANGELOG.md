@@ -1,5 +1,11 @@
 # kiji-privacy-proxy
 
+## 1.6.7
+
+### Patch Changes
+
+- b327149: Temporarily stop building the macOS DMG and publishing the Homebrew cask in releases; releases ship the Linux tarball, .deb and Chrome extension only
+
 ## 1.6.6
 
 ### Patch Changes
