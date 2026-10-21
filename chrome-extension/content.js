@@ -219,6 +219,9 @@
     '#prompt-textarea, [data-testid="prompt-textarea"], div[contenteditable="true"], textarea';
   const SEND_BUTTON_SELECTOR =
     '[data-testid="send-button"], #composer-submit-button, button[aria-label="Send"]';
+  // The main prompt editor and its Send button, recognisable without a scope.
+  const PRIMARY_INPUT_SELECTOR = '#prompt-textarea, [data-testid="prompt-textarea"]';
+  const PRIMARY_SEND_SELECTOR = '[data-testid="send-button"], #composer-submit-button';
 
   function isVisible(element) {
     if (!element || !element.isConnected || element.getClientRects().length === 0) return false;
@@ -226,15 +229,18 @@
     return style.visibility !== "hidden" && style.visibility !== "collapse";
   }
 
-  // ChatGPT keeps hidden composers mounted. Prefer the event's editor or the
-  // focused editor, and never read a hidden editor just because it comes first.
-  function getInputElement(target) {
-    const candidates = [target, document.activeElement];
-    for (const candidate of candidates) {
-      const input = candidate?.closest?.(INPUT_SELECTOR);
-      if (isVisible(input)) return input;
-    }
-    return Array.from(document.querySelectorAll(INPUT_SELECTOR)).find(isVisible);
+  // The editor and its Send button must resolve to the same composer, so
+  // prefer the outer form: ChatGPT may put the button outside the editor's
+  // [data-composer-body] wrapper.
+  function getComposerScope(element) {
+    return element?.closest?.("form") || element?.closest?.("[data-composer-body]") || null;
+  }
+
+  // ChatGPT keeps hidden composers mounted. Never read a hidden editor just
+  // because it comes first.
+  function getComposerInput(scope) {
+    const selector = scope ? INPUT_SELECTOR : PRIMARY_INPUT_SELECTOR;
+    return Array.from((scope || document).querySelectorAll(selector)).find(isVisible);
   }
 
   function getInputText(element) {
@@ -257,12 +263,17 @@
 
   function getSendButton(input) {
     // Scope the generic accessible name to the composer so unrelated Send
-    // buttons elsewhere on the page are never intercepted or clicked.
-    const scope = input?.closest('[data-composer-body], form');
-    const selector = scope ? SEND_BUTTON_SELECTOR
-      : '[data-testid="send-button"], #composer-submit-button';
-    return Array.from((scope || document).querySelectorAll(selector))
-      .find(button => isVisible(button) && !button.disabled);
+    // buttons elsewhere on the page are never intercepted or clicked. An editor
+    // outside any composer only falls back to the page's primary Send button if
+    // it is the primary editor; otherwise it has no Send button at all.
+    const scope = getComposerScope(input);
+    let buttons = [];
+    if (scope) {
+      buttons = scope.querySelectorAll(SEND_BUTTON_SELECTOR);
+    } else if (input?.matches(PRIMARY_INPUT_SELECTOR)) {
+      buttons = document.querySelectorAll(PRIMARY_SEND_SELECTOR);
+    }
+    return Array.from(buttons).find(button => isVisible(button) && !button.disabled) || null;
   }
 
   // Show a toast notification
@@ -469,10 +480,7 @@
     const button = event.target?.closest?.(SEND_BUTTON_SELECTOR);
     if (!button) return;
     if (button === bypassSendButton) return;
-    const scope = button.closest('[data-composer-body], form');
-    const input = scope
-      ? Array.from(scope.querySelectorAll(INPUT_SELECTOR)).find(isVisible)
-      : getInputElement();
+    const input = getComposerInput(getComposerScope(button));
     if (!input || getSendButton(input) !== button) return;
     handleSubmit(event, input);
   }
@@ -505,7 +513,8 @@
   function handleKeydown(event) {
     if (event.key !== "Enter" || event.shiftKey || event.isComposing || event.keyCode === 229) return;
     const input = event.target?.closest?.(INPUT_SELECTOR);
-    if (isVisible(input)) handleSubmit(event, input);
+    // Enter elsewhere (e.g. a settings textarea) is a newline, not a prompt.
+    if (isVisible(input) && getSendButton(input)) handleSubmit(event, input);
   }
 
   // Initialize

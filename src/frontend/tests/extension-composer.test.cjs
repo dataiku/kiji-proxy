@@ -5,8 +5,9 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 // Minimal DOM fixture: hidden composer precedes the visible, current ChatGPT
-// composer, with a nested icon in its accessible-name-only Send button.
-function fixture({ legacy = false, response } = {}) {
+// composer, with a nested icon in its accessible-name-only Send button. `split`
+// wraps it in a form whose Send button sits outside [data-composer-body].
+function fixture({ legacy = false, split = false, response } = {}) {
   const listeners = {};
   const requests = [];
   const sent = [];
@@ -42,13 +43,17 @@ function fixture({ legacy = false, response } = {}) {
   const hidden = new Element('div', { contenteditable: 'true' }, root);
   hidden.visible = false;
   hidden.innerText = 'hidden draft';
-  const composer = new Element('div', { 'data-composer-body': '' }, root);
+  const form = split ? new Element('form', {}, root) : root;
+  const composer = new Element('div', { 'data-composer-body': '' }, form);
   const input = new Element('div', { contenteditable: 'true' }, composer);
   input.innerText = 'Ticket QA-123456';
   const paragraph = new Element('p', {}, input);
-  const send = new Element('button', legacy ? { 'data-testid': 'send-button' } : { 'aria-label': 'Send' }, composer);
+  const send = new Element('button', legacy ? { 'data-testid': 'send-button' } : { 'aria-label': 'Send' },
+    split ? form : composer);
   const icon = new Element('svg', {}, send);
   const unrelated = new Element('button', { 'aria-label': 'Send' }, root);
+  const other = new Element('textarea', {}, root);
+  other.value = 'Be concise.';
   const ids = {};
   for (const name of ['overlay', 'entities', 'masked', 'sub', 'cancel', 'use-masked', 'send-anyway']) {
     ids[`kiji-pii-${name}`] = new Element();
@@ -75,7 +80,7 @@ function fixture({ legacy = false, response } = {}) {
     getComputedStyle: () => ({ visibility: 'visible' }),
     Event: class {}, console: { log() {}, warn() {}, error: console.error }, setTimeout,
   });
-  return { input, hidden, paragraph, send, icon, unrelated, requests, sent, ids, emit,
+  return { input, hidden, paragraph, send, icon, unrelated, other, requests, sent, ids, emit,
     checks: () => requests.filter(r => r.type === 'check-pii-text') };
 }
 const settle = () => new Promise(resolve => setImmediate(resolve));
@@ -158,4 +163,25 @@ test('Cancel preserves draft; Send as-is submits once', async () => {
   f.ids['kiji-pii-send-anyway'].onclick();
   assert.deepEqual(f.sent, ['Ticket QA-123456']);
   assert.equal(f.checks().length, 2);
+});
+test('Send outside [data-composer-body] but inside the form is checked', async () => {
+  const f = fixture({ split: true });
+  assert.equal(f.emit('click', f.icon).defaultPrevented, true);
+  await settle();
+  assert.equal(f.checks()[0].text, 'Ticket QA-123456');
+  assert.deepEqual(f.sent, []);
+});
+test('Send as-is submits when the button sits outside [data-composer-body]', async () => {
+  const f = fixture({ split: true });
+  f.emit('keydown', f.paragraph, { key: 'Enter' });
+  await settle();
+  f.ids['kiji-pii-send-anyway'].onclick();
+  assert.deepEqual(f.sent, ['Ticket QA-123456']);
+});
+test('Enter in a textarea outside any composer is not intercepted', async () => {
+  const f = fixture({ legacy: true, response: () => ({ success: true, data: { pii_found: false } }) });
+  assert.equal(f.emit('keydown', f.other, { key: 'Enter' }).defaultPrevented, false);
+  await settle();
+  assert.equal(f.checks().length, 0);
+  assert.deepEqual(f.sent, []);
 });
