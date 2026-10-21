@@ -8,6 +8,7 @@ const read = name => fs.readFileSync(path.join(__dirname, '../../../chrome-exten
 // Execute the production background checker and content-script submission
 // handlers with transport/DOM boundaries mocked. No browser or backend needed.
 function fixture(status) {
+  const input = {};
   let sent = 0;
   const notices = [];
   const bodies = [];
@@ -26,6 +27,7 @@ function fixture(status) {
     isChecking: false, maskedTextPending: null, lastCheckError: null, blockSubmission: false,
     contextInvalidated: false, isExtensionAlive: () => true,
     window: { location: { hostname: 'chatgpt.com' } },
+    isVisible: element => element === input,
     getInputText: () => 'Synthetic private content',
     showToast: message => notices.push(message), triggerSubmit: () => sent++,
   };
@@ -36,7 +38,7 @@ function fixture(status) {
   const content = read('content.js');
   vm.runInContext(content.slice(content.indexOf('  async function checkPII('), content.indexOf('  // ChatGPT mounts/unmounts')), context);
   return { bodies, notices, sent: () => sent, setStatus: s => { status = s; },
-    submit: () => context.handleSubmit({ preventDefault() {}, stopPropagation() {}, stopImmediatePropagation() {} }) };
+    submit: () => context.handleSubmit({ preventDefault() {}, stopPropagation() {}, stopImmediatePropagation() {} }, input) };
 }
 test('deleted selected profile blocks original-text submission on every retry', async () => {
   const f = fixture(400);
