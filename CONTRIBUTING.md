@@ -121,10 +121,13 @@ make check-all
 Required tools:
 
 - **Go 1.25+** with CGO enabled
-- **Node.js 20+** and npm
+- **Node.js 24.x (24.11.0 or newer)** and npm
 - **Python 3.13+** managed by [`uv`](https://docs.astral.sh/uv/)
 - **Rust** (latest stable)
 - **Git LFS** (model files are LFS-tracked)
+
+Use the pinned Node.js version in `.nvmrc` (`nvm install && nvm use`) or
+`.tool-versions` (asdf/mise) before installing dependencies. CI uses the same pin.
 
 For step-by-step setup, debugging with VSCode, and a tour of the architecture, see the [Development Guide](docs/02-development-guide.md).
 
