@@ -58,12 +58,15 @@ jobs:
   # Platform builds (reusable workflows). Each fans out independently and
   # uploads its artifacts for create-release to collect.
   # ──────────────────────────────────────────────────────────────────────
-  build-dmg:
-    name: Build DMG
-    needs: gate
-    if: needs.gate.outputs.should_build == 'true'
-    uses: ./.github/workflows/_build-dmg.yml
-    secrets: inherit
+  # DMG build is temporarily disabled. To re-enable: uncomment this job, add
+  # build-dmg back to create-release's `needs`, and uncomment publish-homebrew-tap
+  # below (the cask is built from the DMG), and restore the macOS release notes.
+  # build-dmg:
+  #   name: Build DMG
+  #   needs: gate
+  #   if: needs.gate.outputs.should_build == 'true'
+  #   uses: ./.github/workflows/_build-dmg.yml
+  #   secrets: inherit
 
   build-linux:
     name: Build Linux Binary
@@ -88,7 +91,9 @@ jobs:
   # ──────────────────────────────────────────────────────────────────────
   create-release:
     name: Create GitHub Release
-    needs: [gate, build-dmg, build-linux, package-linux-deb, build-chrome]
+    # build-dmg removed while the DMG build is disabled; restore it here to re-enable.
+    # needs: [gate, build-dmg, build-linux, package-linux-deb, build-chrome]
+    needs: [gate, build-linux, package-linux-deb, build-chrome]
     if: needs.gate.outputs.should_release == 'true'
 
     runs-on: ubuntu-latest
@@ -114,47 +119,21 @@ jobs:
       - name: List downloaded artifacts
         run: find release-assets -type f | sort
 
+      # The macOS download line and "macOS Installation" section were replaced by a
+      # "builds paused" note while the DMG build is disabled; restore them from git
+      # history (or revert this change) when re-enabling.
       - name: Create Release Notes
         run: |
           cat > release_notes.md << 'NOTES_EOF'
           ## Kiji Privacy Proxy v${{ steps.version.outputs.version }}
 
+          > **Note:** macOS builds are temporarily paused. This release does not include a DMG
+          > and the Homebrew cask is not updated. macOS users can keep using the previous release.
+
           ### Downloads
-          - **macOS**: DMG installer (Apple Silicon and Intel) - Desktop app with UI
           - **Linux**: Standalone binary archive (amd64) - serves the web UI at http://localhost:8080
           - **Linux (.deb)**: Debian/Ubuntu package (amd64) with systemd unit
           - **Chrome Extension**: Browser extension for PII detection in web forms
-
-          ### macOS Installation
-
-          **Homebrew (recommended):**
-          ```bash
-          brew install --cask dataiku/tap/kiji-privacy-proxy
-          ```
-
-          **Or download manually:**
-          1. Download `Kiji-Privacy-Proxy-${{ steps.version.outputs.version }}.dmg`
-          2. Open the DMG and drag to Applications
-          3. Launch "Kiji Privacy Proxy"
-
-          **HTTPS Support - Install CA Certificate:**
-
-          For HTTPS interception to work, you must trust the proxy's CA certificate:
-
-          ```bash
-          # System-wide trust (recommended)
-          sudo security add-trusted-cert \
-            -d \
-            -r trustRoot \
-            -k /Library/Keychains/System.keychain \
-            ~/.kiji-proxy/certs/ca.crt
-          ```
-
-          Or use **Keychain Access**:
-          1. Open Keychain Access app
-          2. File → Import Items → `~/.kiji-proxy/certs/ca.crt`
-          3. Double-click "Kiji Privacy Proxy CA" certificate
-          4. Expand **Trust** → Set to **Always Trust**
 
           ### Linux Installation
 
@@ -283,134 +262,136 @@ jobs:
   # ──────────────────────────────────────────────────────────────────────
   # Publish Homebrew Cask to dataiku/homebrew-tap
   # ──────────────────────────────────────────────────────────────────────
-  publish-homebrew-tap:
-    name: Publish Homebrew Tap
-    needs: [gate, create-release]
-    if: needs.gate.outputs.should_release == 'true'
+  # Disabled while the DMG build is off: the cask is rendered from the DMG and
+  # its SHA256. To re-enable, uncomment this job (along with build-dmg above).
+  # publish-homebrew-tap:
+  #   name: Publish Homebrew Tap
+  #   needs: [gate, create-release]
+  #   if: needs.gate.outputs.should_release == 'true'
 
-    runs-on: ubuntu-latest
+  #   runs-on: ubuntu-latest
 
-    environment: "Homebrew Release"
+  #   environment: "Homebrew Release"
 
-    permissions:
-      contents: read
+  #   permissions:
+  #     contents: read
 
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event.pull_request.merge_commit_sha || github.ref }}
+  #   steps:
+  #     - name: Checkout Repository
+  #       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+  #       with:
+  #         ref: ${{ github.event.pull_request.merge_commit_sha || github.ref }}
 
-      - name: Extract Version
-        id: version
-        uses: ./.github/actions/extract-version
+  #     - name: Extract Version
+  #       id: version
+  #       uses: ./.github/actions/extract-version
 
-      - name: Determine prerelease
-        id: prerelease
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          # Tap only ships stable releases; skip alpha/beta/rc.
-          if [[ "$VERSION" == *"-alpha"* ]] || [[ "$VERSION" == *"-beta"* ]] || [[ "$VERSION" == *"-rc"* ]]; then
-            echo "is_prerelease=true" >> $GITHUB_OUTPUT
-            echo "::notice::Skipping Homebrew tap publish for prerelease $VERSION"
-          else
-            echo "is_prerelease=false" >> $GITHUB_OUTPUT
-          fi
+  #     - name: Determine prerelease
+  #       id: prerelease
+  #       run: |
+  #         VERSION="${{ steps.version.outputs.version }}"
+  #         # Tap only ships stable releases; skip alpha/beta/rc.
+  #         if [[ "$VERSION" == *"-alpha"* ]] || [[ "$VERSION" == *"-beta"* ]] || [[ "$VERSION" == *"-rc"* ]]; then
+  #           echo "is_prerelease=true" >> $GITHUB_OUTPUT
+  #           echo "::notice::Skipping Homebrew tap publish for prerelease $VERSION"
+  #         else
+  #           echo "is_prerelease=false" >> $GITHUB_OUTPUT
+  #         fi
 
-      - name: Download DMG artifacts
-        if: steps.prerelease.outputs.is_prerelease == 'false'
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
-        with:
-          name: dmg-assets
-          path: dmg-assets
+  #     - name: Download DMG artifacts
+  #       if: steps.prerelease.outputs.is_prerelease == 'false'
+  #       uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+  #       with:
+  #         name: dmg-assets
+  #         path: dmg-assets
 
-      - name: Compute DMG SHA256
-        id: cask
-        if: steps.prerelease.outputs.is_prerelease == 'false'
-        run: |
-          set -euo pipefail
-          VERSION="${{ steps.version.outputs.version }}"
-          DMG="dmg-assets/Kiji-Privacy-Proxy-${VERSION}.dmg"
-          if [ ! -f "$DMG" ]; then
-            echo "::error::Expected DMG not found at $DMG"
-            ls -la dmg-assets/
-            exit 1
-          fi
-          if [ ! -f "${DMG}.sha256" ]; then
-            echo "::error::Checksum file not found at ${DMG}.sha256"
-            exit 1
-          fi
-          SHA=$(awk '{print $1}' "${DMG}.sha256")
-          if [ -z "$SHA" ]; then
-            echo "::error::Empty SHA256 parsed from ${DMG}.sha256"
-            exit 1
-          fi
-          echo "sha256=$SHA" >> $GITHUB_OUTPUT
-          echo "DMG SHA256: $SHA"
+  #     - name: Compute DMG SHA256
+  #       id: cask
+  #       if: steps.prerelease.outputs.is_prerelease == 'false'
+  #       run: |
+  #         set -euo pipefail
+  #         VERSION="${{ steps.version.outputs.version }}"
+  #         DMG="dmg-assets/Kiji-Privacy-Proxy-${VERSION}.dmg"
+  #         if [ ! -f "$DMG" ]; then
+  #           echo "::error::Expected DMG not found at $DMG"
+  #           ls -la dmg-assets/
+  #           exit 1
+  #         fi
+  #         if [ ! -f "${DMG}.sha256" ]; then
+  #           echo "::error::Checksum file not found at ${DMG}.sha256"
+  #           exit 1
+  #         fi
+  #         SHA=$(awk '{print $1}' "${DMG}.sha256")
+  #         if [ -z "$SHA" ]; then
+  #           echo "::error::Empty SHA256 parsed from ${DMG}.sha256"
+  #           exit 1
+  #         fi
+  #         echo "sha256=$SHA" >> $GITHUB_OUTPUT
+  #         echo "DMG SHA256: $SHA"
 
-      - name: Generate GitHub App token for homebrew-tap
-        if: steps.prerelease.outputs.is_prerelease == 'false'
-        id: app-token
-        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3
-        with:
-          app-id: ${{ vars.HOMEBREW_TAP_APP_CLIENT_ID }}
-          private-key: ${{ secrets.HOMEBREW_TAP_APP_PRIVATE_KEY }}
-          owner: dataiku
-          repositories: homebrew-tap
+  #     - name: Generate GitHub App token for homebrew-tap
+  #       if: steps.prerelease.outputs.is_prerelease == 'false'
+  #       id: app-token
+  #       uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3
+  #       with:
+  #         app-id: ${{ vars.HOMEBREW_TAP_APP_CLIENT_ID }}
+  #         private-key: ${{ secrets.HOMEBREW_TAP_APP_PRIVATE_KEY }}
+  #         owner: dataiku
+  #         repositories: homebrew-tap
 
-      - name: Checkout homebrew-tap
-        if: steps.prerelease.outputs.is_prerelease == 'false'
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: dataiku/homebrew-tap
-          token: ${{ steps.app-token.outputs.token }}
-          path: homebrew-tap
+  #     - name: Checkout homebrew-tap
+  #       if: steps.prerelease.outputs.is_prerelease == 'false'
+  #       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+  #       with:
+  #         repository: dataiku/homebrew-tap
+  #         token: ${{ steps.app-token.outputs.token }}
+  #         path: homebrew-tap
 
-      - name: Render cask and push
-        if: steps.prerelease.outputs.is_prerelease == 'false'
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-          SHA256: ${{ steps.cask.outputs.sha256 }}
-          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
-        run: |
-          set -euo pipefail
-          SRC=packaging/homebrew/Casks/kiji-privacy-proxy.rb
-          DST=homebrew-tap/Casks/kiji-privacy-proxy.rb
-          mkdir -p homebrew-tap/Casks
+  #     - name: Render cask and push
+  #       if: steps.prerelease.outputs.is_prerelease == 'false'
+  #       env:
+  #         VERSION: ${{ steps.version.outputs.version }}
+  #         SHA256: ${{ steps.cask.outputs.sha256 }}
+  #         APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+  #       run: |
+  #         set -euo pipefail
+  #         SRC=packaging/homebrew/Casks/kiji-privacy-proxy.rb
+  #         DST=homebrew-tap/Casks/kiji-privacy-proxy.rb
+  #         mkdir -p homebrew-tap/Casks
 
-          # Guard against template drift: refuse to render if the placeholders
-          # we depend on are no longer present.
-          if ! grep -q '^  version "0\.0\.0"$' "$SRC"; then
-            echo "::error::Template $SRC no longer contains placeholder: version \"0.0.0\""
-            exit 1
-          fi
-          if ! grep -qE '^  sha256 "0{64}"$' "$SRC"; then
-            echo "::error::Template $SRC no longer contains placeholder sha256"
-            exit 1
-          fi
+  #         # Guard against template drift: refuse to render if the placeholders
+  #         # we depend on are no longer present.
+  #         if ! grep -q '^  version "0\.0\.0"$' "$SRC"; then
+  #           echo "::error::Template $SRC no longer contains placeholder: version \"0.0.0\""
+  #           exit 1
+  #         fi
+  #         if ! grep -qE '^  sha256 "0{64}"$' "$SRC"; then
+  #           echo "::error::Template $SRC no longer contains placeholder sha256"
+  #           exit 1
+  #         fi
 
-          sed \
-            -e "s|^  version \"0\\.0\\.0\"$|  version \"${VERSION}\"|" \
-            -e "s|^  sha256 \"0\\{64\\}\"$|  sha256 \"${SHA256}\"|" \
-            "$SRC" > "$DST"
+  #         sed \
+  #           -e "s|^  version \"0\\.0\\.0\"$|  version \"${VERSION}\"|" \
+  #           -e "s|^  sha256 \"0\\{64\\}\"$|  sha256 \"${SHA256}\"|" \
+  #           "$SRC" > "$DST"
 
-          echo "Rendered cask:"
-          cat "$DST"
+  #         echo "Rendered cask:"
+  #         cat "$DST"
 
-          cd homebrew-tap
-          git config user.name  "${APP_SLUG}[bot]"
-          git config user.email "${APP_SLUG}[bot]@users.noreply.github.com"
+  #         cd homebrew-tap
+  #         git config user.name  "${APP_SLUG}[bot]"
+  #         git config user.email "${APP_SLUG}[bot]@users.noreply.github.com"
 
-          # Stage first, then compare the index against HEAD. `git diff --quiet
-          # -- <path>` ignores untracked files, so on the first publish (when
-          # the cask does not yet exist in the tap) it would wrongly report
-          # "nothing to commit" and never push. `git diff --cached --quiet`
-          # detects both brand-new and modified files.
-          git add Casks/kiji-privacy-proxy.rb
-          if git diff --cached --quiet; then
-            echo "::notice::Cask already at ${VERSION}, nothing to commit."
-            exit 0
-          fi
+  #         # Stage first, then compare the index against HEAD. `git diff --quiet
+  #         # -- <path>` ignores untracked files, so on the first publish (when
+  #         # the cask does not yet exist in the tap) it would wrongly report
+  #         # "nothing to commit" and never push. `git diff --cached --quiet`
+  #         # detects both brand-new and modified files.
+  #         git add Casks/kiji-privacy-proxy.rb
+  #         if git diff --cached --quiet; then
+  #           echo "::notice::Cask already at ${VERSION}, nothing to commit."
+  #           exit 0
+  #         fi
 
-          git commit -m "kiji-privacy-proxy ${VERSION}"
-          git push origin HEAD:main
+  #         git commit -m "kiji-privacy-proxy ${VERSION}"
+  #         git push origin HEAD:main
