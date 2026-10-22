@@ -64,10 +64,15 @@ jobs:
           # It will update src/frontend/package.json based on workspace config
           npx changeset version
 
-          # Sync root package.json version with frontend
+          # Sync root package.json version with frontend. --ignore-scripts skips
+          # the root "version" lifecycle script, which would re-run
+          # `changeset version` and exit 1 now that no changesets remain.
           NEW_VERSION=$(node -p "require('./src/frontend/package.json').version")
-          npm version "$NEW_VERSION" --no-git-tag-version
+          npm version "$NEW_VERSION" --no-git-tag-version --ignore-scripts
           echo "Synced root package.json to $NEW_VERSION"
+
+          # Sync chrome-extension/manifest.json version
+          node src/scripts/sync-manifest-version.js
 
           # Sync pyproject.toml version
           if [ -f "pyproject.toml" ]; then
