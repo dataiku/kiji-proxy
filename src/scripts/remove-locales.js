@@ -109,7 +109,7 @@ function getDirectorySize(dirPath) {
         size += stats.size;
       }
     }
-  } catch (err) {
+  } catch {
     // Ignore errors
   }
   return size;
