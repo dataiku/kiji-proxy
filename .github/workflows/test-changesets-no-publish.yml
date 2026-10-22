@@ -1,0 +1,94 @@
+name: Changesets v3 no-publish test
+on:
+  push:
+    branches: [codex/test-changesets-v3-no-publish]
+permissions:
+  contents: read
+jobs:
+  versioning:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Reproduce failure without the fix
+        run: |
+          test "$(node -p "require('./node_modules/@changesets/cli/package.json').version")" = '3.0.3'
+          printf '%s\n' '---' '"kiji-privacy-proxy": patch' '---' 'CI versioning smoke test.' > .changeset/ci-versioning-smoke.md
+          npx changeset version
+          NEW_VERSION=$(node -p "require('./src/frontend/package.json').version")
+          if npm version "$NEW_VERSION" --no-git-tag-version > /tmp/control.log 2>&1; then
+            cat /tmp/control.log
+            exit 1
+          fi
+          cat /tmp/control.log
+          grep -q 'No unreleased changesets found' /tmp/control.log
+          git restore .
+      - name: Add test changeset
+        run: |
+          printf '%s\n' '---' '"kiji-privacy-proxy": patch' '---' 'CI versioning smoke test.' > .changeset/ci-versioning-smoke.md
+          node -p "require('./src/frontend/package.json').version" > /tmp/before-version
+      - name: Run exact Create Version PR commands from changesets.yml
+        id: version
+        run: |
+          # Run changeset version from root (where .changeset folder is)
+          # It will update src/frontend/package.json based on workspace config
+          npx changeset version
+
+          # Sync root package.json version with frontend. --ignore-scripts skips
+          # the root "version" lifecycle script, which would re-run
+          # `changeset version` and exit 1 now that no changesets remain.
+          NEW_VERSION=$(node -p "require('./src/frontend/package.json').version")
+          npm version "$NEW_VERSION" --no-git-tag-version --ignore-scripts
+          echo "Synced root package.json to $NEW_VERSION"
+
+          # Sync chrome-extension/manifest.json version
+          node src/scripts/sync-manifest-version.js
+
+          # Sync pyproject.toml version
+          if [ -f "pyproject.toml" ]; then
+            sed -i "s/^version = \"[0-9.]*\"/version = \"${NEW_VERSION}\"/" pyproject.toml
+            echo "Synced pyproject.toml to $NEW_VERSION"
+          fi
+
+          # Sync .vscode/launch.json dev version
+          if [ -f ".vscode/launch.json" ]; then
+            sed -i "s/main.version=[0-9.]*-dev/main.version=${NEW_VERSION}-dev/" .vscode/launch.json
+            echo "Synced .vscode/launch.json to ${NEW_VERSION}-dev"
+          fi
+
+          # Check if there are changes
+          if [[ -n $(git status --porcelain) ]]; then
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+            echo "Changes detected:"
+            git status --short
+          else
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "No changes were made by changesets"
+          fi
+
+      - name: Verify versioning results
+        env:
+          HAS_CHANGES: ${{ steps.version.outputs.has_changes }}
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          node <<'NODE'
+          const fs=require('fs'),assert=require('assert');
+          const before=fs.readFileSync('/tmp/before-version','utf8').trim();
+          const expected=before.replace(/\d+$/,n=>String(Number(n)+1));
+          assert.equal(process.env.HAS_CHANGES,'true');
+          assert.equal(process.env.RELEASE_VERSION,expected);
+          for(const file of ['package.json','src/frontend/package.json','chrome-extension/manifest.json']) assert.equal(JSON.parse(fs.readFileSync(file)).version,expected,file);
+          assert.equal(JSON.parse(fs.readFileSync('package-lock.json')).packages[''].version,expected);
+          assert(fs.readFileSync('pyproject.toml','utf8').includes('version = "'+expected+'"'));
+          assert(fs.readFileSync('.vscode/launch.json','utf8').includes('main.version='+expected+'-dev'));
+          assert(!fs.existsSync('.changeset/ci-versioning-smoke.md'));
+          assert(fs.readFileSync('src/frontend/CHANGELOG.md','utf8').includes('CI versioning smoke test.'));
+          console.log('PASS: versioning and all synchronization steps completed for '+expected);
+          NODE
+          git diff --stat
