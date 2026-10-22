@@ -27,8 +27,6 @@ import (
 
 const responseFieldSuccess = "success"
 const responseFieldEnabled = "enabled"
-const responseFieldDisabled = "disabled"
-const responseFieldRegexes = "regexes"
 
 // RateLimiter manages rate limiting for API endpoints
 type RateLimiter struct {
@@ -272,9 +270,9 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/proxy/ca-cert", s.handleCACert)
 	mux.HandleFunc("/api/proxy/transparent/toggle", s.handleTransparentProxyToggle)
 	mux.HandleFunc("/api/pii/check", s.handlePIICheck)
-	mux.HandleFunc("/api/pii/confidence", s.handlePIIConfidence)
 	mux.HandleFunc("/api/pii/entities", s.handlePIIEntities)
-	mux.HandleFunc("/api/pii/regexes", s.handlePIIRegexes)
+	mux.HandleFunc(piiProfilesPath, s.handlePIIProfiles)
+	mux.HandleFunc(piiProfilesPath+"/", s.handlePIIProfiles)
 	mux.HandleFunc("/api/pii/mapping-expiration", s.handleMappingExpiration)
 
 	// Dashboard API
@@ -406,6 +404,12 @@ func (s *Server) startTransparentProxy() {
 			return
 		}
 
+		// PII profile endpoints carry the profile id in the path.
+		if isPIIProfilesPath(r.URL.Path) {
+			s.handlePIIProfiles(w, r)
+			return
+		}
+
 		// Route API endpoints. Bare paths are deprecated aliases kept for
 		// backwards compatibility; see the main mux registration above.
 		switch r.URL.Path {
@@ -429,14 +433,10 @@ func (s *Server) startTransparentProxy() {
 			s.handleCACert(w, r)
 		case "/api/pii/check":
 			s.handlePIICheck(w, r)
-		case "/api/pii/confidence":
-			s.handlePIIConfidence(w, r)
 		case "/api/pii/entities":
 			s.handlePIIEntities(w, r)
 		case "/api/pii/mapping-expiration":
 			s.handleMappingExpiration(w, r)
-		case "/api/pii/regexes":
-			s.handlePIIRegexes(w, r)
 		default:
 			// All other HTTP/HTTPS requests go to transparent proxy
 			s.transparentProxy.ServeHTTP(w, r)
@@ -545,8 +545,8 @@ func (s *Server) corsHandler(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
 	}
 
-	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, DELETE")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-OpenAI-API-Key, X-Kiji-Source")
+	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-OpenAI-API-Key, X-Kiji-Source, X-Kiji-Profile")
 	w.Header().Set("Access-Control-Max-Age", "3600")
 }
 
@@ -730,6 +730,8 @@ type PIICheckRequest struct {
 	// "chatgpt.com"). Recorded as the "model" column in /logs so calls from
 	// different AI providers are distinguishable in the UI.
 	Site string `json:"site,omitempty"`
+	// Profile is the id of the PII profile to apply; empty uses the default.
+	Profile string `json:"profile,omitempty"`
 }
 
 // DetectedEntity represents a single detected PII entity with its label and
@@ -789,8 +791,14 @@ func (s *Server) handlePIICheck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	profile, err := s.handler.ResolveProfile(req.Profile)
+	if err != nil {
+		proxy.WriteUnknownProfileError(w, err)
+		return
+	}
+
 	// Mask + persist request_original / request_masked so the call appears in /logs.
-	maskedText, maskedToOriginal, entities, err := s.handler.MaskPIIInTextWithLogging(r.Context(), req.Message, req.Site)
+	maskedText, maskedToOriginal, entities, err := s.handler.MaskPIIInTextWithLogging(r.Context(), req.Message, req.Site, profile)
 	if err != nil {
 		http.Error(w, "Failed to acquire or read mappings", http.StatusServiceUnavailable)
 		return
@@ -827,195 +835,6 @@ func (s *Server) handlePIICheck(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		log.Printf("Failed to encode PII check response: %v", err)
 		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
-	}
-}
-
-// handlePIIConfidence handles GET/POST /api/pii/confidence requests
-func (s *Server) handlePIIConfidence(w http.ResponseWriter, r *http.Request) {
-	s.corsHandler(w, r)
-
-	if r.Method == http.MethodOptions {
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-
-	switch r.Method {
-	case http.MethodGet:
-		confidence := s.handler.GetEntityConfidenceThreshold()
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(map[string]interface{}{
-			"confidence": confidence,
-		}); err != nil {
-			log.Printf("Failed to encode PII confidence response: %v", err)
-		}
-
-	case http.MethodPost:
-		var req struct {
-			Confidence float64 `json:"confidence"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "Invalid request", http.StatusBadRequest)
-			return
-		}
-		if req.Confidence < 0.05 || req.Confidence > 0.95 {
-			http.Error(w, "Confidence must be between 0.05 and 0.95", http.StatusBadRequest)
-			return
-		}
-
-		s.handler.SetEntityConfidenceThreshold(req.Confidence)
-		log.Printf("PII entity confidence threshold updated: %.2f", req.Confidence)
-
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(map[string]interface{}{
-			responseFieldSuccess: true,
-			"confidence":         req.Confidence,
-		}); err != nil {
-			log.Printf("Failed to encode PII confidence response: %v", err)
-		}
-
-	default:
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-	}
-}
-
-// savePIISettings replaces the saved entity and regex settings with runtime values.
-func (s *Server) savePIISettings() error {
-	return config.SavePIISettings(&config.PIISettings{
-		DisabledEntities: s.handler.GetDisabledEntities(),
-		CustomRegexes:    s.handler.GetCustomRegexes(),
-	})
-}
-
-// handlePIIEntities handles GET/POST /api/pii/entities requests. GET returns the
-// available entity types (from the loaded model) plus the entity types currently
-// disabled (left unmasked). POST replaces the disabled set with the provided
-// list; an empty list means "mask everything" (fail closed).
-func (s *Server) handlePIIEntities(w http.ResponseWriter, r *http.Request) {
-	s.piiSettingsMu.Lock()
-	defer s.piiSettingsMu.Unlock()
-	s.corsHandler(w, r)
-
-	if r.Method == http.MethodOptions {
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-
-	switch r.Method {
-	case http.MethodGet:
-		available, err := s.handler.GetAvailableEntityTypes()
-		if err != nil {
-			http.Error(w, "Model not available", http.StatusServiceUnavailable)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(map[string]interface{}{
-			"available":           available,
-			responseFieldDisabled: s.handler.GetDisabledEntities(),
-		}); err != nil {
-			log.Printf("Failed to encode PII entities response: %v", err)
-		}
-
-	case http.MethodPost:
-		var req struct {
-			Disabled []string `json:"disabled"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "Invalid request", http.StatusBadRequest)
-			return
-		}
-
-		// Reject labels the loaded model can't produce so the selection stays
-		// meaningful. If the model is unavailable we skip validation rather than
-		// drop the user's choice.
-		if available, err := s.handler.GetAvailableEntityTypes(); err == nil {
-			valid := make(map[string]struct{}, len(available))
-			for _, label := range available {
-				valid[label] = struct{}{}
-			}
-			for _, label := range req.Disabled {
-				if _, ok := valid[label]; !ok {
-					http.Error(w, "Unknown entity label: "+label, http.StatusBadRequest)
-					return
-				}
-			}
-		}
-
-		previous := s.handler.GetDisabledEntities()
-		s.handler.SetDisabledEntities(req.Disabled)
-		if err := s.savePIISettings(); err != nil {
-			s.handler.SetDisabledEntities(previous)
-			http.Error(w, "Failed to save PII settings", http.StatusInternalServerError)
-			return
-		}
-		log.Printf("PII disabled (passthrough) entities updated: %d left unmasked", len(req.Disabled))
-
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(map[string]interface{}{
-			responseFieldSuccess:  true,
-			responseFieldDisabled: req.Disabled,
-		}); err != nil {
-			log.Printf("Failed to encode PII entities response: %v", err)
-		}
-
-	default:
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-	}
-}
-
-// handlePIIRegexes handles GET/POST /api/pii/regexes requests. GET returns the
-// custom regex patterns currently used by the regex detector (name + pattern).
-// POST replaces the whole set with the provided list; patterns that fail to
-// compile (or a disabled regex detector) are rejected with 400.
-func (s *Server) handlePIIRegexes(w http.ResponseWriter, r *http.Request) {
-	s.piiSettingsMu.Lock()
-	defer s.piiSettingsMu.Unlock()
-	s.corsHandler(w, r)
-
-	if r.Method == http.MethodOptions {
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-
-	switch r.Method {
-	case http.MethodGet:
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(map[string]interface{}{
-			responseFieldRegexes: s.handler.GetCustomRegexes(),
-		}); err != nil {
-			log.Printf("Failed to encode PII regexes response: %v", err)
-		}
-
-	case http.MethodPost:
-		var req struct {
-			Regexes []config.RegexPatternConfig `json:"regexes"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "Invalid request", http.StatusBadRequest)
-			return
-		}
-
-		previous := s.handler.GetCustomRegexes()
-		if err := s.handler.SetCustomRegexes(req.Regexes); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		if err := s.savePIISettings(); err != nil {
-			_ = s.handler.SetCustomRegexes(previous)
-			http.Error(w, "Failed to save PII settings", http.StatusInternalServerError)
-			return
-		}
-		log.Printf("PII custom regexes updated: %d pattern(s)", len(req.Regexes))
-
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(map[string]interface{}{
-			responseFieldSuccess: true,
-			responseFieldRegexes: req.Regexes,
-		}); err != nil {
-			log.Printf("Failed to encode PII regexes response: %v", err)
-		}
-
-	default:
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
 }
 
@@ -1187,9 +1006,10 @@ func (s *Server) StartWithErrorHandling() {
 
 // basicAuthPublicPrefixes and basicAuthPublicExact list the request paths that
 // stay reachable WITHOUT Basic Auth even when it is enabled: the LLM proxy routes
-// (they carry their own provider API keys), all /api/pii/* endpoints (used by the
-// Chrome extension / API clients), and the lightweight health/version probes used
-// by load balancers (including their deprecated bare aliases).
+// (they carry their own provider API keys), the /api/pii/* endpoints (used by the
+// Chrome extension / API clients; PII profile changes are the exception, see
+// isPIIProfileMutation), and the lightweight health/version probes used by load
+// balancers (including their deprecated bare aliases).
 var basicAuthPublicPrefixes = []string{"/v1/", "/v1beta/", "/api/pii/"}
 var basicAuthPublicExact = map[string]bool{
 	"/api/health": true, "/api/version": true, "/health": true, "/version": true,
@@ -1257,7 +1077,8 @@ func writeBasicAuthChallenge(w http.ResponseWriter) {
 // protected.
 func (s *Server) basicAuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if isBasicAuthPublicPath(r.URL.Path) || s.validBasicAuth(r) {
+		public := isBasicAuthPublicPath(r.URL.Path) && !isPIIProfileMutation(r)
+		if public || s.validBasicAuth(r) {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -1271,7 +1092,8 @@ func (s *Server) basicAuthMiddleware(next http.Handler) http.Handler {
 // challenged.
 func (s *Server) transparentAdminAuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if s.config.BasicAuth.Active() && isTransparentAdminProtectedPath(r.URL.Path) && !s.validBasicAuth(r) {
+		protected := isTransparentAdminProtectedPath(r.URL.Path) || isPIIProfileMutation(r)
+		if s.config.BasicAuth.Active() && protected && !s.validBasicAuth(r) {
 			writeBasicAuthChallenge(w)
 			return
 		}

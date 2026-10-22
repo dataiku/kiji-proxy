@@ -83,6 +83,12 @@ func NewModelManager(directory string, onnxEnabled bool, extraDetectors ...pii.D
 // it is wrapped in a CompositeDetector. If the ONNX model is unhealthy but extra
 // detectors exist, detection degrades to those rather than failing entirely.
 func (mm *ModelManager) GetDetector() (pii.Detector, error) {
+	return mm.GetDetectorWith()
+}
+
+// GetDetectorWith is GetDetector plus extra per-call detectors (e.g. the regex
+// detector of the request's PII profile) combined with the static ones.
+func (mm *ModelManager) GetDetectorWith(extra ...pii.Detector) (pii.Detector, error) {
 	mm.mu.RLock()
 	defer mm.mu.RUnlock()
 
@@ -90,12 +96,13 @@ func (mm *ModelManager) GetDetector() (pii.Detector, error) {
 	if mm.onnxEnabled {
 		if mm.isHealthy && mm.currentDetector != nil {
 			active = append(active, mm.currentDetector)
-		} else if len(mm.extraDetectors) == 0 {
+		} else if len(mm.extraDetectors) == 0 && len(extra) == 0 {
 			// ONNX is the only configured detector and it is unavailable.
 			return nil, fmt.Errorf("model is unhealthy: %w", mm.lastError)
 		}
 	}
 	active = append(active, mm.extraDetectors...)
+	active = append(active, extra...)
 
 	switch len(active) {
 	case 0:
@@ -200,21 +207,8 @@ func (mm *ModelManager) GetLastError() error {
 	return mm.lastError
 }
 
-// SetEntityConfidenceThreshold updates the confidence threshold on the model
-// manager and every active detector (ONNX plus the extra detectors).
-func (mm *ModelManager) SetEntityConfidenceThreshold(threshold float64) {
-	mm.mu.Lock()
-	defer mm.mu.Unlock()
-	mm.entityConfidenceThreshold = threshold
-	if mm.currentDetector != nil {
-		mm.currentDetector.SetEntityConfidenceThreshold(threshold)
-	}
-	for _, d := range mm.extraDetectors {
-		d.SetEntityConfidenceThreshold(threshold)
-	}
-}
-
-// GetEntityConfidenceThreshold returns the current confidence threshold
+// GetEntityConfidenceThreshold returns the detectors' default confidence
+// threshold, used when a call doesn't supply one (see DetectorInput).
 func (mm *ModelManager) GetEntityConfidenceThreshold() float64 {
 	mm.mu.RLock()
 	defer mm.mu.RUnlock()

@@ -16,14 +16,14 @@ jobs:
       pull-requests: write
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
       - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "20"
+          node-version-file: ".nvmrc"
           cache: "npm"
           cache-dependency-path: |
             package-lock.json
@@ -64,10 +64,15 @@ jobs:
           # It will update src/frontend/package.json based on workspace config
           npx changeset version
 
-          # Sync root package.json version with frontend
+          # Sync root package.json version with frontend. --ignore-scripts skips
+          # the root "version" lifecycle script, which would re-run
+          # `changeset version` and exit 1 now that no changesets remain.
           NEW_VERSION=$(node -p "require('./src/frontend/package.json').version")
-          npm version "$NEW_VERSION" --no-git-tag-version
+          npm version "$NEW_VERSION" --no-git-tag-version --ignore-scripts
           echo "Synced root package.json to $NEW_VERSION"
+
+          # Sync chrome-extension/manifest.json version
+          node src/scripts/sync-manifest-version.js
 
           # Sync pyproject.toml version
           if [ -f "pyproject.toml" ]; then

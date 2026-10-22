@@ -42,7 +42,7 @@ func TestRequestMappingsSurviveUpstreamWaitAndResponse(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer db.Close()
-			fixture, err := sql.Open("sqlite", path)
+			fixture, err := sql.Open("sqlite", "file:"+path+"?_pragma=busy_timeout(5000)")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -65,7 +65,7 @@ func TestRequestMappingsSurviveUpstreamWaitAndResponse(t *testing.T) {
 			h.maskingService = piiServices.NewMaskingService(&mockDetectorProvider{detector: interleaved}, piiServices.NewGeneratorService(), mapping)
 			var provider providers.Provider = h.providers.OpenAIProvider
 			requestBody := []byte(`{"model":"gpt-4","messages":[{"role":"user","content":"Alice"},{"role":"user","content":"Alice"}]}`)
-			processed, err := h.ProcessRequestBody(ctx, requestBody, &provider)
+			processed, err := h.ProcessRequestBody(ctx, requestBody, &provider, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -123,7 +123,7 @@ func TestRequestMappingsSurviveUpstreamWaitAndResponse(t *testing.T) {
 			}
 			emitted := delta("Hello request-")
 			// A concurrent later request remasks the same original with a new lifetime.
-			next, err := h.ProcessRequestBody(ctx, requestBody, &provider)
+			next, err := h.ProcessRequestBody(ctx, requestBody, &provider, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -252,14 +252,14 @@ func TestMaskingEndpointsCancelSnapshotAcquisition(t *testing.T) {
 			go func() {
 				if endpoint == "proxy" {
 					var provider providers.Provider = h.providers.OpenAIProvider
-					result, err := h.ProcessRequestBody(ctx, []byte(`{"messages":[{"role":"user","content":"Alice"}]}`), &provider)
+					result, err := h.ProcessRequestBody(ctx, []byte(`{"messages":[{"role":"user","content":"Alice"}]}`), &provider, nil)
 					if result != nil {
 						done <- errors.New("request continued without a snapshot")
 						return
 					}
 					done <- err
 				} else {
-					text, pairs, _, err := h.MaskPIIInTextWithLogging(ctx, "Alice", "test")
+					text, pairs, _, err := h.MaskPIIInTextWithLogging(ctx, "Alice", "test", nil)
 					if text != "" || pairs != nil {
 						done <- errors.New("check continued without a snapshot")
 						return
@@ -307,7 +307,7 @@ func TestMaskingStorageFailuresReturn503WithoutForwarding(t *testing.T) {
 			}
 			body := `{"messages":[{"role":"user","content":"Alice"},{"role":"user","content":"Alice"}]}`
 			var provider providers.Provider = h.providers.OpenAIProvider
-			if result, err := h.ProcessRequestBody(ctx, []byte(body), &provider); err == nil || result != nil {
+			if result, err := h.ProcessRequestBody(ctx, []byte(body), &provider, nil); err == nil || result != nil {
 				t.Fatalf("provider callback lost failure: %v %v", result, err)
 			}
 			w := httptest.NewRecorder()

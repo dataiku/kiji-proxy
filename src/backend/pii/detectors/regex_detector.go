@@ -142,7 +142,7 @@ func (d *RegexDetector) Detect(ctx context.Context, input DetectorInput) (Detect
 	// the slice wholesale, so the captured header stays a stable view.
 	d.mu.RLock()
 	patterns := d.patterns
-	threshold := d.entityConfidenceThreshold
+	threshold := input.effectiveThreshold(d.entityConfidenceThreshold)
 	d.mu.RUnlock()
 
 	// Every regex match shares a fixed confidence; if the threshold is above it,

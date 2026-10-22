@@ -40,7 +40,7 @@ jobs:
             zip
 
       - name: Checkout Repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           lfs: true
           fetch-depth: 0
@@ -52,7 +52,7 @@ jobs:
           git config --global --get-all safe.directory
 
       - name: Setup Go
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
 
@@ -61,15 +61,13 @@ jobs:
         with:
           toolchain: stable
 
-      # The almalinux:9 base image ships Node.js 18 via dnf, but
-      # @tailwindcss/oxide's native binding declares engines.node ">= 20".
-      # Under Node 18 npm silently skips that optional dependency during
-      # `npm ci`, and the webpack build then fails with "Cannot find native
-      # binding". Pin Node 20 to match the other workflows.
+      # Override the distro Node.js runtime: Babel 8, Electron tooling and
+      # webpack-dev-server require newer Node versions. Use the same Node 24
+      # pin as local development and the other workflows.
       - name: Setup Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "20"
+          node-version-file: ".nvmrc"
 
       - name: Cache LFS objects
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
@@ -135,7 +133,7 @@ jobs:
           fi
 
       - name: Upload Linux Archive as Artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: linux-assets
           path: |

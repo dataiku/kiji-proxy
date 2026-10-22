@@ -34,7 +34,7 @@ docker run --rm kiji-proxy /opt/kiji-proxy/docker-test-api.sh
 ```
 
 This tests `/health`, `/version`, `/stats`, `/mappings`, `/api/model/info`,
-`/api/pii/check` (with PII detection verification), and `/api/pii/confidence`.
+`/api/pii/check` (with PII detection verification), and `/api/pii/profiles`.
 
 ## Configuration
 

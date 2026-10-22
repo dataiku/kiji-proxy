@@ -13,9 +13,15 @@ interface SettingsViewProps {
   /** Called after a successful provider save so the host can refresh cached
    *  provider state (e.g. the Playground provider selector). */
   onProvidersSaved?: () => void;
+  /** Called after PII profiles are created, renamed, deleted or a new default
+   *  is chosen, so the host can refresh the Playground's profile picker. */
+  onPIIProfilesChanged?: () => void;
 }
 
-export default function SettingsView({ onProvidersSaved }: SettingsViewProps) {
+export default function SettingsView({
+  onProvidersSaved,
+  onPIIProfilesChanged,
+}: SettingsViewProps) {
   const { t } = useTranslation("settings");
   // A single CA cert wizard, shared by the Advanced and Certificates sections.
   const [isCACertOpen, setIsCACertOpen] = useState(false);
@@ -50,7 +56,9 @@ export default function SettingsView({ onProvidersSaved }: SettingsViewProps) {
             on a server, the model directory uses a native picker, and
             certificate install is OS-level — so they are desktop-only. */}
         {isElectron && <ProvidersSection onSaved={onProvidersSaved} />}
-        {canConfigureServer && <PIISection />}
+        {canConfigureServer && (
+          <PIISection onProfilesChanged={onPIIProfilesChanged} />
+        )}
         {isElectron ? (
           <>
             <AdvancedSection onOpenCACert={openCACert} />

@@ -1,7 +1,7 @@
 {
   "name": "kiji-privacy-proxy",
   "productName": "Kiji Privacy Proxy",
-  "version": "1.6.5",
+  "version": "1.6.7",
   "description": "Dataiku's Kiji Privacy Proxy - PII detection and masking proxy for LLMs",
   "author": "Dataiku - Open Source Lab",
   "license": "Apache-2.0",
@@ -10,9 +10,11 @@
   "workspaces": [
     "src/frontend"
   ],
+  "_comment_babel": "@babel/core 8 is pinned at the root so the hoisted babel-loader resolves it. Without it, eslint-plugin-react-hooks hoists @babel/core 7 here, babel-loader runs the frontend Babel 8 presets on it, and TypeScript generics such as useRef<T>(null) leak into the bundle as comparisons. Keep it in sync with src/frontend/package.json.",
   "devDependencies": {
-    "@changesets/cli": "^2.31.0",
-    "@electron/notarize": "^3.1.1"
+    "@babel/core": "^8.0.1",
+    "@changesets/cli": "^3.0.3",
+    "@electron/notarize": "^3.1.2"
   },
   "repository": {
     "type": "git",
@@ -41,7 +43,7 @@
     "release": "changeset publish"
   },
   "engines": {
-    "node": ">=18.0.0",
-    "npm": ">=9.0.0"
+    "node": "^24.11.0",
+    "npm": ">=10.9.0"
   }
 }

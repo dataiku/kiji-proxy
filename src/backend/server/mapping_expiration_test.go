@@ -42,7 +42,7 @@ func TestMappingExpirationRejectsStaleSave(t *testing.T) {
 	if w := call(`{"ttl_seconds":120,"expected":{"ttl_seconds":300}}`); w.Code != 200 {
 		t.Fatalf("initial save: %d", w.Code)
 	}
-	db, err := sql.Open("sqlite", s.config.Database.Path)
+	db, err := sql.Open("sqlite", "file:"+s.config.Database.Path+"?_pragma=busy_timeout(5000)")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,14 +107,16 @@ func TestPIISettingsPersistenceFailuresRejectAndRollBackEdits(t *testing.T) {
 			t.Run(endpoint+"/"+failure, func(t *testing.T) {
 				s := expirationTestServer(t)
 				oldRegexes := []config.RegexPatternConfig{{Name: "OLD", Pattern: "OLD-[0-9]+"}}
-				if err := s.handler.SetCustomRegexes(oldRegexes); err != nil {
+				oldProfile, err := s.handler.Profiles().Get(s.handler.Profiles().DefaultID())
+				if err != nil {
 					t.Fatal(err)
 				}
-				s.handler.SetDisabledEntities([]string{"EMAIL"})
-				if err := s.savePIISettings(); err != nil {
+				oldProfile.CustomRegexes = oldRegexes
+				oldProfile.DisabledEntities = []string{"EMAIL"}
+				if _, err := s.handler.Profiles().Update(oldProfile.ID, oldProfile); err != nil {
 					t.Fatal(err)
 				}
-				path := config.PIISettingsPath()
+				path := config.PIIProfilesPath()
 				if failure == "rename" {
 					if err := os.Remove(path); err != nil {
 						t.Fatal(err)
@@ -126,15 +128,19 @@ func TestPIISettingsPersistenceFailuresRejectAndRollBackEdits(t *testing.T) {
 					t.Fatal(err)
 				}
 				w := httptest.NewRecorder()
+				updated := oldProfile
 				if endpoint == "entities" {
-					s.handlePIIEntities(w, httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"disabled":[]}`)))
+					updated.DisabledEntities = []string{}
 				} else {
-					s.handlePIIRegexes(w, httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"regexes":[]}`)))
+					updated.CustomRegexes = []config.RegexPatternConfig{}
 				}
+				body, _ := json.Marshal(updated)
+				s.handlePIIProfiles(w, httptest.NewRequest(http.MethodPut, piiProfilesPath+"/"+updated.ID, strings.NewReader(string(body))))
 				if w.Code != 500 {
 					t.Fatalf("persistence failure reported as %d", w.Code)
 				}
-				if !reflect.DeepEqual(s.handler.GetDisabledEntities(), []string{"EMAIL"}) || !reflect.DeepEqual(s.handler.GetCustomRegexes(), oldRegexes) {
+				got, _ := s.handler.Profiles().Get(oldProfile.ID)
+				if !reflect.DeepEqual(got.DisabledEntities, oldProfile.DisabledEntities) || !reflect.DeepEqual(got.CustomRegexes, oldRegexes) {
 					t.Fatal("failed save changed runtime settings")
 				}
 			})
@@ -156,7 +162,7 @@ func TestPIICheckRejectsCancelledSnapshotAcquisition(t *testing.T) {
 
 func persistedPolicy(t *testing.T, s *Server) config.MappingExpirationConfig {
 	t.Helper()
-	db, err := sql.Open("sqlite", s.config.Database.Path)
+	db, err := sql.Open("sqlite", "file:"+s.config.Database.Path+"?_pragma=busy_timeout(5000)")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -214,7 +220,7 @@ func TestMappingExpirationAPI(t *testing.T) {
 
 func TestMappingExpirationDatabaseFailureIsAtomic(t *testing.T) {
 	s := expirationTestServer(t)
-	db, err := sql.Open("sqlite", s.config.Database.Path)
+	db, err := sql.Open("sqlite", "file:"+s.config.Database.Path+"?_pragma=busy_timeout(5000)")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -250,7 +256,7 @@ func restartExpirationServer(t *testing.T, seed *Server, explicit *int, settings
 			t.Fatal(err)
 		}
 	}
-	if err := cfg.LoadPersistedPIISettings(); (err != nil) != settingsError {
+	if _, err := config.LoadPIISettings(); (err != nil) != settingsError {
 		t.Fatalf("settings load: %v", err)
 	}
 	h, err := proxy.NewHandler(cfg)
@@ -288,7 +294,7 @@ func TestSQLitePolicySurvivesSettingsFailuresAndRepairs(t *testing.T) {
 				if w.Code != 200 {
 					t.Fatalf("independent policy save failed: %d %s", w.Code, w.Body.String())
 				}
-				db, err := sql.Open("sqlite", s.config.Database.Path)
+				db, err := sql.Open("sqlite", "file:"+s.config.Database.Path+"?_pragma=busy_timeout(5000)")
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -309,15 +315,21 @@ func TestSQLitePolicySurvivesSettingsFailuresAndRepairs(t *testing.T) {
 					}
 				}
 				w = httptest.NewRecorder()
-				if endpoint == "entities" {
-					restarted.handlePIIEntities(w, httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"disabled":[]}`)))
-				} else {
-					restarted.handlePIIRegexes(w, httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"regexes":[{"name":"EMPLOYEE_ID","pattern":"EMP-[0-9]+"}]}`)))
+				p, err := restarted.handler.Profiles().Get(restarted.handler.Profiles().DefaultID())
+				if err != nil {
+					t.Fatal(err)
 				}
+				if endpoint == "entities" {
+					p.DisabledEntities = []string{}
+				} else {
+					p.CustomRegexes = []config.RegexPatternConfig{{Name: "EMPLOYEE_ID", Pattern: "EMP-[0-9]+"}}
+				}
+				body, _ := json.Marshal(p)
+				restarted.handlePIIProfiles(w, httptest.NewRequest(http.MethodPut, piiProfilesPath+"/"+p.ID, strings.NewReader(string(body))))
 				if w.Code != 200 {
 					t.Fatalf("repair failed: %d %s", w.Code, w.Body.String())
 				}
-				data, err := os.ReadFile(path)
+				data, err := os.ReadFile(config.PIIProfilesPath())
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -327,7 +339,7 @@ func TestSQLitePolicySurvivesSettingsFailuresAndRepairs(t *testing.T) {
 				if err := restarted.handler.Close(); err != nil {
 					t.Fatal(err)
 				}
-				next := restartExpirationServer(t, s, nil, false)
+				next := restartExpirationServer(t, s, nil, failure != "missing" && failure != "unreadable")
 				var count int
 				if err := db.QueryRow(`SELECT COUNT(*) FROM pii_mappings`).Scan(&count); err != nil {
 					t.Fatal(err)
@@ -347,7 +359,7 @@ func TestExplicitConfigUpdatesSQLitePolicyAtStartup(t *testing.T) {
 			if err := s.handler.SetMappingExpiration(config.MappingExpirationConfig{TTLSeconds: 0}); err != nil {
 				t.Fatal(err)
 			}
-			if err := config.SavePIISettings(&config.PIISettings{DisabledEntities: []string{"EMAIL"}}); err != nil {
+			if err := os.WriteFile(config.PIISettingsPath(), []byte(`{"disabled_entities":["EMAIL"]}`), 0600); err != nil {
 				t.Fatal(err)
 			}
 			if corrupt {

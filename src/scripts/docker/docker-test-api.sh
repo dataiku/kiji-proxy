@@ -110,19 +110,30 @@ else
     fail "POST /api/pii/check — expected 200, got $PII_STATUS"
 fi
 
-# PII confidence endpoint (GET returns current threshold)
-check_status "GET /api/pii/confidence" "$BASE_URL/api/pii/confidence"
-check_json_field "GET /api/pii/confidence has threshold" "$BASE_URL/api/pii/confidence" ".confidence"
+# PII profiles: list returns the default profile id
+check_status "GET /api/pii/profiles" "$BASE_URL/api/pii/profiles"
+check_json_field "GET /api/pii/profiles has default" "$BASE_URL/api/pii/profiles" ".default"
 
-# Set confidence threshold via POST
-CONF_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-    -X POST "$BASE_URL/api/pii/confidence" \
+# Create a profile via POST
+PROFILE_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+    -X POST "$BASE_URL/api/pii/profiles" \
     -H "Content-Type: application/json" \
-    -d '{"confidence": 0.5}') || true
-if [ "$CONF_STATUS" = "200" ]; then
-    pass "POST /api/pii/confidence (HTTP $CONF_STATUS)"
+    -d '{"name": "Docker Smoke Test", "confidence": 0.5}') || true
+if [ "$PROFILE_STATUS" = "201" ]; then
+    pass "POST /api/pii/profiles (HTTP $PROFILE_STATUS)"
 else
-    fail "POST /api/pii/confidence — expected 200, got $CONF_STATUS"
+    fail "POST /api/pii/profiles — expected 201, got $PROFILE_STATUS"
+fi
+
+# An unknown profile is rejected
+UNKNOWN_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+    -X POST "$BASE_URL/api/pii/check" \
+    -H "Content-Type: application/json" \
+    -d '{"message": "hello", "profile": "does-not-exist"}') || true
+if [ "$UNKNOWN_STATUS" = "400" ]; then
+    pass "POST /api/pii/check with unknown profile (HTTP $UNKNOWN_STATUS)"
+else
+    fail "POST /api/pii/check with unknown profile — expected 400, got $UNKNOWN_STATUS"
 fi
 
 # Summary

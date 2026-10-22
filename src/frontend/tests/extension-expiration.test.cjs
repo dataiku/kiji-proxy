@@ -12,6 +12,8 @@ async function setup() {
       value: '', textContent: '', checked: true, disabled: false,
       listeners: {}, addEventListener(type, callback) { this.listeners[type] = callback; },
       querySelector: () => null,
+      replaceChildren(...children) { this.children = children; },
+      appendChild(child) { (this.children ??= []).push(child); },
     });
     return elements.get(id);
   };
@@ -19,6 +21,7 @@ async function setup() {
   let policy = { ttl_seconds: 300 };
   const posts = [];
   const context = {
+    Option: function Option(text, value) { this.text = text; this.value = value; },
     document: { addEventListener: (_, callback) => { ready = callback; }, getElementById: element },
     CONFIG: { DEFAULT_API_BASE: 'http://localhost:8080', DEFAULT_DOMAINS: [] },
     chrome: {

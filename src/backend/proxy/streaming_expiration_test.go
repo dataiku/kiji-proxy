@@ -106,7 +106,7 @@ func TestStreamKeepsOwnGenerationAfterPolicyChangeAndRemasking(t *testing.T) {
 	if received != "Before EMP-123. " {
 		t.Fatalf("fresh stream mapping failed: %q", received)
 	}
-	fixture, err := sql.Open("sqlite", path)
+	fixture, err := sql.Open("sqlite", "file:"+path+"?_pragma=busy_timeout(5000)")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +158,7 @@ func TestStreamSnapshotSurvivesExpirationBetweenEvents(t *testing.T) {
 	if _, err := m.AddMapping(context.Background(), "Alice", "dummy", "FIRSTNAME", 1); err != nil {
 		t.Fatal(err)
 	}
-	fixture, err := sql.Open("sqlite", path)
+	fixture, err := sql.Open("sqlite", "file:"+path+"?_pragma=busy_timeout(5000)")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -469,7 +469,7 @@ If you're a contributor or maintainer, here's how to create your first release u
 
 ### Prerequisites
 
-- Node.js 20+ installed
+- Node.js 24.x (24.11.0 or newer) installed
 - Git configured with GitHub credentials
 - Write access to the repository
 - All pending changes committed
