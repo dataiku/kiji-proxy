@@ -125,6 +125,12 @@ jobs:
         working-directory: src/frontend
         run: npm test
 
+      - name: Build production web UI
+        run: npm run build
+
+      - name: Build production Electron UI
+        run: npm run build:electron
+
   actionlint:
     runs-on: ubuntu-latest
     name: Workflow Lint (actionlint)
