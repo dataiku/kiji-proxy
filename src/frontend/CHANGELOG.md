@@ -1,5 +1,12 @@
 # kiji-privacy-proxy
 
+## 1.6.8
+
+### Patch Changes
+
+- d6f516e: Bump electron-builder to 26.18.1 to pick up the macOS code-signing keychain password fix (electron-userland/electron-builder#10167)
+- d6f516e: Re-enable the macOS DMG build and Homebrew cask publishing in releases now that electron-builder 26.18.1 fixes CSC_LINK keychain signing
+
 ## 1.6.7
 
 ### Patch Changes
