@@ -54,7 +54,7 @@
     "babel-loader": "^10.1.1",
     "css-loader": "^7.1.5",
     "electron": "^43.0.0",
-    "electron-builder": "^26.15.3",
+    "electron-builder": "^26.18.1",
     "eslint": "^9.39.5",
     "eslint-plugin-i18next": "^6.1.5",
     "eslint-plugin-react": "^7.33.0",
