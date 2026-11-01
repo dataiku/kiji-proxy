@@ -25,7 +25,7 @@
     "test": "node --test tests/*.test.cjs"
   },
   "dependencies": {
-    "@sentry/electron": "^7.15.0",
+    "@sentry/electron": "^8.3.0",
     "@types/dompurify": "^3.2.0",
     "dompurify": "^3.4.17",
     "electron-updater": "^6.8.9",
