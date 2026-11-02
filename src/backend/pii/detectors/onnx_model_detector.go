@@ -577,7 +577,10 @@ func (s *entityGroupingState) consume(
 		// "jonathan.reyes@example.com" do not fragment.
 		s.currentTokens = append(s.currentTokens, token.index)
 		s.currentEntity.Confidence = (s.currentEntity.Confidence + token.confidence) / 2
-	case token.label != "O" && (token.isBeginning || s.currentEntity == nil):
+	case token.label != "O":
+		// Start a new entity on B tags, and also on I tags whose label differs
+		// from the open entity. Dropping those I tags leaks the first subword,
+		// e.g. "K" in "Dominik Kärcher" tagged B-FIRSTNAME, I-STREET, I-STREET.
 		s.finishCurrent(d, originalText, offsets)
 		s.currentEntity = &Entity{
 			Label:      token.baseLabel,

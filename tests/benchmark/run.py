@@ -364,7 +364,7 @@ class OnnxPIIModel:
                 cur_label,
             )
 
-            base_label, is_beginning, is_inside = split_bio_label(label)
+            base_label, _, is_inside = split_bio_label(label)
             is_same_compact_entity = (
                 label != "O"
                 and cur_label is not None
@@ -380,7 +380,10 @@ class OnnxPIIModel:
             ):
                 cur_end = int(offset[1])
                 cur_tokens.append(index)
-            elif label != "O" and (is_beginning or cur_label is None):
+            elif label != "O":
+                # Start a new entity on B tags, and also on I tags whose label
+                # differs from the open one; dropping them leaks the first
+                # subword, e.g. "K" in "Dominik Kärcher" (B-FIRSTNAME, I-STREET).
                 finish_current()
                 cur_label = base_label
                 cur_start = int(offset[0])

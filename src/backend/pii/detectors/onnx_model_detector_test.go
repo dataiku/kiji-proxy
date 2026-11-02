@@ -631,6 +631,59 @@ func TestFinalizeEntity_DotFollowedByDigit(t *testing.T) {
 }
 
 // ============================================
+// Tests for entityGroupingState.consume()
+// ============================================
+
+func groupTestTokens(originalText string, offsets []tokenizers.Offset, labels []string) []Entity {
+	detector := &ONNXModelDetectorSimple{}
+	state := entityGroupingState{}
+	for i, label := range labels {
+		baseLabel, isBeginning, isInside := splitBIOLabel(label)
+		state.consume(detector, decodedEntityToken{
+			index:       i,
+			label:       label,
+			baseLabel:   baseLabel,
+			confidence:  0.9,
+			isBeginning: isBeginning,
+			isInside:    isInside,
+		}, originalText, offsets)
+	}
+	state.finishCurrent(detector, originalText, offsets)
+	return state.entities
+}
+
+func TestConsume_InsideTagWithDifferentLabelStartsEntity(t *testing.T) {
+	originalText := "Dominik Kärcher"
+	// Tokens: "▁Dominik", "▁K", "är", "cher" (byte offsets; "ä" is 2 bytes)
+	offsets := []tokenizers.Offset{{0, 7}, {7, 9}, {9, 12}, {12, 16}}
+	labels := []string{"B-FIRSTNAME", "I-STREET", "I-STREET", "I-STREET"}
+
+	entities := groupTestTokens(originalText, offsets, labels)
+
+	if len(entities) != 2 {
+		t.Fatalf("Expected 2 entities, got %d: %+v", len(entities), entities)
+	}
+	if entities[0].Text != "Dominik" || entities[0].Label != "FIRSTNAME" {
+		t.Errorf("Expected FIRSTNAME 'Dominik', got %s '%s'", entities[0].Label, entities[0].Text)
+	}
+	if entities[1].Text != "Kärcher" || entities[1].Label != "STREET" {
+		t.Errorf("Expected STREET 'Kärcher', got %s '%s'", entities[1].Label, entities[1].Text)
+	}
+}
+
+func TestConsume_InsideTagAfterOStartsEntity(t *testing.T) {
+	originalText := "Hallo Kärcher"
+	offsets := []tokenizers.Offset{{0, 5}, {5, 7}, {7, 10}, {10, 14}}
+	labels := []string{"O", "I-SURNAME", "I-SURNAME", "I-SURNAME"}
+
+	entities := groupTestTokens(originalText, offsets, labels)
+
+	if len(entities) != 1 || entities[0].Text != "Kärcher" || entities[0].Label != "SURNAME" {
+		t.Errorf("Expected one SURNAME 'Kärcher', got %+v", entities)
+	}
+}
+
+// ============================================
 // Tests for viterbiDecode() - Pure Function
 // ============================================
 
