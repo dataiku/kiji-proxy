@@ -1,0 +1,55 @@
+# Backbone comparison experiment: Baseline: current English backbone, same settings
+# Identical to ../training_config.toml except model.name, batch_size and
+# output_dir, so the only difference between the two experiment configs
+# is the backbone. Run both with run_backbone_comparison.sh.
+
+[model]
+name = "microsoft/deberta-v3-base"
+
+[training]
+num_epochs = 30
+batch_size = 32           # 128 targets 80 GB GPUs; 32 for a 48 GB L40S (not yet measured)
+learning_rate = 2e-5
+bf16 = true                # Mixed precision for Ampere+ GPUs (H100, A100, etc.)
+torch_compile = false      # Keep torch.compile disabled during training
+
+warmup_steps = 500        # Gradual LR ramp-up to stabilize early training
+weight_decay = 0.01       # L2 regularization strength
+auxiliary_ce_loss_weight = 0.2  # Weighted token CE added to CRF loss for rare labels
+
+# Early stopping settings
+max_eval_samples = 0            # Cap eval set size for faster evaluation (0 = no cap)
+balanced_validation_split = true
+early_stopping_enabled = true
+early_stopping_patience = 3   # Number of epochs with no improvement before stopping
+early_stopping_threshold = 0.005  # Minimum improvement (0.5%) to qualify as improvement
+
+[paths]
+# Directory containing JSON training samples (relative to working directory or absolute)
+training_samples_dir = "model/dataset/data_samples/training_samples"
+output_dir = "model/trained/deberta_v3_base"
+
+[labelstudio]
+# Label Studio base url
+base_url = "http://localhost:8080"
+# ID of the label studio project
+project_id = 6
+
+
+[data]
+# Limit samples for quick iteration (0 = use all)
+subsample_count = 0
+# ai4privacy/pii-masking-300k samples to add (-1 = none, 0 = all)
+num_ai4privacy_samples = -1
+# Path to audit ledger TSV to filter training samples (empty = no filtering)
+# Relative paths are resolved from the project root.
+# Generate with: uv run python model/dataset/audit_dataset.py --samples-dir <dir>
+audit_allowlist = "model/dataset/data_samples/training_samples/audit_ledger.tsv"
+
+[pipeline]
+# Skip Label Studio export and use existing data from paths.training_samples_dir
+skip_export = true
+# Skip ONNX quantization. model.onnx is the production artifact for now.
+skip_quantization = true
+# Skip model signing
+skip_signing = false
