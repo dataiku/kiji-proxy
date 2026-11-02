@@ -6,6 +6,9 @@ and reports span-based precision, recall, and F1 per label.
 Usage:
     uv run python -m tests.benchmark.run
     uv run python -m tests.benchmark.run --num 5000 --model-path ./model/quantized
+    uv run python -m tests.benchmark.run --dataset nobody-de --num 0
+
+German held-out sets (--dataset) are described in tests/benchmark/GERMAN_EVAL.md.
 """
 
 from __future__ import annotations
@@ -23,6 +26,8 @@ from datasets import load_dataset
 from transformers import AutoTokenizer
 
 from model.dataset.huggingface.import_ai4privacy import convert_ai4privacy_sample
+from tests.benchmark.german_eval import SOURCES as GERMAN_SOURCES
+from tests.benchmark.german_eval import load_german_samples
 
 # ---------------------------------------------------------------------------
 # ONNX model wrapper
@@ -643,6 +648,9 @@ def print_sample_detections(
 # ---------------------------------------------------------------------------
 
 
+DEFAULT_DATASET = "ai4privacy-300k"
+
+
 def parse_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser(
         description="Benchmark kiji PII model against ai4privacy/pii-masking-300k"
@@ -651,7 +659,20 @@ def parse_args() -> argparse.Namespace:
         "--num",
         type=int,
         default=1000,
-        help="Number of samples to evaluate (default: 1000).",
+        help="Number of samples to evaluate (default: 1000; 0 = all rows of a "
+        "--dataset source).",
+    )
+    ap.add_argument(
+        "--dataset",
+        choices=[DEFAULT_DATASET, *sorted(GERMAN_SOURCES)],
+        default=DEFAULT_DATASET,
+        help="Evaluation set. Default: ai4privacy/pii-masking-300k train split "
+        "(also used for training). Others: see tests/benchmark/GERMAN_EVAL.md.",
+    )
+    ap.add_argument(
+        "--split",
+        default=None,
+        help="Split for --dataset sources (default: the source's held-out split).",
     )
     ap.add_argument(
         "--model-path",
@@ -688,6 +709,10 @@ def parse_args() -> argparse.Namespace:
     args = ap.parse_args()
     if args.verbose and args.num >= 50:
         ap.error("--verbose is only allowed with --num < 50")
+    if args.dataset == DEFAULT_DATASET and args.split is not None:
+        ap.error("--split only applies to --dataset sources other than ai4privacy-300k")
+    if args.dataset != DEFAULT_DATASET and args.language is not None:
+        ap.error("--language only applies to the default ai4privacy-300k dataset")
     return args
 
 
@@ -702,9 +727,23 @@ def main() -> int:
     )
     print(f"  CRF decoding: {'enabled' if model.uses_crf else 'disabled'}")
 
-    lang_desc = f" (language={args.language})" if args.language else ""
-    print(f"Loading {args.num} samples from ai4privacy/pii-masking-300k{lang_desc} ...")
-    samples = load_ai4privacy_samples(args.num, seed=args.seed, language=args.language)
+    source = None
+    if args.dataset == DEFAULT_DATASET:
+        dataset_name = "ai4privacy/pii-masking-300k"
+        split = "train"
+        lang_desc = f" (language={args.language})" if args.language else ""
+        print(f"Loading {args.num} samples from {dataset_name}{lang_desc} ...")
+        samples = load_ai4privacy_samples(
+            args.num, seed=args.seed, language=args.language
+        )
+    else:
+        source = GERMAN_SOURCES[args.dataset]
+        dataset_name = args.dataset
+        split = args.split or source.default_split
+        print(
+            f"Loading {args.num or 'all'} samples from {source.description} [{split}] ..."
+        )
+        samples = load_german_samples(args.dataset, args.num, args.seed, split)
     print(f"  Loaded {len(samples)} samples with mappable entities.")
 
     if not samples:
@@ -714,12 +753,23 @@ def main() -> int:
     exact_metrics = SpanMetrics()
     relaxed_metrics = RelaxedOverlapMetrics()
     latencies: list[float] = []
+    # Predictions with labels the source does not annotate (not scored).
+    out_of_schema: dict[str, int] = defaultdict(int)
+    pii_free_samples = 0
+    pii_free_with_predictions = 0
 
     for i, sample in enumerate(samples):
         t0 = time.perf_counter()
         predicted = model.predict(sample["text"])
         elapsed_ms = (time.perf_counter() - t0) * 1000
         latencies.append(elapsed_ms)
+        if source is not None:
+            predicted, ignored = source.project(sample["text"], predicted)
+            for _, _, label in ignored:
+                out_of_schema[label] += 1
+            if not sample["entities"]:
+                pii_free_samples += 1
+                pii_free_with_predictions += bool(predicted or ignored)
         exact_metrics.update(sample["entities"], predicted)
         relaxed_metrics.update(sample["entities"], predicted)
         if args.verbose:
@@ -742,7 +792,8 @@ def main() -> int:
     relaxed_micro_f1 = relaxed_metrics.micro_f1()
     relaxed_macro_f1 = relaxed_metrics.macro_f1()
     report = {
-        "dataset": "ai4privacy/pii-masking-300k",
+        "dataset": dataset_name,
+        "split": split,
         "num_samples": len(samples),
         "seed": args.seed,
         "language": args.language,
@@ -776,6 +827,11 @@ def main() -> int:
             "per_label": relaxed_per_label,
         },
     }
+    if source is not None:
+        report["label_scheme"] = source.scheme
+        report["out_of_schema_predictions"] = dict(sorted(out_of_schema.items()))
+        report["pii_free_samples"] = pii_free_samples
+        report["pii_free_samples_with_predictions"] = pii_free_with_predictions
 
     report_path = Path(args.report)
     report_path.parent.mkdir(parents=True, exist_ok=True)
@@ -815,6 +871,14 @@ def main() -> int:
             f"  {label:<22s} {m['precision']:6.3f} {m['recall']:6.3f} {m['f1']:6.3f}"
             f"  {m['tp']:5d} {m['fp']:5d} {m['fn']:5d}"
         )
+    if source is not None:
+        print(
+            f"\nPII-free samples with any prediction: {pii_free_with_predictions}/{pii_free_samples}"
+        )
+        if out_of_schema:
+            print("Unscored predictions (labels this source does not annotate):")
+            for label, count in sorted(out_of_schema.items(), key=lambda x: -x[1]):
+                print(f"  {label:<22s} {count:5d}")
     print(f"\nReport saved to {report_path}")
     return 0
 
