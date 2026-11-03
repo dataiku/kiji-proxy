@@ -160,7 +160,7 @@ def group_bio_spans(
             confidence_threshold,
         )
 
-        base_label, is_beginning, is_inside = split_bio_label(label)
+        base_label, _, is_inside = split_bio_label(label)
         is_same_compact_entity = (
             label != "O"
             and current_label is not None
@@ -176,7 +176,10 @@ def group_bio_spans(
         ):
             current_end = end
             current_tokens.append(index)
-        elif label != "O" and (is_beginning or current_label is None):
+        elif label != "O":
+            # Start a new entity on B tags, and also on I tags whose label
+            # differs from the open one; dropping them leaks the first
+            # subword, e.g. "K" in "Dominik Kärcher" (B-FIRSTNAME, I-STREET).
             finish_current()
             current_label = base_label
             current_start = start
