@@ -679,26 +679,10 @@ func (d *ONNXModelDetectorSimple) finalizeEntity(entity *Entity, tokenIndices []
 	// Extract the actual text from the original string
 	entity.Text = originalText[startOffset[0]:endOffset[1]]
 
-	// Trim leading/trailing whitespace from entity text and adjust offsets.
-	// The SentencePiece Metaspace pre-tokenizer includes the preceding space
-	// character in token offsets.
-	trimmedStart := startOffset[0]
-	trimmedEnd := endOffset[1]
-	for trimmedStart < trimmedEnd && (originalText[trimmedStart] == ' ' || originalText[trimmedStart] == '\t' || originalText[trimmedStart] == '\n' || originalText[trimmedStart] == '\r') {
-		trimmedStart++
-	}
-	for trimmedEnd > trimmedStart && (originalText[trimmedEnd-1] == ' ' || originalText[trimmedEnd-1] == '\t' || originalText[trimmedEnd-1] == '\n' || originalText[trimmedEnd-1] == '\r') {
-		trimmedEnd--
-	}
-	// Strip trailing sentence punctuation only when followed by whitespace
-	// or end-of-string, so "yahoo.com" keeps the dot but "1988," loses
-	// the trailing comma.
-	for trimmedEnd > trimmedStart && (originalText[trimmedEnd-1] == ',' || originalText[trimmedEnd-1] == '.' || originalText[trimmedEnd-1] == ';' || originalText[trimmedEnd-1] == ':' || originalText[trimmedEnd-1] == '!' || originalText[trimmedEnd-1] == '?') {
-		if trimmedEnd < uint(len(originalText)) && originalText[trimmedEnd] != ' ' && originalText[trimmedEnd] != '\t' && originalText[trimmedEnd] != '\n' && originalText[trimmedEnd] != '\r' {
-			break
-		}
-		trimmedEnd--
-	}
+	// Trim whitespace, trailing sentence punctuation and unbalanced
+	// brackets from the span. The SentencePiece Metaspace pre-tokenizer
+	// includes the preceding space character in token offsets.
+	trimmedStart, trimmedEnd := trimEntityBounds(originalText, startOffset[0], endOffset[1])
 	if trimmedStart < trimmedEnd {
 		entity.Text = originalText[trimmedStart:trimmedEnd]
 	} else {
@@ -718,6 +702,107 @@ func (d *ONNXModelDetectorSimple) finalizeEntity(entity *Entity, tokenIndices []
 		entity.EndPos = int(trimmedEnd)
 	} else {
 		entity.EndPos = maxInt // Max int value
+	}
+}
+
+func isTrimSpace(c byte) bool {
+	return c == ' ' || c == '\t' || c == '\n' || c == '\r'
+}
+
+func isTrailingPunctuation(c byte) bool {
+	return c == ',' || c == '.' || c == ';' || c == ':' || c == '!' || c == '?'
+}
+
+// bracketPair returns the opening and closing bracket for c, if c is one.
+func bracketPair(c byte) (open, closing byte, ok bool) {
+	switch c {
+	case '(', ')':
+		return '(', ')', true
+	case '[', ']':
+		return '[', ']', true
+	case '{', '}':
+		return '{', '}', true
+	}
+	return 0, 0, false
+}
+
+func countBrackets(span string, open, closing byte) (opens, closes int) {
+	for i := 0; i < len(span); i++ {
+		switch span[i] {
+		case open:
+			opens++
+		case closing:
+			closes++
+		}
+	}
+	return opens, closes
+}
+
+// enclosedByPair reports whether the bracket at span[0] is closed by the
+// last byte of span, as in "(B-MX 55)" but not "(030) 123456".
+func enclosedByPair(span string, open, closing byte) bool {
+	depth := 0
+	for i := 0; i < len(span); i++ {
+		switch span[i] {
+		case open:
+			depth++
+		case closing:
+			depth--
+			if depth == 0 {
+				return i == len(span)-1
+			}
+		}
+	}
+	return false
+}
+
+// trimEntityBounds trims whitespace, trailing sentence punctuation and
+// brackets that do not belong to the value from text[start:end]. Offsets are
+// bytes; brackets and punctuation are ASCII, so byte checks never split a
+// multi-byte character.
+func trimEntityBounds(text string, start, end uint) (uint, uint) {
+	for {
+		prevStart, prevEnd := start, end
+		for start < end && isTrimSpace(text[start]) {
+			start++
+		}
+		for end > start && isTrimSpace(text[end-1]) {
+			end--
+		}
+		// Strip trailing sentence punctuation only when followed by whitespace
+		// or end-of-string, so "yahoo.com" keeps the dot but "1988," loses
+		// the trailing comma.
+		for end > start && isTrailingPunctuation(text[end-1]) {
+			if end < uint(len(text)) && !isTrimSpace(text[end]) {
+				break
+			}
+			end--
+		}
+		// Strip a closing bracket with no opener in the span ("F31)" from
+		// "(BMW F31)"), an opening bracket with no closer, or a pair that
+		// encloses the whole span. "(030) 123456" keeps its brackets.
+		if end > start {
+			span := text[start:end]
+			if open, closing, ok := bracketPair(span[len(span)-1]); ok && span[len(span)-1] == closing {
+				if opens, closes := countBrackets(span, open, closing); closes > opens {
+					end--
+				}
+			}
+		}
+		if end > start {
+			span := text[start:end]
+			if open, closing, ok := bracketPair(span[0]); ok && span[0] == open {
+				if opens, closes := countBrackets(span, open, closing); opens > closes {
+					start++
+				} else if enclosedByPair(span, open, closing) {
+					start++
+					end--
+				}
+			}
+		}
+		if start == prevStart && end == prevEnd {
+			return start, end
+		}
 	}
 }
 
