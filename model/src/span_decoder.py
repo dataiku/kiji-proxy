@@ -30,17 +30,57 @@ def is_entity_joiner_token(token_text: str) -> bool:
     return bool(trimmed) and all(c in ".,@_-+:/#%&=" for c in trimmed)
 
 
+_BRACKET_PAIRS = {"(": ")", "[": "]", "{": "}"}
+_CLOSING_BRACKETS = {closing: opening for opening, closing in _BRACKET_PAIRS.items()}
+
+
+def _enclosed_by_pair(span: str, opening: str, closing: str) -> bool:
+    """Return true if the bracket at ``span[0]`` is closed by the last char."""
+    depth = 0
+    for index, char in enumerate(span):
+        if char == opening:
+            depth += 1
+        elif char == closing:
+            depth -= 1
+            if depth == 0:
+                return index == len(span) - 1
+    return False
+
+
 def trim_span(text: str, start: int, end: int) -> tuple[int, int]:
-    """Trim whitespace and trailing sentence punctuation from a span."""
-    while start < end and text[start] in " \t\n\r":
-        start += 1
-    while end > start and text[end - 1] in " \t\n\r":
-        end -= 1
-    while end > start and text[end - 1] in ",.;:!?":
-        if end < len(text) and text[end] not in " \t\n\r":
-            break
-        end -= 1
-    return start, end
+    """Trim whitespace, trailing punctuation and stray brackets from a span.
+
+    Mirrors ``trimEntityBounds`` in the Go detector. A closing bracket with
+    no opener in the span ("F31)" from "(BMW F31)"), an opening bracket with
+    no closer, and a pair enclosing the whole span are removed; "(030) 123456"
+    keeps its brackets.
+    """
+    while True:
+        prev = (start, end)
+        while start < end and text[start] in " \t\n\r":
+            start += 1
+        while end > start and text[end - 1] in " \t\n\r":
+            end -= 1
+        while end > start and text[end - 1] in ",.;:!?":
+            if end < len(text) and text[end] not in " \t\n\r":
+                break
+            end -= 1
+        if end > start and text[end - 1] in _CLOSING_BRACKETS:
+            closing = text[end - 1]
+            span = text[start:end]
+            if span.count(closing) > span.count(_CLOSING_BRACKETS[closing]):
+                end -= 1
+        if end > start and text[start] in _BRACKET_PAIRS:
+            opening = text[start]
+            closing = _BRACKET_PAIRS[opening]
+            span = text[start:end]
+            if span.count(opening) > span.count(closing):
+                start += 1
+            elif _enclosed_by_pair(span, opening, closing):
+                start += 1
+                end -= 1
+        if (start, end) == prev:
+            return start, end
 
 
 def _as_int(value: Any) -> int:

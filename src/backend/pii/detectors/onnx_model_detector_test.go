@@ -631,6 +631,88 @@ func TestFinalizeEntity_DotFollowedByDigit(t *testing.T) {
 }
 
 // ============================================
+// Tests for finalizeEntity() - Bracket Trimming
+// ============================================
+
+func finalizeSpan(originalText string, start, end uint) Entity {
+	detector := &ONNXModelDetectorSimple{}
+	entity := &Entity{Label: "LICENSEPLATENUM", Confidence: 0.90}
+	detector.finalizeEntity(entity, []int{0}, originalText, []tokenizers.Offset{{start, end}})
+	return *entity
+}
+
+func TestFinalizeEntity_UnbalancedClosingBracket(t *testing.T) {
+	// The model tags "B-MX 55)" without the opening bracket.
+	entity := finalizeSpan("Kennzeichen (B-MX 55) bitte", 13, 21)
+
+	if entity.Text != "B-MX 55" {
+		t.Errorf("Expected 'B-MX 55', got '%s'", entity.Text)
+	}
+	if entity.StartPos != 13 || entity.EndPos != 20 {
+		t.Errorf("Expected pos (13,20), got (%d,%d)", entity.StartPos, entity.EndPos)
+	}
+}
+
+func TestFinalizeEntity_ClosingBracketBeforeSentenceDot(t *testing.T) {
+	entity := finalizeSpan("Kombi (BMW F31).", 10, 16)
+
+	if entity.Text != "F31" {
+		t.Errorf("Expected 'F31', got '%s'", entity.Text)
+	}
+}
+
+func TestFinalizeEntity_UnbalancedOpeningBracket(t *testing.T) {
+	entity := finalizeSpan("Kennzeichen (B-MX 55 bitte", 11, 20)
+
+	if entity.Text != "B-MX 55" {
+		t.Errorf("Expected 'B-MX 55', got '%s'", entity.Text)
+	}
+	if entity.StartPos != 13 {
+		t.Errorf("Expected StartPos 13, got %d", entity.StartPos)
+	}
+}
+
+func TestFinalizeEntity_BracketPairEnclosingSpan(t *testing.T) {
+	entity := finalizeSpan("Kennzeichen (B-MX 55) bitte", 11, 21)
+
+	if entity.Text != "B-MX 55" {
+		t.Errorf("Expected 'B-MX 55', got '%s'", entity.Text)
+	}
+}
+
+func TestFinalizeEntity_BracketsBelongingToValue(t *testing.T) {
+	entity := finalizeSpan("Telefon (030) 123456.", 7, 21)
+
+	if entity.Text != "(030) 123456" {
+		t.Errorf("Expected '(030) 123456', got '%s'", entity.Text)
+	}
+	if entity.StartPos != 8 || entity.EndPos != 20 {
+		t.Errorf("Expected pos (8,20), got (%d,%d)", entity.StartPos, entity.EndPos)
+	}
+}
+
+func TestFinalizeEntity_NoBrackets(t *testing.T) {
+	entity := finalizeSpan("Kennzeichen M-AB 1234", 11, 21)
+
+	if entity.Text != "M-AB 1234" {
+		t.Errorf("Expected 'M-AB 1234', got '%s'", entity.Text)
+	}
+}
+
+func TestFinalizeEntity_BracketAfterMultiByteText(t *testing.T) {
+	// Offsets are bytes: "Ü" and "Ä" are two bytes each.
+	originalText := "Fahrzeug (KÜN-Ä 9E), danke"
+	entity := finalizeSpan(originalText, 10, 22)
+
+	if entity.Text != "KÜN-Ä 9E" {
+		t.Errorf("Expected 'KÜN-Ä 9E', got '%s'", entity.Text)
+	}
+	if originalText[entity.StartPos:entity.EndPos] != entity.Text {
+		t.Errorf("Positions (%d,%d) do not match text '%s'", entity.StartPos, entity.EndPos, entity.Text)
+	}
+}
+
+// ============================================
 // Tests for entityGroupingState.consume()
 // ============================================
 

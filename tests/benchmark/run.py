@@ -101,6 +101,23 @@ def is_entity_joiner_token(token_text: str) -> bool:
     return bool(trimmed) and all(c in ".,@_-+:/#%&=" for c in trimmed)
 
 
+BRACKET_PAIRS = {"(": ")", "[": "]", "{": "}"}
+CLOSING_BRACKETS = {closing: opening for opening, closing in BRACKET_PAIRS.items()}
+
+
+def enclosed_by_pair(span: str, opening: str, closing: str) -> bool:
+    """Return true if the bracket at ``span[0]`` is closed by the last char."""
+    depth = 0
+    for index, char in enumerate(span):
+        if char == opening:
+            depth += 1
+        elif char == closing:
+            depth -= 1
+            if depth == 0:
+                return index == len(span) - 1
+    return False
+
+
 def token_text_at(text: str, offset: np.ndarray) -> str:
     """Return token text from an offset mapping, with bounds checks."""
     start = int(offset[0])
@@ -269,25 +286,46 @@ class OnnxPIIModel:
         return label, confidence
 
     def _trim_span(self, text: str, start: int, end: int) -> tuple[int, int]:
-        """Trim leading/trailing whitespace and trailing punctuation from a span.
+        """Trim whitespace, trailing punctuation and stray brackets from a span.
 
         SentencePiece includes the preceding space in token offsets.
         The model may also extend spans to include trailing sentence
-        punctuation (e.g. "April 12, 1988,") which should be stripped.
-        This mirrors the Go backend's finalizeEntity trimming.
+        punctuation (e.g. "April 12, 1988,") or an unbalanced bracket
+        (e.g. "F31)" from "(BMW F31)"), which should be stripped.
+        This mirrors the Go backend's trimEntityBounds.
         """
-        while start < end and text[start] in " \t\n\r":
-            start += 1
-        while end > start and text[end - 1] in " \t\n\r":
-            end -= 1
-        # Strip trailing sentence punctuation only when it's followed by
-        # whitespace or end-of-string (so "yahoo.com" keeps the dot but
-        # "1988," at end of phrase loses the comma).
-        while end > start and text[end - 1] in ",.;:!?":
-            if end < len(text) and text[end] not in " \t\n\r":
-                break
-            end -= 1
-        return start, end
+        while True:
+            prev = (start, end)
+            while start < end and text[start] in " \t\n\r":
+                start += 1
+            while end > start and text[end - 1] in " \t\n\r":
+                end -= 1
+            # Strip trailing sentence punctuation only when it's followed by
+            # whitespace or end-of-string (so "yahoo.com" keeps the dot but
+            # "1988," at end of phrase loses the comma).
+            while end > start and text[end - 1] in ",.;:!?":
+                if end < len(text) and text[end] not in " \t\n\r":
+                    break
+                end -= 1
+            # Strip a closing bracket with no opener in the span, an opening
+            # bracket with no closer, or a pair enclosing the whole span.
+            # "(030) 123456" keeps its brackets.
+            if end > start and text[end - 1] in CLOSING_BRACKETS:
+                closing = text[end - 1]
+                span = text[start:end]
+                if span.count(closing) > span.count(CLOSING_BRACKETS[closing]):
+                    end -= 1
+            if end > start and text[start] in BRACKET_PAIRS:
+                opening = text[start]
+                closing = BRACKET_PAIRS[opening]
+                span = text[start:end]
+                if span.count(opening) > span.count(closing):
+                    start += 1
+                elif enclosed_by_pair(span, opening, closing):
+                    start += 1
+                    end -= 1
+            if (start, end) == prev:
+                return start, end
 
     def _predict_chunk(
         self,
