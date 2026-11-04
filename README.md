@@ -127,7 +127,8 @@ PROXY_UNIX_SOCKET_PATH="${XDG_RUNTIME_DIR:-/run/kiji-proxy}/kiji-proxy.sock" kij
 *macOS (with automatic PAC):*
 ```bash
 # Start with sudo for automatic browser configuration
-sudo "/Applications/Kiji Privacy Proxy.app/Contents/MacOS/kiji-proxy"
+cd "/Applications/Kiji Privacy Proxy.app/Contents/Resources"
+sudo ./kiji-proxy
 
 # Open browser - requests to api.openai.com automatically go through proxy!
 # No configuration needed for Safari/Chrome

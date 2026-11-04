@@ -149,7 +149,8 @@ For automatic transparent proxying without setting environment variables, run th
 
 ```bash
 # Start proxy with automatic system configuration
-sudo /Applications/Kiji\ Privacy\ Proxy.app/Contents/MacOS/kiji-proxy
+cd "/Applications/Kiji Privacy Proxy.app/Contents/Resources"
+sudo ./kiji-proxy
 
 # Or if running from source
 sudo ./build/kiji-proxy
