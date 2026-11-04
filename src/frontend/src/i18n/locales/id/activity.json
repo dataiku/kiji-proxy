@@ -1,0 +1,63 @@
+{
+  "title": "Aktivitas",
+  "subtitle": "Setiap request yang dicegat Kiji, beserta PII yang dideteksi dan disamarkan.",
+  "entryCount_other": "{{count}} entri",
+  "clearLogs": "Hapus Log",
+  "clearLogsTitle": "Hapus semua log",
+  "confirm": {
+    "title": "Hapus Semua Log?",
+    "body_other": "Tindakan ini akan menghapus permanen seluruh {{count}} entri log. Tindakan ini tidak dapat dibatalkan.",
+    "cancel": "Batal",
+    "clearing": "Menghapus...",
+    "clearAll": "Hapus Semua Log"
+  },
+  "toggle": {
+    "messagesOnly": "Pesan Saja",
+    "fullJson": "JSON Lengkap",
+    "showingFull": "Menampilkan request/response lengkap",
+    "showingMessages": "Hanya menampilkan isi pesan"
+  },
+  "error": {
+    "loading": "Gagal memuat log:",
+    "retry": "Coba Lagi"
+  },
+  "table": {
+    "direction": "Arah",
+    "model": "Model",
+    "message": "Pesan",
+    "detectedPII": "PII Terdeteksi",
+    "blocked": "Diblokir",
+    "timestamp": "Waktu"
+  },
+  "empty": "Tidak ada entri log",
+  "messageCount_other": "{{count}} pesan",
+  "blocked": {
+    "yes": "Ya",
+    "no": "Tidak"
+  },
+  "report": {
+    "label": "Laporkan",
+    "noPII": "Tidak ada PII yang terdeteksi di log ini",
+    "report": "Laporkan salah klasifikasi"
+  },
+  "loadMore": "Muat Log Lainnya",
+  "loadingMore": "Memuat lainnya...",
+  "footer": {
+    "showing_other": "Menampilkan {{shown}} dari {{count}} entri log",
+    "moreAvailable": "(masih ada lagi)",
+    "largeCount": "Jumlah log sangat banyak. Pertimbangkan untuk menghapus log lama agar kinerja lebih baik."
+  },
+  "direction": {
+    "requestOriginal": "Request (Asli)",
+    "requestMasked": "Request (Ke {{provider}})",
+    "responseMasked": "Response (Dari {{provider}})",
+    "responseOriginal": "Response (Dipulihkan)",
+    "request": "Request",
+    "response": "Response"
+  },
+  "message": {
+    "noContent": "Tidak ada isi pesan",
+    "truncated": "... [Pesan dipotong untuk ditampilkan]",
+    "truncatedJson": "... [JSON dipotong untuk ditampilkan]"
+  }
+}
