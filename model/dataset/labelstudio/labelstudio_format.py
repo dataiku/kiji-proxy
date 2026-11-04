@@ -72,6 +72,28 @@ def find_all_occurrences(
         return positions
 
 
+def is_repeatable_value(value: str) -> bool:
+    """Whether later whole-word repeats of a labelled value should be labelled too.
+
+    Names, cities, companies, e-mails and long numbers are labelled at every
+    occurrence. Short values such as a house number "12" or an age "34" are
+    not, because a later "12" in the same text is usually something else.
+    """
+    stripped = value.strip()
+    has_letter = any(c.isalpha() for c in stripped)
+    return (has_letter and len(stripped) >= 3) or len(stripped) >= 6
+
+
+def find_whole_word_occurrences(text: str, value: str) -> list[int]:
+    """Start positions of value where it is not glued to other letters or digits."""
+    pattern = r"(?<!\w)" + re.escape(value) + r"(?!\w)"
+    return [m.start() for m in re.finditer(pattern, text)]
+
+
+def _overlaps(start: int, end: int, spans: list[tuple[int, int]]) -> bool:
+    return any(start < s_end and s_start < end for s_start, s_end in spans)
+
+
 def convert_sample_to_labelstudio(sample: dict[str, Any]) -> dict[str, Any]:
     """
     Convert a single reviewed sample to Label Studio prediction format.
@@ -96,44 +118,72 @@ def convert_sample_to_labelstudio(sample: dict[str, Any]) -> dict[str, Any]:
     # Map from (value, position) to entity_id for coreference resolution
     value_to_entity_id = {}
 
-    # First, add all privacy mask entities
+    # Character ranges already labelled, to keep entities from overlapping
+    labelled_spans: list[tuple[int, int]] = []
+
+    def add_entity(start_pos: int, value: str, label: str) -> None:
+        nonlocal entity_id_counter
+        end_pos = start_pos + len(value)
+        entity_id = f"ent-{entity_id_counter}"
+        entities.append(
+            {
+                "id": entity_id,
+                "from_name": "entities",
+                "to_name": "text",
+                "type": "labels",
+                "value": {
+                    "start": start_pos,
+                    "end": end_pos,
+                    "text": value,
+                    "labels": [label],
+                },
+            }
+        )
+        # Store mapping for coreference resolution
+        value_to_entity_id[(value, start_pos)] = entity_id
+        used_positions.add(start_pos)
+        labelled_spans.append((start_pos, end_pos))
+        entity_id_counter += 1
+
+    # First pass: one entity per privacy mask item. Offsets given with the item
+    # are used when they match the text; otherwise the first unused occurrence.
     for mask_item in privacy_mask:
         value = mask_item["value"]
         label = mask_item["label"]
 
-        # Find all occurrences of this value in the text
-        positions = find_all_occurrences(text, value)
+        start = mask_item.get("start")
+        end = mask_item.get("end")
+        if (
+            isinstance(start, int)
+            and isinstance(end, int)
+            and text[start:end] == value
+            and start not in used_positions
+            and not _overlaps(start, end, labelled_spans)
+        ):
+            add_entity(start, value, label)
+            continue
 
-        for start_pos in positions:
+        for start_pos in find_all_occurrences(text, value):
             # Skip if we've already used this exact position
             if start_pos in used_positions:
                 continue
-
-            end_pos = start_pos + len(value)
-            entity_id = f"ent-{entity_id_counter}"
-
-            entities.append(
-                {
-                    "id": entity_id,
-                    "from_name": "entities",
-                    "to_name": "text",
-                    "type": "labels",
-                    "value": {
-                        "start": start_pos,
-                        "end": end_pos,
-                        "text": value,
-                        "labels": [label],
-                    },
-                }
-            )
-
-            # Store mapping for coreference resolution
-            value_to_entity_id[(value, start_pos)] = entity_id
-            used_positions.add(start_pos)
-            entity_id_counter += 1
-
-            # Only use the first occurrence of each value to avoid duplicates
+            add_entity(start_pos, value, label)
             break
+
+    # Second pass: later whole-word repeats of the same value get the same
+    # label. Without this, "Frau Müller" after a labelled "Müller" was
+    # trained as non-PII.
+    for mask_item in privacy_mask:
+        value = mask_item["value"]
+        if not is_repeatable_value(value):
+            continue
+        for start_pos in find_whole_word_occurrences(text, value):
+            end_pos = start_pos + len(value)
+            if start_pos in used_positions or _overlaps(
+                start_pos, end_pos, labelled_spans
+            ):
+                continue
+            add_entity(start_pos, value, mask_item["label"])
 
     # Now add entities for coreference mentions that aren't in privacy_mask
     # Also track which mentions map to which entity IDs for relation creation

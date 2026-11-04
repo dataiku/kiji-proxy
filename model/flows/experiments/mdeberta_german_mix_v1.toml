@@ -1,0 +1,43 @@
+# mDeBERTa-v3-base on the German training mix v1
+# (model/dataset/build_german_mix.py). Hyperparameters match the earlier
+# mdeberta_v3_base backbone run, so the training data is the only change.
+
+[model]
+name = "microsoft/mdeberta-v3-base"
+
+[training]
+num_epochs = 30
+batch_size = 32           # fitted a 48 GB L40S in the backbone comparison
+learning_rate = 2e-5
+seed = 42                 # override per run with TRAINING_SEED
+bf16 = true
+torch_compile = false
+
+warmup_steps = 500
+weight_decay = 0.01
+auxiliary_ce_loss_weight = 0.2
+
+max_eval_samples = 0
+balanced_validation_split = true
+early_stopping_enabled = true
+early_stopping_patience = 3
+early_stopping_threshold = 0.005
+
+[paths]
+training_samples_dir = "model/dataset/data_samples/german_mix_v1/samples"
+output_dir = "model/trained/mdeberta_german_mix_v1"
+
+[labelstudio]
+base_url = "http://localhost:8080"
+project_id = 6
+
+[data]
+subsample_count = 0
+num_ai4privacy_samples = -1
+# The mix is not in the audit ledger; an allowlist would drop every new row.
+audit_allowlist = ""
+
+[pipeline]
+skip_export = true
+skip_quantization = true
+skip_signing = false
