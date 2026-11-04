@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/dataiku/kiji-proxy/src/backend/paths"
 	"github.com/dataiku/kiji-proxy/src/backend/providers"
@@ -88,6 +89,9 @@ type ProxyConfig struct {
 	CAPath             string `json:"ca_path"`
 	KeyPath            string `json:"key_path"`
 	EnablePAC          bool   `json:"enable_pac"` // Enable PAC (Proxy Auto-Config) for automatic system proxy setup
+	// PausedUntil restores a timed pause across restarts (set from
+	// TRANSPARENT_PROXY_PAUSED_UNTIL by the desktop app). Not read from JSON.
+	PausedUntil time.Time `json:"-"`
 }
 
 // MappingExpirationConfig controls the fixed lifetime of mappings from creation.

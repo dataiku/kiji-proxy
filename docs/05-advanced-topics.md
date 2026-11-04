@@ -176,6 +176,47 @@ openssl s_client -connect api.openai.com:443 -proxy localhost:8080 -showcerts
 # Look for: Verify return code: 0 (ok)
 ```
 
+### Pausing Interception
+
+Sometimes you need the transparent proxy out of the way for a few minutes, for
+example to rule it out while debugging a connection or to reach an endpoint that
+breaks under interception. Instead of turning it off and remembering to turn it
+back on, pause it for a fixed time.
+
+**Desktop app:** Settings → Advanced → Transparent Proxy → **Pause
+interception**. Pick 1, 5, 15, 30 or 60 minutes and flip the switch. The
+setting shows when interception resumes and a countdown. Flip the switch off to
+resume early, or pick another duration to restart the pause. The deadline is
+saved, so a pause survives an app restart and still ends on time.
+
+While paused, requests through the transparent proxy (port 8081) are relayed
+to the destination unchanged: no PII detection, masking or request logging.
+The forward proxy / API routes (`/v1/*`, port 8080) and `/api/pii/check` are
+not affected, because clients call those explicitly. When the timer ends,
+interception resumes on the next request. Turning the transparent proxy off
+always wins; an expiring pause never turns it back on.
+
+**API** (protected by Basic Auth when it is enabled, like the rest of
+`/api/proxy/*`):
+
+```bash
+# Pause for 15 minutes (allowed: 1, 5, 15, 30, 60)
+curl -X POST http://localhost:8080/api/proxy/pause -d '{"minutes": 15}'
+# {"paused":true,"paused_until":"2026-06-20T12:15:00Z","remaining_seconds":900}
+
+# Check status
+curl http://localhost:8080/api/proxy/pause
+
+# Resume now
+curl -X DELETE http://localhost:8080/api/proxy/pause
+# {"paused":false,"paused_until":null,"remaining_seconds":0}
+```
+
+A new `POST` replaces any running pause. To start the backend already paused
+(this is how the desktop app restores a pause), set
+`TRANSPARENT_PROXY_PAUSED_UNTIL` to an RFC 3339 timestamp; a value in the past
+is ignored.
+
 ### Selective Interception
 
 Configure which domains to intercept:

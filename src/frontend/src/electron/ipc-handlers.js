@@ -2,6 +2,11 @@ const { app, ipcMain, shell } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const { normalizeLanguage } = require("./menu-i18n");
+const {
+  PAUSED_UNTIL_CONFIG_KEY,
+  isValidPauseMinutes,
+  persistPauseStatus,
+} = require("./proxy-pause");
 
 // Valid provider types accepted by the Go backend.
 // Keep in sync with src/backend/main.go loadApplicationConfig().
@@ -513,6 +518,40 @@ const registerIpcHandlers = ({
         notifyBackendBestEffort("/api/proxy/transparent/toggle", { enabled }),
     }
   );
+
+  // ---- Timed pause of the transparent proxy ----
+  // The backend owns the live pause. Each call mirrors the returned deadline
+  // into the persisted config so the pause survives a restart (see
+  // proxy-pause.js), and a GET also drops a deadline the backend no longer has.
+  const syncPause = async (method, body = null) => {
+    try {
+      const status = await backendRequest(method, "/api/proxy/pause", body);
+      const config = readConfig();
+      const before = config[PAUSED_UNTIL_CONFIG_KEY];
+      persistPauseStatus(config, status);
+      if (config[PAUSED_UNTIL_CONFIG_KEY] !== before) {
+        saveConfig(config);
+      }
+      return { success: true, ...status };
+    } catch (error) {
+      console.error(`Error calling ${method} /api/proxy/pause:`, error);
+      return { success: false, error: error.message };
+    }
+  };
+
+  ipcMain.handle("get-proxy-pause", () => syncPause("GET"));
+
+  ipcMain.handle("pause-proxy", async (_event, minutes) => {
+    if (!isValidPauseMinutes(minutes)) {
+      return {
+        success: false,
+        error: `Unsupported pause duration: ${minutes}`,
+      };
+    }
+    return syncPause("POST", { minutes });
+  });
+
+  ipcMain.handle("resume-proxy", () => syncPause("DELETE"));
 };
 
 module.exports = { registerIpcHandlers };

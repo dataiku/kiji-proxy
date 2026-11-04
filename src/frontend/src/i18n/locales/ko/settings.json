@@ -144,7 +144,16 @@
       "label": "투명 프록시",
       "help": "시스템 전체의 HTTPS 트래픽을 가로채 개인정보를 자동으로 보호합니다.",
       "experimentalLabel": "실험 기능:",
-      "experimentalHelp": "이 기능은 CA 인증서 설치가 필요하며 시스템 네트워크 설정에 영향을 줄 수 있습니다."
+      "experimentalHelp": "이 기능은 CA 인증서 설치가 필요하며 시스템 네트워크 설정에 영향을 줄 수 있습니다.",
+      "pause": {
+        "label": "가로채기 일시 중지",
+        "durationLabel": "일시 중지 시간",
+        "minutes": "{{minutes}}분",
+        "help": "잠시 동안 트래픽을 변경 없이 통과시킵니다. 타이머가 끝나면 가로채기가 자동으로 다시 시작됩니다.",
+        "requiresEnabled": "일시 중지하려면 투명 프록시를 켜세요.",
+        "pausedUntil": "일시 중지됨. {{time}}까지 트래픽이 마스킹되지 않습니다 ({{remaining}} 남음).",
+        "error": "일시 중지를 업데이트할 수 없습니다. 백엔드가 실행 중인지 확인하세요."
+      }
     },
     "telemetry": {
       "label": "오류 및 크래시 보고",

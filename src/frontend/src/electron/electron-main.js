@@ -11,6 +11,7 @@ const path = require("path");
 const fs = require("fs");
 const { spawn } = require("child_process");
 const { registerIpcHandlers } = require("./ipc-handlers");
+const { applyPausedUntilEnv } = require("./proxy-pause");
 const { setMenuLanguage, mt } = require("./menu-i18n");
 const isDev = process.env.NODE_ENV === "development";
 // Load the UI from the webpack dev server (HMR) instead of the Go backend.
@@ -287,6 +288,14 @@ const launchGoBinary = () => {
   // Sentry when the user consented. Set explicitly (true/false) rather than
   // inheriting any stray value from process.env.
   env.KIJI_TELEMETRY_ENABLED = isTelemetryEnabled() ? "true" : "false";
+
+  // Restore a timed proxy pause that is still running, so restarting the app
+  // (or the backend) does not silently cut a pause short or extend it.
+  try {
+    applyPausedUntilEnv(env, readConfig());
+  } catch (error) {
+    console.error("[Proxy] Failed to read proxy pause state:", error);
+  }
 
   // In development mode, set ONNX Runtime library path
   // Try multiple locations relative to project root
