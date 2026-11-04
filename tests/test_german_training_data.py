@@ -2,11 +2,20 @@ from __future__ import annotations
 
 import re
 
+import pytest
+
 from model.dataset.huggingface.german_sources import (
     convert_nym_row,
     convert_openpii_row,
 )
-from model.dataset.synthetic_german import generate
+from model.dataset.label_utils import LabelUtils
+from model.dataset.synthetic_negatives import (
+    LOCALES,
+    PROBE_NAMES,
+    generate,
+)
+
+LANGUAGES = sorted(LOCALES)
 
 
 def _labels(sample: dict) -> list[tuple[str, str]]:
@@ -80,17 +89,57 @@ def test_nym_street_address_is_split():
     ]
 
 
-def test_synthetic_rows_have_valid_offsets_and_pii_free_rows():
-    rows = generate(500, seed=1)
+def test_synthetic_generator_covers_the_six_kiji_languages():
+    assert set(LANGUAGES) == set(LabelUtils.LANGUAGES)
+
+
+@pytest.mark.parametrize("language", LANGUAGES)
+def test_synthetic_rows_have_valid_offsets_and_pii_free_rows(language):
+    rows = generate(500, seed=1, language=language)
     assert len(rows) == 500
-    assert any(r["pii_free"] for r in rows) and any(not r["pii_free"] for r in rows)
+    assert {r["language"] for r in rows} == {language}
+    free = sum(r["pii_free"] for r in rows)
+    assert 0.35 * len(rows) < free < 0.65 * len(rows)
     for r in rows:
         assert r["pii_free"] == (not r["privacy_mask"])
         for m in r["privacy_mask"]:
             assert r["text"][m["start"] : m["end"]] == m["value"]
+            assert m["value"] == m["value"].strip() and m["value"]
 
 
-def test_synthetic_rows_avoid_probe_codes():
+@pytest.mark.parametrize("language", LANGUAGES)
+def test_synthetic_labels_are_kiji_labels(language):
+    labels = {
+        m["label"]
+        for r in generate(500, seed=3, language=language)
+        for m in r["privacy_mask"]
+    }
+    assert labels <= set(LabelUtils.STANDARD_PII_LABELS)
+    # Every language has the contrast labels the negatives are paired with.
+    assert {"LICENSEPLATENUM", "DATEOFBIRTH", "FIRSTNAME", "SURNAME"} <= labels
+
+
+def test_synthetic_rows_are_deterministic_and_differ_by_language():
+    assert generate(50, seed=5, language="French") == generate(
+        50, seed=5, language="French"
+    )
+    texts = {
+        lang: {r["text"] for r in generate(50, seed=5, language=lang)}
+        for lang in LANGUAGES
+    }
+    assert not texts["French"] & texts["Spanish"]
+
+
+@pytest.mark.parametrize("language", LANGUAGES)
+def test_synthetic_pools_avoid_probe_names(language):
+    loc = LOCALES[language]
+    pools = set(loc.first_names) | set(loc.surnames) | set(loc.streets)
+    pools |= {city for _, city in loc.cities}
+    assert not pools & PROBE_NAMES
+
+
+@pytest.mark.parametrize("language", LANGUAGES)
+def test_synthetic_rows_avoid_probe_codes(language):
     probe_codes = [
         "GA14DE",
         "P0420",
@@ -101,8 +150,13 @@ def test_synthetic_rows_avoid_probe_codes():
         "E46",
         "MX-5",
         "04E 115 561 H",
+        "NC10-41-400",
+        "A 271 050 47 47",
+        "M-AB 1234",
+        "HH-KL 482E",
+        "B-MX 55",
     ]
-    text = "\n".join(r["text"] for r in generate(3000, seed=2))
+    text = "\n".join(r["text"] for r in generate(3000, seed=2, language=language))
     assert not [
         c for c in probe_codes if re.search(rf"(?<!\w){re.escape(c)}(?!\w)", text)
     ]

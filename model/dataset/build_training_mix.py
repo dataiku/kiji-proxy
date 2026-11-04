@@ -1,4 +1,5 @@
-"""Build the German-focused training mix as Label Studio JSON files.
+"""Build the training mix (German-focused, with multilingual negatives) as Label
+Studio JSON files.
 
 Sources, written to one directory the training pipeline reads:
 
@@ -6,9 +7,12 @@ Sources, written to one directory the training pipeline reads:
    re-converted with the fixed converter (repeated mentions are labelled).
 2. German rows of Wismut/nym-pii-multilingual-data train (MIT).
 3. German rows of ai4privacy/pii-masking-openpii-1m train (CC-BY-4.0), a
-   DE/AT/CH-balanced subsample.
-4. Template-generated German negative and contrast rows
-   (model/dataset/synthetic_german.py), about half of them PII-free.
+   DE/AT/CH-balanced subsample. Kept small (8,000 by default): its IDs often
+   sit in odd contexts and teach "random code = ID", the over-masking this
+   mix works against.
+4. Template-generated negative and contrast rows
+   (model/dataset/synthetic_negatives.py) in German, English, French,
+   Spanish, Dutch and Danish, about half of them PII-free.
 
 Not included on purpose: naeyn/nobody-pii-synth-de train, because its test
 split is the main held-out German benchmark and shares templates with train.
@@ -18,8 +22,8 @@ there); ``manifest.json`` (counts, labels, licences) and ``ATTRIBUTION.md`` go
 to ``<output-dir>/``.
 
 Usage:
-    uv run python -m model.dataset.build_german_mix \
-        --output-dir model/dataset/data_samples/german_mix_v1
+    uv run python -m model.dataset.build_training_mix \
+        --output-dir model/dataset/data_samples/german_mix_v2
 """
 
 from __future__ import annotations
@@ -39,7 +43,8 @@ from model.dataset.huggingface.german_sources import (
     convert_openpii_row,
 )
 from model.dataset.labelstudio.labelstudio_format import convert_to_labelstudio
-from model.dataset.synthetic_german import generate as generate_synthetic
+from model.dataset.synthetic_negatives import LOCALES
+from model.dataset.synthetic_negatives import generate as generate_synthetic
 
 KIJI_REPO = "DataikuNLP/kiji-pii-training-data"
 
@@ -47,8 +52,14 @@ LICENCES = {
     "kiji": (KIJI_REPO, "Apache-2.0"),
     "nym": (NYM_REPO, "MIT"),
     "openpii": (OPENPII_REPO, "CC-BY-4.0, credit: Ai4Privacy / Ai Suisse SA"),
-    "synde": ("model/dataset/synthetic_german.py", "generated in this repo"),
 }
+# File prefix per template language (synde_, synen_, ...).
+SYNTHETIC_PREFIXES = {lang: f"syn{loc.code}" for lang, loc in LOCALES.items()}
+for _prefix in SYNTHETIC_PREFIXES.values():
+    LICENCES[_prefix] = (
+        "model/dataset/synthetic_negatives.py",
+        "generated in this repo",
+    )
 
 ATTRIBUTION = f"""# Attribution
 
@@ -190,12 +201,18 @@ def summarize(out_dir: Path) -> dict:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--output-dir", default="model/dataset/data_samples/german_mix_v1")
+    ap.add_argument("--output-dir", default="model/dataset/data_samples/german_mix_v2")
     ap.add_argument("--nym", type=int, default=0, help="German nym rows (0 = all)")
     ap.add_argument(
-        "--openpii", type=int, default=15000, help="German openpii rows (0 = all)"
+        "--openpii", type=int, default=8000, help="German openpii rows (0 = all)"
     )
-    ap.add_argument("--synthetic", type=int, default=4000, help="Template rows")
+    ap.add_argument("--synthetic", type=int, default=4000, help="German template rows")
+    ap.add_argument(
+        "--synthetic-per-language",
+        type=int,
+        default=1500,
+        help="Template rows for each of English, French, Spanish, Dutch, Danish",
+    )
     ap.add_argument(
         "--openpii-jsonl",
         default=None,
@@ -226,10 +243,11 @@ def main() -> None:
     )
     written["openpii"] = write_samples(openpii, "openpii", out_dir)
 
-    print("Generating German negative and contrast rows ...")
-    written["synde"] = write_samples(
-        generate_synthetic(args.synthetic, seed=args.seed), "synde", out_dir
-    )
+    for language, prefix in SYNTHETIC_PREFIXES.items():
+        num = args.synthetic if language == "German" else args.synthetic_per_language
+        print(f"Generating {num} {language} negative and contrast rows ...")
+        rows = generate_synthetic(num, seed=args.seed, language=language)
+        written[prefix] = write_samples(rows, prefix, out_dir)
 
     try:
         commit = subprocess.run(

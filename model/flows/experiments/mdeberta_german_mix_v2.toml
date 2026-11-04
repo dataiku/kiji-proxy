@@ -1,5 +1,5 @@
-# mDeBERTa-v3-base on the German training mix v1
-# (model/dataset/build_german_mix.py). Hyperparameters match the earlier
+# mDeBERTa-v3-base on the German training mix v2
+# (model/dataset/build_training_mix.py). Hyperparameters match the earlier
 # mdeberta_v3_base backbone run, so the training data is the only change.
 
 [model]
@@ -24,8 +24,8 @@ early_stopping_patience = 3
 early_stopping_threshold = 0.005
 
 [paths]
-training_samples_dir = "model/dataset/data_samples/german_mix_v1/samples"
-output_dir = "model/trained/mdeberta_german_mix_v1"
+training_samples_dir = "model/dataset/data_samples/german_mix_v2/samples"
+output_dir = "model/trained/mdeberta_german_mix_v2"
 
 [labelstudio]
 base_url = "http://localhost:8080"
