@@ -80,6 +80,10 @@ def load_kiji() -> list[dict]:
     rows = []
     for split in ds:
         for row in ds[split]:
+            # About 4% of rows have non-ASCII letters replaced by NUL
+            # ("Z\x00rich"); the original letter cannot be recovered.
+            if "\x00" in row["text"]:
+                continue
             rows.append(
                 {
                     "text": row["text"],
