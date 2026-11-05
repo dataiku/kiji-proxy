@@ -28,15 +28,15 @@
     "@sentry/electron": "^7.15.0",
     "@types/dompurify": "^3.2.0",
     "dompurify": "^3.4.17",
-    "electron-updater": "^6.8.9",
+    "electron-updater": "^6.8.11",
     "express": "^5.3.0",
-    "http-proxy-middleware": "^4.2.0",
-    "i18next": "^26.5.2",
-    "i18next-browser-languagedetector": "^8.2.1",
-    "lucide-react": "^1.59.0",
+    "http-proxy-middleware": "^4.2.1",
+    "i18next": "^26.5.11",
+    "i18next-browser-languagedetector": "^8.2.3",
+    "lucide-react": "^1.64.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
-    "react-i18next": "^17.1.0"
+    "react-i18next": "^17.1.9"
   },
   "devDependencies": {
     "@babel/core": "^8.0.1",
