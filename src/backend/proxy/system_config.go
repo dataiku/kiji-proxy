@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
+	"sync/atomic"
 )
 
 const darwinOS = "darwin"
@@ -14,6 +15,9 @@ const darwinOS = "darwin"
 type SystemProxyManager struct {
 	pacURL  string
 	service string // cached network service name
+	// enabled is set once Enable has turned the auto-proxy on, so Disable
+	// never turns off an auto-proxy this run did not set (e.g. the user's own).
+	enabled atomic.Bool
 }
 
 // NewSystemProxyManager creates a new system proxy configuration manager
@@ -52,13 +56,21 @@ func (s *SystemProxyManager) Enable() error {
 		return fmt.Errorf("failed to enable auto-proxy: %w (output: %s)", err, string(output))
 	}
 
+	s.enabled.Store(true)
 	log.Printf("System proxy configured successfully with PAC URL: %s", s.pacURL)
 	return nil
 }
 
-// Disable removes the system proxy configuration
+// Enabled reports whether Enable turned the auto-proxy on and Disable has
+// not turned it off since.
+func (s *SystemProxyManager) Enabled() bool {
+	return s.enabled.Load()
+}
+
+// Disable removes the system proxy configuration set by Enable. It does
+// nothing if Enable did not succeed.
 func (s *SystemProxyManager) Disable() error {
-	if runtime.GOOS != darwinOS {
+	if runtime.GOOS != darwinOS || !s.enabled.Load() {
 		return nil
 	}
 
@@ -82,6 +94,7 @@ func (s *SystemProxyManager) Disable() error {
 		return fmt.Errorf("failed to disable auto-proxy: %w (output: %s)", err, string(output))
 	}
 
+	s.enabled.Store(false)
 	log.Println("System proxy disabled successfully")
 	return nil
 }

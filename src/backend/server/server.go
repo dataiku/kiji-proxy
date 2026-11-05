@@ -220,7 +220,7 @@ func (s *Server) Start() error {
 	// and the system proxy is never pointed at a server we don't run.
 	var mainListener net.Listener
 	if s.config.UnixSocketPath == "" {
-		l, err := net.Listen("tcp", s.config.ListenAddr(s.config.ProxyPort))
+		l, err := listenTCP(s.config.ListenHost, s.config.ProxyPort)
 		if err != nil {
 			return err
 		}
@@ -228,7 +228,7 @@ func (s *Server) Start() error {
 	}
 	var transparentListener net.Listener
 	if s.transparentProxy != nil {
-		l, err := net.Listen("tcp", s.config.ListenAddr(s.transparentProxyPort()))
+		l, err := listenTCP(s.config.ListenHost, s.transparentProxyPort())
 		if err != nil {
 			if mainListener != nil {
 				_ = mainListener.Close()
@@ -1042,7 +1042,7 @@ func (s *Server) StartWithErrorHandling() {
 		// Start binds every port before configuring the system proxy, so a bind
 		// failure needs no cleanup; a later serve error does (Close restores
 		// the system proxy).
-		if s.pacServer != nil && s.pacServer.Listening() {
+		if s.systemProxyManager != nil && s.systemProxyManager.Enabled() {
 			_ = s.Close()
 		}
 		log.Fatalf("Failed to start server: %v", err)
@@ -1173,7 +1173,7 @@ func (s *Server) noCacheMiddleware(next http.Handler) http.Handler {
 
 // Close closes the server and cleans up resources
 func (s *Server) Close() error {
-	// Disable system proxy configuration
+	// Disable system proxy configuration (a no-op unless this run enabled it)
 	if s.systemProxyManager != nil {
 		if err := s.systemProxyManager.Disable(); err != nil {
 			log.Printf("Warning: Failed to disable system proxy: %v", err)
