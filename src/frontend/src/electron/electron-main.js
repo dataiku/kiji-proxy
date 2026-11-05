@@ -28,6 +28,16 @@ const useDevServer = process.env.ELECTRON_DEV_SERVER === "true";
 // playground profile) survives.
 app.commandLine.appendSwitch("host-resolver-rules", "MAP localhost 127.0.0.1");
 const BACKEND_LISTEN_HOST = "127.0.0.1";
+// Origin the main window loads the UI from (see createWindow). IPC handlers
+// only answer frames on this origin.
+const UI_ORIGIN = useDevServer ? "http://localhost:3000" : "http://localhost:8080";
+const isTrustedIpcSender = (event) => {
+  try {
+    return new URL(event.senderFrame.url).origin === UI_ORIGIN;
+  } catch {
+    return false; // no frame (destroyed) or no parsable URL
+  }
+};
 
 // Global safety net: log (and, if telemetry is on, report) any promise
 // rejection or exception that escaped a local handler instead of letting Node
@@ -394,23 +404,29 @@ const launchGoBinary = () => {
     stdio: ["ignore", "pipe", "pipe"],
   });
 
-  console.log("[DEBUG] Go process spawned with PID:", goProcess.pid);
-  spawnedBackendPid = goProcess.pid;
+  // The handlers below act on this process only: after a restart, late events
+  // from the previous backend must not touch the new one's state.
+  const proc = goProcess;
+  console.log("[DEBUG] Go process spawned with PID:", proc.pid);
+  spawnedBackendPid = proc.pid;
   backendStderrTail = [];
   backendExitInfo = null;
 
   // Handle stdout
-  goProcess.stdout.on("data", (data) => {
+  proc.stdout.on("data", (data) => {
     console.log(`[Go Backend] ${data.toString().trim()}`);
   });
 
   // Handle stderr
   // Note: Go's log package writes to stderr by default, so not all stderr is errors
-  goProcess.stderr.on("data", (data) => {
+  proc.stderr.on("data", (data) => {
     const output = data.toString().trim();
-    backendStderrTail.push(...output.split("\n"));
-    if (backendStderrTail.length > BACKEND_STDERR_TAIL_LINES) {
-      backendStderrTail = backendStderrTail.slice(-BACKEND_STDERR_TAIL_LINES);
+    // spawnedBackendPid (not goProcess) because stderr can arrive after exit.
+    if (spawnedBackendPid === proc.pid) {
+      backendStderrTail.push(...output.split("\n"));
+      if (backendStderrTail.length > BACKEND_STDERR_TAIL_LINES) {
+        backendStderrTail = backendStderrTail.slice(-BACKEND_STDERR_TAIL_LINES);
+      }
     }
     // Only mark as error if it contains error keywords
     if (
@@ -427,8 +443,9 @@ const launchGoBinary = () => {
   });
 
   // Handle process exit
-  goProcess.on("exit", (code, signal) => {
+  proc.on("exit", (code, signal) => {
     console.log(`Go binary exited with code ${code} and signal ${signal}`);
+    if (goProcess !== proc) return; // an earlier backend, already replaced
     goProcess = null;
     backendExitInfo = { code, signal };
 
@@ -444,8 +461,9 @@ const launchGoBinary = () => {
   });
 
   // Handle process errors
-  goProcess.on("error", (error) => {
+  proc.on("error", (error) => {
     console.error("Failed to start Go binary:", error);
+    if (goProcess !== proc) return;
     goProcess = null;
     backendExitInfo = { code: null, signal: null, error: error.message };
 
@@ -458,19 +476,23 @@ const launchGoBinary = () => {
   });
 };
 
+// True until the process has exited. (proc.killed only says a signal was sent.)
+const isRunning = (proc) => proc.exitCode === null && proc.signalCode === null;
+
 // Stop the Go binary
 const stopGoBinary = () => {
-  if (goProcess) {
+  const proc = goProcess;
+  if (proc) {
     console.log("Stopping Go binary...");
-    goProcess.kill("SIGTERM");
+    proc.kill("SIGTERM");
 
     // Force kill after 3 seconds if still running
     setTimeout(() => {
-      if (goProcess && !goProcess.killed) {
+      if (isRunning(proc)) {
         console.log("Force killing Go binary...");
-        goProcess.kill("SIGKILL");
+        proc.kill("SIGKILL");
       }
-      goProcess = null;
+      if (goProcess === proc) goProcess = null;
     }, 3000);
   }
 };
@@ -489,7 +511,7 @@ const stopGoBinaryAsync = () => {
     const finish = () => {
       if (settled) return;
       settled = true;
-      goProcess = null;
+      if (goProcess === proc) goProcess = null;
       resolve();
     };
 
@@ -499,7 +521,7 @@ const stopGoBinaryAsync = () => {
 
     setTimeout(() => {
       if (!settled) {
-        if (!proc.killed) {
+        if (isRunning(proc)) {
           console.log("Force killing Go binary (async)...");
           proc.kill("SIGKILL");
         }
@@ -520,10 +542,11 @@ const restartGoBinary = async () => {
 let lastBackendFailure = null;
 
 // Pull the port out of Go's bind error, e.g.
-// "listen tcp 127.0.0.1:8080: bind: address already in use".
+// "listen tcp 127.0.0.1:8080: bind: address already in use", or from the
+// backend's loopback checks "listen tcp6 [::]:8080: bind: ...".
 const findPortInUse = (lines) => {
   for (const line of lines) {
-    const match = line.match(/listen tcp \S*:(\d+): bind: address already in use/);
+    const match = line.match(/listen tcp[46]? \S*:(\d+): bind: address already in use/);
     if (match) return match[1];
   }
   return null;
@@ -541,7 +564,7 @@ const describePortOwner = (port) =>
         // -F output: "p<pid>" then "c<command>" lines per process.
         const pid = stdout && stdout.match(/^p(\d+)$/m);
         const cmd = stdout && stdout.match(/^c(.+)$/m);
-        resolve(pid && cmd ? `${cmd[1]} (PID ${pid[1]})` : null);
+        resolve(pid && cmd ? { pid: pid[1], command: cmd[1] } : null);
       }
     );
   });
@@ -565,8 +588,13 @@ const waitForBackend = async (maxRetries = 60, retryInterval = 500) => {
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     const expectedPid = goProcess ? goProcess.pid : null;
+    // The verdict reflects the latest attempt only: a foreign answer that was
+    // followed by no answer (or by ours) no longer counts.
+    lastBackendFailure = null;
 
     if (spawnedBackendPid !== null && !goProcess) {
+      // stderr can still be in flight when the exit event fires.
+      await new Promise((resolve) => setTimeout(resolve, 200));
       const portInUse = findPortInUse(backendStderrTail);
       lastBackendFailure = { kind: portInUse ? "port-in-use" : "exited", port: portInUse };
       console.error("[DEBUG] ❌ Backend process exited before becoming ready");
@@ -590,16 +618,10 @@ const waitForBackend = async (maxRetries = 60, retryInterval = 500) => {
         );
         return true;
       }
-      if (isOurs) {
-        // Our backend, just not healthy yet (e.g. 503 while the model loads).
-        lastBackendFailure = null;
-      } else if (
-        expectedPid !== null &&
-        (response.status === 200 || response.status === 404)
-      ) {
+      if (expectedPid !== null && !isOurs) {
         // Our backend always serves /api/health (also under Basic Auth) and
-        // includes its PID, so a 200 without our PID or a 404 means another
-        // server holds the port.
+        // includes its PID, also in its 503 while the model loads. Any other
+        // answer comes from another server holding the port.
         lastBackendFailure = { kind: "foreign", port: "8080" };
       }
       console.log(
@@ -635,11 +657,19 @@ const showBackendFailureDialog = async () => {
   if (failure.kind === "port-in-use" || failure.kind === "foreign") {
     const owner = await describePortOwner(failure.port);
     message = `Port ${failure.port} is already in use${
-      owner ? ` by ${owner}` : " by another application"
+      owner ? ` by ${owner.command} (PID ${owner.pid})` : " by another application"
     }.`;
-    detail =
-      "Kiji Privacy Proxy needs this port for its local proxy. Quit the other " +
-      "application (or change its port) and start Kiji Privacy Proxy again.";
+    // lsof truncates command names, e.g. "kiji-prox".
+    if (owner && /^kiji/i.test(owner.command)) {
+      detail =
+        "A Kiji Privacy Proxy backend from an earlier run is still running, " +
+        "for example after the app crashed. Stop it (in Activity Monitor, or " +
+        `with "kill ${owner.pid}" in Terminal) and start Kiji Privacy Proxy again.`;
+    } else {
+      detail =
+        "Kiji Privacy Proxy needs this port for its local proxy. Quit the other " +
+        "application (or change its port) and start Kiji Privacy Proxy again.";
+    }
   } else if (failure.kind === "exited") {
     const exit = backendExitInfo || {};
     const how = exit.error
@@ -673,8 +703,43 @@ function showMainWindow() {
     mainWindow.show();
     mainWindow.focus();
   } else {
-    createWindow();
+    openMainWindow();
   }
+}
+
+// Create the main window once the backend is ready. Every path that creates
+// the window (startup, dock, tray, second launch) goes through here, so the
+// window never loads a page from another server holding the backend port.
+// Quit only on hard evidence: our backend died (port taken, crash) or another
+// server answers on the port. A plain timeout (slow cold start, model still
+// loading) opens the window as before and lets its load-retry logic and
+// model-health UI work. Without a spawned backend (EXTERNAL_BACKEND, missing
+// binary) nothing changes. Concurrent callers share one attempt.
+let mainWindowOpening = null;
+function openMainWindow() {
+  if (!mainWindowOpening) {
+    mainWindowOpening = (async () => {
+      const backendReady = await waitForBackend();
+      const hardFailure =
+        lastBackendFailure && lastBackendFailure.kind !== "timeout";
+      if (!backendReady && spawnedBackendPid !== null && hardFailure) {
+        closeSplashWindow();
+        await showBackendFailureDialog();
+        app.isQuitting = true;
+        stopGoBinary();
+        app.quit();
+        return;
+      }
+      if (mainWindow) {
+        showMainWindow();
+      } else {
+        createWindow();
+      }
+    })().finally(() => {
+      mainWindowOpening = null;
+    });
+  }
+  return mainWindowOpening;
 }
 
 // Create splash window shown during backend startup
@@ -1242,8 +1307,19 @@ function applyLanguage(language) {
   }
 }
 
+// One app instance at a time: a second copy would start a second backend on
+// the same ports. A second launch shows the existing window instead.
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+if (!hasSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on("second-instance", () => showMainWindow());
+}
+
 // This method will be called when Electron has finished initialization
 app.whenReady().then(async () => {
+  if (!hasSingleInstanceLock) return; // quitting; leave the running copy alone
+
   // Initialize telemetry first (opt-in) so early startup errors can be reported.
   initTelemetryMain();
 
@@ -1256,24 +1332,10 @@ app.whenReady().then(async () => {
   // Show splash screen while backend starts up
   createSplashWindow();
 
-  // Wait for backend to be ready before creating window. Quit only on hard
-  // evidence: our backend died (port taken, crash) or another server answers
-  // on the port, so we never open a window onto someone else's app. A plain
-  // timeout (slow cold start, model still loading or unhealthy) opens the
-  // window as before and lets its load-retry logic and model-health UI work.
-  // Without a spawned backend (EXTERNAL_BACKEND, missing binary) nothing changes.
-  const backendReady = await waitForBackend();
-  const hardFailure =
-    lastBackendFailure && lastBackendFailure.kind !== "timeout";
-  if (!backendReady && spawnedBackendPid !== null && hardFailure) {
-    closeSplashWindow();
-    await showBackendFailureDialog();
-    app.isQuitting = true;
-    stopGoBinary();
-    app.quit();
-    return;
-  }
-  createWindow();
+  // Wait for backend to be ready before creating window (or quit, see
+  // openMainWindow).
+  await openMainWindow();
+  if (app.isQuitting) return;
 
   // Check for updates after launch
   autoUpdater.checkForUpdatesAndNotify().catch((err) => {
@@ -1295,12 +1357,8 @@ app.whenReady().then(async () => {
         // Ensure backend is running
         if (!goProcess) {
           launchGoBinary();
-          await waitForBackend();
-        } else {
-          // Process exists but might not be listening yet
-          await waitForBackend(10, 500);
         }
-        createWindow();
+        await openMainWindow();
       } else if (mainWindow) {
         // If window exists but is hidden, show it
         showMainWindow();
@@ -1442,6 +1500,7 @@ registerIpcHandlers({
   restartGoBinary,
   waitForBackend,
   getMainWindow: () => mainWindow,
+  isTrustedSender: isTrustedIpcSender,
   // Rebuild the native menus whenever the renderer changes the UI language.
   onLanguageChange: applyLanguage,
 });
