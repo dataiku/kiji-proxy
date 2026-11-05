@@ -87,7 +87,9 @@ type Server struct {
 	version                 string
 	startedAt               time.Time // process start; basis for the reported uptime
 	transparentProxyEnabled bool
+	pausedUntil             time.Time // interception is paused until this time; zero when not paused
 	transparentProxyMu      sync.RWMutex
+	now                     func() time.Time // nil means time.Now; overridden in tests
 }
 
 // uptimeSeconds reports how long the server has been running, as a whole-second
@@ -136,6 +138,7 @@ func NewServer(cfg *config.Config, version string) (*Server, error) {
 		version:                 version,
 		startedAt:               time.Now(),
 		transparentProxyEnabled: cfg.Proxy.TransparentEnabled,
+		pausedUntil:             cfg.Proxy.PausedUntil,
 	}
 
 	// Wire up the enabled check function to the transparent proxy
@@ -186,6 +189,7 @@ func NewServerWithEmbedded(cfg *config.Config, uiFS, modelFS fs.FS, version stri
 		version:                 version,
 		startedAt:               time.Now(),
 		transparentProxyEnabled: cfg.Proxy.TransparentEnabled,
+		pausedUntil:             cfg.Proxy.PausedUntil,
 	}
 
 	// Wire up the enabled check function to the transparent proxy
@@ -269,6 +273,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/model/info", s.handleModelInfo)
 	mux.HandleFunc("/api/proxy/ca-cert", s.handleCACert)
 	mux.HandleFunc("/api/proxy/transparent/toggle", s.handleTransparentProxyToggle)
+	mux.HandleFunc(proxyPausePath, s.handleProxyPause)
 	mux.HandleFunc("/api/pii/check", s.handlePIICheck)
 	mux.HandleFunc("/api/pii/entities", s.handlePIIEntities)
 	mux.HandleFunc(piiProfilesPath, s.handlePIIProfiles)
@@ -877,11 +882,27 @@ func (s *Server) handleTransparentProxyToggle(w http.ResponseWriter, r *http.Req
 	}
 }
 
-// IsTransparentProxyEnabled returns whether the transparent proxy is currently enabled
+// IsTransparentProxyEnabled returns whether the transparent proxy is currently
+// intercepting traffic: it is enabled and not inside a timed pause. An expired
+// pause is cleared here, so interception resumes on the first request after
+// the deadline without a background timer.
 func (s *Server) IsTransparentProxyEnabled() bool {
 	s.transparentProxyMu.RLock()
-	defer s.transparentProxyMu.RUnlock()
-	return s.transparentProxyEnabled
+	enabled := s.transparentProxyEnabled
+	until := s.pausedUntil
+	s.transparentProxyMu.RUnlock()
+
+	if !enabled {
+		return false
+	}
+	if until.IsZero() {
+		return true
+	}
+	if s.clock().Before(until) {
+		return false
+	}
+	s.clearExpiredPause(until)
+	return true
 }
 
 // handleCACert returns the CA certificate for installation

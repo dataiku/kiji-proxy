@@ -183,4 +183,17 @@ contextBridge.exposeInMainWorld("electronAPI", {
   setTransparentProxyEnabled: async (enabled) => {
     return await ipcRenderer.invoke("set-transparent-proxy-enabled", enabled);
   },
+
+  // Timed pause of the transparent proxy
+  getProxyPause: async () => {
+    return await ipcRenderer.invoke("get-proxy-pause");
+  },
+
+  pauseProxy: async (minutes) => {
+    return await ipcRenderer.invoke("pause-proxy", minutes);
+  },
+
+  resumeProxy: async () => {
+    return await ipcRenderer.invoke("resume-proxy");
+  },
 });

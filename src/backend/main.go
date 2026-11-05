@@ -363,6 +363,14 @@ func loadProxyConfig(cfg *config.Config) {
 	if keyPath := os.Getenv("TRANSPARENT_PROXY_KEY_PATH"); keyPath != "" {
 		cfg.Proxy.KeyPath = expandPath(keyPath)
 	}
+
+	if pausedUntil := os.Getenv("TRANSPARENT_PROXY_PAUSED_UNTIL"); pausedUntil != "" {
+		if until, err := time.Parse(time.RFC3339, pausedUntil); err == nil {
+			cfg.Proxy.PausedUntil = until
+		} else {
+			log.Printf("Ignoring invalid TRANSPARENT_PROXY_PAUSED_UNTIL %q: %v", pausedUntil, err)
+		}
+	}
 }
 
 // expandPath expands ~ to the user's home directory

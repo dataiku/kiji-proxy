@@ -87,7 +87,10 @@ func (tp *TransparentProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// When disabled, passthrough all requests without PII processing
 		log.Printf("[TransparentProxy] Proxy disabled, passing through request to %s", r.Host)
 		if r.Method == http.MethodConnect {
-			tp.passthroughCONNECT(w, r, r.Host)
+			// Tunnels to intercept hosts opened while disabled (or paused) are
+			// closed once interception is back on, so clients reconnect
+			// through the MITM path instead of staying unmasked indefinitely.
+			tp.passthroughCONNECT(w, r, r.Host, tp.router.ShouldIntercept(r.Host))
 		} else {
 			tp.passthroughHTTP(w, r)
 		}
@@ -313,7 +316,7 @@ func (tp *TransparentProxy) handleCONNECT(w http.ResponseWriter, r *http.Request
 	// Check if we should intercept
 	if !tp.router.ShouldIntercept(target) {
 		// Passthrough - establish direct connection
-		tp.passthroughCONNECT(w, r, target)
+		tp.passthroughCONNECT(w, r, target, false)
 		return
 	}
 
@@ -415,8 +418,10 @@ func (tp *TransparentProxy) interceptCONNECT(w http.ResponseWriter, _ *http.Requ
 		// Process the request. Hosts with a path allowlist (chatgpt.com) only
 		// mask matching paths; everything else on the (already MITM'd)
 		// connection is forwarded verbatim so streaming side channels like the
-		// Codex MCP transport survive.
-		if tp.router.ShouldInterceptRequest(host, req.URL.Path) {
+		// Codex MCP transport survive. The enabled check runs per request so
+		// disabling or pausing the proxy also applies to keep-alive
+		// connections that were opened before the change.
+		if tp.IsEnabled() && tp.router.ShouldInterceptRequest(host, req.URL.Path) {
 			tp.interceptHTTPOverTLS(conn, req, host, provider)
 		} else if !tp.passthroughHTTPOverTLS(conn, req, host) {
 			// Response framing can't keep the connection in sync; stop reusing it.
@@ -616,8 +621,14 @@ func (tp *TransparentProxy) writeErrorResponse(conn net.Conn, statusCode int, me
 	respWriter.Flush()
 }
 
-// passthroughCONNECT passes through CONNECT requests without interception
-func (tp *TransparentProxy) passthroughCONNECT(w http.ResponseWriter, _ *http.Request, target string) {
+// tunnelEnabledPollInterval is how often a tunnel opened while the proxy was
+// disabled checks whether interception is back on. A variable for tests.
+var tunnelEnabledPollInterval = time.Second
+
+// passthroughCONNECT passes through CONNECT requests without interception.
+// With closeWhenEnabled set, the tunnel is closed as soon as the proxy is
+// enabled again (e.g. a timed pause ends), forcing the client to reconnect.
+func (tp *TransparentProxy) passthroughCONNECT(w http.ResponseWriter, _ *http.Request, target string, closeWhenEnabled bool) {
 	log.Printf("[TransparentProxy] Passing through HTTPS CONNECT to %s", target)
 
 	// Connect to target
@@ -649,6 +660,28 @@ func (tp *TransparentProxy) passthroughCONNECT(w http.ResponseWriter, _ *http.Re
 	if err != nil {
 		log.Printf("[TransparentProxy] ❌ Failed to write response: %v", err)
 		return
+	}
+
+	if closeWhenEnabled {
+		done := make(chan struct{})
+		defer close(done)
+		go func() {
+			ticker := time.NewTicker(tunnelEnabledPollInterval)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-done:
+					return
+				case <-ticker.C:
+					if tp.IsEnabled() {
+						log.Printf("[TransparentProxy] Interception resumed, closing passthrough tunnel to %s", target)
+						_ = clientConn.Close()
+						_ = targetConn.Close()
+						return
+					}
+				}
+			}
+		}()
 	}
 
 	// Copy data between connections

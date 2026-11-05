@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/dataiku/kiji-proxy/src/backend/config"
 	"github.com/dataiku/kiji-proxy/src/backend/pii"
@@ -159,6 +160,23 @@ func TestLoadApplicationConfigUnixSocket(t *testing.T) {
 
 	if cfg.UnixSocketPath != "/tmp/kiji-proxy.sock" {
 		t.Errorf("UnixSocketPath = %q, want %q", cfg.UnixSocketPath, "/tmp/kiji-proxy.sock")
+	}
+}
+
+func TestLoadProxyConfigPausedUntil(t *testing.T) {
+	t.Setenv("TRANSPARENT_PROXY_PAUSED_UNTIL", "2026-06-20T12:15:00Z")
+	cfg := config.DefaultConfig()
+	loadProxyConfig(cfg)
+	want := time.Date(2026, 6, 20, 12, 15, 0, 0, time.UTC)
+	if !cfg.Proxy.PausedUntil.Equal(want) {
+		t.Errorf("PausedUntil = %v, want %v", cfg.Proxy.PausedUntil, want)
+	}
+
+	t.Setenv("TRANSPARENT_PROXY_PAUSED_UNTIL", "in five minutes")
+	cfg = config.DefaultConfig()
+	loadProxyConfig(cfg)
+	if !cfg.Proxy.PausedUntil.IsZero() {
+		t.Errorf("invalid timestamp should be ignored, got %v", cfg.Proxy.PausedUntil)
 	}
 }
 
