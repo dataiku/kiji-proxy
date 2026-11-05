@@ -31,12 +31,12 @@
     "electron-updater": "^6.8.11",
     "express": "^5.3.0",
     "http-proxy-middleware": "^4.2.1",
-    "i18next": "^26.5.11",
-    "i18next-browser-languagedetector": "^8.2.3",
-    "lucide-react": "^1.64.0",
+    "i18next": "^26.7.1",
+    "i18next-browser-languagedetector": "^8.3.0",
+    "lucide-react": "^1.66.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
-    "react-i18next": "^17.1.9"
+    "react-i18next": "^17.1.11"
   },
   "devDependencies": {
     "@babel/core": "^8.1.0",
