@@ -1,6 +1,7 @@
 const {
   app,
   BrowserWindow,
+  dialog,
   Menu,
   Tray,
   nativeImage,
@@ -9,7 +10,7 @@ const {
 } = require("electron");
 const path = require("path");
 const fs = require("fs");
-const { spawn } = require("child_process");
+const { spawn, execFile } = require("child_process");
 const { registerIpcHandlers } = require("./ipc-handlers");
 const { setMenuLanguage, mt } = require("./menu-i18n");
 const isDev = process.env.NODE_ENV === "development";
@@ -17,6 +18,16 @@ const isDev = process.env.NODE_ENV === "development";
 // Set only by `make electron-dev`, which actually starts the dev server;
 // `make electron` runs in development mode but serves the built dist via :8080.
 const useDevServer = process.env.ELECTRON_DEV_SERVER === "true";
+
+// The Go backend binds loopback IPv4 only (KIJI_LISTEN_HOST, see launchGoBinary).
+// Pin Chromium's resolution of "localhost" to 127.0.0.1 so the UI, net.fetch and
+// net.request always reach that listener. Without this, "localhost" resolves to
+// ::1 first, where a different process could be answering on the same port.
+// Mapping the resolver (rather than rewriting URLs to 127.0.0.1) keeps the
+// renderer origin at http://localhost:8080, so localStorage (UI language,
+// playground profile) survives.
+app.commandLine.appendSwitch("host-resolver-rules", "MAP localhost 127.0.0.1");
+const BACKEND_LISTEN_HOST = "127.0.0.1";
 
 // Global safety net: log (and, if telemetry is on, report) any promise
 // rejection or exception that escaped a local handler instead of letting Node
@@ -113,6 +124,13 @@ const quitAndInstall = () => {
 let mainWindow;
 let splashWindow = null;
 let goProcess = null;
+// PID of the backend we spawned, kept after exit so waitForBackend can tell
+// "our backend died" from "we never launched one" (EXTERNAL_BACKEND, no binary).
+let spawnedBackendPid = null;
+// Last stderr lines and exit info of the spawned backend, for error dialogs.
+let backendStderrTail = [];
+let backendExitInfo = null;
+const BACKEND_STDERR_TAIL_LINES = 40;
 let tray = null;
 let updateDownloaded = false;
 
@@ -288,6 +306,12 @@ const launchGoBinary = () => {
   // inheriting any stray value from process.env.
   env.KIJI_TELEMETRY_ENABLED = isTelemetryEnabled() ? "true" : "false";
 
+  // Bind loopback only. With the Go default (all interfaces) the bind succeeds
+  // even when another process already holds 127.0.0.1:<port>, and requests then
+  // silently go to that process. A loopback bind fails with "address already in
+  // use" instead, which waitForBackend reports to the user.
+  env.KIJI_LISTEN_HOST = process.env.KIJI_LISTEN_HOST || BACKEND_LISTEN_HOST;
+
   // In development mode, set ONNX Runtime library path
   // Try multiple locations relative to project root
   const onnxPaths = [
@@ -371,6 +395,9 @@ const launchGoBinary = () => {
   });
 
   console.log("[DEBUG] Go process spawned with PID:", goProcess.pid);
+  spawnedBackendPid = goProcess.pid;
+  backendStderrTail = [];
+  backendExitInfo = null;
 
   // Handle stdout
   goProcess.stdout.on("data", (data) => {
@@ -381,6 +408,10 @@ const launchGoBinary = () => {
   // Note: Go's log package writes to stderr by default, so not all stderr is errors
   goProcess.stderr.on("data", (data) => {
     const output = data.toString().trim();
+    backendStderrTail.push(...output.split("\n"));
+    if (backendStderrTail.length > BACKEND_STDERR_TAIL_LINES) {
+      backendStderrTail = backendStderrTail.slice(-BACKEND_STDERR_TAIL_LINES);
+    }
     // Only mark as error if it contains error keywords
     if (
       output.toLowerCase().includes("error") ||
@@ -399,6 +430,7 @@ const launchGoBinary = () => {
   goProcess.on("exit", (code, signal) => {
     console.log(`Go binary exited with code ${code} and signal ${signal}`);
     goProcess = null;
+    backendExitInfo = { code, signal };
 
     // If the process exited unexpectedly and we're not shutting down, show an error
     if (code !== 0 && code !== null && !app.isQuitting) {
@@ -415,6 +447,7 @@ const launchGoBinary = () => {
   goProcess.on("error", (error) => {
     console.error("Failed to start Go binary:", error);
     goProcess = null;
+    backendExitInfo = { code: null, signal: null, error: error.message };
 
     if (mainWindow) {
       mainWindow.webContents.send("backend-error", {
@@ -483,17 +516,73 @@ const restartGoBinary = async () => {
   launchGoBinary();
 };
 
-// Wait for the Go backend to be ready by polling the health endpoint
-const waitForBackend = async (maxRetries = 30, retryInterval = 500) => {
+// Why the last waitForBackend() call failed, for showBackendFailureDialog().
+let lastBackendFailure = null;
+
+// Pull the port out of Go's bind error, e.g.
+// "listen tcp 127.0.0.1:8080: bind: address already in use".
+const findPortInUse = (lines) => {
+  for (const line of lines) {
+    const match = line.match(/listen tcp \S*:(\d+): bind: address already in use/);
+    if (match) return match[1];
+  }
+  return null;
+};
+
+// Best effort: name the process listening on a TCP port (macOS/Linux, via lsof).
+const describePortOwner = (port) =>
+  new Promise((resolve) => {
+    if (process.platform === "win32") return resolve(null);
+    execFile(
+      "lsof",
+      ["-nP", `-iTCP:${port}`, "-sTCP:LISTEN", "-Fpc"],
+      { timeout: 2000 },
+      (_err, stdout) => {
+        // -F output: "p<pid>" then "c<command>" lines per process.
+        const pid = stdout && stdout.match(/^p(\d+)$/m);
+        const cmd = stdout && stdout.match(/^c(.+)$/m);
+        resolve(pid && cmd ? `${cmd[1]} (PID ${pid[1]})` : null);
+      }
+    );
+  });
+
+// Wait for the Go backend to be ready by polling the health endpoint.
+// When we spawned the backend, "ready" means the health response carries our
+// child's PID: a 200 from some other process on the same port does not count.
+// Stops early if the spawned backend exits (e.g. the port is already in use),
+// so the default budget only matters for slow cold starts.
+//
+// On failure, lastBackendFailure.kind is one of:
+//   "port-in-use" / "exited"  our backend process died (hard failure)
+//   "foreign"                 another server answered on the port (hard failure)
+//   "timeout"                 our backend is alive but not ready yet (soft)
+const waitForBackend = async (maxRetries = 60, retryInterval = 500) => {
   const { net } = require("electron");
   const healthUrl = "http://localhost:8080/api/health";
+  lastBackendFailure = null;
 
   console.log("[DEBUG] Waiting for backend to be ready...");
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const expectedPid = goProcess ? goProcess.pid : null;
+
+    if (spawnedBackendPid !== null && !goProcess) {
+      const portInUse = findPortInUse(backendStderrTail);
+      lastBackendFailure = { kind: portInUse ? "port-in-use" : "exited", port: portInUse };
+      console.error("[DEBUG] ❌ Backend process exited before becoming ready");
+      return false;
+    }
+
     try {
-      const response = await net.fetch(healthUrl);
-      if (response.status === 200) {
+      // Bounded per attempt: a process that accepts the connection but never
+      // answers would otherwise stall startup forever.
+      const response = await net.fetch(healthUrl, {
+        signal: AbortSignal.timeout(2000),
+      });
+      const body = await response.json().catch(() => null);
+      const isOurs =
+        expectedPid !== null && body !== null && body.pid === expectedPid;
+      if (response.status === 200 && (expectedPid === null || isOurs)) {
         console.log(
           `[DEBUG] ✅ Backend ready after ${attempt} attempt(s) (~${
             attempt * retryInterval
@@ -501,8 +590,22 @@ const waitForBackend = async (maxRetries = 30, retryInterval = 500) => {
         );
         return true;
       }
+      if (isOurs) {
+        // Our backend, just not healthy yet (e.g. 503 while the model loads).
+        lastBackendFailure = null;
+      } else if (
+        expectedPid !== null &&
+        (response.status === 200 || response.status === 404)
+      ) {
+        // Our backend always serves /api/health (also under Basic Auth) and
+        // includes its PID, so a 200 without our PID or a 404 means another
+        // server holds the port.
+        lastBackendFailure = { kind: "foreign", port: "8080" };
+      }
       console.log(
-        `[DEBUG] Backend responded with status ${response.status}, attempt ${attempt}/${maxRetries}`
+        `[DEBUG] Backend responded with status ${response.status} (pid ${
+          body && body.pid
+        }, expected ${expectedPid}), attempt ${attempt}/${maxRetries}`
       );
     } catch (error) {
       console.log(
@@ -515,12 +618,50 @@ const waitForBackend = async (maxRetries = 30, retryInterval = 500) => {
     }
   }
 
+  if (!lastBackendFailure) lastBackendFailure = { kind: "timeout" };
   console.error(
     `[DEBUG] ❌ Backend failed to become ready after ${maxRetries} attempts (~${
       maxRetries * retryInterval
     }ms)`
   );
   return false;
+};
+
+// Explain a failed waitForBackend() to the user. Returns when the box is closed.
+const showBackendFailureDialog = async () => {
+  const failure = lastBackendFailure || { kind: "timeout" };
+  let message;
+  let detail;
+  if (failure.kind === "port-in-use" || failure.kind === "foreign") {
+    const owner = await describePortOwner(failure.port);
+    message = `Port ${failure.port} is already in use${
+      owner ? ` by ${owner}` : " by another application"
+    }.`;
+    detail =
+      "Kiji Privacy Proxy needs this port for its local proxy. Quit the other " +
+      "application (or change its port) and start Kiji Privacy Proxy again.";
+  } else if (failure.kind === "exited") {
+    const exit = backendExitInfo || {};
+    const how = exit.error
+      ? ` (${exit.error})`
+      : exit.code !== null && exit.code !== undefined
+        ? ` (exit code ${exit.code})`
+        : exit.signal
+          ? ` (signal ${exit.signal})`
+          : "";
+    message = `The Kiji Privacy Proxy backend stopped during startup${how}.`;
+    detail = backendStderrTail.slice(-8).join("\n");
+  } else {
+    message = "The Kiji Privacy Proxy backend did not start in time.";
+    detail = backendStderrTail.slice(-8).join("\n");
+  }
+  await dialog.showMessageBox({
+    type: "error",
+    title: "Kiji Privacy Proxy",
+    message,
+    detail,
+    buttons: ["Quit"],
+  });
 };
 
 // Show or create main window
@@ -1115,8 +1256,23 @@ app.whenReady().then(async () => {
   // Show splash screen while backend starts up
   createSplashWindow();
 
-  // Wait for backend to be ready before creating window
-  await waitForBackend();
+  // Wait for backend to be ready before creating window. Quit only on hard
+  // evidence: our backend died (port taken, crash) or another server answers
+  // on the port, so we never open a window onto someone else's app. A plain
+  // timeout (slow cold start, model still loading or unhealthy) opens the
+  // window as before and lets its load-retry logic and model-health UI work.
+  // Without a spawned backend (EXTERNAL_BACKEND, missing binary) nothing changes.
+  const backendReady = await waitForBackend();
+  const hardFailure =
+    lastBackendFailure && lastBackendFailure.kind !== "timeout";
+  if (!backendReady && spawnedBackendPid !== null && hardFailure) {
+    closeSplashWindow();
+    await showBackendFailureDialog();
+    app.isQuitting = true;
+    stopGoBinary();
+    app.quit();
+    return;
+  }
   createWindow();
 
   // Check for updates after launch

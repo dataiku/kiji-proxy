@@ -139,6 +139,13 @@ type Config struct {
 	ModelVariant              string // "trained" (full precision) or "quantized" (INT8). Used to derive ONNXModelDirectory when it isn't set.
 	ONNXModelDirectory        string // Explicit override; takes precedence over ModelVariant.
 	UIPath                    string
+	// ListenHost restricts the TCP listeners (API, transparent proxy, PAC) to one
+	// interface, e.g. "127.0.0.1". Empty means all interfaces (the historical
+	// default, needed for Docker/server deploys). Set via KIJI_LISTEN_HOST; the
+	// desktop app sets it to loopback so a port collision fails with
+	// "address already in use" instead of silently sharing the port with another
+	// process bound to 127.0.0.1.
+	ListenHost string
 	// ServeUI controls whether the embedded web UI is served on "/". Defaults to
 	// true; set the KIJI_SERVE_UI=false env var for an API-only (headless) server.
 	ServeUI bool `json:"serve_ui"`
@@ -268,6 +275,21 @@ func (c *Config) ValidateConfig() error {
 		return errors.New(strings.Join(errs, "; "))
 	}
 	return nil
+}
+
+// ListenAddr combines ListenHost with a ":PORT"-style port into a
+// net.Listen address. IPv6 hosts are bracketed ("[::1]:8080").
+func (c *Config) ListenAddr(port string) string {
+	return JoinListenAddr(c.ListenHost, port)
+}
+
+// JoinListenAddr combines a host (may be empty) with a ":PORT" or "PORT" port.
+func JoinListenAddr(host, port string) string {
+	port = strings.TrimPrefix(port, ":")
+	if host == "" {
+		return ":" + port
+	}
+	return net.JoinHostPort(host, port)
 }
 
 func validatePort(port string, fieldName string) error {

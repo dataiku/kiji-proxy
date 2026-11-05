@@ -122,8 +122,8 @@ func NewServer(cfg *config.Config, version string) (*Server, error) {
 	var pacServer *proxy.PACServer
 	var systemProxyManager *proxy.SystemProxyManager
 	if cfg.Proxy.TransparentEnabled && cfg.Proxy.EnablePAC {
-		pacServer = proxy.NewPACServer(cfg.Providers.GetInterceptDomains(), cfg.Proxy.ProxyPort)
-		systemProxyManager = proxy.NewSystemProxyManager("http://localhost:9090/proxy.pac")
+		pacServer = proxy.NewPACServer(cfg.Providers.GetInterceptDomains(), cfg.Proxy.ProxyPort, cfg.ListenHost)
+		systemProxyManager = proxy.NewSystemProxyManager("http://127.0.0.1:9090/proxy.pac")
 	}
 
 	s := &Server{
@@ -170,8 +170,8 @@ func NewServerWithEmbedded(cfg *config.Config, uiFS, modelFS fs.FS, version stri
 	var pacServer *proxy.PACServer
 	var systemProxyManager *proxy.SystemProxyManager
 	if cfg.Proxy.TransparentEnabled && cfg.Proxy.EnablePAC {
-		pacServer = proxy.NewPACServer(cfg.Providers.GetInterceptDomains(), cfg.Proxy.ProxyPort)
-		systemProxyManager = proxy.NewSystemProxyManager("http://localhost:9090/proxy.pac")
+		pacServer = proxy.NewPACServer(cfg.Providers.GetInterceptDomains(), cfg.Proxy.ProxyPort, cfg.ListenHost)
+		systemProxyManager = proxy.NewSystemProxyManager("http://127.0.0.1:9090/proxy.pac")
 	}
 
 	s := &Server{
@@ -215,17 +215,46 @@ func (s *Server) Start() error {
 
 	log.Printf("Using SQLite database at %s", s.config.Database.Path)
 
+	// Bind every TCP port up front, before touching system proxy settings. If
+	// another process holds a port we fail here with "address already in use",
+	// and the system proxy is never pointed at a server we don't run.
+	var mainListener net.Listener
+	if s.config.UnixSocketPath == "" {
+		l, err := net.Listen("tcp", s.config.ListenAddr(s.config.ProxyPort))
+		if err != nil {
+			return err
+		}
+		mainListener = l
+	}
+	var transparentListener net.Listener
+	if s.transparentProxy != nil {
+		l, err := net.Listen("tcp", s.config.ListenAddr(s.transparentProxyPort()))
+		if err != nil {
+			if mainListener != nil {
+				_ = mainListener.Close()
+			}
+			return err
+		}
+		transparentListener = l
+	}
+
 	// Start PAC server if enabled
 	if s.pacServer != nil {
-		go func() {
-			if err := s.pacServer.Start(); err != nil && err != http.ErrServerClosed {
-				log.Printf("PAC server failed: %v", err)
-			}
-		}()
-
-		// Give PAC server time to start
-		time.Sleep(100 * time.Millisecond)
-
+		pacListener, pacErr := s.pacServer.Listen()
+		if pacErr != nil {
+			// The PAC port is taken: serving nothing and enabling the system
+			// proxy would hand the OS someone else's PAC file. Skip both; the
+			// proxy itself still works via HTTP(S)_PROXY.
+			log.Printf("⚠️  Warning: PAC server could not start, system proxy not configured: %v", pacErr)
+		} else {
+			go func() {
+				if err := s.pacServer.Serve(pacListener); err != nil && err != http.ErrServerClosed {
+					log.Printf("PAC server failed: %v", err)
+				}
+			}()
+		}
+	}
+	if s.pacServer != nil && s.pacServer.Listening() {
 		// Configure system proxy (requires sudo)
 		if err := s.systemProxyManager.Enable(); err != nil {
 			log.Printf("⚠️  Warning: Failed to enable system proxy: %v", err)
@@ -240,8 +269,8 @@ func (s *Server) Start() error {
 	}
 
 	// Start transparent proxy if enabled
-	if s.transparentProxy != nil {
-		go s.startTransparentProxy()
+	if transparentListener != nil {
+		go s.startTransparentProxy(transparentListener)
 	}
 
 	// Add admin endpoints (e.g. health check, logs, certs, etc.)
@@ -351,19 +380,20 @@ func (s *Server) Start() error {
 
 	// Create server with timeout configuration
 	server := &http.Server{
-		Addr:         s.config.ProxyPort,
 		Handler:      rootHandler,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
 
-	return serveHTTP(server, s.config.UnixSocketPath)
+	return serveHTTP(server, mainListener, s.config.UnixSocketPath)
 }
 
-func serveHTTP(server *http.Server, socketPath string) error {
+// serveHTTP serves on the pre-bound TCP listener, or on a Unix socket when
+// socketPath is set (listener is nil then).
+func serveHTTP(server *http.Server, listener net.Listener, socketPath string) error {
 	if socketPath == "" {
-		return server.ListenAndServe()
+		return server.Serve(listener)
 	}
 
 	if err := os.Remove(socketPath); err != nil && !os.IsNotExist(err) {
@@ -384,14 +414,17 @@ func serveHTTP(server *http.Server, socketPath string) error {
 	return server.Serve(listener)
 }
 
-// startTransparentProxy starts the transparent proxy server
-func (s *Server) startTransparentProxy() {
-	proxyPort := s.config.Proxy.ProxyPort
-	if proxyPort == "" {
-		proxyPort = config.DefaultForwardProxyPort
+// transparentProxyPort returns the configured transparent proxy port.
+func (s *Server) transparentProxyPort() string {
+	if s.config.Proxy.ProxyPort == "" {
+		return config.DefaultForwardProxyPort
 	}
+	return s.config.Proxy.ProxyPort
+}
 
-	log.Printf("Starting transparent proxy on port %s", proxyPort)
+// startTransparentProxy serves the transparent proxy on a listener bound in Start.
+func (s *Server) startTransparentProxy(listener net.Listener) {
+	log.Printf("Starting transparent proxy on %s", listener.Addr())
 	log.Printf("Intercepting domains: %v", s.config.Providers.GetInterceptDomains())
 	log.Printf("CA certificate path: %s", s.config.Proxy.CAPath)
 
@@ -444,15 +477,18 @@ func (s *Server) startTransparentProxy() {
 	}))
 
 	s.transparentServer = &http.Server{
-		Addr:         proxyPort,
 		Handler:      handler,
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  120 * time.Second,
 	}
 
-	if err := s.transparentServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		log.Fatalf("Failed to start transparent proxy: %v", err)
+	if err := s.transparentServer.Serve(listener); err != nil && err != http.ErrServerClosed {
+		// Close restores the system proxy settings; log.Fatalf alone would exit
+		// with the OS still routing traffic to a proxy that is gone.
+		log.Printf("Transparent proxy failed: %v", err)
+		_ = s.Close()
+		os.Exit(1)
 	}
 }
 
@@ -477,6 +513,9 @@ func (s *Server) healthCheck(w http.ResponseWriter, r *http.Request) {
 		"service":        "Kiji Privacy Proxy Service",
 		"model_healthy":  modelHealthy,
 		"uptime_seconds": s.uptimeSeconds(),
+		// pid lets the desktop app confirm it reached the backend it spawned,
+		// not another process that happens to answer on the same port.
+		"pid": os.Getpid(),
 	}
 
 	if !modelHealthy {
@@ -1000,6 +1039,12 @@ func (s *Server) StartWithErrorHandling() {
 	}()
 
 	if err := s.Start(); err != nil {
+		// Start binds every port before configuring the system proxy, so a bind
+		// failure needs no cleanup; a later serve error does (Close restores
+		// the system proxy).
+		if s.pacServer != nil && s.pacServer.Listening() {
+			_ = s.Close()
+		}
 		log.Fatalf("Failed to start server: %v", err)
 	}
 }
