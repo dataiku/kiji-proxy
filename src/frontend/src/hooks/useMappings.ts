@@ -54,6 +54,8 @@ export function useMappings(isOpen: boolean) {
             piiType: (m.pii_type as string) || "",
             original: (m.original_pii as string) || "",
             masked: (m.dummy_pii as string) || "",
+            sessionId:
+              typeof m.session_id === "string" ? m.session_id : null,
             createdAt:
               typeof m.created_at === "string"
                 ? new Date(m.created_at)

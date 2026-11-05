@@ -48,10 +48,10 @@ func TestRequestMappingsSurviveUpstreamWaitAndResponse(t *testing.T) {
 			}
 			defer fixture.Close()
 			mapping := piiServices.NewPIIMappingWithDB(db, true)
-			if _, err := mapping.AddMapping(context.Background(), "Alice", "request-dummy", "FIRSTNAME", 1); err != nil {
+			if _, err := mapping.AddMapping(context.Background(), piiServices.NullSessionID, "Alice", "request-dummy", "FIRSTNAME", 1); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := mapping.AddMapping(context.Background(), "Unrelated", "unrelated-dummy", "FIRSTNAME", 1); err != nil {
+			if _, err := mapping.AddMapping(context.Background(), piiServices.NullSessionID, "Unrelated", "unrelated-dummy", "FIRSTNAME", 1); err != nil {
 				t.Fatal(err)
 			}
 			detector := &mockDetector{entities: []detectors.Entity{{Text: "Alice", Label: "FIRSTNAME", StartPos: 0, EndPos: 5, Confidence: 1}}}
@@ -65,7 +65,7 @@ func TestRequestMappingsSurviveUpstreamWaitAndResponse(t *testing.T) {
 			h.maskingService = piiServices.NewMaskingService(&mockDetectorProvider{detector: interleaved}, piiServices.NewGeneratorService(), mapping)
 			var provider providers.Provider = h.providers.OpenAIProvider
 			requestBody := []byte(`{"model":"gpt-4","messages":[{"role":"user","content":"Alice"},{"role":"user","content":"Alice"}]}`)
-			processed, err := h.ProcessRequestBody(ctx, requestBody, &provider, nil)
+			processed, err := h.ProcessRequestBody(ctx, requestBody, &provider, nil, piiServices.NullSessionID)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -99,7 +99,7 @@ func TestRequestMappingsSurviveUpstreamWaitAndResponse(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if got, err := mapping.UnmaskMappings(ctx, []string{"request-dummy"}); err != nil || len(got) != 0 {
+			if got, err := mapping.UnmaskMappings(ctx, piiServices.NullSessionID, []string{"request-dummy"}); err != nil || len(got) != 0 {
 				t.Fatal("new unmask operation used expired mapping")
 			}
 
@@ -123,7 +123,7 @@ func TestRequestMappingsSurviveUpstreamWaitAndResponse(t *testing.T) {
 			}
 			emitted := delta("Hello request-")
 			// A concurrent later request remasks the same original with a new lifetime.
-			next, err := h.ProcessRequestBody(ctx, requestBody, &provider, nil)
+			next, err := h.ProcessRequestBody(ctx, requestBody, &provider, nil, piiServices.NullSessionID)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -167,7 +167,7 @@ func (d failingSnapshotDB) BeginMappingSnapshot(context.Context) (piiServices.Ma
 
 type failingUnmaskSnapshot struct{ calls, failAfter int }
 
-func (s *failingUnmaskSnapshot) Lookup(context.Context, string, bool) (string, bool, error) {
+func (s *failingUnmaskSnapshot) Lookup(context.Context, string, string, bool) (string, bool, error) {
 	s.calls++
 	if s.calls <= s.failAfter {
 		return "Alice", true, nil
@@ -213,7 +213,7 @@ func TestUnmaskAPIKeepsSuccessfulResultAfterStatisticsFailure(t *testing.T) {
 	for _, body := range []string{`{"masked":"dummy"}`, `{"masked":["dummy","dummy","missing"]}`} {
 		t.Run(body, func(t *testing.T) {
 			h := newTestHandler(t, &mockDetector{}, nil)
-			if _, err := h.piiMapping.AddMapping(context.Background(), "Alice", "dummy", "PERSON", 1); err != nil {
+			if _, err := h.piiMapping.AddMapping(context.Background(), piiServices.NullSessionID, "Alice", "dummy", "PERSON", 1); err != nil {
 				t.Fatal(err)
 			}
 			ctx, cancel := context.WithCancel(context.Background())
@@ -252,14 +252,14 @@ func TestMaskingEndpointsCancelSnapshotAcquisition(t *testing.T) {
 			go func() {
 				if endpoint == "proxy" {
 					var provider providers.Provider = h.providers.OpenAIProvider
-					result, err := h.ProcessRequestBody(ctx, []byte(`{"messages":[{"role":"user","content":"Alice"}]}`), &provider, nil)
+					result, err := h.ProcessRequestBody(ctx, []byte(`{"messages":[{"role":"user","content":"Alice"}]}`), &provider, nil, piiServices.NullSessionID)
 					if result != nil {
 						done <- errors.New("request continued without a snapshot")
 						return
 					}
 					done <- err
 				} else {
-					text, pairs, _, err := h.MaskPIIInTextWithLogging(ctx, "Alice", "test", nil)
+					text, pairs, _, err := h.MaskPIIInTextWithLogging(ctx, "Alice", "test", nil, piiServices.NullSessionID)
 					if text != "" || pairs != nil {
 						done <- errors.New("check continued without a snapshot")
 						return
@@ -307,7 +307,7 @@ func TestMaskingStorageFailuresReturn503WithoutForwarding(t *testing.T) {
 			}
 			body := `{"messages":[{"role":"user","content":"Alice"},{"role":"user","content":"Alice"}]}`
 			var provider providers.Provider = h.providers.OpenAIProvider
-			if result, err := h.ProcessRequestBody(ctx, []byte(body), &provider, nil); err == nil || result != nil {
+			if result, err := h.ProcessRequestBody(ctx, []byte(body), &provider, nil, piiServices.NullSessionID); err == nil || result != nil {
 				t.Fatalf("provider callback lost failure: %v %v", result, err)
 			}
 			w := httptest.NewRecorder()

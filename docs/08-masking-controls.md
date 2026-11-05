@@ -12,6 +12,7 @@ This chapter covers the controls that decide **what** Kiji masks and let you **r
 
 - [Where to find these controls](#where-to-find-these-controls)
 - [PII profiles](#pii-profiles)
+- [Session-scoped mappings](#session-scoped-mappings)
 - [Mapping expiration](#mapping-expiration)
 - [PII detection sensitivity](#pii-detection-sensitivity)
 - [Choosing which entities to mask](#choosing-which-entities-to-mask)
@@ -73,6 +74,50 @@ Every profile has a stable **ID**, shown under its name (e.g. `X-Kiji-Profile: h
 A request that names a profile that doesn't exist is **rejected with HTTP 400** rather than silently masked with other settings.
 
 Profiles are stored in `pii_profiles.json` in the application data directory. On the first start after upgrading, Kiji creates a `Default` profile (ID `default`) from your previous settings in `pii_settings.json`. The old file is left in place. If loading, validation, or migration (including saving the migrated profiles) fails, startup stops with an error. Repair the file or filesystem problem and restart; the proxy never substitutes static settings after a profile-loading failure.
+
+---
+
+## Session-scoped mappings
+
+By default Kiji keeps one global pool of mappings, so the same original value
+gets the same masked value across all requests. If a client sends a **session
+ID** (any string it chooses), mappings are kept separately for that session:
+
+- Within a session, the same original always gets the same masked value.
+- Different sessions get their own masked values for the same original.
+- A masked value only unmasks within the session that created it. It does not
+  unmask under another session or with no session.
+- Requests without a session ID (or with an empty or `null` one) use the global
+  pool exactly as before. Mappings created before this feature was added stay in
+  the global pool.
+- Masked values are unique across all sessions, so each one maps back to exactly
+  one original.
+- Session mappings expire under the same [mapping expiration](#mapping-expiration)
+  policy as everything else.
+
+Session IDs are trimmed. IDs longer than 256 bytes or containing control
+characters are rejected with HTTP 400.
+
+How to send the session ID:
+
+- **Proxied API requests:** send the `X-Kiji-Session` header. Kiji strips it
+  before forwarding to the provider.
+
+  ```bash
+  curl http://localhost:8080/v1/chat/completions \
+    -H "Authorization: Bearer $OPENAI_API_KEY" \
+    -H "Content-Type: application/json" \
+    -H "X-Kiji-Session: conversation-42" \
+    -d '{"model": "gpt-4o-mini", "messages": [{"role": "user", "content": "..."}]}'
+  ```
+
+- **`/api/pii/check` and `/api/mappings/unmask`:** add `"session_id"` to the
+  JSON body, or send the `X-Kiji-Session` header. When both are present, the
+  body field wins. `"session_id": null` falls back to the header.
+
+The **Mappings** view shows each mapping's session (`—` for the global pool).
+See [For standalone / automation](#for-standalone--automation) for listing and
+clearing one session's mappings.
 
 ---
 
@@ -352,16 +397,21 @@ curl -X POST http://localhost:8080/api/pii/profiles/healthcare/default
 # Entity types selectable for a profile (model types + the profile's regex names)
 curl "http://localhost:8080/api/pii/entities?profile=healthcare"
 
-# Check text for PII with a specific profile (omit "profile" for the default)
+# Check text for PII with a specific profile (omit "profile" for the default).
+# Add "session_id" to scope the mappings to a session.
 curl -X POST http://localhost:8080/api/pii/check \
   -H "Content-Type: application/json" \
-  -d '{"message": "Patient MRN-123456", "profile": "healthcare"}'
+  -d '{"message": "Patient MRN-123456", "profile": "healthcare", "session_id": "conversation-42"}'
 
-# Review mappings (supports limit, offset, sort, order)
+# Review mappings (supports limit, offset, sort, order). Each row has a
+# "session_id" (null for the global pool). Add session_id=<id> to list only one
+# session; an empty session_id= lists only the global pool.
 curl "http://localhost:8080/mappings?limit=50&offset=0&sort=created_at&order=desc"
+curl "http://localhost:8080/mappings?session_id=conversation-42"
 
-# Delete one mapping by id, or clear them all
+# Delete one mapping by id, clear one session's mappings, or clear them all
 curl -X DELETE "http://localhost:8080/mappings?id=123"
+curl -X DELETE "http://localhost:8080/mappings?session_id=conversation-42"
 curl -X DELETE "http://localhost:8080/mappings"
 
 # Resolve a masked (dummy) value back to the original PII. Single value returns
@@ -373,6 +423,10 @@ curl -X POST http://localhost:8080/api/mappings/unmask \
 curl -X POST http://localhost:8080/api/mappings/unmask \
   -H "Content-Type: application/json" \
   -d '{"masked": ["Nicole Brown", "nicole.brown@example.invalid"]}'
+# Masked values from a session only resolve within that session.
+curl -X POST http://localhost:8080/api/mappings/unmask \
+  -H "Content-Type: application/json" \
+  -d '{"masked": "Nicole Brown", "session_id": "conversation-42"}'
 ```
 
 > Profile changes are persisted to `pii_profiles.json` and survive restarts. When Basic Auth is enabled, creating, updating, deleting, and setting the default profile require credentials; listing profiles and `/api/pii/check` stay open.

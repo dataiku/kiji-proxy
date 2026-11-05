@@ -68,7 +68,7 @@ func TestStoreAndGetMapping(t *testing.T) {
 	db := newTestDB(t)
 	ctx := context.Background()
 
-	err := db.StoreMapping(ctx, "John Doe", "Jane Smith", "PERSON", 0.95)
+	err := db.StoreMapping(ctx, NullSessionID, "John Doe", "Jane Smith", "PERSON", 0.95)
 	if err != nil {
 		t.Fatalf("StoreMapping failed: %v", err)
 	}
@@ -127,19 +127,19 @@ func TestStoreMapping_Upsert(t *testing.T) {
 	ctx := context.Background()
 
 	// Store initial mapping
-	err := db.StoreMapping(ctx, "john@test.com", "fake@test.com", "EMAIL", 0.8)
+	err := db.StoreMapping(ctx, NullSessionID, "john@test.com", "fake@test.com", "EMAIL", 0.8)
 	if err != nil {
 		t.Fatalf("first StoreMapping failed: %v", err)
 	}
 
 	// Store again with same original - should upsert (update confidence, increment access_count)
-	err = db.StoreMapping(ctx, "john@test.com", "fake@test.com", "EMAIL", 0.95)
+	err = db.StoreMapping(ctx, NullSessionID, "john@test.com", "fake@test.com", "EMAIL", 0.95)
 	if err != nil {
 		t.Fatalf("second StoreMapping failed: %v", err)
 	}
 
 	// Should still have exactly one mapping
-	count, err := db.GetMappingsCount(ctx)
+	count, err := db.GetMappingsCount(ctx, MappingFilter{})
 	if err != nil {
 		t.Fatalf("GetMappingsCount failed: %v", err)
 	}
@@ -152,12 +152,12 @@ func TestDeleteMapping(t *testing.T) {
 	db := newTestDB(t)
 	ctx := context.Background()
 
-	err := db.StoreMapping(ctx, "secret", "masked", "PERSON", 1.0)
+	err := db.StoreMapping(ctx, NullSessionID, "secret", "masked", "PERSON", 1.0)
 	if err != nil {
 		t.Fatalf("StoreMapping failed: %v", err)
 	}
 
-	err = db.DeleteMapping(ctx, "secret")
+	err = db.DeleteMapping(ctx, NullSessionID, "secret")
 	if err != nil {
 		t.Fatalf("DeleteMapping failed: %v", err)
 	}
@@ -176,7 +176,7 @@ func TestDeleteMapping_Nonexistent(t *testing.T) {
 	ctx := context.Background()
 
 	// Deleting a nonexistent mapping should not error
-	err := db.DeleteMapping(ctx, "nonexistent")
+	err := db.DeleteMapping(ctx, NullSessionID, "nonexistent")
 	if err != nil {
 		t.Fatalf("DeleteMapping on nonexistent key should not error, got: %v", err)
 	}
@@ -187,13 +187,13 @@ func TestClearMappings(t *testing.T) {
 	ctx := context.Background()
 
 	for i := 0; i < 5; i++ {
-		err := db.StoreMapping(ctx, "orig"+string(rune('A'+i)), "dummy"+string(rune('A'+i)), "PERSON", 1.0)
+		err := db.StoreMapping(ctx, NullSessionID, "orig"+string(rune('A'+i)), "dummy"+string(rune('A'+i)), "PERSON", 1.0)
 		if err != nil {
 			t.Fatalf("StoreMapping failed: %v", err)
 		}
 	}
 
-	count, _ := db.GetMappingsCount(ctx)
+	count, _ := db.GetMappingsCount(ctx, MappingFilter{})
 	if count != 5 {
 		t.Fatalf("expected 5 mappings, got %d", count)
 	}
@@ -203,7 +203,7 @@ func TestClearMappings(t *testing.T) {
 		t.Fatalf("ClearMappings failed: %v", err)
 	}
 
-	count, _ = db.GetMappingsCount(ctx)
+	count, _ = db.GetMappingsCount(ctx, MappingFilter{})
 	if count != 0 {
 		t.Errorf("expected 0 mappings after clear, got %d", count)
 	}
@@ -213,7 +213,7 @@ func TestGetMappingsCount_Empty(t *testing.T) {
 	db := newTestDB(t)
 	ctx := context.Background()
 
-	count, err := db.GetMappingsCount(ctx)
+	count, err := db.GetMappingsCount(ctx, MappingFilter{})
 	if err != nil {
 		t.Fatalf("GetMappingsCount failed: %v", err)
 	}
@@ -232,7 +232,7 @@ func TestCleanupOldMappings(t *testing.T) {
 	ctx := context.Background()
 
 	// Insert a mapping
-	err := db.StoreMapping(ctx, "old-data", "old-mask", "PERSON", 1.0)
+	err := db.StoreMapping(ctx, NullSessionID, "old-data", "old-mask", "PERSON", 1.0)
 	if err != nil {
 		t.Fatalf("StoreMapping failed: %v", err)
 	}
@@ -244,7 +244,7 @@ func TestCleanupOldMappings(t *testing.T) {
 	}
 
 	// Insert a recent mapping
-	err = db.StoreMapping(ctx, "new-data", "new-mask", "EMAIL", 1.0)
+	err = db.StoreMapping(ctx, NullSessionID, "new-data", "new-mask", "EMAIL", 1.0)
 	if err != nil {
 		t.Fatalf("StoreMapping failed: %v", err)
 	}
@@ -259,7 +259,7 @@ func TestCleanupOldMappings(t *testing.T) {
 	}
 
 	// Only the new mapping should remain
-	count, _ := db.GetMappingsCount(ctx)
+	count, _ := db.GetMappingsCount(ctx, MappingFilter{})
 	if count != 1 {
 		t.Errorf("expected 1 remaining, got %d", count)
 	}
@@ -797,7 +797,7 @@ func TestCloseAndReopen(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create db: %v", err)
 	}
-	err = db1.StoreMapping(ctx, "persistent", "masked", "PERSON", 0.9)
+	err = db1.StoreMapping(ctx, NullSessionID, "persistent", "masked", "PERSON", 0.9)
 	if err != nil {
 		t.Fatalf("StoreMapping failed: %v", err)
 	}
@@ -834,7 +834,7 @@ func TestConcurrentAccess(t *testing.T) {
 		go func(i int) {
 			orig := "orig-" + string(rune('A'+i))
 			dummy := "dummy-" + string(rune('A'+i))
-			done <- db.StoreMapping(ctx, orig, dummy, "PERSON", 0.9)
+			done <- db.StoreMapping(ctx, NullSessionID, orig, dummy, "PERSON", 0.9)
 		}(i)
 	}
 
@@ -844,7 +844,7 @@ func TestConcurrentAccess(t *testing.T) {
 		}
 	}
 
-	count, err := db.GetMappingsCount(ctx)
+	count, err := db.GetMappingsCount(ctx, MappingFilter{})
 	if err != nil {
 		t.Fatalf("GetMappingsCount failed: %v", err)
 	}
@@ -954,11 +954,11 @@ func lookupForTest(ctx context.Context, db PIIMappingDB, key string, forward boo
 		return "", false, err
 	}
 	defer snapshot.Close()
-	return snapshot.Lookup(ctx, key, forward)
+	return snapshot.Lookup(ctx, NullSessionID, key, forward)
 }
 func unmaskForTest(t *testing.T, mapping *PIIMapping, dummy string) (string, bool) {
 	t.Helper()
-	result, err := mapping.UnmaskMappings(context.Background(), []string{dummy})
+	result, err := mapping.UnmaskMappings(context.Background(), NullSessionID, []string{dummy})
 	if err != nil {
 		t.Fatal(err)
 	}

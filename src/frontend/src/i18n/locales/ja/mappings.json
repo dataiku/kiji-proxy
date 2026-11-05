@@ -20,6 +20,8 @@
     "entityType": "項目タイプ",
     "original": "元の値",
     "masked": "マスク後",
+    "session": "セッション",
+    "noSession": "セッションなし",
     "date": "最初に検出した日時",
     "actions": "操作"
   },
