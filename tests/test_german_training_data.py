@@ -64,6 +64,29 @@ def test_openpii_ambiguous_birth_date_row_is_skipped():
     assert convert_openpii_row(row) is None
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        # No event word: may be a birth date in a record.
+        "Teilnehmer: Lena Graf, 03/04/1981, aus Köln.",
+        # Event word, but openpii's random year makes it a likely birth date.
+        "Bitte senden Sie das Formular bis zum 28/12/1943 an Frau Graf.",
+    ],
+)
+def test_openpii_row_with_uncertain_date_is_skipped(text):
+    date = next(w.strip(",.") for w in text.split() if "/" in w)
+    row = _openpii(text, [("DATE", date), ("SURNAME", "Graf")])
+    assert convert_openpii_row(row) is None
+
+
+def test_openpii_recent_event_date_stays_unlabelled():
+    row = _openpii(
+        "Bitte senden Sie das Formular bis zum 28/12/2025 an Frau Graf.",
+        [("DATE", "28/12/2025"), ("SURNAME", "Graf")],
+    )
+    assert _labels(convert_openpii_row(row)) == [("SURNAME", "Graf")]
+
+
 def test_nym_row_with_customer_id_is_skipped():
     text = "Bitte prüfen Sie die Kundennummer 88231 für Herrn Graf und die Rechnung."
     row = {
@@ -117,6 +140,37 @@ def test_synthetic_labels_are_kiji_labels(language):
     assert labels <= set(LabelUtils.STANDARD_PII_LABELS)
     # Every language has the contrast labels the negatives are paired with.
     assert {"LICENSEPLATENUM", "DATEOFBIRTH", "FIRSTNAME", "SURNAME"} <= labels
+
+
+_BIRTH_WORDS = re.compile(
+    r"birth|born|geb|geburt|naiss|né|nac|geboor|født|fødsel", re.IGNORECASE
+)
+
+
+@pytest.mark.parametrize("language", LANGUAGES)
+def test_synthetic_rows_have_birth_dates_without_a_birth_word(language):
+    """Person records: birth dates next to a name with no birth word before
+    them, so the model does not learn that birth dates always follow a cue."""
+    uncued = 0
+    for r in generate(1000, seed=4, language=language):
+        for m in r["privacy_mask"]:
+            if m["label"] == "DATEOFBIRTH":
+                line_start = r["text"].rfind("\n", 0, m["start"]) + 1
+                uncued += not _BIRTH_WORDS.search(r["text"][line_start : m["start"]])
+    assert uncued >= 100
+
+
+def test_synthetic_record_event_dates_stay_unlabelled():
+    rows = generate(1000, seed=4, language="English")
+    events = 0
+    for r in rows:
+        labelled = {(m["start"], m["end"]) for m in r["privacy_mask"]}
+        for m in re.finditer(
+            r"(Registered|Last updated|Joined|Created|Signed up): (\S+)", r["text"]
+        ):
+            assert (m.start(2), m.end(2)) not in labelled
+            events += 1
+    assert events > 0
 
 
 def test_synthetic_rows_are_deterministic_and_differ_by_language():

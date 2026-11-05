@@ -6,16 +6,16 @@
 #   ./model/flows/experiments/run_german_mix.sh            # seeds 42 13 7
 #   ./model/flows/experiments/run_german_mix.sh 42         # one seed
 #
-# Expects the mix at model/dataset/data_samples/german_mix_v2/samples, either
-# unpacked from german_mix_v2.tar.gz or rebuilt with:
+# Expects the mix at model/dataset/data_samples/german_mix_v3/samples, either
+# unpacked from german_mix_v3.tar.gz or rebuilt with:
 #   uv run python -m model.dataset.build_training_mix
 set -euo pipefail
 
 cd "$(dirname "$0")/../../.."
 
-NAME="mdeberta_german_mix_v2"
+NAME="mdeberta_german_mix_v3"
 CONFIG="$PWD/model/flows/experiments/$NAME.toml"
-SAMPLES_DIR="model/dataset/data_samples/german_mix_v2/samples"
+SAMPLES_DIR="model/dataset/data_samples/german_mix_v3/samples"
 RESULTS_DIR="model/trained/german_mix"
 
 if [ $# -gt 0 ]; then

@@ -12,6 +12,10 @@ PII. This module produces rows whose labels are correct by construction:
   "licence plate" / "Kennzeichen" / "matrícula", a birth date after "born on" /
   "né le", a sign-off name, an address), so the model has to use context
   instead of shape.
+- Person records: tables, CSV exports, lists, forms and JSON/XML with birth
+  dates next to names and *no* birth word, sometimes beside an unlabelled
+  event date. Without them the cue-only birth dates above (and in openpii)
+  teach "no birth word -> no birth date".
 
 Languages: German, English (UK), French (France), Spanish (Spain), Dutch
 (Netherlands) and Danish (Denmark), the six languages of the Kiji data. Each
@@ -252,6 +256,24 @@ class _Gen:
     # --- PII -----------------------------------------------------------
     def dob(self) -> str:
         return self._date(self.loc.dob_formats, (1940, 2004))
+
+    def record_dob(self) -> str:
+        """A birth date as it appears in exports and lists: local formats plus
+        ISO dates and, for English, ordinals ("July 13th, 1960")."""
+        d, m = self.r.randint(1, 28), self.r.randint(1, 12)
+        y = self.r.randint(1940, 2006)
+        style = self.r.random()
+        if style < 0.2:
+            return f"{y}-{m:02d}-{d:02d}"
+        if style < 0.3:
+            return f"{y}-{m:02d}-{d:02d}T00:00:00"
+        if style < 0.5 and self.loc.code == "en":
+            month = self.loc.months[m - 1]
+            day = f"{d}{EN_ORDINALS.get(d, 'th')}"
+            return self.pick([f"{month} {day}, {y}", f"{day} {month} {y}"])
+        return self.pick(self.loc.dob_formats).format(
+            d=d, m=m, y=y, month=self.loc.months[m - 1]
+        )
 
     def plate(self) -> str:
         return self.loc.plate(self)
@@ -1066,6 +1088,70 @@ LOCALES: dict[str, Locale] = {
     loc.language: loc for loc in (GERMAN, ENGLISH, FRENCH, SPANISH, DUTCH, DANISH)
 }
 
+# Words for person records (tables, lists, exports) per locale code. Records put
+# a birth date next to a name *without* a birth word, as real exports and lists
+# do; mix v2 had no such rows, and the model learned "no birth word -> no birth
+# date" in every language. "event" keys introduce dates that are not PII.
+RECORD_WORDS: dict[str, dict[str, list[str]]] = {
+    "de": {
+        "name": _l("Name|Vor- und Nachname|Person"),
+        "city": _l("Ort|Wohnort|Stadt"),
+        "phone": _l("Telefon|Tel.|Mobil"),
+        "person": _l("Teilnehmer|Teilnehmerin|Mitglied|Mitarbeiter|Kunde|Person"),
+        "list": _l(
+            "Teilnehmerliste|Mitgliederliste|Personalliste|Kundenliste|Anmeldungen"
+        ),
+        "event": _l("Angelegt am|Letzte Änderung|Eintritt|Anmeldung am|Stand"),
+        "dob_key": _l("geb.|Geb.|GebDat|geb_datum|dob"),
+    },
+    "en": {
+        "name": _l("Name|Full name|Person"),
+        "city": _l("City|Town|Location"),
+        "phone": _l("Phone|Tel.|Mobile"),
+        "person": _l("Participant|Member|Applicant|Employee|Customer|Student|Party"),
+        "list": _l("Participant list|Members|Staff list|Customer list|Registrations"),
+        "event": _l("Registered|Last updated|Joined|Created|Signed up"),
+        "dob_key": _l("DOB|D.O.B.|dob|bday|student_dob"),
+    },
+    "fr": {
+        "name": _l("Nom|Nom complet|Personne"),
+        "city": _l("Ville|Commune|Localité"),
+        "phone": _l("Téléphone|Tél.|Portable"),
+        "person": _l("Participant|Participante|Membre|Salarié|Client|Élève"),
+        "list": _l("Liste des participants|Membres|Liste du personnel|Inscriptions"),
+        "event": _l("Créé le|Mis à jour le|Inscrit le|Entrée|Date d'inscription"),
+        "dob_key": _l("DDN|ddn|date_naiss|dob"),
+    },
+    "es": {
+        "name": _l("Nombre|Nombre completo|Persona"),
+        "city": _l("Ciudad|Localidad|Municipio"),
+        "phone": _l("Teléfono|Tel.|Móvil"),
+        "person": _l("Participante|Socio|Socia|Empleado|Cliente|Alumno"),
+        "list": _l("Lista de participantes|Socios|Plantilla|Inscripciones"),
+        "event": _l("Alta|Última modificación|Fecha de alta|Inscrito el|Creado"),
+        "dob_key": _l("F. nac.|fnac|fecha_nac|dob"),
+    },
+    "nl": {
+        "name": _l("Naam|Volledige naam|Persoon"),
+        "city": _l("Plaats|Woonplaats|Stad"),
+        "phone": _l("Telefoon|Tel.|Mobiel"),
+        "person": _l("Deelnemer|Lid|Medewerker|Klant|Leerling"),
+        "list": _l("Deelnemerslijst|Ledenlijst|Personeelslijst|Inschrijvingen"),
+        "event": _l("Aangemaakt|Laatst gewijzigd|Lid sinds|Ingeschreven op|Stand"),
+        "dob_key": _l("geb.|Geb.datum|geb_datum|dob"),
+    },
+    "da": {
+        "name": _l("Navn|Fulde navn|Person"),
+        "city": _l("By|Bopæl|Postdistrikt"),
+        "phone": _l("Telefon|Tlf.|Mobil"),
+        "person": _l("Deltager|Medlem|Medarbejder|Kunde|Elev"),
+        "list": _l("Deltagerliste|Medlemsliste|Personaleliste|Tilmeldinger"),
+        "event": _l("Oprettet|Sidst ændret|Medlem siden|Tilmeldt|Status pr."),
+        "dob_key": _l("f.|Fødselsdag|fdato|dob"),
+    },
+}
+EN_ORDINALS = {1: "st", 2: "nd", 3: "rd", 21: "st", 22: "nd", 23: "rd"}
+
 # ---------------------------------------------------------------------------
 # Templates: each returns a list of (text, label) parts
 # ---------------------------------------------------------------------------
@@ -1216,6 +1302,133 @@ def t_customer_contact(g: _Gen, pii: bool) -> list[Part]:
     return _fill(g.text("contact"), _values(g))
 
 
+def _person(g: _Gen) -> dict[str, str]:
+    _, city = g.pick(g.loc.cities)
+    first = g.pick(g.loc.first_names)
+    last = g.pick(g.loc.surnames)
+    return {
+        "first": first,
+        "last": last,
+        "dob": g.record_dob(),
+        "city": city,
+        "phone": g.phone(),
+        "email": g.email(first, last),
+    }
+
+
+def _name_parts(p: dict[str, str]) -> list[Part]:
+    return [(p["first"], "FIRSTNAME"), (" ", None), (p["last"], "SURNAME")]
+
+
+def t_person_record(g: _Gen, pii: bool) -> list[Part]:
+    """Always has PII: birth dates in a table, CSV, list, form or JSON/XML record,
+    with no birth word in front of them. Some records also carry an unlabelled
+    event date (created, joined, last updated) to contrast with."""
+    words = RECORD_WORDS[g.loc.code]
+    people = [_person(g) for _ in range(g.r.randint(1, 4))]
+    style = g.r.randrange(6)
+    parts: list[Part] = []
+
+    if style == 0:  # Markdown table
+        if g.r.random() < 0.6:
+            dob_col = g.pick(words["dob_key"] + ["", "", ""])
+            parts.append(
+                (
+                    f"| # | {g.pick(words['name'])} | {dob_col} | {g.pick(words['city'])} |\n"
+                    "|---|---|---|---|\n",
+                    None,
+                )
+            )
+        for i, p in enumerate(people, 1):
+            label = f"{g.pick(words['person'])} {string.ascii_uppercase[i - 1]}"
+            parts.append((f"| {label if g.r.random() < 0.5 else i} | ", None))
+            parts += _name_parts(p)
+            parts += [(" | ", None), (p["dob"], "DATEOFBIRTH"), (" | ", None)]
+            parts += [(p["city"], "CITY"), (" |\n", None)]
+    elif style == 1:  # CSV export
+        sep = g.pick([",", ";", "\t"])
+        if g.r.random() < 0.6:
+            parts.append(
+                (
+                    sep.join(["id", "name", g.pick(["date", "d", "dob", ""]), "city"])
+                    + "\n",
+                    None,
+                )
+            )
+        for i, p in enumerate(people, 1):
+            parts.append((f"{i}{sep}", None))
+            parts += _name_parts(p)
+            parts += [(sep, None), (p["dob"], "DATEOFBIRTH"), (sep, None)]
+            parts += [(p["city"], "CITY"), ("\n", None)]
+    elif style == 2:  # Bulleted list
+        parts.append((g.pick(words["list"]) + ":\n", None))
+        form = g.r.randrange(3)
+        for i, p in enumerate(people, 1):
+            if form == 0:  # - Name, date, city
+                parts.append(("- ", None))
+                parts += _name_parts(p)
+                parts += [(", ", None), (p["dob"], "DATEOFBIRTH"), (", ", None)]
+                parts += [(p["city"], "CITY"), ("\n", None)]
+            elif form == 1:  # - Name (date)
+                parts.append(("- ", None))
+                parts += _name_parts(p)
+                parts += [(" (", None), (p["dob"], "DATEOFBIRTH"), (")\n", None)]
+            else:  # Participant B: Name - date
+                label = f"{g.pick(words['person'])} {string.ascii_uppercase[i - 1]}"
+                parts.append((f"{i}. {label}: ", None))
+                parts += _name_parts(p)
+                parts += [(" - ", None), (p["dob"], "DATEOFBIRTH"), ("\n", None)]
+    elif style == 3:  # Key-value form, date on its own line under the name
+        for p in people[:2]:
+            parts.append((f"{g.pick(words['name'])}: ", None))
+            parts += _name_parts(p)
+            parts += [("\n", None), (p["dob"], "DATEOFBIRTH"), ("\n", None)]
+            parts += [
+                (f"{g.pick(words['phone'])}: ", None),
+                (p["phone"], "PHONENUMBER"),
+            ]
+            if g.r.random() < 0.5:
+                parts.append((f"\n{g.pick(words['event'])}: {g.date()}", None))
+            parts.append(("\n\n", None))
+    elif style == 4:  # JSON
+        parts.append(("[\n", None))
+        for i, p in enumerate(people):
+            key = g.pick(words["dob_key"] + ["dob", "d", "date"])
+            parts.append(('  {"name": "', None))
+            parts += _name_parts(p)
+            parts += [(f'", "{key}": "', None), (p["dob"], "DATEOFBIRTH")]
+            parts += [('", "email": "', None), (p["email"], "EMAIL"), ('"', None)]
+            if g.r.random() < 0.5:
+                parts.append(
+                    (
+                        f', "{g.pick(["created", "updated", "joined"])}": "{g.date()}"',
+                        None,
+                    )
+                )
+            parts.append(("}" + (",\n" if i < len(people) - 1 else "\n"), None))
+        parts.append(("]", None))
+    else:  # XML
+        tag = g.pick(["dob", "Dob", "d", "date"])
+        parts.append(("<people>\n", None))
+        for p in people:
+            parts.append(("  <person><name>", None))
+            parts += _name_parts(p)
+            parts += [(f"</name><{tag}>", None), (p["dob"], "DATEOFBIRTH")]
+            parts += [(f"</{tag}><city>", None), (p["city"], "CITY")]
+            parts.append(("</city>", None))
+            if g.r.random() < 0.5:
+                parts.append((f"<created>{g.date()}</created>", None))
+            parts.append(("</person>\n", None))
+        parts.append(("</people>", None))
+
+    # Strip trailing whitespace so the row does not end on blank lines.
+    while parts and parts[-1][1] is None and not parts[-1][0].strip():
+        parts.pop()
+    if parts and parts[-1][1] is None:
+        parts[-1] = (parts[-1][0].rstrip(), None)
+    return parts
+
+
 TEMPLATES: list[tuple[Callable[[_Gen, bool], list[Part]], bool]] = [
     # (template, can be PII-free)
     (t_workshop_note, True),
@@ -1225,10 +1438,11 @@ TEMPLATES: list[tuple[Callable[[_Gen, bool], list[Part]], bool]] = [
     (t_appointment, True),
     (t_it_ticket, True),
     (t_customer_contact, False),
+    (t_person_record, False),
 ]
-# Six of seven templates can be PII-free; 0.58 of those makes about half of
+# Six of eight templates can be PII-free; 0.66 of those makes about half of
 # all rows PII-free.
-DEFAULT_PII_FREE_SHARE = 0.58
+DEFAULT_PII_FREE_SHARE = 0.66
 
 
 def _assemble(parts: list[Part]) -> tuple[str, list[dict]]:

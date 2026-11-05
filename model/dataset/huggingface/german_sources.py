@@ -7,8 +7,9 @@ Sources (both allow commercial use):
   map 1:1 to Kiji; "street + number" spans are split into STREET/BUILDINGNUM.
 - ai4privacy/pii-masking-openpii-1m (CC-BY-4.0, credit "Ai4Privacy / Ai Suisse
   SA"). German rows only. It has a single DATE label; dates with a birth cue
-  just before them become DATEOFBIRTH, rows with a birth word further away
-  are skipped as ambiguous, and all other dates stay unlabelled.
+  just before them become DATEOFBIRTH, and dates after an event word
+  ("bis zum", "am", "vom") with a year from 1990 on stay unlabelled. Rows with
+  any other date are skipped as ambiguous.
 
 Every converter returns the internal training format used by
 ``labelstudio_format.convert_to_labelstudio``::
@@ -107,6 +108,24 @@ _BIRTH_CUE = re.compile(
 )
 # A birth word somewhere nearby, but not directly before the date: ambiguous.
 _BIRTH_WORD = re.compile(r"geb\.|geboren|geburt|jahrgang|\bborn\b|birth", re.IGNORECASE)
+# An event word directly before the date ("bis zum", "am", "vom", "Datum:").
+_EVENT_CUE = re.compile(
+    r"\b(bis|ab|seit|spätestens|zum|am|vom|den|datum|stand|termin|frist|datiert)\W{0,3}$",
+    re.IGNORECASE,
+)
+_YEAR = re.compile(r"(?<!\d)(19|20)\d{2}(?!\d)")
+# openpii fills date slots with random dates, so "bis zum 28/12/1943" is
+# common. An event date that old is more likely a misplaced birth date.
+_MIN_EVENT_YEAR = 1990
+
+
+def _is_event_date(before: str, value: str) -> bool:
+    """True when an unlabelled openpii DATE can safely stay unlabelled."""
+    if not _EVENT_CUE.search(before[-30:]):
+        return False
+    year = _YEAR.search(value)
+    return year is None or int(year.group()) >= _MIN_EVENT_YEAR
+
 
 _STREET_THEN_NUMBER = re.compile(
     r"^(?P<street>.*\S)\s+(?P<num>\d+\s?[a-zA-Z]?(?:\s?[-/]\s?\d+\s?[a-zA-Z]?)?)$"
@@ -236,8 +255,11 @@ def convert_openpii_row(row: dict) -> dict | None:
             before = text[max(0, window_start) : start]
             if _BIRTH_CUE.search(before[-35:]):
                 spans.append((start, end, "DATEOFBIRTH"))
-            elif _BIRTH_WORD.search(before):
-                return None  # may or may not be a birth date: skip the row
+            elif _BIRTH_WORD.search(before) or not _is_event_date(before, ent["value"]):
+                # May be a birth date (birth word nearby, no event word, or an
+                # implausibly old event date): skip the row rather than teach
+                # that a date without a birth word is never PII.
+                return None
             continue
         if label not in OPENPII_TO_KIJI:
             return None

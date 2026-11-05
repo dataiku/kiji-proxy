@@ -23,7 +23,7 @@ to ``<output-dir>/``.
 
 Usage:
     uv run python -m model.dataset.build_training_mix \
-        --output-dir model/dataset/data_samples/german_mix_v2
+        --output-dir model/dataset/data_samples/german_mix_v3
 """
 
 from __future__ import annotations
@@ -201,7 +201,7 @@ def summarize(out_dir: Path) -> dict:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--output-dir", default="model/dataset/data_samples/german_mix_v2")
+    ap.add_argument("--output-dir", default="model/dataset/data_samples/german_mix_v3")
     ap.add_argument("--nym", type=int, default=0, help="German nym rows (0 = all)")
     ap.add_argument(
         "--openpii", type=int, default=8000, help="German openpii rows (0 = all)"
