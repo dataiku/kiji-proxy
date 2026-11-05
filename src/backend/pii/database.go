@@ -385,6 +385,7 @@ func (s *SQLitePIIMappingDB) GetMappings(ctx context.Context, filter MappingFilt
 	// this Sprintf cannot be injected; the session filter, limit and offset stay
 	// bound parameters.
 	where, args := filter.where()
+	// #nosec G201 -- where, column and order are constant SQL fragments; values are bound parameters
 	query := fmt.Sprintf(`
 	SELECT id, session_id, original_pii, dummy_pii, pii_type, confidence, created_at, last_accessed_at, access_count
 	FROM pii_mappings%s

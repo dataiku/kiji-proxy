@@ -143,13 +143,15 @@ func sessionFromRequest(r *http.Request) (string, error) {
 
 // WriteInvalidSessionError writes the 400 response for a malformed session id.
 func WriteInvalidSessionError(w http.ResponseWriter, err error) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusBadRequest)
-	_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+	writeBadRequest(w, err)
 }
 
 // WriteUnknownProfileError writes the 400 response for an unknown profile.
 func WriteUnknownProfileError(w http.ResponseWriter, err error) {
+	writeBadRequest(w, err)
+}
+
+func writeBadRequest(w http.ResponseWriter, err error) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusBadRequest)
 	_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
