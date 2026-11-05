@@ -162,10 +162,17 @@ func (tp *TransparentProxy) interceptHTTP(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	sessionID, err := sessionFromRequest(r)
+	if err != nil {
+		log.Printf("[TransparentProxy] ❌ %v", err)
+		WriteInvalidSessionError(w, err)
+		return
+	}
+
 	// Process request through shared handler pipeline (PII detection, masking, logging)
 	ctx := r.Context()
 	maskStart := time.Now()
-	processed, err := tp.handler.ProcessRequestBody(ctx, body, provider, profile)
+	processed, err := tp.handler.ProcessRequestBody(ctx, body, provider, profile, sessionID)
 	if err != nil {
 		log.Printf("[TransparentProxy] ❌ Failed to process request: %v", err)
 		http.Error(w, "Failed to process request", maskingErrorStatus(err))
@@ -465,10 +472,17 @@ func (tp *TransparentProxy) interceptHTTPOverTLS(conn net.Conn, r *http.Request,
 		return
 	}
 
+	sessionID, err := sessionFromRequest(r)
+	if err != nil {
+		log.Printf("[TransparentProxy] ❌ %v", err)
+		tp.writeErrorResponse(conn, http.StatusBadRequest, err.Error())
+		return
+	}
+
 	// Process request through shared handler pipeline (PII detection, masking, logging)
 	ctx := r.Context()
 	maskStart := time.Now()
-	processed, err := tp.handler.ProcessRequestBody(ctx, body, provider, profile)
+	processed, err := tp.handler.ProcessRequestBody(ctx, body, provider, profile, sessionID)
 	if err != nil {
 		log.Printf("[TransparentProxy] ❌ Failed to process request: %v", err)
 		tp.writeErrorResponse(conn, maskingErrorStatus(err), "Failed to process request")

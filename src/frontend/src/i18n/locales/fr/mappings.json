@@ -24,6 +24,8 @@
     "entityType": "Type de renseignement",
     "original": "Valeur originale",
     "masked": "Remplacement",
+    "session": "Session",
+    "noSession": "Aucune session",
     "date": "Première détection",
     "actions": "Actions"
   },

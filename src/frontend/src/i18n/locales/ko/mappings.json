@@ -20,6 +20,8 @@
     "entityType": "항목 유형",
     "original": "원본",
     "masked": "마스킹된 값",
+    "session": "세션",
+    "noSession": "세션 없음",
     "date": "최초 탐지 일시",
     "actions": "작업"
   },

@@ -112,22 +112,23 @@ func (s *SQLitePIIMappingDB) SetMappingExpiration(policy config.MappingExpiratio
 }
 
 // StoreMapping stores an explicit dummy unless another live mapping owns it.
-func (s *SQLitePIIMappingDB) StoreMapping(ctx context.Context, original, dummy, piiType string, confidence float64) error {
-	_, err := s.storeMapping(ctx, original, dummy, piiType, confidence, nil)
+func (s *SQLitePIIMappingDB) StoreMapping(ctx context.Context, sessionID, original, dummy, piiType string, confidence float64) error {
+	_, err := s.storeMapping(ctx, sessionID, original, dummy, piiType, confidence, nil)
 	return err
 }
 
 // GetOrCreateMapping reuses live mappings and retries collisions with the generator.
 // Expired/deleted dummies can be reused; active requests retain their own pairs.
-func (s *SQLitePIIMappingDB) GetOrCreateMapping(ctx context.Context, original, dummy, piiType string, confidence float64, generators ...func() string) (string, error) {
+// Originals are scoped per session; dummies are unique across all sessions.
+func (s *SQLitePIIMappingDB) GetOrCreateMapping(ctx context.Context, sessionID, original, dummy, piiType string, confidence float64, generators ...func() string) (string, error) {
 	generate := freshMappingPlaceholder
 	if len(generators) > 0 && generators[0] != nil {
 		generate = generators[0]
 	}
-	return s.storeMapping(ctx, original, dummy, piiType, confidence, generate)
+	return s.storeMapping(ctx, sessionID, original, dummy, piiType, confidence, generate)
 }
 
-func (s *SQLitePIIMappingDB) storeMapping(ctx context.Context, original, dummy, piiType string, confidence float64, generate func() string) (string, error) {
+func (s *SQLitePIIMappingDB) storeMapping(ctx context.Context, sessionID, original, dummy, piiType string, confidence float64, generate func() string) (string, error) {
 	s.mappingMu.Lock()
 	defer s.mappingMu.Unlock()
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -139,9 +140,9 @@ func (s *SQLitePIIMappingDB) storeMapping(ctx context.Context, original, dummy, 
 		return "", err
 	}
 	var existing string
-	err = tx.QueryRowContext(ctx, `SELECT dummy_pii FROM pii_mappings WHERE original_pii = ?`, original).Scan(&existing)
+	err = tx.QueryRowContext(ctx, `SELECT dummy_pii FROM pii_mappings WHERE session_id = ? AND original_pii = ?`, sessionID, original).Scan(&existing)
 	if err == nil {
-		if _, err := tx.ExecContext(ctx, `UPDATE pii_mappings SET last_accessed_at = datetime('now'), access_count = access_count + 1, confidence = ? WHERE original_pii = ?`, confidence, original); err != nil {
+		if _, err := tx.ExecContext(ctx, `UPDATE pii_mappings SET last_accessed_at = datetime('now'), access_count = access_count + 1, confidence = ? WHERE session_id = ? AND original_pii = ?`, confidence, sessionID, original); err != nil {
 			return "", err
 		}
 		return existing, tx.Commit()
@@ -153,8 +154,8 @@ func (s *SQLitePIIMappingDB) storeMapping(ctx context.Context, original, dummy, 
 	if err != nil {
 		return "", err
 	}
-	if _, err := tx.ExecContext(ctx, `INSERT INTO pii_mappings (original_pii, dummy_pii, pii_type, confidence, created_at, last_accessed_at, access_count)
- VALUES (?, ?, ?, ?, strftime('%Y-%m-%d %H:%M:%f', 'now'), datetime('now'), 1)`, original, dummy, piiType, confidence); err != nil {
+	if _, err := tx.ExecContext(ctx, `INSERT INTO pii_mappings (session_id, original_pii, dummy_pii, pii_type, confidence, created_at, last_accessed_at, access_count)
+ VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%d %H:%M:%f', 'now'), datetime('now'), 1)`, sessionID, original, dummy, piiType, confidence); err != nil {
 		return "", err
 	}
 	return dummy, tx.Commit()

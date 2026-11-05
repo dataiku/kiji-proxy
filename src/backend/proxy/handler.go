@@ -25,7 +25,10 @@ import (
 	"github.com/dataiku/kiji-proxy/src/backend/providers"
 )
 
-const paramLimit = "limit"
+const (
+	paramLimit     = "limit"
+	paramSessionID = "session_id"
+)
 
 // JSON field names reused across the response wrappers and the SSE codecs.
 const (
@@ -118,6 +121,33 @@ func (h *Handler) profileFromRequest(r *http.Request) (*piiServices.ResolvedProf
 	return h.ResolveProfile(r.Header.Get(ProfileHeader))
 }
 
+// SessionHeader is the request header carrying a client-chosen session id that
+// scopes PII mappings. Absent or empty selects the legacy global (null) session.
+// Like ProfileHeader it is consumed by the proxy and never forwarded upstream.
+const SessionHeader = "X-Kiji-Session"
+
+// ResolveSessionID validates a client-supplied session id. A nil body value
+// falls back to the X-Kiji-Session header; an explicit body value (including
+// an empty string, the null session) takes precedence over the header.
+func ResolveSessionID(r *http.Request, body *string) (string, error) {
+	if body != nil {
+		return piiServices.NormalizeSessionID(*body)
+	}
+	return piiServices.NormalizeSessionID(r.Header.Get(SessionHeader))
+}
+
+// sessionFromRequest resolves the session named by the X-Kiji-Session header.
+func sessionFromRequest(r *http.Request) (string, error) {
+	return ResolveSessionID(r, nil)
+}
+
+// WriteInvalidSessionError writes the 400 response for a malformed session id.
+func WriteInvalidSessionError(w http.ResponseWriter, err error) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusBadRequest)
+	_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+}
+
 // WriteUnknownProfileError writes the 400 response for an unknown profile.
 func WriteUnknownProfileError(w http.ResponseWriter, err error) {
 	w.Header().Set("Content-Type", "application/json")
@@ -161,6 +191,13 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	sessionID, err := sessionFromRequest(r)
+	if err != nil {
+		log.Printf("[Proxy] ❌ %v", err)
+		WriteInvalidSessionError(w, err)
+		return
+	}
+
 	// Determine provider for current request
 	provider, err := h.providers.GetProviderFromPath(r.Host, r.URL.Path, &body, "[Proxy]")
 	if err != nil {
@@ -197,7 +234,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Process request through shared PII pipeline
 	processStart := time.Now()
-	processed, err := h.ProcessRequestBody(r.Context(), body, provider, profile)
+	processed, err := h.ProcessRequestBody(r.Context(), body, provider, profile, sessionID)
 	if err != nil {
 		log.Printf("[Proxy] ❌ Failed to process request: %v", err)
 		http.Error(w, "Failed to process request", maskingErrorStatus(err))
@@ -523,21 +560,21 @@ func (h *Handler) readRequestBody(r *http.Request) ([]byte, error) {
 }
 
 // maskPIIInText detects PII in text and returns masked text with mappings
-func (h *Handler) maskPIIInText(ctx context.Context, text string, profile *piiServices.ResolvedProfile, logPrefix string) (string, map[string]string, []pii.Entity, error) {
+func (h *Handler) maskPIIInText(ctx context.Context, text string, profile *piiServices.ResolvedProfile, sessionID, logPrefix string) (string, map[string]string, []pii.Entity, error) {
 	if h.maskingService == nil {
 		return text, make(map[string]string), []pii.Entity{}, ctx.Err()
 	}
-	result, err := h.maskingService.MaskText(ctx, text, profile, logPrefix)
+	result, err := h.maskingService.MaskText(ctx, text, profile, sessionID, logPrefix)
 	return result.MaskedText, result.MaskedToOriginal, result.Entities, err
 }
 
 // One snapshot spans detection and every field. Acquisition must succeed before
 // the provider visits any text; a cancelled/saturated reader never bypasses it.
-func (h *Handler) requestMasker(ctx context.Context, profile *piiServices.ResolvedProfile) (func(string, string) (string, map[string]string, []pii.Entity), func() error, error) {
+func (h *Handler) requestMasker(ctx context.Context, profile *piiServices.ResolvedProfile, sessionID string) (func(string, string) (string, map[string]string, []pii.Entity), func() error, error) {
 	if h.maskingService == nil {
 		return func(text, _ string) (string, map[string]string, []pii.Entity) { return text, map[string]string{}, nil }, func() error { return ctx.Err() }, ctx.Err()
 	}
-	request, err := h.maskingService.BeginRequest(ctx, profile)
+	request, err := h.maskingService.BeginRequest(ctx, profile, sessionID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -548,8 +585,8 @@ func (h *Handler) requestMasker(ctx context.Context, profile *piiServices.Resolv
 }
 
 // MaskPIIInText is the public standalone masking entry point.
-func (h *Handler) MaskPIIInText(ctx context.Context, text string, profile *piiServices.ResolvedProfile) (string, map[string]string, []pii.Entity, error) {
-	return h.maskPIIInText(ctx, text, profile, "[PIICheck]")
+func (h *Handler) MaskPIIInText(ctx context.Context, text string, profile *piiServices.ResolvedProfile, sessionID string) (string, map[string]string, []pii.Entity, error) {
+	return h.maskPIIInText(ctx, text, profile, sessionID, "[PIICheck]")
 }
 
 // MaskPIIInTextWithLogging masks PII in a plain text input and records
@@ -559,8 +596,8 @@ func (h *Handler) MaskPIIInText(ctx context.Context, text string, profile *piiSe
 // proxy flow uses, which lets the frontend pair them. site (hostname of the
 // page that triggered the check) is recorded as the "model" column so calls
 // from different AI providers are distinguishable in the UI.
-func (h *Handler) MaskPIIInTextWithLogging(ctx context.Context, text, site string, profile *piiServices.ResolvedProfile) (string, map[string]string, []pii.Entity, error) {
-	maskedText, maskedToOriginal, entities, err := h.maskPIIInText(ctx, text, profile, "[PIICheck]")
+func (h *Handler) MaskPIIInTextWithLogging(ctx context.Context, text, site string, profile *piiServices.ResolvedProfile, sessionID string) (string, map[string]string, []pii.Entity, error) {
+	maskedText, maskedToOriginal, entities, err := h.maskPIIInText(ctx, text, profile, sessionID, "[PIICheck]")
 	if err != nil {
 		return "", nil, nil, err
 	}
@@ -620,12 +657,13 @@ type ProcessedRequest struct {
 // ProcessRequestBody processes a request body through PII detection and masking
 // This is the shared entry point for all request sources (handler, transparent proxy).
 // profile selects the PII detection settings; nil uses the model alone.
-func (h *Handler) ProcessRequestBody(ctx context.Context, body []byte, provider *providers.Provider, profile *piiServices.ResolvedProfile) (*ProcessedRequest, error) {
+// sessionID scopes mapping reuse (piiServices.NullSessionID is the global pool).
+func (h *Handler) ProcessRequestBody(ctx context.Context, body []byte, provider *providers.Provider, profile *piiServices.ResolvedProfile, sessionID string) (*ProcessedRequest, error) {
 	// Generate transaction ID to link all 4 log entries
 	transactionID := uuid.New().String()
 
 	// Check for PII in the request and get redacted body
-	redactedBody, maskedToOriginal, entities, err := h.checkRequestPII(ctx, string(body), provider, profile)
+	redactedBody, maskedToOriginal, entities, err := h.checkRequestPII(ctx, string(body), provider, profile, sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -744,9 +782,9 @@ func (h *Handler) addTransactionID(message string, transactionID string) string 
 
 // checkRequestPII checks for PII in the request body and creates mappings
 // It only redacts PII from message content, not from other fields like "model"
-func (h *Handler) checkRequestPII(ctx context.Context, body string, provider *providers.Provider, profile *piiServices.ResolvedProfile) (masked string, pairs map[string]string, found []pii.Entity, resultErr error) {
+func (h *Handler) checkRequestPII(ctx context.Context, body string, provider *providers.Provider, profile *piiServices.ResolvedProfile, sessionID string) (masked string, pairs map[string]string, found []pii.Entity, resultErr error) {
 	log.Println("[Proxy] Checking for PII in request...")
-	mask, closeSnapshot, err := h.requestMasker(ctx, profile)
+	mask, closeSnapshot, err := h.requestMasker(ctx, profile, sessionID)
 	if err != nil {
 		return "", nil, nil, err
 	}
@@ -1187,6 +1225,7 @@ var allowedMappingSorts = map[string]bool{
 	piiServices.MappingColumnOriginalPII: true,
 	piiServices.MappingColumnDummyPII:    true,
 	piiServices.MappingColumnCreatedAt:   true,
+	piiServices.MappingColumnSessionID:   true,
 }
 
 // HandleMappings handles GET requests to retrieve PII mappings (paginated and sortable)
@@ -1240,17 +1279,29 @@ func (h *Handler) HandleMappings(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Optional session filter: absent lists every session, present (after
+	// validation) lists only that session; an empty value is the null session.
+	var filter piiServices.MappingFilter
+	if r.URL.Query().Has(paramSessionID) {
+		sessionID, err := piiServices.NormalizeSessionID(r.URL.Query().Get(paramSessionID))
+		if err != nil {
+			WriteInvalidSessionError(w, err)
+			return
+		}
+		filter.SessionID = &sessionID
+	}
+
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
-	mappings, err := h.mappingDB.GetMappings(ctx, limit, offset, sortColumn, sortDescending)
+	mappings, err := h.mappingDB.GetMappings(ctx, filter, limit, offset, sortColumn, sortDescending)
 	if err != nil {
 		log.Printf("[Mappings] ❌ Failed to retrieve mappings: %v", err)
 		http.Error(w, fmt.Sprintf("Failed to retrieve mappings: %v", err), http.StatusInternalServerError)
 		return
 	}
 
-	totalCount, err := h.mappingDB.GetMappingsCount(ctx)
+	totalCount, err := h.mappingDB.GetMappingsCount(ctx, filter)
 	if err != nil {
 		log.Printf("[Mappings] ⚠️  Failed to get mappings count: %v", err)
 		totalCount = -1
@@ -1325,8 +1376,13 @@ const errUnmaskValueRequired = "masked value is required"
 // UnmaskRequest is the body for POST /api/mappings/unmask. "masked" is either a
 // single JSON string or an array of strings, each being a dummy value the proxy
 // substituted for a detected PII entity.
+//
+// session_id restricts resolution to that session's mappings; when omitted or
+// null the X-Kiji-Session header applies, and without either only the legacy
+// global (null-session) mappings resolve.
 type UnmaskRequest struct {
-	Masked json.RawMessage `json:"masked"`
+	Masked    json.RawMessage `json:"masked"`
+	SessionID *string         `json:"session_id"`
 }
 
 // UnmaskResult is the lookup result for a single masked value.
@@ -1406,10 +1462,16 @@ func (h *Handler) HandleUnmask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	sessionID, err := ResolveSessionID(r, req.SessionID)
+	if err != nil {
+		WriteInvalidSessionError(w, err)
+		return
+	}
+
 	results := make([]UnmaskResult, 0, len(values))
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
-	snapshot, err := h.piiMapping.UnmaskMappings(ctx, values)
+	snapshot, err := h.piiMapping.UnmaskMappings(ctx, sessionID, values)
 	if err != nil {
 		log.Printf("Failed to resolve unmask mappings: %v", err)
 		http.Error(w, "Failed to read mappings", http.StatusServiceUnavailable)
@@ -1460,6 +1522,40 @@ func (h *Handler) HandleClearMappings(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// HandleClearSessionMappings handles DELETE /mappings?session_id=<id>, removing
+// only that session's mappings. An empty session_id clears the null session.
+func (h *Handler) HandleClearSessionMappings(w http.ResponseWriter, r *http.Request) {
+	if h.piiMapping == nil {
+		http.Error(w, "PII mapping storage not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	sessionID, err := piiServices.NormalizeSessionID(r.URL.Query().Get(paramSessionID))
+	if err != nil {
+		WriteInvalidSessionError(w, err)
+		return
+	}
+
+	cleared, err := h.piiMapping.ClearSession(r.Context(), sessionID)
+	if err != nil {
+		log.Printf("[Mappings] ❌ Failed to clear session mappings: %v", err)
+		http.Error(w, "Failed to clear session mappings", http.StatusInternalServerError)
+		return
+	}
+
+	// Never log the session id itself: clients may embed identifiers in it.
+	log.Printf("[Mappings] ✓ Cleared %d session mappings", cleared)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"cleared": cleared,
+	}); err != nil {
+		log.Printf("[Mappings] ❌ Failed to write response: %v", err)
+	}
+}
+
 // HandleStats handles GET requests to retrieve statistics about logs and mappings
 func (h *Handler) HandleStats(w http.ResponseWriter, r *http.Request) {
 	if h.loggingDB == nil || h.mappingDB == nil {
@@ -1478,7 +1574,7 @@ func (h *Handler) HandleStats(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get mapping count
-	mappingCount, err := h.mappingDB.GetMappingsCount(ctx)
+	mappingCount, err := h.mappingDB.GetMappingsCount(ctx, piiServices.MappingFilter{})
 	if err != nil {
 		log.Printf("[Stats] ⚠️  Failed to get mappings count: %v", err)
 		mappingCount = -1

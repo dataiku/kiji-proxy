@@ -12,8 +12,10 @@ import (
 // MappingSnapshot fixes both the database view and expiration boundary before
 // detection. Lookups use unique indexes and only materialize requested values.
 // Close after masking; response restoration retains the used pairs separately.
+// Lookups only match mappings of the given session (NullSessionID is the legacy
+// global pool); sessions never see each other's mappings.
 type MappingSnapshot interface {
-	Lookup(ctx context.Context, key string, originalToDummy bool) (string, bool, error)
+	Lookup(ctx context.Context, sessionID, key string, originalToDummy bool) (string, bool, error)
 	Close() error
 }
 
@@ -58,15 +60,15 @@ func (s *SQLitePIIMappingDB) BeginMappingSnapshot(ctx context.Context) (MappingS
 	return &sqliteMappingSnapshot{tx: tx, conn: conn, boundary: boundary}, nil
 }
 
-func (s *sqliteMappingSnapshot) Lookup(ctx context.Context, key string, originalToDummy bool) (string, bool, error) {
+func (s *sqliteMappingSnapshot) Lookup(ctx context.Context, sessionID, key string, originalToDummy bool) (string, bool, error) {
 	keyColumn, valueColumn := "dummy_pii", "original_pii"
 	if originalToDummy {
 		keyColumn, valueColumn = valueColumn, keyColumn
 	}
 	var value string
 	err := s.tx.QueryRowContext(ctx, `SELECT `+valueColumn+` FROM pii_mappings
- WHERE `+keyColumn+` = ? AND EXISTS (
- SELECT 1 FROM pii_mapping_policy WHERE id = 1 AND `+liveMappingAtBoundary+`)`, key, s.boundary).Scan(&value)
+ WHERE session_id = ? AND `+keyColumn+` = ? AND EXISTS (
+ SELECT 1 FROM pii_mapping_policy WHERE id = 1 AND `+liveMappingAtBoundary+`)`, sessionID, key, s.boundary).Scan(&value)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", false, nil
 	}
@@ -106,22 +108,23 @@ func (s *SQLitePIIMappingDB) RecordMappingAccesses(ctx context.Context, pairs ma
 }
 
 type mappingSession struct {
-	mapping  *PIIMapping
-	snapshot MappingSnapshot
-	pairs    map[string]string
-	reused   map[string]string
+	mapping   *PIIMapping
+	sessionID string
+	snapshot  MappingSnapshot
+	pairs     map[string]string
+	reused    map[string]string
 }
 
 func (m *PIIMapping) recordAccesses(pairs map[string]string) {
 	m.db.QueueMappingAccesses(pairs)
 }
 
-func (m *PIIMapping) beginMasking(ctx context.Context) (*mappingSession, error) {
+func (m *PIIMapping) beginMasking(ctx context.Context, sessionID string) (*mappingSession, error) {
 	snapshot, err := m.db.BeginMappingSnapshot(ctx)
 	if err != nil {
 		return nil, errors.Join(ErrMappingUnavailable, err)
 	}
-	return &mappingSession{mapping: m, snapshot: snapshot, pairs: make(map[string]string), reused: make(map[string]string)}, nil
+	return &mappingSession{mapping: m, sessionID: sessionID, snapshot: snapshot, pairs: make(map[string]string), reused: make(map[string]string)}, nil
 }
 
 func (s *mappingSession) close() {
@@ -146,7 +149,7 @@ func (s *mappingSession) dummy(ctx context.Context, original string) (string, bo
 	}
 	lookupCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	dummy, found, err := s.snapshot.Lookup(lookupCtx, original, true)
+	dummy, found, err := s.snapshot.Lookup(lookupCtx, s.sessionID, original, true)
 	if err != nil {
 		return "", false, errors.Join(ErrMappingUnavailable, err)
 	}
@@ -161,8 +164,9 @@ func (s *mappingSession) remember(original, dummy string) { s.pairs[original] = 
 
 // UnmaskMappings resolves only requested dummies against one consistent view.
 // Query failures are distinct from missing mappings, including batch requests.
-func (m *PIIMapping) UnmaskMappings(ctx context.Context, dummies []string) (map[string]string, error) {
-	result, err := m.readUnmaskMappings(ctx, dummies)
+// Only mappings of sessionID resolve.
+func (m *PIIMapping) UnmaskMappings(ctx context.Context, sessionID string, dummies []string) (map[string]string, error) {
+	result, err := m.readUnmaskMappings(ctx, sessionID, dummies)
 	if err != nil {
 		return nil, err
 	}
@@ -174,7 +178,7 @@ func (m *PIIMapping) UnmaskMappings(ctx context.Context, dummies []string) (map[
 	return result, nil
 }
 
-func (m *PIIMapping) readUnmaskMappings(ctx context.Context, dummies []string) (map[string]string, error) {
+func (m *PIIMapping) readUnmaskMappings(ctx context.Context, sessionID string, dummies []string) (map[string]string, error) {
 	snapshot, err := m.db.BeginMappingSnapshot(ctx)
 	if err != nil {
 		return nil, err
@@ -187,7 +191,7 @@ func (m *PIIMapping) readUnmaskMappings(ctx context.Context, dummies []string) (
 			continue
 		}
 		seen[dummy] = true
-		original, found, err := snapshot.Lookup(ctx, dummy, false)
+		original, found, err := snapshot.Lookup(ctx, sessionID, dummy, false)
 		if err != nil {
 			return nil, err
 		}
