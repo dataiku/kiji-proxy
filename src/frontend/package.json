@@ -25,21 +25,21 @@
     "test": "node --test tests/*.test.cjs"
   },
   "dependencies": {
-    "@sentry/electron": "^7.15.0",
+    "@sentry/electron": "^8.3.0",
     "@types/dompurify": "^3.2.0",
     "dompurify": "^3.4.17",
-    "electron-updater": "^6.8.9",
+    "electron-updater": "^6.8.11",
     "express": "^5.3.0",
-    "http-proxy-middleware": "^4.2.0",
-    "i18next": "^26.5.2",
-    "i18next-browser-languagedetector": "^8.2.1",
-    "lucide-react": "^1.59.0",
+    "http-proxy-middleware": "^4.2.1",
+    "i18next": "^26.5.11",
+    "i18next-browser-languagedetector": "^8.2.3",
+    "lucide-react": "^1.64.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
-    "react-i18next": "^17.1.0"
+    "react-i18next": "^17.1.9"
   },
   "devDependencies": {
-    "@babel/core": "^8.0.1",
+    "@babel/core": "^8.0.9",
     "@babel/preset-env": "^8.0.7",
     "@babel/preset-react": "^8.0.1",
     "@babel/preset-typescript": "^8.0.7",
@@ -48,12 +48,12 @@
     "@tailwindcss/postcss": "^4.3.3",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
-    "@typescript-eslint/eslint-plugin": "^8.71.2",
+    "@typescript-eslint/eslint-plugin": "^8.72.1",
     "@typescript-eslint/parser": "^8.60.1",
-    "autoprefixer": "^10.6.1",
+    "autoprefixer": "^10.6.2",
     "babel-loader": "^10.1.1",
     "css-loader": "^7.1.5",
-    "electron": "^43.0.0",
+    "electron": "^45.1.0",
     "electron-builder": "^26.18.1",
     "eslint": "^9.39.5",
     "eslint-plugin-i18next": "^6.1.5",
@@ -61,14 +61,14 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "html-webpack-plugin": "^5.6.8",
     "mini-css-extract-plugin": "^2.10.2",
-    "postcss": "^8.5.30",
+    "postcss": "^8.5.32",
     "postcss-loader": "^8.2.1",
     "style-loader": "^4.0.0",
     "tailwindcss": "^4.1.18",
     "typescript": "^6.0.3",
-    "webpack": "^5.112.0",
+    "webpack": "^5.112.2",
     "webpack-cli": "^7.2.3",
-    "webpack-dev-server": "^6.0.0"
+    "webpack-dev-server": "^6.1.0"
   },
   "optionalDependencies": {
     "@tailwindcss/oxide-darwin-arm64": "4.3.3",
@@ -81,7 +81,7 @@
   "build": {
     "appId": "com.kiji.proxy",
     "productName": "Kiji Privacy Proxy",
-    "electronVersion": "43.0.0",
+    "electronVersion": "45.1.0",
     "npmRebuild": false,
     "icon": "assets/icon.png",
     "publish": {
