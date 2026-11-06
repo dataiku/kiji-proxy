@@ -1,8 +1,8 @@
 # Chapter 10: Internationalization (i18n)
 
 The desktop/renderer UI is localized with [react-i18next](https://react.i18next.com/).
-English (`en`) is the base language; French (`fr`), Japanese (`ja`), and Korean
-(`ko`) are the translations.
+English (`en`) is the base language; French (`fr`), Japanese (`ja`), Korean
+(`ko`), and Indonesian (`id`) are the translations.
 This chapter covers how the translation system is wired and how to add or change
 strings.
 
@@ -16,7 +16,7 @@ strings.
   the choice back to `localStorage`. Region subtags collapse to the base
   language (`fr-FR` → `fr`) via `load: "languageOnly"`.
 - **Supported languages:** declared in `SUPPORTED_LANGUAGES`
-  (`["en", "fr", "ja", "ko"]`) in `src/i18n/index.ts`. The Electron main process
+  (`["en", "fr", "ja", "ko", "id"]`) in `src/i18n/index.ts`. The Electron main process
   keeps its own copy in `src/electron/menu-i18n.js`, derived from the keys of its
   `STRINGS` table (see below).
 - **Bundled resources:** all locale JSON is imported statically and initialized
@@ -39,7 +39,7 @@ Translations are namespaced JSON under
 | `onboarding` | Welcome / first-run modal                                     |
 | `modals`     | CA-certificate setup and misclassification-report dialogs     |
 
-Every namespace exists in every locale (`en/`, `fr/`, `ja/`, `ko/`). To add a
+Every namespace exists in every locale (`en/`, `fr/`, `ja/`, `ko/`, `id/`). To add a
 namespace, create the JSON in all locales and register it in `NAMESPACES` +
 `resources` in `src/i18n/index.ts`.
 
@@ -83,6 +83,7 @@ CLDR rules require:
 | `fr`   | `_one`, `_many`, `_other`| `many` triggers on multiples of 1,000,000         |
 | `ja`   | `_other` only            | No singular/plural distinction; a `_one` key fails |
 | `ko`   | `_other` only            | Same as `ja`                                      |
+| `id`   | `_other` only            | Same as `ja`                                      |
 
 Do not copy `_one` keys from `en` into an `other`-only locale: the parity check
 rejects categories the locale's rules never produce.
@@ -102,15 +103,16 @@ rejects categories the locale's rules never produce.
 - `menu-i18n.js` derives its `SUPPORTED_LANGUAGES` from the keys of its
   `STRINGS` table. A locale that exists in the renderer but not in `STRINGS`
   falls back to English menus with no error, so **every new locale must add a
-  `STRINGS` entry in `menu-i18n.js`** in the same PR.
+  `STRINGS` entry in `menu-i18n.js`** in the same PR. `tests/menu-i18n.test.cjs`
+  (`npm test`) fails when the two language lists or the menu keys drift apart.
 
 ## Adding or changing strings
 
 1. Add the key to the **English** namespace JSON (the base/source of truth).
-2. Add the same key to the **French**, **Japanese**, and **Korean** JSON with
-   translations, using only the plural suffixes each locale requires (table
-   above). Drafts are machine-translated pending native review — flag anything
-   uncertain.
+2. Add the same key to the **French**, **Japanese**, **Korean**, and
+   **Indonesian** JSON with translations, using only the plural suffixes each
+   locale requires (table above). Drafts are machine-translated pending native
+   review — flag anything uncertain.
 3. Reference it from the component with `t(...)` (or `<Trans>` for markup).
 4. Run the checks:
 
