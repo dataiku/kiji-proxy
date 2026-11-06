@@ -9,6 +9,7 @@ Thank you to everyone who has contributed to Kiji Privacy Proxy!
 
 ## Contributors
 
+- **Divyam Talwar** ([@DivyamTalwar](https://github.com/DivyamTalwar))
 - **Nils Martorell** ([@nmartorell](https://github.com/nmartorell))
 - **Micaela Kaplan** ([@micaelakaplan](https://github.com/micaelakaplan))
 - **Eddie Mattia** ([@emattia](https://github.com/emattia))
