@@ -8,6 +8,7 @@ set -euo pipefail
 # Get the script directory and project root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+ONNX_VERSION="$("$SCRIPT_DIR/onnxruntime-version.sh")"
 
 cd "$PROJECT_ROOT"
 
@@ -105,18 +106,23 @@ echo ""
 echo "📦 Step 2: Downloading ONNX Runtime for Linux..."
 echo "------------------------------------------------"
 
-ONNX_VERSION="1.24.2"
 ONNX_PLATFORM="linux-x64"
 ONNX_FILE="onnxruntime-${ONNX_PLATFORM}-${ONNX_VERSION}.tgz"
 ONNX_URL="https://github.com/microsoft/onnxruntime/releases/download/v${ONNX_VERSION}/${ONNX_FILE}"
 ONNX_DIR="$BUILD_DIR/onnxruntime-${ONNX_PLATFORM}-${ONNX_VERSION}"
+ONNX_ARCHIVE_SHA256="$("$SCRIPT_DIR/onnxruntime-version.sh" linux-x64-sha256)"
+ONNX_LIBRARY_SHA256="$("$SCRIPT_DIR/onnxruntime-version.sh" linux-x64-library-sha256)"
 
 # Function to download and extract ONNX Runtime
 download_onnx() {
     echo "Downloading ONNX Runtime from $ONNX_URL..."
 
     # Download ONNX Runtime
-    curl -L -o "$BUILD_DIR/$ONNX_FILE" "$ONNX_URL"
+    curl --fail --location --retry 3 -o "$BUILD_DIR/$ONNX_FILE" "$ONNX_URL"
+    if ! "$SCRIPT_DIR/verify-sha256.sh" "$BUILD_DIR/$ONNX_FILE" "$ONNX_ARCHIVE_SHA256"; then
+        echo "❌ ONNX Runtime archive checksum mismatch"
+        exit 1
+    fi
 
     # Extract
     cd "$BUILD_DIR"
@@ -126,6 +132,10 @@ download_onnx() {
     # Copy library from extracted directory to build root
     if [ -f "$ONNX_DIR/lib/libonnxruntime.so.${ONNX_VERSION}" ]; then
         cp "$ONNX_DIR/lib/libonnxruntime.so.${ONNX_VERSION}" "$BUILD_DIR/"
+        if ! "$SCRIPT_DIR/verify-sha256.sh" "$BUILD_DIR/libonnxruntime.so.${ONNX_VERSION}" "$ONNX_LIBRARY_SHA256"; then
+            echo "❌ ONNX Runtime library checksum mismatch"
+            exit 1
+        fi
         echo "✅ Copied ONNX Runtime library from extracted directory"
     else
         echo "❌ Error: ONNX Runtime library not found in $ONNX_DIR/lib/"
@@ -140,7 +150,13 @@ download_onnx() {
 
 # Check if we need to download
 if [ -f "$BUILD_DIR/libonnxruntime.so.${ONNX_VERSION}" ]; then
-    echo "✅ ONNX Runtime library already exists"
+    if "$SCRIPT_DIR/verify-sha256.sh" "$BUILD_DIR/libonnxruntime.so.${ONNX_VERSION}" "$ONNX_LIBRARY_SHA256"; then
+        echo "✅ ONNX Runtime library already exists and is verified"
+    else
+        echo "Cached ONNX Runtime library failed verification; downloading again"
+        rm -f "$BUILD_DIR/libonnxruntime.so.${ONNX_VERSION}"
+        download_onnx
+    fi
 else
     download_onnx
 fi
