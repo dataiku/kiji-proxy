@@ -516,7 +516,7 @@ func floorHour(t time.Time) time.Time {
 // --- small helpers ---
 
 func (s *Server) dashboardPreamble(w http.ResponseWriter, r *http.Request) bool {
-	if !s.rateLimiter.GetLimiter(r.RemoteAddr).Allow() {
+	if !s.rateLimiter.GetLimiter(clientIP(r)).Allow() {
 		http.Error(w, "Rate limit exceeded. Please try again later.", http.StatusTooManyRequests)
 		return false
 	}
