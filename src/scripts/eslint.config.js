@@ -3,7 +3,8 @@ module.exports = [
   {
     files: ["**/*.js"],
     languageOptions: {
-      ecmaVersion: 2020,
+      // Match the minimum Node version in package.json engines (Node 24 = ES2024).
+      ecmaVersion: 2024,
       sourceType: "commonjs",
       globals: {
         __dirname: "readonly",
@@ -21,6 +22,21 @@ module.exports = [
         clearInterval: "readonly",
         setImmediate: "readonly",
         clearImmediate: "readonly",
+        queueMicrotask: "readonly",
+        structuredClone: "readonly",
+        URL: "readonly",
+        URLSearchParams: "readonly",
+        TextDecoder: "readonly",
+        TextEncoder: "readonly",
+        AbortController: "readonly",
+        AbortSignal: "readonly",
+        fetch: "readonly",
+        Headers: "readonly",
+        Request: "readonly",
+        Response: "readonly",
+        FormData: "readonly",
+        Blob: "readonly",
+        performance: "readonly",
       },
     },
     rules: {
