@@ -7,7 +7,7 @@ const vm = require('node:vm');
 // Minimal DOM fixture: hidden composer precedes the visible, current ChatGPT
 // composer, with a nested icon in its accessible-name-only Send button. `split`
 // wraps it in a form whose Send button sits outside [data-composer-body].
-function fixture({ legacy = false, split = false, unrelatedForm = false, response } = {}) {
+function fixture({ legacy = false, split = false, unrelatedForm = false, gemini = false, localized = false, response } = {}) {
   const listeners = {};
   const requests = [];
   const sent = [];
@@ -22,8 +22,16 @@ function fixture({ legacy = false, split = false, unrelatedForm = false, respons
     matches(selector) {
       return selector.split(',').some(part => {
         const s = part.trim();
+        if (s.includes(' ')) {
+          const parts = s.split(/\s+/);
+          const leaf = parts.pop();
+          return this.matches(leaf) && !!this.parent?.closest(parts.join(' '));
+        }
+        const classMatch = s.match(/^([\w-]+)?\.([\w-]+)$/);
+        if (classMatch) return (!classMatch[1] || this.tag === classMatch[1]) &&
+          (this.attrs.class || '').split(/\s+/).includes(classMatch[2]);
         if (s.startsWith('#')) return this.attrs.id === s.slice(1);
-        const m = s.match(/^(\w+)?(?:\[([^=\]]+)(?:="([^"]*)")?\])?$/);
+        const m = s.match(/^([\w-]+)?(?:\[([^=\]]+)(?:="([^"]*)")?\])?$/);
         return m && (!m[1] || m[1] === this.tag) &&
           (!m[2] || (m[3] === undefined ? m[2] in this.attrs : this.attrs[m[2]] === m[3]));
       });
@@ -45,12 +53,16 @@ function fixture({ legacy = false, split = false, unrelatedForm = false, respons
   hidden.visible = false;
   hidden.innerText = 'hidden draft';
   const form = split ? new Element('form', {}, root) : root;
-  const composer = new Element('div', { 'data-composer-body': '' }, form);
-  const input = new Element('div', { contenteditable: 'true' }, composer);
+  const composer = new Element('div', gemini ? { class: 'text-input-field' } : { 'data-composer-body': '' }, form);
+  const editorParent = gemini ? new Element('rich-textarea', {}, composer) : composer;
+  // Quill keeps an off-screen clipboard editor before the real textbox.
+  if (gemini) new Element('div', { contenteditable: 'true', class: 'ql-clipboard' }, editorParent);
+  const input = new Element('div', { contenteditable: 'true', ...(gemini ? { role: 'textbox' } : {}) }, editorParent);
   input.innerText = 'Ticket QA-123456';
   const paragraph = new Element('p', {}, input);
-  const send = new Element('button', legacy ? { 'data-testid': 'send-button' } : { 'aria-label': 'Send' },
-    split ? form : composer);
+  const sendParent = gemini ? new Element('gem-icon-button', { class: 'send-button' }, composer) : (split ? form : composer);
+  const send = new Element('button', gemini ? { 'aria-label': localized ? 'Envoyer le message' : 'Send message' } : legacy ? { 'data-testid': 'send-button' } : { 'aria-label': 'Send' },
+    sendParent);
   const icon = new Element('svg', {}, send);
   const otherScope = unrelatedForm ? new Element('form', {}, root) : root;
   const unrelated = new Element('button', { 'aria-label': 'Send' }, otherScope);
@@ -200,4 +212,41 @@ test('an unrelated form does not intercept Enter or its Send button', async () =
   assert.equal(unrelatedClicks, 0);
   assert.equal(f.other.value, 'Be concise.');
   assert.deepEqual(f.sent, []);
+});
+
+
+for (const method of ['Send', 'Enter']) {
+  for (const localized of [false, true]) {
+    test(`Gemini ${method} checks PII and submits reviewed masked text (localized=${localized})`, async () => {
+      const f = fixture({ gemini: true, localized });
+      const event = method === 'Send' ? f.emit('click', f.icon) : f.emit('keydown', f.paragraph, { key: 'Enter' });
+      assert.equal(event.defaultPrevented, true);
+      await settle();
+      assert.equal(f.checks()[0].text, 'Ticket QA-123456');
+      assert.equal(f.ids['kiji-pii-overlay'].classList.has('is-open'), true);
+      assert.deepEqual(f.sent, []);
+      f.ids['kiji-pii-use-masked'].onclick();
+      assert.equal(f.input.innerText, 'Ticket [MASKED]');
+      f.send.click();
+      await settle();
+      assert.deepEqual(f.sent, ['Ticket [MASKED]']);
+      assert.equal(f.checks().length, 1);
+      assert.equal(f.emit('click', f.unrelated).defaultPrevented, false);
+      assert.equal(f.emit('keydown', f.other, { key: 'Enter' }).defaultPrevented, false);
+    });
+  }
+}
+
+test('Gemini clean text submits once and Cancel preserves a PII draft', async () => {
+  const clean = fixture({ gemini: true, response: () => ({ success: true, data: { pii_found: false } }) });
+  clean.send.click();
+  await settle();
+  assert.equal(clean.checks().length, 1);
+  assert.deepEqual(clean.sent, ['Ticket QA-123456']);
+  const pii = fixture({ gemini: true });
+  pii.send.click();
+  await settle();
+  pii.ids['kiji-pii-cancel'].onclick();
+  assert.deepEqual(pii.sent, []);
+  assert.equal(pii.input.innerText, 'Ticket QA-123456');
 });
