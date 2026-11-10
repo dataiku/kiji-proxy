@@ -258,16 +258,17 @@ Workflows trigger automatically on tag push.
 
 The entire release process runs in a single GitHub Actions workflow:
 
-**`.github/workflows/release.yml`** — four jobs, three building in parallel:
+**`.github/workflows/release.yml`** builds platform and browser packages before publishing:
 
 | Job | Runner | Output |
 |-----|--------|--------|
 | `build-dmg` | `macos-latest` | `Kiji-Privacy-Proxy-{version}.dmg`, `*-mac.zip`, `latest-mac.yml` |
 | `build-linux` | `ubuntu-latest` | `kiji-privacy-proxy-{version}-linux-amd64.tar.gz` (+ `.sha256`), `kiji-privacy-proxy_{version}_amd64.deb` (+ `.sha256`) |
 | `build-chrome` | `ubuntu-latest` | `kiji-privacy-proxy-extension-{version}.zip` (+ `.sha256`) |
+| `build-firefox` | `ubuntu-latest` | `kiji-privacy-proxy-firefox-extension-{version}.zip` (+ `.sha256`) |
 | `create-release` | `ubuntu-latest` | Tags `v{version}` (PR-merge path only), publishes GitHub Release |
 
-The three build jobs run concurrently. `create-release` waits for all three,
+The browser and platform build jobs run concurrently; Debian packaging follows the Linux build. `create-release` waits for all packages,
 then atomically creates the release with every asset attached
 (`gh release create --latest`).
 
@@ -326,6 +327,16 @@ then atomically creates the release with every asset attached
 
 **Build Time:** ~1 minute
 
+### Firefox Extension Build (`build-firefox`)
+
+**Steps:**
+1. Generate the Firefox Manifest V3 package from the shared extension source
+2. Stamp the resolved version into the generated manifest
+3. Package the extension into a zip and generate its SHA256 checksum
+4. Upload `firefox-assets` for the GitHub Release
+
+**Build Time:** ~1 minute
+
 ### Release Publication (`create-release`)
 
 **Permissions:** `contents: write`
@@ -344,7 +355,8 @@ Release PR merge  (or tag push, or workflow_dispatch)
        ↓
        ├─→ build-dmg     (~15 min)
        ├─→ build-linux   (~12 min)
-       └─→ build-chrome  (~1 min)
+       ├─→ build-chrome  (~1 min)
+       └─→ build-firefox (~1 min)
                   ↓
             create-release → Tag + Single GitHub Release
 ```
@@ -353,7 +365,7 @@ Release PR merge  (or tag push, or workflow_dispatch)
 
 ### Caching
 
-Cached across the three build jobs as appropriate:
+Cached across the four build jobs as appropriate:
 
 - **Git LFS objects** — model files (~100 MB)
 - **Go modules** — keyed by `go.sum`

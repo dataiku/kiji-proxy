@@ -127,6 +127,7 @@ All other credentials live in environments — see §2. No PATs are required any
 | `release.yml` (build-dmg) | tag `v*`, `workflow_dispatch`, merged PR with `release` label | `contents: read` | `DMG Build Environment` | `CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_API_KEY`, `APPLE_API_KEY_ID`, `APPLE_API_ISSUER` | `macos-latest` |
 | `release.yml` (build-linux) | same as above | `contents: read` | — | — | `ubuntu-latest` (container: `almalinux:9`) |
 | `release.yml` (build-chrome) | same as above | `contents: read` | — | — | `ubuntu-latest` |
+| `release.yml` (build-firefox) | same as above | `contents: read` | — | — | `ubuntu-latest` |
 | `release.yml` (create-release) | same as above (needs all 3 builds) | `contents: write` | — | `GITHUB_TOKEN` | `ubuntu-latest` |
 | `release.yml` (publish-homebrew-tap) | same as above (needs `create-release`); skips alpha/beta/rc | `contents: read` | `Homebrew Release` | `HOMEBREW_TAP_APP_PRIVATE_KEY`, `vars.HOMEBREW_TAP_APP_CLIENT_ID` (env-scoped) | `ubuntu-latest` |
 | `lint-and-test.yml` | `push`/`pull_request` on `main`/`develop` | default | — | — | `ubuntu-latest` (×5 jobs) |
@@ -258,3 +259,7 @@ Edit the template in-repo to change cask metadata (description, zap paths, depen
   - Create the `Homebrew Release` environment and add `HOMEBREW_TAP_APP_CLIENT_ID` (variable) and `HOMEBREW_TAP_APP_PRIVATE_KEY` (secret) under it — not at the repo level.
   - Initialize the tap repo with a `main` branch and a `Casks/` directory.
   - Update `actions/create-github-app-token` inputs (`owner`, `repositories`) and the `git push` target in `release.yml` if your tap lives somewhere other than `dataiku/homebrew-tap`.
+
+### Firefox extension validation and packaging
+
+The frontend CI job builds the shared Firefox package and validates it with pinned `web-ext@9.4.0`. The reusable `_build-firefox.yml` workflow uses the Node version in `.nvmrc`, produces `firefox-assets` (ZIP and SHA256), and needs no additional secrets. `create-release` attaches these artifacts alongside the Chrome package. Mozilla signing and Firefox Add-ons publication are separate manual steps.

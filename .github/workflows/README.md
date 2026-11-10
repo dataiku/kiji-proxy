@@ -60,9 +60,10 @@ GitHub release. There is no separate auto-tag workflow.
 | **build-dmg** | `macos-latest` | Builds signed macOS DMG | `contents: read` |
 | **build-linux** | `ubuntu-latest` | Builds Linux binary archive | `contents: read` |
 | **build-chrome** | `ubuntu-latest` | Packages Chrome extension | `contents: read` |
+| **build-firefox** | `ubuntu-latest` | Packages Firefox extension | `contents: read` |
 | **create-release** | `ubuntu-latest` | Downloads all artifacts, creates single release | `contents: write` |
 
-The three build jobs run in parallel. The `create-release` job waits for all builds to complete, then creates one atomic GitHub release with all assets and the `--latest` flag. This eliminates the race condition that previously occurred when separate workflows competed to create/publish releases.
+The browser and platform build jobs run in parallel; Debian packaging follows the Linux build. The `create-release` job waits for all builds to complete, then creates one atomic GitHub release with all assets and the `--latest` flag. This eliminates the race condition that previously occurred when separate workflows competed to create/publish releases.
 
 **Environment:** `DMG Build Environment` (for `build-dmg` job only)
 
@@ -177,6 +178,7 @@ release.yml (automatic on PR merge with release label)
   - build-dmg       -> macOS DMG        (parallel)
   - build-linux     -> Linux tar.gz     (parallel)
   - build-chrome    -> Chrome ext zip   (parallel)
+  - build-firefox   -> Firefox ext zip  (parallel)
   - create-release  -> Pushes tag v0.3.5, then creates Single GitHub Release with all assets
               |
               v
