@@ -12,7 +12,7 @@ func TestMappingLookupsDoNotWaitForMutationMutex(t *testing.T) {
 	db := newTestDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	if err := db.StoreMapping(ctx, "Alice", "dummy", "FIRSTNAME", 1); err != nil {
+	if err := db.StoreMapping(ctx, NullSessionID, "Alice", "dummy", "FIRSTNAME", 1); err != nil {
 		t.Fatal(err)
 	}
 	// No SQLite transaction is held. A lookup must not queue behind a writer
@@ -40,7 +40,7 @@ func TestMappingLookupDoesNotCleanExpiredRows(t *testing.T) {
 	db := newTestDB(t)
 	ctx := context.Background()
 	for original, dummy := range map[string]string{"Alice": "dummy", "Bob": "old-dummy"} {
-		if err := db.StoreMapping(ctx, original, dummy, "FIRSTNAME", 1); err != nil {
+		if err := db.StoreMapping(ctx, NullSessionID, original, dummy, "FIRSTNAME", 1); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -75,7 +75,7 @@ func TestMappingLookupDoesNotCleanExpiredRows(t *testing.T) {
 func TestReadOnlyValidityTracksExpirationAndPolicyChanges(t *testing.T) {
 	db := newTestDB(t)
 	ctx := context.Background()
-	if err := db.StoreMapping(ctx, "Alice", "dummy", "FIRSTNAME", 1); err != nil {
+	if err := db.StoreMapping(ctx, NullSessionID, "Alice", "dummy", "FIRSTNAME", 1); err != nil {
 		t.Fatal(err)
 	}
 	if snapshotOriginal(t, db, "dummy") != "Alice" {
@@ -93,7 +93,7 @@ func TestReadOnlyValidityTracksExpirationAndPolicyChanges(t *testing.T) {
 	if snapshotOriginal(t, db, "dummy") != "" {
 		t.Fatal("policy change revived expired token")
 	}
-	if err := db.StoreMapping(ctx, "Alice", "new-dummy", "FIRSTNAME", 1); err != nil {
+	if err := db.StoreMapping(ctx, NullSessionID, "Alice", "new-dummy", "FIRSTNAME", 1); err != nil {
 		t.Fatal(err)
 	}
 	backdateMapping(t, db, "-600 seconds")
@@ -106,10 +106,10 @@ func TestReadOnlyValidityTracksExpirationAndPolicyChanges(t *testing.T) {
 	if snapshotOriginal(t, db, "new-dummy") != "" {
 		t.Fatal("shorter policy was not applied immediately")
 	}
-	if err := db.StoreMapping(ctx, "Alice", "third-dummy", "FIRSTNAME", 1); err != nil {
+	if err := db.StoreMapping(ctx, NullSessionID, "Alice", "third-dummy", "FIRSTNAME", 1); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.DeleteMapping(ctx, "Alice"); err != nil {
+	if err := db.DeleteMapping(ctx, NullSessionID, "Alice"); err != nil {
 		t.Fatal(err)
 	}
 	if snapshotOriginal(t, db, "third-dummy") != "" {
@@ -124,7 +124,7 @@ func snapshotOriginal(t *testing.T, db PIIMappingDB, dummy string) string {
 		t.Fatal(err)
 	}
 	defer snapshot.Close()
-	got, found, err := snapshot.Lookup(context.Background(), dummy, false)
+	got, found, err := snapshot.Lookup(context.Background(), NullSessionID, dummy, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +137,7 @@ func snapshotOriginal(t *testing.T, db PIIMappingDB, dummy string) string {
 func TestMappingMissesDoNotAcquireWriteLock(t *testing.T) {
 	db := newTestDB(t)
 	ctx := context.Background()
-	if err := db.StoreMapping(ctx, "Expired", "old", "PERSON", 1); err != nil {
+	if err := db.StoreMapping(ctx, NullSessionID, "Expired", "old", "PERSON", 1); err != nil {
 		t.Fatal(err)
 	}
 	backdateMapping(t, db, "-600 seconds")

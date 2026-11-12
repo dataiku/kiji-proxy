@@ -585,7 +585,7 @@ func (s *Server) corsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-OpenAI-API-Key, X-Kiji-Source, X-Kiji-Profile")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-OpenAI-API-Key, X-Kiji-Source, X-Kiji-Profile, X-Kiji-Session")
 	w.Header().Set("Access-Control-Max-Age", "3600")
 }
 
@@ -648,10 +648,14 @@ func (s *Server) mappingsHandler(w http.ResponseWriter, r *http.Request) {
 		// Delegate to the handler's HandleMappings method
 		s.handler.HandleMappings(w, r)
 	case http.MethodDelete:
-		// With an ?id=<id> param, delete a single mapping; otherwise clear all.
-		if r.URL.Query().Get("id") != "" {
+		// With an ?id=<id> param, delete a single mapping; with ?session_id=<id>
+		// clear only that session; otherwise clear all.
+		switch {
+		case r.URL.Query().Get("id") != "":
 			s.handler.HandleDeleteMapping(w, r)
-		} else {
+		case r.URL.Query().Has("session_id"):
+			s.handler.HandleClearSessionMappings(w, r)
+		default:
 			s.handler.HandleClearMappings(w, r)
 		}
 	default:
@@ -771,6 +775,10 @@ type PIICheckRequest struct {
 	Site string `json:"site,omitempty"`
 	// Profile is the id of the PII profile to apply; empty uses the default.
 	Profile string `json:"profile,omitempty"`
+	// SessionID scopes the created/reused mappings to a client-chosen session.
+	// Omitted or null falls back to the X-Kiji-Session header; without either
+	// the legacy global (null-session) mappings are used.
+	SessionID *string `json:"session_id,omitempty"`
 }
 
 // DetectedEntity represents a single detected PII entity with its label and
@@ -836,8 +844,14 @@ func (s *Server) handlePIICheck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	sessionID, err := proxy.ResolveSessionID(r, req.SessionID)
+	if err != nil {
+		proxy.WriteInvalidSessionError(w, err)
+		return
+	}
+
 	// Mask + persist request_original / request_masked so the call appears in /logs.
-	maskedText, maskedToOriginal, entities, err := s.handler.MaskPIIInTextWithLogging(r.Context(), req.Message, req.Site, profile)
+	maskedText, maskedToOriginal, entities, err := s.handler.MaskPIIInTextWithLogging(r.Context(), req.Message, req.Site, profile, sessionID)
 	if err != nil {
 		http.Error(w, "Failed to acquire or read mappings", http.StatusServiceUnavailable)
 		return

@@ -22,6 +22,8 @@
     "entityType": "Entity Type",
     "original": "Original",
     "masked": "Masked",
+    "session": "Session",
+    "noSession": "No session",
     "date": "Date of first entity",
     "actions": "Actions"
   },

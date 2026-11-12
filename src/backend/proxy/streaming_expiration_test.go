@@ -92,7 +92,7 @@ func TestStreamKeepsOwnGenerationAfterPolicyChangeAndRemasking(t *testing.T) {
 	defer db.Close()
 	m := piiServices.NewPIIMappingWithDB(db, true)
 	candidate := piiServices.NewGeneratorService().GenerateReplacement("EMPLOYEE_ID", "EMP-123")
-	first, err := m.AddMapping(context.Background(), "EMP-123", candidate, "EMPLOYEE_ID", 1)
+	first, err := m.AddMapping(context.Background(), piiServices.NullSessionID, "EMP-123", candidate, "EMPLOYEE_ID", 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +118,7 @@ func TestStreamKeepsOwnGenerationAfterPolicyChangeAndRemasking(t *testing.T) {
 	if err := h.SetMappingExpiration(config.MappingExpirationConfig{TTLSeconds: 0}); err != nil {
 		t.Fatal(err)
 	}
-	second, err := m.AddMapping(context.Background(), "EMP-456", candidate, "EMPLOYEE_ID", 1)
+	second, err := m.AddMapping(context.Background(), piiServices.NullSessionID, "EMP-456", candidate, "EMPLOYEE_ID", 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,7 +155,7 @@ func TestStreamSnapshotSurvivesExpirationBetweenEvents(t *testing.T) {
 	}
 	defer db.Close()
 	m := piiServices.NewPIIMappingWithDB(db, true)
-	if _, err := m.AddMapping(context.Background(), "Alice", "dummy", "FIRSTNAME", 1); err != nil {
+	if _, err := m.AddMapping(context.Background(), piiServices.NullSessionID, "Alice", "dummy", "FIRSTNAME", 1); err != nil {
 		t.Fatal(err)
 	}
 	fixture, err := sql.Open("sqlite", "file:"+path+"?_pragma=busy_timeout(5000)")

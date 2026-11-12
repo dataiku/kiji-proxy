@@ -41,7 +41,7 @@ func storedRows(t *testing.T, db *SQLitePIIMappingDB) int {
 func TestPeriodicCleanupPreservesRequestSnapshot(t *testing.T) {
 	db := maintenanceTestDB(t, 10*time.Millisecond)
 	ctx := context.Background()
-	if err := db.StoreMapping(ctx, "Alice", "dummy", "PERSON", 1); err != nil {
+	if err := db.StoreMapping(ctx, NullSessionID, "Alice", "dummy", "PERSON", 1); err != nil {
 		t.Fatal(err)
 	}
 	snapshot, err := db.BeginMappingSnapshot(ctx)
@@ -52,18 +52,18 @@ func TestPeriodicCleanupPreservesRequestSnapshot(t *testing.T) {
 	backdateMapping(t, db, "-600 seconds")
 	// Only raw SQL observes the timer: no list, count, lookup, or creation triggers cleanup.
 	awaitMaintenance(t, func() bool { return storedRows(t, db) == 0 })
-	got, found, err := snapshot.Lookup(ctx, "Alice", true)
+	got, found, err := snapshot.Lookup(ctx, NullSessionID, "Alice", true)
 	if err != nil || !found || got != "dummy" {
 		t.Fatalf("cleanup changed request-start view: %q %v %v", got, found, err)
 	}
 	mapping := NewPIIMappingWithDB(db, true)
-	if got, err := mapping.UnmaskMappings(ctx, []string{"dummy"}); err != nil || len(got) != 0 {
+	if got, err := mapping.UnmaskMappings(ctx, NullSessionID, []string{"dummy"}); err != nil || len(got) != 0 {
 		t.Fatalf("later unmask revived expired pair: %v %v", got, err)
 	}
-	if err := db.StoreMapping(ctx, "Other", "dummy", "PERSON", 1); err != nil {
+	if err := db.StoreMapping(ctx, NullSessionID, "Other", "dummy", "PERSON", 1); err != nil {
 		t.Fatalf("cleanup did not release dummy: %v", err)
 	}
-	if got, found, err := snapshot.Lookup(ctx, "dummy", false); err != nil || !found || got != "Alice" {
+	if got, found, err := snapshot.Lookup(ctx, NullSessionID, "dummy", false); err != nil || !found || got != "Alice" {
 		t.Fatalf("reuse changed active snapshot: %q %v %v", got, found, err)
 	}
 }
@@ -74,7 +74,7 @@ func TestPeriodicCleanupHonorsDisabledPolicyAndRetries(t *testing.T) {
 	if err := db.SetMappingExpiration(config.MappingExpirationConfig{TTLSeconds: 0}); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.StoreMapping(ctx, "Alice", "dummy", "PERSON", 1); err != nil {
+	if err := db.StoreMapping(ctx, NullSessionID, "Alice", "dummy", "PERSON", 1); err != nil {
 		t.Fatal(err)
 	}
 	backdateMapping(t, db, "-600 seconds")
@@ -157,7 +157,7 @@ func TestStatisticsQueueBoundsAndCopiesBatches(t *testing.T) {
 func TestBackgroundCountsDoNotChangeWriterTimeout(t *testing.T) {
 	db := maintenanceTestDB(t, time.Hour)
 	ctx := context.Background()
-	if err := db.StoreMapping(ctx, "Alice", "dummy", "PERSON", 1); err != nil {
+	if err := db.StoreMapping(ctx, NullSessionID, "Alice", "dummy", "PERSON", 1); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.db.Exec(`PRAGMA busy_timeout=7777`); err != nil {

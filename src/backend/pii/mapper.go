@@ -15,10 +15,10 @@ func NewPIIMappingWithDB(db PIIMappingDB, _ bool) *PIIMapping {
 	return &PIIMapping{db: db}
 }
 
-func (m *PIIMapping) AddMapping(ctx context.Context, original, dummy, piiType string, confidence float64, generators ...func() string) (string, error) {
+func (m *PIIMapping) AddMapping(ctx context.Context, sessionID, original, dummy, piiType string, confidence float64, generators ...func() string) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	stored, err := m.db.GetOrCreateMapping(ctx, original, dummy, piiType, confidence, generators...)
+	stored, err := m.db.GetOrCreateMapping(ctx, sessionID, original, dummy, piiType, confidence, generators...)
 	if err != nil {
 		log.Printf("Error storing mapping: %v", err)
 	}
@@ -37,12 +37,19 @@ func (m *PIIMapping) ClearAll() error {
 	return m.db.ClearMappings(ctx)
 }
 
+// ClearSession removes only the mappings of sessionID.
+func (m *PIIMapping) ClearSession(ctx context.Context, sessionID string) (int64, error) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	return m.db.ClearSessionMappings(ctx, sessionID)
+}
+
 // GetMappingsCount returns the total number of mappings in database
 func (m *PIIMapping) GetMappingsCount() (int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	return m.db.GetMappingsCount(ctx)
+	return m.db.GetMappingsCount(ctx, MappingFilter{})
 }
 
 // Close closes the database connection
