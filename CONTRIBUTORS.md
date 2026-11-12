@@ -21,6 +21,7 @@ Thank you to everyone who has contributed to Kiji Privacy Proxy!
 - **Rhianna Litchfield** ([@rhiannalitchfield](https://github.com/rhiannalitchfield))
 - **Mohit Kalra** ([@kalra-mohit](https://github.com/kalra-mohit))
 - **Muhammad Jatmika Aryaputra** ([@TrigrD3](https://github.com/TrigrD3))
+- **Alex Castillo** ([@pcbeingused333](https://github.com/pcbeingused333))
 
 ---
 

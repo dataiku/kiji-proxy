@@ -91,6 +91,26 @@ func decodeJSON(t *testing.T, rec *httptest.ResponseRecorder, v interface{}) {
 
 // --- RateLimiter ---
 
+func TestClientIP(t *testing.T) {
+	cases := []struct {
+		remote string
+		want   string
+	}{
+		{remote: "1.2.3.4:1000", want: "1.2.3.4"},
+		{remote: "1.2.3.4:2000", want: "1.2.3.4"},
+		{remote: "[2001:db8::1]:443", want: "2001:db8::1"},
+		{remote: "1.2.3.4", want: "1.2.3.4"},
+		{remote: "", want: ""},
+	}
+	for _, tc := range cases {
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req.RemoteAddr = tc.remote
+		if got := clientIP(req); got != tc.want {
+			t.Errorf("clientIP(%q) = %q, want %q", tc.remote, got, tc.want)
+		}
+	}
+}
+
 func TestRateLimiter_BurstThenBlocked(t *testing.T) {
 	rl := NewRateLimiter(1, 3) // ~1 token/sec refill, burst of 3
 	limiter := rl.GetLimiter("198.51.100.1")
@@ -357,6 +377,59 @@ func TestHandlePIICheck_RateLimitExceeded(t *testing.T) {
 	}
 	if code := send(); code != http.StatusTooManyRequests {
 		t.Errorf("status after exceeding the burst = %d, want 429", code)
+	}
+}
+
+// TestHandlePIICheck_RateLimitIsPerClientIPNotConnection is the regression for
+// keying the limiter on RemoteAddr. That value is host:port, and the port is
+// the client's ephemeral source port, so a new connection used to get a fresh
+// burst. Exhausting 1.2.3.4:1000 must also block 1.2.3.4:2000. A different
+// address still has its own budget.
+func TestHandlePIICheck_RateLimitIsPerClientIPNotConnection(t *testing.T) {
+	s := newTestServer(t)
+	const burst = 3
+	s.rateLimiter = NewRateLimiter(rate.Every(time.Hour), burst)
+
+	send := func(addr string) int {
+		req := httptest.NewRequest(http.MethodPost, "/api/pii/check", strings.NewReader(`{"message":"hi"}`))
+		req.RemoteAddr = addr
+		rec := httptest.NewRecorder()
+		s.handlePIICheck(rec, req)
+		return rec.Code
+	}
+
+	for i := 0; i < burst; i++ {
+		if code := send("1.2.3.4:1000"); code != http.StatusOK {
+			t.Fatalf("request %d within the burst from :1000: status = %d, want 200", i, code)
+		}
+	}
+	if code := send("1.2.3.4:2000"); code != http.StatusTooManyRequests {
+		t.Errorf("status from a new source port of the same client = %d, want 429", code)
+	}
+	if code := send("5.6.7.8:1000"); code != http.StatusOK {
+		t.Errorf("status from a different client = %d, want 200", code)
+	}
+}
+
+// TestDashboardPreamble_RateLimitIsPerClientIPNotConnection covers the
+// dashboard call site, which keys the limiter in one expression rather than
+// the ip := r.RemoteAddr form used by the other handlers.
+func TestDashboardPreamble_RateLimitIsPerClientIPNotConnection(t *testing.T) {
+	s := &Server{rateLimiter: NewRateLimiter(rate.Every(time.Hour), 1)}
+
+	send := func(addr string) (int, bool) {
+		req := httptest.NewRequest(http.MethodGet, "/api/dashboard/summary", nil)
+		req.RemoteAddr = addr
+		rec := httptest.NewRecorder()
+		ok := s.dashboardPreamble(rec, req)
+		return rec.Code, ok
+	}
+
+	if code, ok := send("1.2.3.4:1000"); !ok || code != http.StatusOK {
+		t.Fatalf("first request: ok=%v code=%d, want allowed", ok, code)
+	}
+	if code, ok := send("1.2.3.4:2000"); ok || code != http.StatusTooManyRequests {
+		t.Errorf("new source port: ok=%v code=%d, want 429", ok, code)
 	}
 }
 
