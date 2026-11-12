@@ -19,6 +19,7 @@ echo ""
 # Get the script directory and project root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+ONNX_VERSION="$("$SCRIPT_DIR/onnxruntime-version.sh")"
 
 cd "$PROJECT_ROOT"
 
@@ -114,7 +115,7 @@ check_executable() {
 # Check required files
 check_executable "bin/kiji-proxy" "Binary exists and is executable"
 check_executable "run.sh" "Run script exists and is executable"
-check_exists "lib/libonnxruntime.so.1.24.2" "ONNX Runtime library"
+check_exists "lib/libonnxruntime.so.${ONNX_VERSION}" "ONNX Runtime library"
 check_exists "lib/libonnxruntime.so" "ONNX Runtime symlink"
 check_exists "README.txt" "README file"
 check_exists "kiji-proxy.service" "Systemd service file"
