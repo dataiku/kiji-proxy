@@ -712,6 +712,62 @@ func TestFinalizeEntity_BracketAfterMultiByteText(t *testing.T) {
 	}
 }
 
+func TestFinalizeEntity_TrailingZeroOffset(t *testing.T) {
+	// Issue #626: the last token of an entity can be [SEP] or padding with
+	// offset (0, 0). originalText[22:0] panics ("slice bounds out of range")
+	// and the PII request fails.
+	detector := &ONNXModelDetectorSimple{}
+	entity := &Entity{Label: "EMAIL", Confidence: 0.91}
+	originalText := "xxxxxxxxxxxxxxxxxxxxxxuser@example.com"
+	offsets := []tokenizers.Offset{{22, 26}, {26, 27}, {27, 34}, {34, 38}, {0, 0}}
+	tokenIndices := []int{0, 1, 2, 3, 4}
+
+	detector.finalizeEntity(entity, tokenIndices, originalText, offsets)
+
+	if entity.Text != "user@example.com" {
+		t.Errorf("Expected 'user@example.com', got '%s'", entity.Text)
+	}
+	if entity.StartPos != 22 || entity.EndPos != 38 {
+		t.Errorf("Expected pos (22,38), got (%d,%d)", entity.StartPos, entity.EndPos)
+	}
+}
+
+func TestFinalizeEntity_OffsetPastEndOfText(t *testing.T) {
+	detector := &ONNXModelDetectorSimple{}
+	entity := &Entity{Label: "EMAIL", Confidence: 0.91}
+	originalText := "user@example.com"
+	offsets := []tokenizers.Offset{{0, 4}, {4, 16}, {16, 99}}
+	tokenIndices := []int{0, 1, 2}
+
+	detector.finalizeEntity(entity, tokenIndices, originalText, offsets)
+
+	if entity.Text != "user@example.com" {
+		t.Errorf("Expected 'user@example.com', got '%s'", entity.Text)
+	}
+	if entity.StartPos != 0 || entity.EndPos != 16 {
+		t.Errorf("Expected pos (0,16), got (%d,%d)", entity.StartPos, entity.EndPos)
+	}
+}
+
+func TestFinalizeEntity_ZeroOffsetBeforeRealTokens(t *testing.T) {
+	// A special token offset (0, 0) that is not the first sequence position
+	// must not pull the span back to byte 0.
+	detector := &ONNXModelDetectorSimple{}
+	entity := &Entity{Label: "EMAIL", Confidence: 0.90}
+	originalText := "hello user@example.com"
+	offsets := []tokenizers.Offset{{0, 0}, {0, 5}, {0, 0}, {6, 10}, {10, 22}}
+	tokenIndices := []int{2, 3, 4}
+
+	detector.finalizeEntity(entity, tokenIndices, originalText, offsets)
+
+	if entity.Text != "user@example.com" {
+		t.Errorf("Expected 'user@example.com', got '%s'", entity.Text)
+	}
+	if entity.StartPos != 6 || entity.EndPos != 22 {
+		t.Errorf("Expected pos (6,22), got (%d,%d)", entity.StartPos, entity.EndPos)
+	}
+}
+
 // ============================================
 // Tests for entityGroupingState.consume()
 // ============================================
