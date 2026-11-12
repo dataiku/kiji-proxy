@@ -6,7 +6,7 @@
   "author": "Dataiku - Open Source Lab",
   "license": "Apache-2.0",
   "private": true,
-  "_comment": "Version is managed by Changesets. `npm run version` bumps package.json + src/frontend/package.json (via Changesets) and then stamps chrome-extension/manifest.json via src/scripts/sync-manifest-version.js.",
+  "_comment": "Version is managed by Changesets. `npm run version` bumps package.json + src/frontend/package.json (via Changesets) and then stamps the Chrome and Firefox extension manifests via src/scripts/sync-manifest-version.js.",
   "workspaces": [
     "src/frontend"
   ],
@@ -30,6 +30,7 @@
   ],
   "scripts": {
     "build": "cd src/frontend && npm run build",
+    "build:firefox-extension": "node src/scripts/build-firefox-extension.js",
     "build:electron": "cd src/frontend && npm run build:electron",
     "dev": "cd src/frontend && npm run dev",
     "electron": "cd src/frontend && npm run electron",

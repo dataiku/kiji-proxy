@@ -1,4 +1,4 @@
-// Kiji Privacy Proxy Extension - Content Script for ChatGPT
+// Kiji Privacy Proxy Extension - Content Script for AI chat composers
 (function () {
   "use strict";
 
@@ -218,7 +218,7 @@
   const INPUT_SELECTOR =
     '#prompt-textarea, [data-testid="prompt-textarea"], div[contenteditable="true"], textarea';
   const SEND_BUTTON_SELECTOR =
-    '[data-testid="send-button"], #composer-submit-button, button[aria-label="Send"]';
+    '[data-testid="send-button"], #composer-submit-button, button[aria-label="Send"], button[aria-label="Send message"], gem-icon-button.send-button button';
   // The main prompt editor and its Send button, recognisable without a scope.
   const PRIMARY_INPUT_SELECTOR = '#prompt-textarea, [data-testid="prompt-textarea"]';
   const PRIMARY_SEND_SELECTOR = '[data-testid="send-button"], #composer-submit-button';
@@ -233,6 +233,10 @@
   // prefer the outer form: ChatGPT may put the button outside the editor's
   // [data-composer-body] wrapper.
   function getComposerScope(element) {
+    // Gemini's Quill editor and send control share this wrapper. Require its
+    // rich-textarea component so generic forms elsewhere stay untouched.
+    const gemini = element?.closest?.(".text-input-field");
+    if (gemini?.querySelector("rich-textarea")) return gemini;
     const form = element?.closest?.("form");
     // A generic form with a textarea and Send button is not a ChatGPT composer.
     if (form?.querySelector(`${PRIMARY_INPUT_SELECTOR}, [data-composer-body]`)) return form;
@@ -242,7 +246,11 @@
   // ChatGPT keeps hidden composers mounted. Never read a hidden editor just
   // because it comes first.
   function getComposerInput(scope) {
-    const selector = scope ? INPUT_SELECTOR : PRIMARY_INPUT_SELECTOR;
+    // Quill also creates a contenteditable clipboard element. Only its actual
+    // textbox contains the draft; the clipboard must never be checked or edited.
+    const selector = scope?.matches(".text-input-field")
+      ? '[role="textbox"]'
+      : scope ? INPUT_SELECTOR : PRIMARY_INPUT_SELECTOR;
     return Array.from((scope || document).querySelectorAll(selector)).find(isVisible);
   }
 
@@ -276,7 +284,9 @@
     } else if (input?.matches(PRIMARY_INPUT_SELECTOR)) {
       buttons = document.querySelectorAll(PRIMARY_SEND_SELECTOR);
     }
-    return Array.from(buttons).find(button => isVisible(button) && !button.disabled) || null;
+    return Array.from(buttons).find(button =>
+      isVisible(button) && !button.disabled && button.getAttribute("aria-disabled") !== "true"
+    ) || null;
   }
 
   // Show a toast notification

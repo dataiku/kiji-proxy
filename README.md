@@ -46,7 +46,7 @@ When using AI services like OpenAI or Anthropic, sensitive data in your prompts 
 - **🗂️ Review & Delete Mappings** - Inspect every masked value and clear mappings from the app
 - **🚀 Zero Code Changes** - Works as a transparent proxy with automatic configuration (PAC) on macOS
 - **🌐 Browser-Ready** - Automatic proxy setup for Safari, Chrome - no environment variables needed
-- **🧩 Chrome Extension** - Inline PII detection for ChatGPT, Claude, Gemini, and other AI chat sites ([details](docs/06-chrome-extension.md))
+- **🧩 Browser Extension** - Inline PII detection in Chrome and Firefox for ChatGPT, Claude, Gemini, and other AI chat sites ([details](docs/06-chrome-extension.md))
 - **🏃 Fast Local Inference** - ONNX-optimized model runs locally, no external API calls
 - **💻 Easy to Use** - Desktop app for macOS, standalone server for Linux
 
@@ -215,7 +215,7 @@ Complete documentation is available in [docs/README.md](docs/README.md):
 - **[Building & Deployment](docs/03-building-deployment.md)** - Building from source, production deployment
 - **[Release Management](docs/04-release-management.md)** - Versioning, changesets, CI/CD
 - **[Advanced Topics](docs/05-advanced-topics.md)** - MITM proxy, model signing, troubleshooting
-- **[Chrome Extension](docs/06-chrome-extension.md)** - Building, configuring, and publishing the PII Guard extension
+- **[Browser Extension](docs/06-chrome-extension.md)** - Building, configuring, and publishing the PII Guard extension
 - **[Customizing the PII Model](docs/07-customizing-pii-model.md)** - Training a model with your own entity types
 - **[Masking Controls & Review](docs/08-masking-controls.md)** - Disable entity types, custom regex, mapping review
 - **[Coding Agents (Codex & Claude Code)](docs/09-coding-agents.md)** - Route terminal coding agents through the proxy
