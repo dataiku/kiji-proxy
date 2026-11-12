@@ -116,6 +116,23 @@ func (p *AnthropicProvider) CreateMaskedRequest(maskedRequest map[string]interfa
 		return maskedText
 	}
 
+	// The top-level `system` prompt is separate from `messages` and, like
+	// message content, is either a plain string or an array of text blocks.
+	switch system := maskedRequest["system"].(type) {
+	case string:
+		maskedRequest["system"] = mask(system)
+	case []interface{}:
+		for _, blk := range system {
+			blkMap, ok := blk.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			if text, ok := blkMap["text"].(string); ok {
+				blkMap["text"] = mask(text)
+			}
+		}
+	}
+
 	for _, msg := range messages {
 		msgMap, ok := msg.(map[string]interface{})
 		if !ok {
