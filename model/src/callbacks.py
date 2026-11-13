@@ -20,7 +20,8 @@ class CleanMetricsCallback(TrainerCallback):
         logging.warning(
             f"  Training: {self.total_steps} steps, "
             f"{args.num_train_epochs:.0f} epochs, "
-            f"batch_size={args.per_device_train_batch_size}"
+            f"batch_size={args.per_device_train_batch_size} "
+            f"x {args.gradient_accumulation_steps} accumulation steps"
         )
         sys.stderr.flush()
 

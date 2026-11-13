@@ -591,6 +591,7 @@ class PIITrainer:
             output_dir=self.config.output_dir,
             num_train_epochs=self.config.num_epochs,
             per_device_train_batch_size=self.config.batch_size,
+            gradient_accumulation_steps=self.config.gradient_accumulation_steps,
             per_device_eval_batch_size=self.config.batch_size * 2,
             warmup_steps=self.config.warmup_steps,
             weight_decay=self.config.weight_decay,

@@ -137,6 +137,9 @@ class PIITrainingPipeline(FlowSpec):
             model_name=cfg.get("model", {}).get("name", "microsoft/deberta-v3-base"),
             num_epochs=training_cfg.get("num_epochs", 5),
             batch_size=training_cfg.get("batch_size", 16),
+            gradient_accumulation_steps=training_cfg.get(
+                "gradient_accumulation_steps", 1
+            ),
             learning_rate=training_cfg.get("learning_rate", 3e-5),
             training_samples_dir=cfg.get("paths", {}).get(
                 "training_samples_dir", "model/dataset/data_samples/training_samples"

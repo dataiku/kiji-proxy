@@ -7,6 +7,7 @@ name = "microsoft/deberta-v3-base"
 [training]
 num_epochs = 30
 batch_size = 128
+gradient_accumulation_steps = 1  # Effective batch = batch_size x this; e.g. 32 x 4 on one TPU chip
 learning_rate = 2e-5
 bf16 = true                # Mixed precision for Ampere+ GPUs (H100, A100, etc.)
 torch_compile = false      # Keep torch.compile disabled during training

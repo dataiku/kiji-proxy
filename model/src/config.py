@@ -55,6 +55,8 @@ class TrainingConfig:
     # Training parameters
     num_epochs: int = 5
     batch_size: int = 16
+    # Effective batch = batch_size * gradient_accumulation_steps (per device)
+    gradient_accumulation_steps: int = 1
     learning_rate: float = 3e-5
     max_samples: int = 400000
 
@@ -118,7 +120,10 @@ class TrainingConfig:
         logging.info("\n📋 Training Configuration:")
         logging.info(f"  Model: {self.model_name}")
         logging.info(f"  Epochs: {self.num_epochs}")
-        logging.info(f"  Batch Size: {self.batch_size}")
+        logging.info(
+            f"  Batch Size: {self.batch_size} "
+            f"x {self.gradient_accumulation_steps} accumulation steps"
+        )
         logging.info(f"  Learning Rate: {self.learning_rate}")
         logging.info(f"  Max Samples: {self.max_samples}")
         logging.info(f"  Output Dir: {self.output_dir}")
