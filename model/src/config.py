@@ -10,6 +10,36 @@ import torch
 from absl import logging
 
 
+def is_tpu_available() -> bool:
+    """Return True when TorchTPU has registered a usable "tpu" device."""
+    accelerator = getattr(torch, "accelerator", None)
+    if accelerator is None or not accelerator.is_available():
+        return False
+    device = accelerator.current_accelerator()
+    return device is not None and device.type == "tpu"
+
+
+def get_best_device() -> torch.device:
+    """Get the best available device (TPU > MPS > CUDA > CPU)."""
+    if is_tpu_available():
+        return torch.device("tpu")
+    if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+        return torch.device("mps")
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    return torch.device("cpu")
+
+
+def configure_accelerate_device() -> None:
+    """Point the HF Trainer and accelerate at the TPU when TorchTPU is present.
+
+    accelerate does not auto-detect TorchTPU's "tpu" device and would otherwise
+    train on CPU. Must run before TrainingArguments is created.
+    """
+    if is_tpu_available():
+        os.environ.setdefault("ACCELERATE_TORCH_DEVICE", "tpu")
+
+
 @dataclass
 class TrainingConfig:
     """Configuration for PII detection model training."""
@@ -181,14 +211,17 @@ class EnvironmentSetup:
 
     @staticmethod
     def check_gpu():
-        """Check and print GPU availability (MPS, CUDA, or CPU)."""
-        # Check MPS (Apple Silicon) first
+        """Check and print accelerator availability (TPU, MPS, CUDA, or CPU)."""
         mps_available = (
             hasattr(torch.backends, "mps") and torch.backends.mps.is_available()
         )
         cuda_available = torch.cuda.is_available()
 
-        if mps_available:
+        if is_tpu_available():
+            logging.info("\n✅ TPU available via TorchTPU")
+            logging.info(f"   Chips: {torch.accelerator.device_count()}")
+            logging.info("   Device: tpu")
+        elif mps_available:
             logging.info(
                 f"\n✅ MPS (Metal) available: {torch.backends.mps.is_available()}"
             )
@@ -209,10 +242,5 @@ class EnvironmentSetup:
 
     @staticmethod
     def get_device():
-        """Get the best available device (MPS > CUDA > CPU)."""
-        if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-            return torch.device("mps")
-        elif torch.cuda.is_available():
-            return torch.device("cuda")
-        else:
-            return torch.device("cpu")
+        """Get the best available device (TPU > MPS > CUDA > CPU)."""
+        return get_best_device()

@@ -43,6 +43,11 @@ try:
 except ImportError:
     from .checkpoint_utils import load_compatible_state_dict
 
+try:
+    from model.src.config import get_best_device
+except ImportError:
+    from .config import get_best_device
+
 # Define command-line flags
 FLAGS = flags.FLAGS
 
@@ -81,13 +86,8 @@ TEST_CASES = [
 
 
 def get_device():
-    """Get the best available device for PyTorch."""
-    if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-        return torch.device("mps")
-    elif torch.cuda.is_available():
-        return torch.device("cuda")
-    else:
-        return torch.device("cpu")
+    """Get the best available device (TPU > MPS > CUDA > CPU)."""
+    return get_best_device()
 
 
 def load_pytorch_model(

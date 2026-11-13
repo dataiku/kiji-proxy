@@ -26,7 +26,7 @@ from transformers import (
 # Import from local modules
 try:
     from .callbacks import CleanMetricsCallback
-    from .config import TrainingConfig
+    from .config import TrainingConfig, configure_accelerate_device
     from .model import (
         MaskedSparseCategoricalCrossEntropy,
         PIIDetectionModel,
@@ -34,7 +34,7 @@ try:
 except ImportError:
     # Fallback for direct execution
     from callbacks import CleanMetricsCallback
-    from config import TrainingConfig
+    from config import TrainingConfig, configure_accelerate_device
 
     from model import (
         MaskedSparseCategoricalCrossEntropy,
@@ -550,6 +550,9 @@ class PIITrainer:
 
         trainer_logger = python_logging.getLogger("transformers.trainer")
         trainer_logger.setLevel(python_logging.ERROR)
+
+        # Must run before TrainingArguments resolves its device
+        configure_accelerate_device()
 
         # Training arguments
         training_args = TrainingArguments(

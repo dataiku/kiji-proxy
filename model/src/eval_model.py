@@ -41,6 +41,14 @@ except ImportError:
         from model import PIIDetectionModel
 
 try:
+    from model.src.config import get_best_device
+except ImportError:
+    try:
+        from .config import get_best_device
+    except ImportError:
+        from config import get_best_device
+
+try:
     from model.src.checkpoint_utils import (
         load_compatible_state_dict,
         normalize_state_dict_keys,
@@ -69,13 +77,8 @@ except ImportError:
 
 
 def get_device():
-    """Get the best available device (MPS > CUDA > CPU)."""
-    if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-        return torch.device("mps")
-    elif torch.cuda.is_available():
-        return torch.device("cuda")
-    else:
-        return torch.device("cpu")
+    """Get the best available device (TPU > MPS > CUDA > CPU)."""
+    return get_best_device()
 
 
 # =============================================================================
