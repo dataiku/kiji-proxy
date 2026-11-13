@@ -87,6 +87,11 @@ class TrainingConfig:
     max_eval_samples: int = 0  # Cap eval set size (0 = no cap)
     balanced_validation_split: bool = True
     max_sequence_length: int = 512
+    # Pad each batch up to the next multiple of pad_bucket_size (capped at
+    # max_sequence_length) so XLA compiles one graph per bucket instead of one
+    # per batch length. None = enabled only on TPU.
+    static_padding: bool | None = None
+    pad_bucket_size: int = 128
     training_samples_dir: str = "model/dataset/data_samples/training_samples"  # Use training samples by default, exported from Label Studio
 
     # Sample filtering

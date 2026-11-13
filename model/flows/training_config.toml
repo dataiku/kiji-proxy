@@ -15,6 +15,11 @@ warmup_steps = 500        # Gradual LR ramp-up to stabilize early training
 weight_decay = 0.01       # L2 regularization strength
 auxiliary_ce_loss_weight = 0.2  # Weighted token CE added to CRF loss for rare labels
 
+# Pad batches to fixed lengths (multiples of pad_bucket_size) so XLA/TPU does not
+# recompile for every batch length. Unset = on only when training on a TPU.
+# static_padding = true
+pad_bucket_size = 128
+
 # Early stopping settings
 max_eval_samples = 0            # Cap eval set size for faster evaluation (0 = no cap)
 balanced_validation_split = true

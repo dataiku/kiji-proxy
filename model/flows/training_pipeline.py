@@ -166,6 +166,8 @@ class PIITrainingPipeline(FlowSpec):
                 "balanced_validation_split", True
             ),
             auxiliary_ce_loss_weight=training_cfg.get("auxiliary_ce_loss_weight", 0.2),
+            static_padding=training_cfg.get("static_padding"),
+            pad_bucket_size=training_cfg.get("pad_bucket_size", 128),
             audit_allowlist=cfg.get("data", {}).get("audit_allowlist", ""),
         )
         self.skip_export = cfg.get("pipeline", {}).get("skip_export", False)

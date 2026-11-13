@@ -26,7 +26,11 @@ from transformers import (
 # Import from local modules
 try:
     from .callbacks import CleanMetricsCallback
-    from .config import TrainingConfig, configure_accelerate_device
+    from .config import (
+        TrainingConfig,
+        configure_accelerate_device,
+        is_tpu_available,
+    )
     from .model import (
         MaskedSparseCategoricalCrossEntropy,
         PIIDetectionModel,
@@ -34,12 +38,25 @@ try:
 except ImportError:
     # Fallback for direct execution
     from callbacks import CleanMetricsCallback
-    from config import TrainingConfig, configure_accelerate_device
+    from config import (
+        TrainingConfig,
+        configure_accelerate_device,
+        is_tpu_available,
+    )
 
     from model import (
         MaskedSparseCategoricalCrossEntropy,
         PIIDetectionModel,
     )
+
+
+def bucketed_length(length: int, bucket_size: int, max_length: int) -> int:
+    """Round length up to the next multiple of bucket_size, capped at max_length.
+
+    Never returns less than length, so over-long batches are padded, not cut.
+    """
+    rounded = -(-length // bucket_size) * bucket_size
+    return max(length, min(rounded, max_length))
 
 
 class PIIModelTrainer(Trainer):
@@ -507,6 +524,15 @@ class PIITrainer:
             val_dataset = val_dataset.select(range(self.config.max_eval_samples))
             logging.info(f"Capped eval set to {self.config.max_eval_samples} samples")
 
+        use_static_padding = self.config.static_padding
+        if use_static_padding is None:
+            use_static_padding = is_tpu_available()
+        if use_static_padding:
+            logging.info(
+                f"✅ Static padding: batches padded to multiples of "
+                f"{self.config.pad_bucket_size} (max {self.config.max_sequence_length})"
+            )
+
         # Data collator for PII detection
         def data_collator(features):
             """Collate function with padding."""
@@ -517,6 +543,12 @@ class PIITrainer:
             )
 
             max_length = max(len(f["input_ids"]) for f in features)
+            if use_static_padding:
+                max_length = bucketed_length(
+                    max_length,
+                    self.config.pad_bucket_size,
+                    self.config.max_sequence_length,
+                )
 
             batch = {}
             padded_input_ids = []
