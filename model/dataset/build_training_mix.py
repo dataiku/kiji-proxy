@@ -5,6 +5,9 @@ Sources, written to one directory the training pipeline reads:
 
 1. DataikuNLP/kiji-pii-training-data (Apache-2.0), all languages, all splits,
    re-converted with the fixed converter (repeated mentions are labelled).
+   With ``--kiji-dir``, the same rows are read from a cleaned Label Studio
+   export instead (garbled characters repaired from the raw generator output),
+   and go through the same converter.
 2. German rows of Wismut/nym-pii-multilingual-data train (MIT).
 3. German rows of ai4privacy/pii-masking-openpii-1m train (CC-BY-4.0), a
    DE/AT/CH-balanced subsample. Kept small (8,000 by default): its IDs often
@@ -24,6 +27,12 @@ to ``<output-dir>/``.
 Usage:
     uv run python -m model.dataset.build_training_mix \
         --output-dir model/dataset/data_samples/german_mix_v3
+
+    # v4: cleaned Kiji export; nym, openpii and template rows copied from v3
+    uv run python -m model.dataset.build_training_mix \
+        --output-dir model/dataset/data_samples/german_mix_v4 \
+        --kiji-dir <cleaned export>/training_samples_clean \
+        --reuse-from model/dataset/data_samples/german_mix_v3
 """
 
 from __future__ import annotations
@@ -32,6 +41,7 @@ import argparse
 import hashlib
 import json
 import random
+import shutil
 import subprocess
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -106,6 +116,77 @@ def load_kiji() -> list[dict]:
                 }
             )
     return rows
+
+
+# Coreference spans in Kiji's Label Studio exports. The trainer ignores them,
+# and keeping them would stop repeated names from being labelled.
+_COREFERENCE_LABELS = {"MENTION", "PRONOUN", "REFERENCE"}
+
+
+def kiji_row_from_labelstudio(sample: dict) -> dict | None:
+    """Turn an exported Label Studio sample back into a privacy-mask row.
+
+    Only PII spans are kept, with their offsets, so ``convert_to_labelstudio``
+    places them where they were and then labels their later repeats.
+    """
+    data = sample.get("data") or {}
+    text = data.get("text") or ""
+    if not text or "\x00" in text:
+        return None
+    source = (sample.get("annotations") or sample.get("predictions") or [{}])[0]
+    mask = []
+    for item in source.get("result", []):
+        if item.get("type") != "labels":
+            continue
+        value = item.get("value") or {}
+        labels = value.get("labels") or []
+        if not labels or labels[0].upper() in _COREFERENCE_LABELS:
+            continue
+        start, end = value.get("start"), value.get("end")
+        if not (
+            isinstance(start, int) and isinstance(end, int) and 0 <= start < end
+        ) or end > len(text):
+            continue
+        mask.append(
+            {"value": text[start:end], "label": labels[0], "start": start, "end": end}
+        )
+    mask.sort(key=lambda m: (m["start"], m["end"]))
+    return {
+        "text": text,
+        "privacy_mask": mask,
+        "coreferences": [],
+        "language": data.get("language"),
+        "country": data.get("country"),
+        "source": f"{KIJI_REPO} (cleaned export)",
+    }
+
+
+def load_kiji_dir(path: str) -> list[dict]:
+    rows = []
+    for file in sorted(Path(path).glob("*.json")):
+        try:
+            sample = json.loads(file.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        row = kiji_row_from_labelstudio(sample)
+        if row:
+            rows.append(row)
+    return rows
+
+
+def copy_samples(mix_dir: str, out_dir: Path, skip_prefix: str) -> dict[str, int]:
+    """Copy an earlier mix's samples, except those with ``skip_prefix``."""
+    src = Path(mix_dir) / "samples"
+    copied: Counter = Counter()
+    for file in sorted(src.glob("*.json")):
+        prefix = file.name.split("_", 1)[0]
+        if prefix == skip_prefix:
+            continue
+        shutil.copyfile(file, out_dir / file.name)
+        copied[prefix] += 1
+    if not copied:
+        raise SystemExit(f"No samples to reuse in {src}")
+    return dict(copied)
 
 
 def load_nym() -> list[dict]:
@@ -199,6 +280,29 @@ def summarize(out_dir: Path) -> dict:
     }
 
 
+def build_other_sources(
+    args: argparse.Namespace, out_dir: Path, written: dict[str, int]
+) -> None:
+    """Write the nym, openpii and template rows."""
+    print(f"Loading German rows of {NYM_REPO} ...")
+    nym = load_nym()
+    if args.nym > 0:
+        nym = random.Random(args.seed).sample(nym, min(args.nym, len(nym)))
+    written["nym"] = write_samples(nym, "nym", out_dir)
+
+    print(f"Loading German rows of {OPENPII_REPO} ...")
+    openpii = balanced_sample(
+        load_openpii(args.openpii_jsonl), args.openpii, "country", args.seed
+    )
+    written["openpii"] = write_samples(openpii, "openpii", out_dir)
+
+    for language, prefix in SYNTHETIC_PREFIXES.items():
+        num = args.synthetic if language == "German" else args.synthetic_per_language
+        print(f"Generating {num} {language} negative and contrast rows ...")
+        rows = generate_synthetic(num, seed=args.seed, language=language)
+        written[prefix] = write_samples(rows, prefix, out_dir)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--output-dir", default="model/dataset/data_samples/german_mix_v3")
@@ -218,6 +322,17 @@ def main() -> None:
         default=None,
         help="Local German openpii rows (skips streaming)",
     )
+    ap.add_argument(
+        "--kiji-dir",
+        default=None,
+        help="Cleaned Label Studio export of the Kiji data (instead of the Hub)",
+    )
+    ap.add_argument(
+        "--reuse-from",
+        default=None,
+        help="Earlier mix directory: copy its non-Kiji samples instead of "
+        "rebuilding nym, openpii and template rows",
+    )
     ap.add_argument("--seed", type=int, default=13)
     args = ap.parse_args()
 
@@ -228,26 +343,18 @@ def main() -> None:
         raise SystemExit(f"{out_dir} already has samples; use an empty directory.")
 
     written = {}
-    print(f"Loading {KIJI_REPO} ...")
-    written["kiji"] = write_samples(load_kiji(), "kiji", out_dir)
+    if args.kiji_dir:
+        print(f"Loading the cleaned {KIJI_REPO} export from {args.kiji_dir} ...")
+        written["kiji"] = write_samples(load_kiji_dir(args.kiji_dir), "kiji", out_dir)
+    else:
+        print(f"Loading {KIJI_REPO} ...")
+        written["kiji"] = write_samples(load_kiji(), "kiji", out_dir)
 
-    print(f"Loading German rows of {NYM_REPO} ...")
-    nym = load_nym()
-    if args.nym > 0:
-        nym = random.Random(args.seed).sample(nym, min(args.nym, len(nym)))
-    written["nym"] = write_samples(nym, "nym", out_dir)
-
-    print(f"Loading German rows of {OPENPII_REPO} ...")
-    openpii = balanced_sample(
-        load_openpii(args.openpii_jsonl), args.openpii, "country", args.seed
-    )
-    written["openpii"] = write_samples(openpii, "openpii", out_dir)
-
-    for language, prefix in SYNTHETIC_PREFIXES.items():
-        num = args.synthetic if language == "German" else args.synthetic_per_language
-        print(f"Generating {num} {language} negative and contrast rows ...")
-        rows = generate_synthetic(num, seed=args.seed, language=language)
-        written[prefix] = write_samples(rows, prefix, out_dir)
+    if args.reuse_from:
+        print(f"Copying nym, openpii and template rows from {args.reuse_from} ...")
+        written.update(copy_samples(args.reuse_from, out_dir, skip_prefix="kiji"))
+    else:
+        build_other_sources(args, out_dir, written)
 
     try:
         commit = subprocess.run(

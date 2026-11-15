@@ -214,3 +214,71 @@ def test_synthetic_rows_avoid_probe_codes(language):
     assert not [
         c for c in probe_codes if re.search(rf"(?<!\w){re.escape(c)}(?!\w)", text)
     ]
+
+
+def _labelstudio_sample(text: str, spans: list[tuple[int, int, list[str]]]) -> dict:
+    return {
+        "data": {"text": text, "language": "German", "country": "Germany"},
+        "predictions": [
+            {
+                "result": [
+                    {
+                        "type": "labels",
+                        "value": {
+                            "start": s,
+                            "end": e,
+                            "text": text[s:e],
+                            "labels": labels,
+                        },
+                    }
+                    for s, e, labels in spans
+                ]
+            }
+        ],
+    }
+
+
+def test_cleaned_export_drops_coreference_spans_and_labels_repeats():
+    from model.dataset.build_training_mix import kiji_row_from_labelstudio
+    from model.dataset.labelstudio.labelstudio_format import convert_to_labelstudio
+
+    text = "Anna Müller ruft an. Später schreibt Müller eine E-Mail. Sie wartet."
+    sample = _labelstudio_sample(
+        text,
+        [
+            (0, 4, ["FIRSTNAME"]),
+            (5, 11, ["SURNAME"]),
+            (0, 11, []),  # coreference cluster head without a label
+            (37, 43, ["PRONOUN"]),  # repeat tagged as a coreference mention
+            (57, 60, ["PRONOUN"]),
+        ],
+    )
+    row = kiji_row_from_labelstudio(sample)
+    assert [(m["value"], m["label"]) for m in row["privacy_mask"]] == [
+        ("Anna", "FIRSTNAME"),
+        ("Müller", "SURNAME"),
+    ]
+    assert row["language"] == "German"
+
+    result = convert_to_labelstudio(row)["predictions"][0]["result"]
+    spans = sorted(
+        (r["value"]["start"], r["value"]["text"], r["value"]["labels"][0])
+        for r in result
+        if r["type"] == "labels"
+    )
+    assert spans == [
+        (0, "Anna", "FIRSTNAME"),
+        (5, "Müller", "SURNAME"),
+        (37, "Müller", "SURNAME"),
+    ]
+
+
+def test_cleaned_export_skips_bad_offsets_and_nul_text():
+    from model.dataset.build_training_mix import kiji_row_from_labelstudio
+
+    text = "Peter wohnt in Köln."
+    row = kiji_row_from_labelstudio(
+        _labelstudio_sample(text, [(0, 5, ["FIRSTNAME"]), (15, 99, ["CITY"])])
+    )
+    assert [m["value"] for m in row["privacy_mask"]] == ["Peter"]
+    assert kiji_row_from_labelstudio(_labelstudio_sample("Z\x00rich", [])) is None
