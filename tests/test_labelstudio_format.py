@@ -115,5 +115,6 @@ def test_pii_free_rows_are_kept_only_when_marked():
         "privacy_mask": [],
         "language": None,
         "country": None,
+        "source": None,
     }
     assert convert(unmarked, "b.json") is None
