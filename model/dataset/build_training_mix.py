@@ -16,6 +16,9 @@ Sources, written to one directory the training pipeline reads:
 4. Template-generated negative and contrast rows
    (model/dataset/synthetic_negatives.py) in German, English, French,
    Spanish, Dutch and Danish, about half of them PII-free.
+5. With ``--id-rows``: English (UK and US) template rows with personal ID
+   numbers after their cue words, look-alike reference numbers that are not
+   PII, and country names (model/dataset/id_templates.py), prefix ``synid``.
 
 Not included on purpose: naeyn/nobody-pii-synth-de train, because its test
 split is the main held-out German benchmark and shares templates with train.
@@ -33,6 +36,11 @@ Usage:
         --output-dir model/dataset/data_samples/german_mix_v4 \
         --kiji-dir <cleaned export>/training_samples_clean \
         --reuse-from model/dataset/data_samples/german_mix_v3
+
+    # v5: v4 unchanged plus 1,500 English ID rows
+    uv run python -m model.dataset.build_training_mix \
+        --output-dir model/dataset/data_samples/german_mix_v5 \
+        --extend-from model/dataset/data_samples/german_mix_v4 --id-rows 1500
 """
 
 from __future__ import annotations
@@ -52,6 +60,7 @@ from model.dataset.huggingface.german_sources import (
     convert_nym_row,
     convert_openpii_row,
 )
+from model.dataset.id_templates import generate as generate_id_rows
 from model.dataset.labelstudio.labelstudio_format import convert_to_labelstudio
 from model.dataset.synthetic_negatives import LOCALES
 from model.dataset.synthetic_negatives import generate as generate_synthetic
@@ -70,6 +79,8 @@ for _prefix in SYNTHETIC_PREFIXES.values():
         "model/dataset/synthetic_negatives.py",
         "generated in this repo",
     )
+ID_PREFIX = "synid"
+LICENCES[ID_PREFIX] = ("model/dataset/id_templates.py", "generated in this repo")
 
 ATTRIBUTION = f"""# Attribution
 
@@ -174,7 +185,9 @@ def load_kiji_dir(path: str) -> list[dict]:
     return rows
 
 
-def copy_samples(mix_dir: str, out_dir: Path, skip_prefix: str) -> dict[str, int]:
+def copy_samples(
+    mix_dir: str, out_dir: Path, skip_prefix: str | None
+) -> dict[str, int]:
     """Copy an earlier mix's samples, except those with ``skip_prefix``."""
     src = Path(mix_dir) / "samples"
     copied: Counter = Counter()
@@ -333,8 +346,22 @@ def main() -> None:
         help="Earlier mix directory: copy its non-Kiji samples instead of "
         "rebuilding nym, openpii and template rows",
     )
+    ap.add_argument(
+        "--extend-from",
+        default=None,
+        help="Earlier mix directory: copy all its samples (Kiji included) and "
+        "only add the rows requested on top (--id-rows)",
+    )
+    ap.add_argument(
+        "--id-rows",
+        type=int,
+        default=0,
+        help="English (UK/US) ID template rows (model/dataset/id_templates.py)",
+    )
     ap.add_argument("--seed", type=int, default=13)
     args = ap.parse_args()
+    if args.extend_from and (args.kiji_dir or args.reuse_from):
+        ap.error("--extend-from copies everything; drop --kiji-dir/--reuse-from")
 
     root = Path(args.output_dir)
     out_dir = root / "samples"  # training_samples_dir; metadata stays one level up
@@ -343,18 +370,27 @@ def main() -> None:
         raise SystemExit(f"{out_dir} already has samples; use an empty directory.")
 
     written = {}
-    if args.kiji_dir:
-        print(f"Loading the cleaned {KIJI_REPO} export from {args.kiji_dir} ...")
-        written["kiji"] = write_samples(load_kiji_dir(args.kiji_dir), "kiji", out_dir)
+    if args.extend_from:
+        print(f"Copying all samples from {args.extend_from} ...")
+        written.update(copy_samples(args.extend_from, out_dir, skip_prefix=None))
     else:
-        print(f"Loading {KIJI_REPO} ...")
-        written["kiji"] = write_samples(load_kiji(), "kiji", out_dir)
+        if args.kiji_dir:
+            print(f"Loading the cleaned {KIJI_REPO} export from {args.kiji_dir} ...")
+            kiji = load_kiji_dir(args.kiji_dir)
+        else:
+            print(f"Loading {KIJI_REPO} ...")
+            kiji = load_kiji()
+        written["kiji"] = write_samples(kiji, "kiji", out_dir)
+        if args.reuse_from:
+            print(f"Copying nym, openpii and template rows from {args.reuse_from} ...")
+            written.update(copy_samples(args.reuse_from, out_dir, skip_prefix="kiji"))
+        else:
+            build_other_sources(args, out_dir, written)
 
-    if args.reuse_from:
-        print(f"Copying nym, openpii and template rows from {args.reuse_from} ...")
-        written.update(copy_samples(args.reuse_from, out_dir, skip_prefix="kiji"))
-    else:
-        build_other_sources(args, out_dir, written)
+    if args.id_rows:
+        print(f"Generating {args.id_rows} English ID rows ...")
+        rows = generate_id_rows(args.id_rows, seed=args.seed)
+        written[ID_PREFIX] = write_samples(rows, ID_PREFIX, out_dir)
 
     try:
         commit = subprocess.run(

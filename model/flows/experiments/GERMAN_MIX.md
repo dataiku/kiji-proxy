@@ -58,6 +58,53 @@ repeat, as in v3. nym, openpii and template rows are copied unchanged from v3
 repaired texts the LLM review step had also edited the wording; those
 edits are reverted with the repair.
 
+## v5: English ID rows
+
+v5 is v4 unchanged plus 1,500 English template rows from
+`model/dataset/id_templates.py` (prefix `synid_`, half UK, half US, 517
+PII-free); 82,041 rows in all. Config: `mdeberta_german_mix_v5.toml`. Build:
+
+```bash
+uv run python -m model.dataset.build_training_mix \
+  --output-dir model/dataset/data_samples/german_mix_v5 \
+  --extend-from model/dataset/data_samples/german_mix_v4 --id-rows 1500
+```
+
+Why: v4 seed 42 beats the shipped model on held-out English (`nobody-en`
+relaxed F1 0.90 against 0.60) but confuses ID types. On 2,000 English rows
+of nym **train** (v4 never trained on them; nym-en test stays held out), v4
+labels 40% of national IDs as another ID type, 53% of driving licences as
+passports, and misses 39% of country names. Two causes in the training data:
+
+- The Kiji English IDs are mostly placeholder values (987654321,
+  123-45-6789, AB123456C), and the same format carries different labels
+  (123-45-6789: SSN 900, NATIONALID 244, TAXNUM 164).
+- Kiji's countries are mostly the six English-speaking countries of its
+  rows; nym's are from the whole world.
+
+The new rows put realistic UK and US formats after their cue words: NI
+number (NATIONALID), UK passport, DVLA driving licence (built from surname
+and birth date), UTR (TAXNUM); US SSN, EIN and ITIN (TAXNUM; ITINs look like
+SSNs, only the cue differs), passport, state driving licence, state ID card
+(IDCARDNUM). They sit in bank account opening, HR onboarding, travel, car
+rental, money transfers and key/value records, next to look-alike numbers
+that are not PII (case, order, booking, confirmation, e-ticket numbers) and
+PII-free rows that name a document without its number ("bring your
+passport"). Country names come from 167 countries.
+
+Choices: the rows teach the label from the cue, not nym's habit of labelling
+bare numbers by format; a UK National Insurance number is NATIONALID (as in
+most Kiji rows; nym calls it SSN, so nym-en keeps counting those as a wrong
+label, though masked); NHS numbers are left out (no model label). The
+conflicting Kiji labels are not changed yet.
+
+Judge v5 on the held-out sets (`nym-en`, `nobody-en`, `ai4privacy-300k-en`
+and the German sets; see `tests/benchmark/GERMAN_EVAL.md`), not on its own
+validation macro F1: about 150 template rows land in the validation split,
+they are easier than real text and they raise exactly the ID labels, so
+v5's epoch scores (and the epoch where early stopping triggers) cannot be
+compared with v4's 0.949.
+
 Not included: `naeyn/nobody-pii-synth-de` train, because its test split is the
 cleanest held-out German benchmark and shares templates with train.
 
