@@ -5,7 +5,10 @@ import (
 	"io"
 	"log"
 	"math"
+	"mime"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 )
 
@@ -82,14 +85,44 @@ func (s *Server) pauseStatus() proxyPauseStatus {
 	}
 }
 
+// isAppOrigin reports whether r comes from the app itself rather than from an
+// arbitrary web page: either there is no Origin header (the Electron main
+// process, curl and other local tools) or the Origin is this backend's own
+// address (the UI it serves). Browsers always send Origin on cross-origin and
+// non-GET requests, so a page on another site can't pass this check.
+func isAppOrigin(r *http.Request) bool {
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		return true
+	}
+	u, err := url.Parse(origin)
+	if err != nil || u.Host == "" { // includes the opaque "null" origin
+		return false
+	}
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	}
+	return strings.EqualFold(u.Scheme, scheme) && strings.EqualFold(u.Host, r.Host)
+}
+
 // handleProxyPause handles /api/proxy/pause.
 //
 //	GET    -> current pause status
 //	POST   {"minutes": 1|5|15|30|60} -> pause for that long (replaces any pause)
 //	DELETE -> resume now
+//
+// Only the app's own origin may call it. Unlike the shared corsHandler, other
+// origins are rejected instead of echoed, and POST must be application/json so
+// a cross-site "simple" request can't skip the preflight.
 func (s *Server) handleProxyPause(w http.ResponseWriter, r *http.Request) {
-	s.corsHandler(w, r)
+	w.Header().Add("Vary", "Origin")
 	w.Header().Set("Cache-Control", "no-store")
+	if !isAppOrigin(r) {
+		http.Error(w, "Forbidden origin", http.StatusForbidden)
+		return
+	}
+	s.corsHandler(w, r)
 
 	switch r.Method {
 	case http.MethodOptions:
@@ -97,6 +130,10 @@ func (s *Server) handleProxyPause(w http.ResponseWriter, r *http.Request) {
 		return
 	case http.MethodGet:
 	case http.MethodPost:
+		if mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type")); err != nil || mediaType != "application/json" {
+			http.Error(w, "Content-Type must be application/json", http.StatusUnsupportedMediaType)
+			return
+		}
 		var req struct {
 			Minutes *int `json:"minutes"`
 		}

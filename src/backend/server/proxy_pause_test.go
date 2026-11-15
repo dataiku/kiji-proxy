@@ -49,8 +49,12 @@ func callPause(t *testing.T, s *Server, method, body string) (*httptest.Response
 	if body != "" {
 		reader = strings.NewReader(body)
 	}
+	req := httptest.NewRequest(method, proxyPausePath, reader)
+	if body != "" {
+		req.Header.Set("Content-Type", "application/json")
+	}
 	rec := httptest.NewRecorder()
-	s.handleProxyPause(rec, httptest.NewRequest(method, proxyPausePath, reader))
+	s.handleProxyPause(rec, req)
 	var status proxyPauseStatus
 	if rec.Code == http.StatusOK && method != http.MethodOptions {
 		decodeJSON(t, rec, &status)
@@ -191,6 +195,80 @@ func TestProxyPause_RejectsBadRequests(t *testing.T) {
 	rec, _ = callPause(t, s, http.MethodOptions, "")
 	if rec.Code != http.StatusOK || rec.Header().Get("Access-Control-Allow-Methods") == "" {
 		t.Errorf("OPTIONS status = %d, want 200 with CORS headers", rec.Code)
+	}
+}
+
+// pauseRequest sends one request to the pause route as a browser would, with
+// the given Origin and Content-Type, against a backend at localhost:8080.
+func pauseRequest(s *Server, method, origin, contentType, body string) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(method, "http://localhost:8080"+proxyPausePath, strings.NewReader(body))
+	if origin != "" {
+		req.Header.Set("Origin", origin)
+	}
+	if contentType != "" {
+		req.Header.Set("Content-Type", contentType)
+	}
+	rec := httptest.NewRecorder()
+	s.handleProxyPause(rec, req)
+	return rec
+}
+
+func TestProxyPause_RejectsOtherOrigins(t *testing.T) {
+	s, _ := newPauseTestServer(t)
+	for _, origin := range []string{"https://evil.example", "http://localhost:3000", "http://localhost.evil.example:8080", "null"} {
+		for _, method := range []string{http.MethodOptions, http.MethodGet, http.MethodPost, http.MethodDelete} {
+			rec := pauseRequest(s, method, origin, "application/json", `{"minutes":60}`)
+			if rec.Code != http.StatusForbidden {
+				t.Errorf("%s from %q: status = %d, want 403", method, origin, rec.Code)
+			}
+			if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "" {
+				t.Errorf("%s from %q: Access-Control-Allow-Origin = %q, want none", method, origin, got)
+			}
+		}
+	}
+	if !s.IsTransparentProxyEnabled() {
+		t.Fatal("a request from another origin must not pause the proxy")
+	}
+
+	// A pause set by the app can't be cancelled from another origin either.
+	if rec := pauseRequest(s, http.MethodPost, "", "application/json", `{"minutes":5}`); rec.Code != http.StatusOK {
+		t.Fatalf("pause without Origin: status = %d (%s)", rec.Code, rec.Body.String())
+	}
+	if rec := pauseRequest(s, http.MethodDelete, "https://evil.example", "", ""); rec.Code != http.StatusForbidden {
+		t.Fatalf("foreign DELETE: status = %d, want 403", rec.Code)
+	}
+	if !s.pauseStatus().Paused {
+		t.Fatal("a foreign DELETE must not resume the proxy")
+	}
+}
+
+func TestProxyPause_AllowsOwnOrigin(t *testing.T) {
+	s, _ := newPauseTestServer(t)
+	rec := pauseRequest(s, http.MethodOptions, "http://localhost:8080", "", "")
+	if rec.Code != http.StatusOK || rec.Header().Get("Access-Control-Allow-Origin") != "http://localhost:8080" {
+		t.Fatalf("own-origin preflight: status = %d, Access-Control-Allow-Origin = %q", rec.Code, rec.Header().Get("Access-Control-Allow-Origin"))
+	}
+	if got := rec.Header().Get("Vary"); got != "Origin" {
+		t.Errorf("Vary = %q, want Origin", got)
+	}
+	rec = pauseRequest(s, http.MethodPost, "http://LOCALHOST:8080", "application/json; charset=utf-8", `{"minutes":5}`)
+	if rec.Code != http.StatusOK || !s.pauseStatus().Paused {
+		t.Fatalf("own-origin POST: status = %d (%s)", rec.Code, rec.Body.String())
+	}
+}
+
+func TestProxyPause_RequiresJSONContentType(t *testing.T) {
+	s, _ := newPauseTestServer(t)
+	// text/plain and form bodies are CORS "simple" requests that skip the
+	// preflight, so they must not be able to pause the proxy.
+	for _, contentType := range []string{"", "text/plain", "text/plain; charset=utf-8", "application/x-www-form-urlencoded", "multipart/form-data; boundary=x"} {
+		rec := pauseRequest(s, http.MethodPost, "", contentType, `{"minutes":60}`)
+		if rec.Code != http.StatusUnsupportedMediaType {
+			t.Errorf("Content-Type %q: status = %d, want 415", contentType, rec.Code)
+		}
+	}
+	if !s.IsTransparentProxyEnabled() {
+		t.Fatal("a non-JSON request must not pause the proxy")
 	}
 }
 

@@ -21,6 +21,9 @@ const backendRequest = (method, urlPath, body = null) => {
     const request = net.request({
       method,
       url: `http://localhost:8080${urlPath}`,
+      // Present the backend's own origin: routes such as /api/proxy/pause
+      // reject requests from any other origin.
+      origin: "http://localhost:8080",
     });
     if (body !== null) {
       request.setHeader("Content-Type", "application/json");
