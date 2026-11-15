@@ -200,4 +200,26 @@ class PIIDetectionModel(nn.Module):
         Returns:
             List of predicted label sequences
         """
-        return self.crf.decode(pii_logits, mask=attention_mask.bool())
+        return viterbi_decode_on_cpu(self.crf, pii_logits, attention_mask)
+
+
+def viterbi_decode_on_cpu(
+    crf: CRF, emissions: torch.Tensor, attention_mask: torch.Tensor
+) -> list[list[int]]:
+    """Viterbi-decode on CPU, whatever device the model is on.
+
+    torchcrf backtracks with one ``.item()`` per token. On an accelerator each
+    is a device-to-host sync (about 10,000 per eval batch), which made TPU
+    evaluation run at about 20 rows/s. The emissions and the small transition
+    matrices are copied to CPU once instead. The result is the same: the
+    decode adds and compares in float32 on any device.
+    """
+    if crf.transitions.device.type != "cpu":
+        cpu_crf = CRF(crf.num_tags, batch_first=crf.batch_first)
+        cpu_crf.load_state_dict(
+            {name: value.detach().cpu() for name, value in crf.state_dict().items()}
+        )
+        crf = cpu_crf
+    return crf.decode(
+        emissions.detach().float().cpu(), mask=attention_mask.detach().bool().cpu()
+    )

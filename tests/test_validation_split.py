@@ -116,3 +116,31 @@ def test_template_key_ignores_pii_values_and_digits():
     key = DatasetProcessor._template_key
     assert key(a) == key(b) == "hallo <firstname>, auftrag 0000."
     assert key(a) != key(c)
+
+
+def test_a_big_template_group_does_not_overshoot_its_stratum(tmp_path):
+    # 1,000 rows in one stratum: one template with 300 rows and 70 templates
+    # with 10. Validation gets its 10%, never the 300-row group, whichever
+    # group the shuffle puts first.
+    rows = [{"id": i, "types": set()} for i in range(1000)]
+    groups = ["big"] * 300 + [i // 10 for i in range(700)]
+    for seed in range(200):
+        processor = _processor(
+            tmp_path, eval_size_ratio=0.1, balanced_validation_split=False, seed=seed
+        )
+        train, val = processor._split_train_validation(rows, None, groups)
+        assert len(val) == 100, seed
+        assert len(train) == 900, seed
+
+
+def test_a_stratum_of_only_big_groups_still_gets_one_group(tmp_path):
+    # Stratum "b" is one 40-row template; its 10% quota is 4 rows.
+    rows = [{"id": i, "types": set()} for i in range(400)]
+    strata = ["a"] * 360 + ["b"] * 40
+    groups = list(range(360)) + ["b-template"] * 40
+    processor = _processor(
+        tmp_path, eval_size_ratio=0.1, balanced_validation_split=False, seed=1
+    )
+    train, val = processor._split_train_validation(rows, strata, groups)
+    assert sum(1 for r in val if r["id"] >= 360) == 40
+    assert len(train) + len(val) == 400

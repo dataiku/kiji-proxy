@@ -475,10 +475,15 @@ class DatasetProcessor:
             for unit in candidates:
                 if taken >= allocation[key]:
                     break
-                if taken + len(unit) > allocation[key] and taken > 0:
+                if taken + len(unit) > allocation[key]:
                     continue  # a big template group would overshoot; try smaller
                 val_indices.update(unit)
                 taken += len(unit)
+            if taken == 0 and allocation[key] > 0:
+                # Every group is bigger than the quota: take the smallest one,
+                # so the stratum is still represented.
+                smallest = min(candidates, key=len)
+                val_indices.update(smallest)
 
         if self.config.balanced_validation_split:
             added = self._top_up_rare_labels(formatted_samples, val_indices, units, rng)
