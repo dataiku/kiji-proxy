@@ -172,6 +172,7 @@ class PIITrainingPipeline(FlowSpec):
             static_padding=training_cfg.get("static_padding"),
             pad_bucket_size=training_cfg.get("pad_bucket_size", 128),
             audit_allowlist=cfg.get("data", {}).get("audit_allowlist", ""),
+            seed=int(os.environ.get("TRAINING_SEED", training_cfg.get("seed", 42))),
         )
         self.skip_export = cfg.get("pipeline", {}).get("skip_export", False)
         self.skip_quantization = cfg.get("pipeline", {}).get("skip_quantization", True)
@@ -386,6 +387,8 @@ class PIITrainingPipeline(FlowSpec):
         from src.quantitize import (
             export_to_onnx,
             load_model,
+        )
+        from src.quantitize import (
             quantize_model as quantize_onnx_model,
         )
 

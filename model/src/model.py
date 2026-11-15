@@ -4,7 +4,7 @@ import torch
 from torch import nn
 from torch.nn import functional
 from torchcrf import CRF
-from transformers import AutoModel
+from transformers import AutoModel, PretrainedConfig
 
 
 class MaskedSparseCategoricalCrossEntropy(nn.Module):
@@ -101,6 +101,8 @@ class PIIDetectionModel(nn.Module):
         model_name: str,
         num_pii_labels: int,
         id2label_pii: dict[int, str],
+        *,
+        encoder_config: PretrainedConfig | None = None,
     ):
         """
         Initialize PII detection model.
@@ -109,11 +111,17 @@ class PIIDetectionModel(nn.Module):
             model_name: Name of the base BERT model
             num_pii_labels: Number of PII detection labels
             id2label_pii: Mapping from PII label IDs to label names
+            encoder_config: Saved architecture for checkpoint loading; when supplied,
+                initialize the encoder without downloading pretrained weights.
         """
         super().__init__()
 
         # Shared encoder
-        self.encoder = AutoModel.from_pretrained(model_name)
+        self.encoder = (
+            AutoModel.from_config(encoder_config)
+            if encoder_config is not None
+            else AutoModel.from_pretrained(model_name)
+        )
         hidden_size = self.encoder.config.hidden_size
 
         # PII detection head (MLP with bottleneck)

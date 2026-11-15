@@ -120,18 +120,28 @@ class DatasetProcessor:
                 logging.debug(f"Sample missing text in file: {file_name}")
                 return None
 
+            data = ls_sample.get("data", {})
+
             # Get annotations or predictions (prefer annotations if available)
             result = None
             if ls_sample.get("annotations") and len(ls_sample["annotations"]) > 0:
                 result = ls_sample["annotations"][0].get("result", [])
             elif ls_sample.get("predictions") and len(ls_sample["predictions"]) > 0:
                 result = ls_sample["predictions"][0].get("result", [])
-            else:
+            elif not data.get("pii_free"):
                 # No annotations or predictions
                 return None
 
-            # Skip if result is empty
+            # An empty result is only kept for rows explicitly marked as PII-free
+            # (negative examples); otherwise it usually means "not annotated yet".
             if not result:
+                if data.get("pii_free"):
+                    return {
+                        "text": text,
+                        "privacy_mask": [],
+                        "language": data.get("language"),
+                        "country": data.get("country"),
+                    }
                 return None
 
             # Parse entity annotations from result. Relation annotations are ignored

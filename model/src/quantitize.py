@@ -25,7 +25,7 @@ from pathlib import Path
 import torch
 from absl import app, flags, logging
 from safetensors import safe_open
-from transformers import AutoTokenizer
+from transformers import AutoConfig, AutoTokenizer
 
 # Add project root to path for imports BEFORE any local imports
 # __file__ is model/src/quantitize.py, so parent.parent.parent is the project root
@@ -114,27 +114,15 @@ def load_model(
     tokenizer = AutoTokenizer.from_pretrained(model_path)
     logging.info("✅ Loaded tokenizer")
 
-    # Load model config
+    # Reconstruct the saved architecture; model_type is shared by English
+    # and multilingual DeBERTa and cannot identify the vocabulary size.
     config_path = model_path / "config.json"
-    # Map model_type shortnames to full HuggingFace model identifiers
-    model_type_defaults = {
-        "bert": "bert-base-cased",
-        "distilbert": "distilbert-base-cased",
-        "roberta": "roberta-base",
-        "deberta-v2": "microsoft/deberta-v3-base",
-    }
-
+    encoder_config = None
+    base_model_name = "microsoft/deberta-v3-base"
     if config_path.exists():
-        with config_path.open() as f:
-            model_config = json.load(f)
-        base_model_name = model_config.get("_name_or_path", "")
-        if not base_model_name or base_model_name in model_type_defaults:
-            model_type = model_config.get("model_type", "distilbert")
-            base_model_name = model_type_defaults.get(
-                model_type, "microsoft/deberta-v3-base"
-            )
+        encoder_config = AutoConfig.from_pretrained(model_path, local_files_only=True)
+        base_model_name = str(model_path)
     else:
-        base_model_name = "microsoft/deberta-v3-base"
         logging.warning(
             "⚠️  config.json not found, using default: microsoft/deberta-v3-base"
         )
@@ -147,6 +135,7 @@ def load_model(
         model_name=base_model_name,
         num_pii_labels=num_pii_labels,
         id2label_pii=pii_id2label,
+        encoder_config=encoder_config,
     )
 
     # Load model weights
