@@ -196,12 +196,21 @@ not affected, because clients call those explicitly. When the timer ends,
 interception resumes on the next request. Turning the transparent proxy off
 always wins; an expiring pause never turns it back on.
 
+When interception comes back on, either because a pause ended or because the
+transparent proxy was switched on again after being fully off, any passthrough
+tunnel to an intercepted host that was opened in the meantime is closed within
+about a second, including a streaming response that is still in flight. Clients
+reconnect through the masking path. This is deliberate: it keeps a long-lived
+connection from staying unmasked after you turned protection back on.
+
 **API** (protected by Basic Auth when it is enabled, like the rest of
-`/api/proxy/*`):
+`/api/proxy/*`). Requests sent by a web page on another origin are rejected
+with `403`, and `POST` requires `Content-Type: application/json`:
 
 ```bash
 # Pause for 15 minutes (allowed: 1, 5, 15, 30, 60)
-curl -X POST http://localhost:8080/api/proxy/pause -d '{"minutes": 15}'
+curl -X POST http://localhost:8080/api/proxy/pause \
+  -H 'Content-Type: application/json' -d '{"minutes": 15}'
 # {"paused":true,"paused_until":"2026-06-20T12:15:00Z","remaining_seconds":900}
 
 # Check status
@@ -215,7 +224,12 @@ curl -X DELETE http://localhost:8080/api/proxy/pause
 A new `POST` replaces any running pause. To start the backend already paused
 (this is how the desktop app restores a pause), set
 `TRANSPARENT_PROXY_PAUSED_UNTIL` to an RFC 3339 timestamp; a value in the past
-is ignored.
+is ignored, and one more than 60 minutes ahead is clamped to 60 minutes.
+
+The desktop app only saves the pause deadline when it changes the pause itself.
+If you resume with `curl -X DELETE` and the backend restarts before the
+Settings view refreshes, the old deadline is applied again until it runs out;
+resume from the app (or toggle the pause there) to clear it.
 
 ### Selective Interception
 
