@@ -100,6 +100,15 @@ class CleanMetricsCallback(TrainerCallback):
                 label = avg.replace("_", " ")
                 lines.append(f"  {label:<20s} {f1:>7.4f} {p:>7.4f} {r:>7.4f}")
 
+        overmask = metrics.get("eval_pii_free_overmask_rate")
+        if overmask is not None:
+            lines.append(
+                f"  PII-free rows with any mask: {overmask:.4f} "
+                f"of {metrics.get('eval_pii_free_rows', 0):.0f} "
+                f"({metrics.get('eval_pii_free_masked_per_1k_tokens', 0):.2f} "
+                "masked tokens per 1k)"
+            )
+
         # Runtime
         runtime = metrics.get("eval_runtime", 0)
         sps = metrics.get("eval_samples_per_second", 0)

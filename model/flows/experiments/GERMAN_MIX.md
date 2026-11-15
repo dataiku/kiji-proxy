@@ -81,6 +81,41 @@ Each run writes `model/trained/german_mix/mdeberta_german_mix_v4_seed<N>_onnx/`
 and a log next to it. Copy those folders back for evaluation. Afterwards,
 `git restore model/quantized` restores the shipped model in that checkout.
 
+## Run on a TPU VM (TorchTPU, one chip)
+
+Train with `train_tpu.py`, not the Metaflow pipeline. On Ctrl-C Metaflow gives
+the training step 5 seconds and then SIGKILLs it, and `@retry` restarts a
+failed run from scratch; hard kills and quick restarts are what leave a TPU
+unusable (`START_SESSION failed`). `train_tpu.py` reads the same TOML through
+`TrainingConfig.from_toml` and runs in one process. Static padding and bf16
+switch on by themselves on a TPU.
+
+```bash
+cd /mnt/disks/data/kiji-proxy
+SEED=42
+OUT=model/trained/mdeberta_german_mix_v4_seed$SEED
+mkdir -p "$OUT"
+tmux new-session -d -s v4 "
+  export PATH=\$HOME/.local/bin:\$PATH HF_HOME=/mnt/disks/data/.hf \
+    LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libtcmalloc_minimal.so.4 \
+    PYTHONPATH=$PWD TOKENIZERS_PARALLELISM=false WANDB_DISABLED=true
+  .venv/bin/python model/flows/experiments/train_tpu.py \
+    --config model/flows/experiments/mdeberta_german_mix_v4.toml \
+    --seed $SEED --output-dir $OUT 2>&1 | tee -i $OUT/train.log"
+```
+
+`tee -i` keeps the log open while Python shuts the TPU down after a Ctrl-C.
+Stop only with `tmux send-keys -t v4 C-c` (SIGINT), never `kill`, and leave
+about 10 seconds between TPU processes. `$OUT/run_summary.json` has the split
+sizes, timings and final metrics; the ONNX export is a separate CPU step.
+
+Timings on a v6e-1 (smoke runs, Nov 2026): about 0.88 s per step at batch 32
+(nearly every batch pads to 256 tokens), so about 33 minutes per epoch of
+72,387 rows. Evaluating the 8,042 validation rows takes about 85 s, so
+`max_eval_samples` buys nothing: a cap of 2,000 moves 6,000 rows into
+training and makes each epoch longer. The first epoch adds about 5 minutes of
+compilation. v3 stopped early after 5 epochs, so expect about 3 hours.
+
 ## Evaluate
 
 Compare against v3 (`mdeberta_german_mix_v3_seed*`), v2, the earlier

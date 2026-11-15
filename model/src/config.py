@@ -153,6 +153,57 @@ class TrainingConfig:
         """Create output directory after initialization."""
         Path(self.output_dir).mkdir(parents=True, exist_ok=True)
 
+    @classmethod
+    def from_toml(
+        cls, cfg: dict, environ: dict[str, str] | None = None
+    ) -> "TrainingConfig":
+        """Build the config from a parsed training TOML (training_config.toml).
+
+        Shared by the Metaflow pipeline and the direct TPU launcher, so both
+        read the same keys with the same defaults. TRAINING_SEED and
+        NUM_AI4PRIVACY_SAMPLES in ``environ`` override the file.
+        """
+        environ = os.environ if environ is None else environ
+        training = cfg.get("training", {})
+        paths = cfg.get("paths", {})
+        data = cfg.get("data", {})
+        return cls(
+            model_name=cfg.get("model", {}).get("name", "microsoft/deberta-v3-base"),
+            num_epochs=training.get("num_epochs", 5),
+            batch_size=training.get("batch_size", 16),
+            gradient_accumulation_steps=training.get("gradient_accumulation_steps", 1),
+            learning_rate=training.get("learning_rate", 3e-5),
+            training_samples_dir=paths.get(
+                "training_samples_dir", "model/dataset/data_samples/training_samples"
+            ),
+            output_dir=paths.get("output_dir", "model/trained"),
+            warmup_steps=training.get("warmup_steps", 200),
+            weight_decay=training.get("weight_decay", 0.01),
+            eval_steps=training.get("eval_steps", 500),
+            logging_steps=training.get("logging_steps", 500),
+            early_stopping_enabled=training.get("early_stopping_enabled", True),
+            early_stopping_patience=training.get("early_stopping_patience", 3),
+            early_stopping_threshold=training.get("early_stopping_threshold", 0.01),
+            num_ai4privacy_samples=int(
+                environ.get(
+                    "NUM_AI4PRIVACY_SAMPLES", data.get("num_ai4privacy_samples", -1)
+                )
+            ),
+            lr_scheduler_type=training.get("lr_scheduler_type", "cosine_with_restarts"),
+            lr_scheduler_num_cycles=training.get("lr_scheduler_num_cycles", 3),
+            layerwise_lr_decay=training.get("layerwise_lr_decay", 0.95),
+            bf16=training.get("bf16", False),
+            torch_compile=training.get("torch_compile", False),
+            eval_size_ratio=training.get("eval_size_ratio", 0.1),
+            max_eval_samples=training.get("max_eval_samples", 0),
+            balanced_validation_split=training.get("balanced_validation_split", True),
+            auxiliary_ce_loss_weight=training.get("auxiliary_ce_loss_weight", 0.2),
+            static_padding=training.get("static_padding"),
+            pad_bucket_size=training.get("pad_bucket_size", 128),
+            audit_allowlist=data.get("audit_allowlist", ""),
+            seed=int(environ.get("TRAINING_SEED", training.get("seed", 42))),
+        )
+
     def print_summary(self):
         """Print configuration summary."""
         logging.info("\n📋 Training Configuration:")

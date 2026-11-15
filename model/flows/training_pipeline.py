@@ -132,48 +132,7 @@ class PIITrainingPipeline(FlowSpec):
         EnvironmentSetup.check_gpu()
 
         cfg = self.config_file
-        training_cfg = cfg.get("training", {})
-        self.config = TrainingConfig(
-            model_name=cfg.get("model", {}).get("name", "microsoft/deberta-v3-base"),
-            num_epochs=training_cfg.get("num_epochs", 5),
-            batch_size=training_cfg.get("batch_size", 16),
-            gradient_accumulation_steps=training_cfg.get(
-                "gradient_accumulation_steps", 1
-            ),
-            learning_rate=training_cfg.get("learning_rate", 3e-5),
-            training_samples_dir=cfg.get("paths", {}).get(
-                "training_samples_dir", "model/dataset/data_samples/training_samples"
-            ),
-            output_dir=cfg.get("paths", {}).get("output_dir", "model/trained"),
-            warmup_steps=training_cfg.get("warmup_steps", 200),
-            weight_decay=training_cfg.get("weight_decay", 0.01),
-            eval_steps=training_cfg.get("eval_steps", 500),
-            early_stopping_enabled=training_cfg.get("early_stopping_enabled", True),
-            early_stopping_patience=training_cfg.get("early_stopping_patience", 3),
-            early_stopping_threshold=training_cfg.get("early_stopping_threshold", 0.01),
-            num_ai4privacy_samples=int(
-                os.environ.get(
-                    "NUM_AI4PRIVACY_SAMPLES",
-                    cfg.get("data", {}).get("num_ai4privacy_samples", -1),
-                )
-            ),
-            lr_scheduler_type=training_cfg.get(
-                "lr_scheduler_type", "cosine_with_restarts"
-            ),
-            lr_scheduler_num_cycles=training_cfg.get("lr_scheduler_num_cycles", 3),
-            layerwise_lr_decay=training_cfg.get("layerwise_lr_decay", 0.95),
-            bf16=training_cfg.get("bf16", False),
-            torch_compile=training_cfg.get("torch_compile", False),
-            max_eval_samples=training_cfg.get("max_eval_samples", 0),
-            balanced_validation_split=training_cfg.get(
-                "balanced_validation_split", True
-            ),
-            auxiliary_ce_loss_weight=training_cfg.get("auxiliary_ce_loss_weight", 0.2),
-            static_padding=training_cfg.get("static_padding"),
-            pad_bucket_size=training_cfg.get("pad_bucket_size", 128),
-            audit_allowlist=cfg.get("data", {}).get("audit_allowlist", ""),
-            seed=int(os.environ.get("TRAINING_SEED", training_cfg.get("seed", 42))),
-        )
+        self.config = TrainingConfig.from_toml(cfg)
         self.skip_export = cfg.get("pipeline", {}).get("skip_export", False)
         self.skip_quantization = cfg.get("pipeline", {}).get("skip_quantization", True)
         self.skip_signing = cfg.get("pipeline", {}).get("skip_signing", False)
