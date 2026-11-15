@@ -82,6 +82,11 @@ type RegexPatternConfig struct {
 	Pattern string `json:"pattern"`
 }
 
+// MaxProxyPause is the longest timed pause of the transparent proxy. The API
+// only offers durations up to this, and deadlines restored at startup are
+// clamped to it so a bad or tampered value can't pause interception for good.
+const MaxProxyPause = 60 * time.Minute
+
 // ProxyConfig holds transparent proxy configuration
 type ProxyConfig struct {
 	TransparentEnabled bool   `json:"transparent_enabled"`

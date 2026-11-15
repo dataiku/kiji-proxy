@@ -49,6 +49,15 @@ test('activePausedUntil only returns a deadline that is still ahead', () => {
   assert.equal(electronPause.activePausedUntil(undefined, NOW), null);
 });
 
+test('activePausedUntil clamps a far-future deadline to the longest pause', () => {
+  const key = electronPause.PAUSED_UNTIL_CONFIG_KEY;
+  assert.equal(electronPause.activePausedUntil({ [key]: '2026-06-20T13:00:00Z' }, NOW), '2026-06-20T13:00:00Z');
+  assert.equal(electronPause.activePausedUntil({ [key]: '2026-06-20T13:00:01Z' }, NOW), '2026-06-20T13:00:00Z');
+  assert.equal(electronPause.activePausedUntil({ [key]: '2099-01-01T00:00:00Z' }, NOW), '2026-06-20T13:00:00Z');
+  const env = electronPause.applyPausedUntilEnv({}, { [key]: '2099-01-01T00:00:00Z' }, NOW);
+  assert.equal(env[electronPause.PAUSED_UNTIL_ENV], '2026-06-20T13:00:00Z');
+});
+
 test('applyPausedUntilEnv forwards a running pause and scrubs stale values', () => {
   const key = electronPause.PAUSED_UNTIL_CONFIG_KEY;
   const envName = electronPause.PAUSED_UNTIL_ENV;

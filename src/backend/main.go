@@ -369,6 +369,10 @@ func loadProxyConfig(cfg *config.Config) {
 
 	if pausedUntil := os.Getenv("TRANSPARENT_PROXY_PAUSED_UNTIL"); pausedUntil != "" {
 		if until, err := time.Parse(time.RFC3339, pausedUntil); err == nil {
+			if limit := time.Now().Add(config.MaxProxyPause); until.After(limit) {
+				log.Printf("TRANSPARENT_PROXY_PAUSED_UNTIL %q is more than %s away, clamping", pausedUntil, config.MaxProxyPause)
+				until = limit
+			}
 			cfg.Proxy.PausedUntil = until
 		} else {
 			log.Printf("Ignoring invalid TRANSPARENT_PROXY_PAUSED_UNTIL %q: %v", pausedUntil, err)

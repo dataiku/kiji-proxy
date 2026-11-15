@@ -16,12 +16,20 @@ const PAUSED_UNTIL_ENV = "TRANSPARENT_PROXY_PAUSED_UNTIL";
 const isValidPauseMinutes = (minutes) =>
   PAUSE_DURATIONS_MINUTES.includes(minutes);
 
+// Longest pause the backend offers (config.MaxProxyPause in the Go backend).
+const MAX_PAUSE_MS = Math.max(...PAUSE_DURATIONS_MINUTES) * 60 * 1000;
+
 // Returns the persisted pause deadline if it is still in the future, else null.
+// A deadline further away than the longest pause is clamped to now + 60 min so
+// a bad or edited config value can't keep interception off indefinitely.
 const activePausedUntil = (config, now = Date.now()) => {
   const value = config?.[PAUSED_UNTIL_CONFIG_KEY];
   if (typeof value !== "string") return null;
   const deadline = Date.parse(value);
   if (Number.isNaN(deadline) || deadline <= now) return null;
+  if (deadline > now + MAX_PAUSE_MS) {
+    return new Date(now + MAX_PAUSE_MS).toISOString().replace(/\.\d{3}Z$/, "Z");
+  }
   return value;
 };
 

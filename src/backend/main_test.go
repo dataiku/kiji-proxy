@@ -172,6 +172,14 @@ func TestLoadProxyConfigPausedUntil(t *testing.T) {
 		t.Errorf("PausedUntil = %v, want %v", cfg.Proxy.PausedUntil, want)
 	}
 
+	t.Setenv("TRANSPARENT_PROXY_PAUSED_UNTIL", "2099-01-01T00:00:00Z")
+	cfg = config.DefaultConfig()
+	before := time.Now()
+	loadProxyConfig(cfg)
+	if got := cfg.Proxy.PausedUntil; got.Before(before.Add(config.MaxProxyPause)) || got.After(time.Now().Add(config.MaxProxyPause)) {
+		t.Errorf("far-future PausedUntil = %v, want clamped to now + %s", got, config.MaxProxyPause)
+	}
+
 	t.Setenv("TRANSPARENT_PROXY_PAUSED_UNTIL", "in five minutes")
 	cfg = config.DefaultConfig()
 	loadProxyConfig(cfg)
