@@ -144,7 +144,16 @@
       "label": "Transparent Proxy",
       "help": "Cegat traffic HTTPS di seluruh sistem untuk perlindungan PII otomatis.",
       "experimentalLabel": "Eksperimental:",
-      "experimentalHelp": "Fitur ini memerlukan pemasangan sertifikat CA dan dapat memengaruhi pengaturan jaringan sistem."
+      "experimentalHelp": "Fitur ini memerlukan pemasangan sertifikat CA dan dapat memengaruhi pengaturan jaringan sistem.",
+      "pause": {
+        "label": "Jeda pencegatan",
+        "durationLabel": "Durasi jeda",
+        "minutes": "{{minutes}} mnt",
+        "help": "Biarkan traffic lewat tanpa diubah untuk sementara. Pencegatan berlanjut otomatis saat timer berakhir.",
+        "requiresEnabled": "Aktifkan transparent proxy untuk menjedanya.",
+        "pausedUntil": "Dijeda. Traffic tidak disamarkan hingga {{time}} (sisa {{remaining}}).",
+        "error": "Tidak dapat memperbarui jeda. Pastikan backend sedang berjalan."
+      }
     },
     "telemetry": {
       "label": "Pelaporan Crash & Kesalahan",
