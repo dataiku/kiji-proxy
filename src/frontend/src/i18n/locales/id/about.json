@@ -1,0 +1,26 @@
+{
+  "title": "Tentang Kiji",
+  "subtitle": "Versi, sumber daya, dan lisensi Kiji Privacy Proxy™.",
+  "logoAlt": "Logo Kiji",
+  "productName": "Kiji Privacy Proxy™",
+  "tagline": "Proxy Pendeteksi dan Penyamar PII",
+  "versionLabel": "Versi",
+  "versionLoading": "Memuat…",
+  "versionUnknown": "Tidak diketahui",
+  "description": "Kiji Privacy Proxy™ secara otomatis mendeteksi dan menyamarkan informasi identitas pribadi (PII) dalam request API Anda, sehingga privasi data tetap terjaga saat berinteraksi dengan layanan eksternal.",
+  "resources": "Sumber Daya",
+  "links": {
+    "github": "Lihat di GitHub",
+    "docs": "Dokumentasi",
+    "extension": "Ekstensi Chrome Kiji",
+    "bug": "Laporkan Bug",
+    "feature": "Usulkan Fitur",
+    "email": "Kirim Email ke Kami",
+    "license": "Lisensi Apache 2.0"
+  },
+  "noSupport": {
+    "title": "Tanpa Kewajiban Dukungan",
+    "body": "Para penulis dan kontributor tidak berkewajiban memberikan dukungan, pemeliharaan, pembaruan, penyempurnaan, atau modifikasi apa pun untuk perangkat lunak ini."
+  },
+  "copyright": "© {{year}} - <labLink>575 Lab</labLink> - Kantor Open Source Dataiku. Berlisensi Apache 2.0."
+}

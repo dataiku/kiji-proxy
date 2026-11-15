@@ -445,3 +445,25 @@ func TestConfig_CustomRegexesDecode(t *testing.T) {
 		t.Errorf("unexpected custom regex: %+v", cfg.CustomRegexes[0])
 	}
 }
+
+func TestJoinListenAddr(t *testing.T) {
+	tests := []struct {
+		host, port, want string
+	}{
+		{"", ":8080", ":8080"},
+		{"", "9090", ":9090"},
+		{"127.0.0.1", ":8080", "127.0.0.1:8080"},
+		{"127.0.0.1", "9090", "127.0.0.1:9090"},
+		{"::1", ":8081", "[::1]:8081"},
+		{"0.0.0.0", ":8080", "0.0.0.0:8080"},
+	}
+	for _, tt := range tests {
+		if got := JoinListenAddr(tt.host, tt.port); got != tt.want {
+			t.Errorf("JoinListenAddr(%q, %q) = %q, want %q", tt.host, tt.port, got, tt.want)
+		}
+		cfg := &Config{ListenHost: tt.host}
+		if got := cfg.ListenAddr(tt.port); got != tt.want {
+			t.Errorf("Config{ListenHost: %q}.ListenAddr(%q) = %q, want %q", tt.host, tt.port, got, tt.want)
+		}
+	}
+}

@@ -1,0 +1,68 @@
+{
+  "caCert": {
+    "title": "Pemasangan Sertifikat CA Diperlukan",
+    "intro": "Untuk mencegat dan menganalisis traffic HTTPS, Kiji Privacy Proxy menggunakan Certificate Authority (CA) yang ditandatangani sendiri. Anda harus memercayai sertifikat ini di sistem dan/atau browser Anda.",
+    "revealFinder": "Tampilkan sertifikat CA di Finder",
+    "revealExplorer": "Tampilkan sertifikat CA di Explorer",
+    "revealDesktopOnly": "Tampilkan di Finder hanya tersedia di aplikasi desktop.",
+    "revealFailed": "Gagal membuka folder sertifikat.",
+    "tabs": {
+      "system": "Kepercayaan Seluruh Sistem",
+      "browsers": "Per Browser"
+    },
+    "system": {
+      "option1Title": "Opsi 1: Baris Perintah (Disarankan)",
+      "copiedAria": "Perintah disalin ke clipboard",
+      "copyAria": "Salin perintah ke clipboard",
+      "copiedTitle": "Disalin!",
+      "copyTitle": "Salin ke clipboard",
+      "copiedLabel": "Disalin",
+      "copyLabel": "Salin",
+      "commandHelp": "Perintah ini memerlukan hak akses administrator dan akan memasang sertifikat untuk seluruh sistem.",
+      "option2Title": "Opsi 2: Aplikasi Akses Rantai Kunci",
+      "steps": {
+        "s1": "Klik dua kali file sertifikat: <code>~/Library/Application Support/Kiji Privacy Proxy/certs/ca.crt</code>",
+        "s2": "Ini akan membuka <b>Akses Rantai Kunci</b> (Keychain Access) - klik <b>Tambah</b> untuk memasang",
+        "s3": "Di Akses Rantai Kunci, pilih rantai kunci <b>Sistem</b> di bar samping kiri",
+        "s4": "Cari <b>\"Kiji Privacy Proxy CA\"</b> lalu klik dua kali",
+        "s5": "Klik <b>▶ segitiga di samping \"Kepercayaan\"</b> untuk membuka bagian tersebut",
+        "s6": "Atur <b>\"Saat menggunakan sertifikat ini\"</b> ke <accent>\"Selalu Percayai\"</accent>",
+        "s7": "Atur <b>\"Secure Sockets Layer (SSL)\"</b> ke <accent>\"Selalu Percayai\"</accent>",
+        "s8": "<b>Tutup jendela</b> dan masukkan kata sandi Anda saat diminta",
+        "s9": "<amber>Mulai ulang browser Anda sepenuhnya</amber> (Cmd+Q, lalu buka kembali)"
+      },
+      "important": "<b>Penting:</b> Anda harus memulai ulang browser setelah memercayai sertifikat. Kepercayaan seluruh sistem berlaku untuk Safari dan Chrome. Firefox memerlukan konfigurasi terpisah (lihat tab Per Browser).",
+      "commonIssue": "<b>⚠️ Masalah Umum:</b> Jika sertifikat menampilkan \"Number of trust settings: 0\" di terminal, berarti Anda belum mengaturnya ke \"Selalu Percayai\" pada langkah 6-7 di atas. Sertifikat harus ditandai tepercaya untuk SSL, tidak cukup hanya dipasang."
+    },
+    "browsers": {
+      "firefox": "Firefox",
+      "firefoxSteps": {
+        "s1": "Pengaturan → <b>Privasi & Keamanan</b>",
+        "s2": "Sertifikat → <b>Lihat Sertifikat</b>",
+        "s3": "Otoritas → <b>Impor</b>",
+        "s4": "Pilih <code>~/Library/Application Support/Kiji Privacy Proxy/certs/ca.crt</code>",
+        "s5": "Centang <b>\"Percayai CA ini untuk mengidentifikasi situs web\"</b>"
+      },
+      "chrome": "Chrome/Chromium",
+      "chromeSteps": {
+        "s1": "Setelan → <b>Privasi dan keamanan</b> → <b>Keamanan</b>",
+        "s2": "<b>Kelola sertifikat</b> → Otoritas",
+        "s3": "<b>Impor</b> sertifikat CA (<code>~/Library/Application Support/Kiji Privacy Proxy/certs/ca.crt</code>)"
+      },
+      "chromeTip": "<b>Tips:</b> Chrome di macOS biasanya menggunakan rantai kunci sistem, jadi kepercayaan seluruh sistem (lihat tab lainnya) seharusnya sudah cukup."
+    },
+    "docLink": "Lihat dokumentasi lengkap",
+    "dontShowAgain": "Jangan tampilkan pesan ini lagi",
+    "confirm": "Saya Mengerti"
+  },
+  "misclassification": {
+    "title": "Laporkan Salah Klasifikasi",
+    "detectedEntities": "Entitas Terdeteksi ({{num}})",
+    "confidence": "keyakinan {{value}}%",
+    "originalInputLabel": "Input Asli",
+    "feedbackLabel": "Masukan Anda",
+    "feedbackHelp": "Jelaskan apa yang salah diklasifikasikan. Masukan Anda membantu kami meningkatkan model deteksi PII.",
+    "feedbackPlaceholder": "Contoh: 'Budi Santoso' terdeteksi sebagai nama orang, padahal sebenarnya nama perusahaan...",
+    "submit": "Kirim Laporan"
+  }
+}

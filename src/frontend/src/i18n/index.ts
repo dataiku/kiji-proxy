@@ -2,7 +2,8 @@ import i18next from "i18next";
 import { initReactI18next } from "react-i18next";
 import LanguageDetector from "i18next-browser-languagedetector";
 
-// Namespaced English base + French, Japanese, and Korean draft translations.
+// Namespaced English base + French, Japanese, Korean, and Indonesian draft
+// translations.
 // Non-English files start as machine-drafted strings pending native review.
 import enCommon from "./locales/en/common.json";
 import enSettings from "./locales/en/settings.json";
@@ -40,7 +41,16 @@ import koMappings from "./locales/ko/mappings.json";
 import koAbout from "./locales/ko/about.json";
 import koModals from "./locales/ko/modals.json";
 
-export const SUPPORTED_LANGUAGES = ["en", "fr", "ja", "ko"] as const;
+import idCommon from "./locales/id/common.json";
+import idSettings from "./locales/id/settings.json";
+import idDashboard from "./locales/id/dashboard.json";
+import idOnboarding from "./locales/id/onboarding.json";
+import idActivity from "./locales/id/activity.json";
+import idMappings from "./locales/id/mappings.json";
+import idAbout from "./locales/id/about.json";
+import idModals from "./locales/id/modals.json";
+
+export const SUPPORTED_LANGUAGES = ["en", "fr", "ja", "ko", "id"] as const;
 export type SupportedLanguage = (typeof SUPPORTED_LANGUAGES)[number];
 
 export const NAMESPACES = [
@@ -96,6 +106,16 @@ const resources = {
     mappings: koMappings,
     about: koAbout,
     modals: koModals,
+  },
+  id: {
+    common: idCommon,
+    settings: idSettings,
+    dashboard: idDashboard,
+    onboarding: idOnboarding,
+    activity: idActivity,
+    mappings: idMappings,
+    about: idAbout,
+    modals: idModals,
   },
 } as const;
 

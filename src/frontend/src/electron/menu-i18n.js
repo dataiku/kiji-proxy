@@ -197,6 +197,53 @@ const STRINGS = {
     featureRequest: "기능 요청",
     emailUs: "이메일 보내기",
   },
+  id: {
+    // File
+    file: "Berkas",
+    quit: "Keluar",
+    // Edit
+    edit: "Edit",
+    undo: "Urungkan",
+    redo: "Ulangi",
+    cut: "Potong",
+    copy: "Salin",
+    paste: "Tempel",
+    selectAll: "Pilih Semua",
+    // View
+    view: "Tampilan",
+    reload: "Muat Ulang",
+    forceReload: "Paksa Muat Ulang",
+    toggleDevTools: "Tampilkan/Sembunyikan Alat Pengembang",
+    actualSize: "Ukuran Sebenarnya",
+    zoomIn: "Perbesar",
+    zoomOut: "Perkecil",
+    toggleFullscreen: "Masuk/Keluar Layar Penuh",
+    // Window
+    window: "Jendela",
+    minimize: "Minimalkan",
+    close: "Tutup",
+    zoom: "Zoom",
+    bringAllToFront: "Bawa Semua ke Depan",
+    // Settings / Help
+    settings: "Pengaturan",
+    preferences: "Preferensi...",
+    help: "Bantuan",
+    // macOS app menu
+    services: "Layanan",
+    hideOthers: "Sembunyikan Lainnya",
+    showAll: "Tampilkan Semua",
+    restartToUpdate: "Mulai Ulang untuk Memperbarui",
+    aboutApp: "Tentang {{name}}",
+    hideApp: "Sembunyikan {{name}}",
+    quitApp: "Keluar dari {{name}}",
+    openApp: "Buka {{name}}",
+    // Tray / links
+    documentation: "Dokumentasi",
+    chromeExtension: "Ekstensi Chrome Kiji",
+    bugReport: "Laporkan Bug",
+    featureRequest: "Usulkan Fitur",
+    emailUs: "Kirim Email ke Kami",
+  },
 };
 
 // Derived from the table so a locale cannot be added to one without the other.

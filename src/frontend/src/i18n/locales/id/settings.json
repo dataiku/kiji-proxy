@@ -1,0 +1,191 @@
+{
+  "title": "Pengaturan",
+  "subtitle": "Provider, deteksi PII, dan konfigurasi proxy lanjutan.",
+  "serverNote": "Pada deployment server, API key provider, direktori model, dan pemasangan sertifikat dikonfigurasi melalui variabel lingkungan dan aplikasi desktop.",
+  "providers": {
+    "title": "Provider",
+    "subtitle": "API key dan ID model untuk setiap provider AI.",
+    "customName": "Provider Kustom",
+    "status": {
+      "configured": "Terkonfigurasi",
+      "keyOptional": "Kunci opsional",
+      "notSet": "Belum diatur"
+    },
+    "apiKeyLabel": "API key {{provider}}",
+    "apiKeyOptionalSuffix": " (opsional)",
+    "lockTitle": "Kunci isian API key",
+    "unlockTitle": "Buka kunci untuk mengedit",
+    "clearKey": "Hapus kunci saya",
+    "apiKeyPlaceholder": {
+      "update": "Masukkan API key baru untuk memperbarui",
+      "locked": "API key sudah dikonfigurasi (buka kunci untuk mengedit)",
+      "optional": "API key {{provider}} opsional ({{example}})",
+      "enter": "Masukkan API key {{provider}} Anda ({{example}})"
+    },
+    "howToGetKey": "Bagaimana cara mendapatkan API key {{provider}}?",
+    "modelIdLabel": "ID Model",
+    "modelDefault": "Bawaan: {{model}}",
+    "customModelHelp": "Gunakan ID model persis seperti yang diharapkan provider Anda.",
+    "customEndpointLabel": "URL Endpoint Kustom",
+    "customEndpointHelp": "Provider kustom Anda harus mendukung API chat completions yang kompatibel dengan OpenAI.",
+    "endpointOverrideHelp": "Ganti untuk menggunakan endpoint kustom.",
+    "keychainNote": "API key Anda disimpan dengan aman menggunakan enkripsi keychain sistem.",
+    "saving": "Menyimpan…",
+    "save": "Simpan provider",
+    "messages": {
+      "loadFailed": "Gagal memuat pengaturan",
+      "saveApiKeyFailed": "Gagal menyimpan API key {{provider}}",
+      "saveModelFailed": "Gagal menyimpan model {{provider}}",
+      "saveEndpointFailed": "Gagal menyimpan URL endpoint {{provider}}",
+      "restarting": "Tersimpan. Memulai ulang backend…",
+      "restartFailed": "Pengaturan tersimpan, tetapi backend gagal dimulai ulang. Mulai ulang aplikasi untuk menerapkannya.",
+      "savedApplied": "Pengaturan tersimpan dan diterapkan!",
+      "saveFailed": "Gagal menyimpan pengaturan",
+      "keyCleared": "API key {{provider}} dihapus",
+      "clearKeyFailed": "Gagal menghapus API key"
+    }
+  },
+  "pii": {
+    "title": "Deteksi PII",
+    "subtitle": "Atur seberapa agresif data dideteksi dan apa saja yang disamarkan.",
+    "saved": "Tersimpan",
+    "profiles": {
+      "label": "Profil",
+      "help": "Profil adalah kumpulan pengaturan deteksi yang diberi nama, misalnya satu untuk aplikasi layanan kesehatan dan satu untuk aplikasi konsumen. Request memilih profil melalui header X-Kiji-Profile; request tanpa header itu menggunakan profil bawaan.",
+      "defaultSuffix": "{{name}} (bawaan)",
+      "new": "Profil baru",
+      "newName": "Profil baru",
+      "setDefault": "Jadikan bawaan",
+      "isDefault": "Profil bawaan",
+      "delete": "Hapus",
+      "confirmDelete": "Klik sekali lagi untuk menghapus",
+      "cannotDeleteDefault": "Profil bawaan tidak dapat dihapus. Jadikan profil lain sebagai bawaan terlebih dahulu.",
+      "nameLabel": "Nama profil",
+      "idHint": "Untuk menerapkan profil ini pada request, kirim header",
+      "nameTaken": "Profil dengan nama ini sudah ada.",
+      "nameInvalid": "Masukkan nama dengan panjang maksimal 64 karakter.",
+      "loadFailed": "Gagal memuat profil PII.",
+      "actionFailed": "Perubahan tidak dapat disimpan."
+    },
+    "sensitivity": {
+      "label": "Sensitivitas deteksi",
+      "low": "Rendah",
+      "medium": "Sedang",
+      "high": "Tinggi",
+      "help": "Mengatur seberapa agresif PII dideteksi. Tinggi menangkap lebih banyak potensi PII, tetapi bisa menghasilkan positif palsu. Rendah lebih presisi, tetapi bisa melewatkan sebagian PII."
+    },
+    "entities": {
+      "label": "Entitas yang disamarkan",
+      "selectAll": "Pilih semua",
+      "deselectAll": "Batalkan semua pilihan",
+      "none": "Tidak ada jenis entitas yang tersedia. Muat model PII yang sehat untuk mengonfigurasi penyamaran.",
+      "help": "Jenis yang tidak dicentang tidak disamarkan dan dikirim apa adanya ke provider AI."
+    },
+    "regex": {
+      "label": "Pola regex kustom",
+      "nameColumn": "Nama",
+      "patternColumn": "Pola",
+      "none": "Belum ada pola kustom. Gunakan tombol + di bawah untuk menambahkannya.",
+      "addTitle": "Tambah pola",
+      "removeTitle": "Hapus pola yang dipilih",
+      "help": "Nama setiap pola digunakan sebagai jenis PII yang terdeteksi. Pola menggunakan sintaksis RE2 (Go) dan dicocokkan dengan isi request.",
+      "saveFailedInvalid": "Gagal menyimpan pola. Pastikan setiap nama dan pola merupakan ekspresi RE2 yang valid.",
+      "saveFailed": "Gagal menyimpan pola."
+    },
+    "entityLabels": {
+      "SURNAME": "Nama Belakang",
+      "FIRSTNAME": "Nama Depan",
+      "BUILDINGNUM": "Nomor Bangunan",
+      "DATEOFBIRTH": "Tanggal Lahir",
+      "EMAIL": "Email",
+      "PHONENUMBER": "Nomor Telepon",
+      "CITY": "Kota",
+      "URL": "URL",
+      "COMPANYNAME": "Nama Perusahaan",
+      "STATE": "Provinsi/Negara Bagian",
+      "ZIP": "Kode Pos",
+      "STREET": "Jalan",
+      "COUNTRY": "Negara",
+      "SSN": "Nomor Jaminan Sosial (SSN)",
+      "DRIVERLICENSENUM": "Nomor SIM",
+      "PASSPORTID": "Nomor Paspor",
+      "NATIONALID": "Nomor Identitas Nasional",
+      "IDCARDNUM": "Nomor Kartu Identitas",
+      "TAXNUM": "Nomor Pajak",
+      "LICENSEPLATENUM": "Nomor Pelat Kendaraan",
+      "PASSWORD": "Kata Sandi",
+      "IBAN": "IBAN",
+      "AGE": "Usia",
+      "SECURITYTOKEN": "Token Keamanan",
+      "CREDITCARDNUMBER": "Nomor Kartu Kredit",
+      "USERNAME": "Nama Pengguna"
+    },
+    "expiration": {
+      "uncertain": "Penyimpanan tidak dapat dipastikan dan mungkin sudah sampai ke server. Perubahan Anda tetap dipertahankan; muat ulang atau coba lagi untuk memeriksa pengaturan saat ini.",
+      "title": "Kedaluwarsa mapping",
+      "seconds": "Masa berlaku mapping (detik)",
+      "save": "Simpan pengaturan kedaluwarsa",
+      "help": "Bawaan: 300 detik sejak dibuat. Atur ke 0 untuk menonaktifkan kedaluwarsa. Berlaku untuk semua klien dan mapping yang sudah ada. Request yang sedang berjalan tetap memakai mapping-nya hingga response selesai.",
+      "error": "Tidak dapat memuat atau menyimpan pengaturan kedaluwarsa. Periksa koneksi server, lalu buka kembali Pengaturan untuk mencoba lagi.",
+      "invalid": "Masukkan bilangan bulat dari 0 hingga 2147483647.",
+      "refresh": "Muat ulang pengaturan",
+      "unsaved": "Ada perubahan yang belum disimpan.",
+      "conflict": "Pengaturan diubah di klien lain: kedaluwarsa {{state}}, {{seconds}} detik. Perubahan Anda tetap dipertahankan. Pilih pengaturan yang ingin digunakan sebelum menyimpan.",
+      "on": "aktif",
+      "off": "nonaktif",
+      "useServer": "Gunakan pengaturan server",
+      "keepEdits": "Pertahankan perubahan saya"
+    }
+  },
+  "advanced": {
+    "title": "Lanjutan",
+    "subtitle": "Pencegatan traffic di seluruh sistem dan model PII kustom.",
+    "transparentProxy": {
+      "label": "Transparent Proxy",
+      "help": "Cegat traffic HTTPS di seluruh sistem untuk perlindungan PII otomatis.",
+      "experimentalLabel": "Eksperimental:",
+      "experimentalHelp": "Fitur ini memerlukan pemasangan sertifikat CA dan dapat memengaruhi pengaturan jaringan sistem."
+    },
+    "telemetry": {
+      "label": "Pelaporan Crash & Kesalahan",
+      "help": "Nonaktif secara bawaan. Jika diaktifkan, laporan crash dan kesalahan anonim dikirim untuk membantu menyempurnakan Kiji. Prompt Anda dan teks asli (yang belum disamarkan) tidak pernah dikirim — hanya teks yang sudah disamarkan dan detail teknis kesalahan. Mengaktifkan ini juga memungkinkan Anda mengirim laporan salah klasifikasi PII.",
+      "restartNotice": "Mulai ulang aplikasi agar perubahan ini berlaku sepenuhnya di semua komponen."
+    },
+    "model": {
+      "label": "Muat Model PII Kiji Kustom",
+      "statusHealthy": "Sehat",
+      "statusUnhealthy": "Tidak sehat",
+      "statusLine": "Status: {{status}}",
+      "currentLine": "Saat ini: {{directory}}",
+      "errorLine": "Kesalahan: {{error}}",
+      "pathPlaceholder": "/path/ke/direktori/model",
+      "browse": "Telusuri",
+      "browseTitle": "Telusuri folder",
+      "requirements": "Direktori harus berisi: model.onnx, tokenizer.json, label_mappings.json",
+      "reloading": "Memuat ulang…",
+      "reload": "Muat Ulang Model",
+      "messages": {
+        "saveDirFailed": "Gagal menyimpan direktori model",
+        "reloadSuccess": "Model berhasil disimpan dan dimuat ulang!",
+        "reloadFailed": "Gagal memuat ulang model",
+        "unknownError": "Kesalahan tidak diketahui",
+        "folderSelectorFailed": "Gagal membuka pemilih folder"
+      }
+    }
+  },
+  "certificates": {
+    "title": "Sertifikat",
+    "subtitle": "Percayai sertifikat root Kiji untuk mencegat traffic HTTPS.",
+    "setup": {
+      "title": "Siapkan sertifikat CA",
+      "help": "Petunjuk langkah demi langkah untuk memercayai sertifikat di seluruh sistem atau per browser."
+    },
+    "revealFinder": "Tampilkan sertifikat CA di Finder",
+    "revealExplorer": "Tampilkan sertifikat CA di Explorer",
+    "revealHelp": "Buka folder yang berisi sertifikat root proxy.",
+    "messages": {
+      "revealDesktopOnly": "Tampilkan di Finder hanya tersedia di aplikasi desktop.",
+      "openFolderFailed": "Gagal membuka folder sertifikat."
+    }
+  }
+}

@@ -71,7 +71,19 @@ const registerIpcHandlers = ({
   waitForBackend,
   getMainWindow,
   onLanguageChange,
+  isTrustedSender,
 }) => {
+  // Register an ipcMain.handle channel that only answers our own UI. If the
+  // window ever shows another page, that page cannot read API keys or change
+  // settings over IPC.
+  const handle = (channel, listener) =>
+    ipcMain.handle(channel, (event, ...args) => {
+      if (!isTrustedSender(event)) {
+        throw new Error(`IPC "${channel}" rejected: untrusted sender`);
+      }
+      return listener(event, ...args);
+    });
+
   // Register matching get-/set- IPC handlers that read and write a single
   // top-level field of the persisted config. `coerce` transforms the inbound
   // value before saving — returning `undefined` deletes the field. `onChange`
@@ -83,7 +95,7 @@ const registerIpcHandlers = ({
     setChannel,
     { defaultValue, coerce = (v) => v, onChange } = {}
   ) => {
-    ipcMain.handle(getChannel, async () => {
+    handle(getChannel, async () => {
       try {
         const config = readConfig();
         return config[key] ?? defaultValue;
@@ -93,7 +105,7 @@ const registerIpcHandlers = ({
       }
     });
 
-    ipcMain.handle(setChannel, async (_event, value) => {
+    handle(setChannel, async (_event, value) => {
       try {
         const config = readConfig();
         const coerced = coerce(value);
@@ -117,7 +129,7 @@ const registerIpcHandlers = ({
   // ---- Secure storage / API keys ----
 
   // Legacy handler - delegates to active provider
-  ipcMain.handle("get-api-key", async () => {
+  handle("get-api-key", async () => {
     try {
       const config = readConfig();
       const activeProvider = config.activeProvider || "openai";
@@ -137,7 +149,7 @@ const registerIpcHandlers = ({
   });
 
   // Legacy handler - delegates to active provider
-  ipcMain.handle("set-api-key", async (_event, apiKey) => {
+  handle("set-api-key", async (_event, apiKey) => {
     try {
       const config = readConfig();
       const activeProvider = config.activeProvider || "openai";
@@ -161,7 +173,7 @@ const registerIpcHandlers = ({
     }
   });
 
-  ipcMain.handle("get-active-provider", async () => {
+  handle("get-active-provider", async () => {
     try {
       const config = readConfig();
       return config.activeProvider || "openai";
@@ -171,7 +183,7 @@ const registerIpcHandlers = ({
     }
   });
 
-  ipcMain.handle("set-active-provider", async (_event, provider) => {
+  handle("set-active-provider", async (_event, provider) => {
     try {
       if (!VALID_PROVIDERS.includes(provider)) {
         return { success: false, error: `Invalid provider: ${provider}` };
@@ -187,7 +199,7 @@ const registerIpcHandlers = ({
     }
   });
 
-  ipcMain.handle("get-provider-api-key", async (_event, provider) => {
+  handle("get-provider-api-key", async (_event, provider) => {
     try {
       if (!VALID_PROVIDERS.includes(provider)) {
         console.error(`Invalid provider: ${provider}`);
@@ -203,7 +215,7 @@ const registerIpcHandlers = ({
     }
   });
 
-  ipcMain.handle("set-provider-api-key", async (_event, provider, apiKey) => {
+  handle("set-provider-api-key", async (_event, provider, apiKey) => {
     try {
       if (!VALID_PROVIDERS.includes(provider)) {
         return { success: false, error: `Invalid provider: ${provider}` };
@@ -229,7 +241,7 @@ const registerIpcHandlers = ({
     }
   });
 
-  ipcMain.handle("get-provider-model", async (_event, provider) => {
+  handle("get-provider-model", async (_event, provider) => {
     try {
       if (!VALID_PROVIDERS.includes(provider)) {
         console.error(`Invalid provider: ${provider}`);
@@ -244,7 +256,7 @@ const registerIpcHandlers = ({
     }
   });
 
-  ipcMain.handle("set-provider-model", async (_event, provider, model) => {
+  handle("set-provider-model", async (_event, provider, model) => {
     try {
       if (!VALID_PROVIDERS.includes(provider)) {
         return { success: false, error: `Invalid provider: ${provider}` };
@@ -268,7 +280,7 @@ const registerIpcHandlers = ({
     }
   });
 
-  ipcMain.handle("get-provider-base-url", async (_event, provider) => {
+  handle("get-provider-base-url", async (_event, provider) => {
     try {
       if (!VALID_PROVIDERS.includes(provider)) {
         console.error(`Invalid provider: ${provider}`);
@@ -283,7 +295,7 @@ const registerIpcHandlers = ({
     }
   });
 
-  ipcMain.handle("set-provider-base-url", async (_event, provider, baseUrl) => {
+  handle("set-provider-base-url", async (_event, provider, baseUrl) => {
     try {
       if (!VALID_PROVIDERS.includes(provider)) {
         return { success: false, error: `Invalid provider: ${provider}` };
@@ -317,7 +329,7 @@ const registerIpcHandlers = ({
 
   // Restart the Go backend so updated provider config (API keys, base URLs)
   // takes effect. Settings are injected as env vars at spawn time.
-  ipcMain.handle("restart-backend", async () => {
+  handle("restart-backend", async () => {
     try {
       if (
         process.env.EXTERNAL_BACKEND === "true" ||
@@ -350,7 +362,7 @@ const registerIpcHandlers = ({
   // If the file exists, highlight it; otherwise open the parent directory so the
   // user isn't left staring at an error dialog when the proxy hasn't generated
   // the cert yet.
-  ipcMain.handle("reveal-ca-cert", async () => {
+  handle("reveal-ca-cert", async () => {
     try {
       const certPath = path.join(app.getPath("userData"), "certs", "ca.crt");
       if (fs.existsSync(certPath)) {
@@ -372,7 +384,7 @@ const registerIpcHandlers = ({
   });
 
   // Get full providers config
-  ipcMain.handle("get-providers-config", async () => {
+  handle("get-providers-config", async () => {
     try {
       const config = readConfig();
       const activeProvider = config.activeProvider || "openai";
@@ -457,7 +469,7 @@ const registerIpcHandlers = ({
 
   // ---- Model directory management ----
 
-  ipcMain.handle("select-model-directory", async () => {
+  handle("select-model-directory", async () => {
     try {
       const { dialog } = require("electron");
       const result = await dialog.showOpenDialog(getMainWindow(), {
@@ -488,7 +500,7 @@ const registerIpcHandlers = ({
     }
   );
 
-  ipcMain.handle("reload-model", async (_event, directory) => {
+  handle("reload-model", async (_event, directory) => {
     try {
       return await backendRequest("POST", "/api/model/reload", { directory });
     } catch (error) {
@@ -497,7 +509,7 @@ const registerIpcHandlers = ({
     }
   });
 
-  ipcMain.handle("get-model-info", async () => {
+  handle("get-model-info", async () => {
     try {
       return await backendRequest("GET", "/api/model/info");
     } catch (error) {

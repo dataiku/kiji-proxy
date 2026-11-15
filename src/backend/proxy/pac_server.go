@@ -3,23 +3,30 @@ package proxy
 import (
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/dataiku/kiji-proxy/src/backend/config"
 )
 
 // PACServer serves Proxy Auto-Configuration (PAC) files for automatic proxy setup
 type PACServer struct {
 	port             string
+	listenHost       string
 	interceptDomains []string
 	proxyPort        string
 	server           *http.Server
+	listening        bool
 }
 
-// NewPACServer creates a new PAC server instance
-func NewPACServer(interceptDomains []string, proxyPort string) *PACServer {
+// NewPACServer creates a new PAC server instance. listenHost restricts the
+// listener to one interface ("" = all interfaces).
+func NewPACServer(interceptDomains []string, proxyPort string, listenHost string) *PACServer {
 	return &PACServer{
 		port:             "9090",
+		listenHost:       listenHost,
 		interceptDomains: interceptDomains,
 		proxyPort:        proxyPort,
 	}
@@ -27,17 +34,41 @@ func NewPACServer(interceptDomains []string, proxyPort string) *PACServer {
 
 // Start begins serving the PAC file on the configured port
 func (p *PACServer) Start() error {
+	listener, err := p.Listen()
+	if err != nil {
+		return err
+	}
+	return p.Serve(listener)
+}
+
+// Listen binds the PAC server's TCP port without serving yet, so callers can
+// confirm the port is ours before pointing the system proxy at it.
+func (p *PACServer) Listen() (net.Listener, error) {
+	listener, err := net.Listen("tcp", config.JoinListenAddr(p.listenHost, p.port))
+	if err != nil {
+		return nil, err
+	}
+	p.listening = true
+	return listener, nil
+}
+
+// Listening reports whether Listen has bound the PAC port.
+func (p *PACServer) Listening() bool {
+	return p.listening
+}
+
+// Serve serves the PAC file on a listener obtained from Listen.
+func (p *PACServer) Serve(listener net.Listener) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/proxy.pac", p.servePAC)
 
 	p.server = &http.Server{
-		Addr:              ":" + p.port,
 		Handler:           mux,
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
-	log.Printf("PAC server starting on http://localhost:%s/proxy.pac", p.port)
-	return p.server.ListenAndServe()
+	log.Printf("PAC server starting on http://%s/proxy.pac", listener.Addr())
+	return p.server.Serve(listener)
 }
 
 // Shutdown gracefully stops the PAC server

@@ -134,7 +134,8 @@ module.exports = (env, argv) => {
       proxy: [
         {
           context: ["/details", "/api", "/v1", "/version", "/health"],
-          target: "http://localhost:8080",
+          // 127.0.0.1, not localhost: the desktop backend binds IPv4 loopback only.
+          target: "http://127.0.0.1:8080",
           secure: false,
           changeOrigin: true,
         },

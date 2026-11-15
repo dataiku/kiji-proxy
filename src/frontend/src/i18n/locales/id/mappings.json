@@ -1,0 +1,43 @@
+{
+  "title": "Mappings",
+  "subtitle": "Setiap nilai PII yang terdeteksi beserta token palsu yang dipasang Kiji untuk melindunginya.",
+  "entryCount_other": "{{count}} entri",
+  "clearAll": "Hapus Semua",
+  "clearAllTitle": "Hapus semua mapping",
+  "confirm": {
+    "title": "Hapus Semua Mapping?",
+    "body_other": "Tindakan ini akan menghapus permanen seluruh {{count}} mapping PII. Tindakan ini tidak dapat dibatalkan.",
+    "cancel": "Batal",
+    "clearing": "Menghapus...",
+    "clearAll": "Hapus Semua Mapping"
+  },
+  "error": {
+    "label": "Kesalahan:",
+    "retry": "Coba Lagi"
+  },
+  "empty": "Tidak ada mapping PII",
+  "table": {
+    "entityType": "Jenis Entitas",
+    "original": "Asli",
+    "masked": "Disamarkan",
+    "date": "Tanggal entitas pertama",
+    "actions": "Tindakan"
+  },
+  "sort": {
+    "ascending": "Urutkan {{label}} naik",
+    "descending": "Urutkan {{label}} turun"
+  },
+  "delete": {
+    "confirm": "Hapus?",
+    "confirmLabel": "Konfirmasi hapus",
+    "cancelLabel": "Batal hapus",
+    "label": "Hapus mapping",
+    "title": "Hapus mapping"
+  },
+  "loadMore": "Muat Mapping Lainnya",
+  "loadingMore": "Memuat lainnya...",
+  "footer": {
+    "showing_other": "Menampilkan {{shown}} dari {{count}} mapping",
+    "moreAvailable": "(masih ada lagi)"
+  }
+}

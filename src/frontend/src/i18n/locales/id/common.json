@@ -1,0 +1,106 @@
+{
+  "appName": "Kiji Privacy Proxy",
+  "tagline": "Proxy pendeteksi & penyamar PII",
+  "language": {
+    "label": "Bahasa",
+    "subtitle": "Pilih bahasa untuk antarmuka Kiji.",
+    "en": "Bahasa Inggris",
+    "fr": "Bahasa Prancis",
+    "ja": "Bahasa Jepang",
+    "ko": "Bahasa Korea",
+    "id": "Bahasa Indonesia"
+  },
+  "actions": {
+    "save": "Simpan",
+    "cancel": "Batal",
+    "close": "Tutup",
+    "confirm": "Konfirmasi",
+    "retry": "Coba Lagi",
+    "reset": "Atur Ulang",
+    "settings": "Pengaturan",
+    "about": "Tentang Kiji Privacy Proxy"
+  },
+  "menu": {
+    "label": "Menu"
+  },
+  "badges": {
+    "localProxy": "Proxy lokal",
+    "onDeviceDetection": "Deteksi di perangkat"
+  },
+  "modelHealth": {
+    "unhealthy": "Model tidak sehat",
+    "checkConfig": "Periksa konfigurasi model di <settingsAction>Pengaturan</settingsAction>"
+  },
+  "apiKey": {
+    "notConfigured": "API key {{provider}} belum dikonfigurasi.",
+    "configureInSettings": "Konfigurasikan di Pengaturan"
+  },
+  "playground": {
+    "loadingOverlay": "Melindungi data Anda…",
+    "mascotAlt": "Maskot Kiji",
+    "logoAlt": "Logo Kiji",
+    "yourRequest": "Request Anda",
+    "profile": "Profil",
+    "profileDefault": "Bawaan ({{name}})",
+    "sendTo": "Kirim ke",
+    "inputPlaceholder": "Ketik pesan yang berisi informasi sensitif…\n\nContoh: Halo, nama saya Budi Santoso dan email saya budi.santoso@email.com. Nomor telepon saya 0812-3456-7890.\n\nKiji mendeteksi dan menyamarkan PII sebelum keluar dari perangkat Anda.",
+    "backendOffline": "Server backend sedang offline",
+    "processing": "Memproses…",
+    "processData": "Proses data",
+    "tabs": {
+      "sentToProvider": "Dikirim ke {{provider}}",
+      "sentToLLM": "Dikirim ke LLM",
+      "returnedByProvider": "Dikembalikan oleh {{provider}}",
+      "returnedByLLM": "Dikembalikan oleh LLM"
+    },
+    "request": {
+      "submitted": "Request dikirim",
+      "piiExposed": "PII terekspos",
+      "piiDetected_other": "{{count}} PII terdeteksi",
+      "avgConfidence": "keyakinan rata-rata {{value}}%",
+      "profileUsed": "· profil: {{name}}",
+      "masked": "disamarkan",
+      "personalInfoRemoved": "Informasi pribadi dihapus",
+      "piiProtected": "PII terlindungi",
+      "fakePiiReceived_other": "{{count}} PII palsu diterima"
+    },
+    "response": {
+      "received": "Response diterima",
+      "fromProvider": "Dari {{provider}}",
+      "restored": "dipulihkan",
+      "personalInfoRestored": "Informasi pribadi dipulihkan",
+      "restoredBadge": "Dipulihkan",
+      "piiRestored_other": "{{count}} PII dipulihkan"
+    },
+    "reportMisclassification": "Laporkan salah klasifikasi",
+    "reportMisclassificationTitle": "Laporkan klasifikasi PII yang salah"
+  },
+  "footer": {
+    "builtBy": "Kiji Privacy Proxy · dibuat oleh <labLink>575 Lab</labLink>, Kantor Open Source Dataiku",
+    "version": "v{{version}}"
+  },
+  "status": {
+    "serverOnline": "Server online",
+    "serverOffline": "Server offline",
+    "serverOfflineDetail": "Server offline — jalankan backend Go di localhost:{{port}}",
+    "model": "Model",
+    "modelSignature": "Tanda tangan model",
+    "modelSignatureLabel": "Tanda tangan model {{signature}}",
+    "verifiedModelSignature": "Tanda tangan model terverifikasi"
+  },
+  "error": {
+    "title": "Ups! Terjadi kesalahan",
+    "subtitle": "Aplikasi mengalami kesalahan yang tidak terduga",
+    "messageLabel": "Pesan Kesalahan:",
+    "stackTrace": "Stack Trace (klik untuk membuka)",
+    "tryAgain": "Coba Lagi",
+    "reload": "Muat Ulang Aplikasi",
+    "whatCanYouDo": "Apa yang bisa Anda lakukan?",
+    "help": {
+      "tryAgain": "Klik \"Coba Lagi\" untuk mengatur ulang komponen",
+      "reload": "Klik \"Muat Ulang Aplikasi\" untuk memuat ulang seluruh aplikasi",
+      "console": "Jika masalah berlanjut, periksa konsol browser untuk detail lebih lanjut",
+      "report": "Pertimbangkan untuk melaporkan masalah ini ke tim pengembang"
+    }
+  }
+}

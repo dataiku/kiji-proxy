@@ -1,0 +1,32 @@
+{
+  "title": "Selamat Datang di Kiji Privacy Proxy",
+  "role": {
+    "question": "Bagaimana Anda menggunakan Kiji?",
+    "admin": {
+      "title": "Saya admin",
+      "desc": "Menyiapkan Kiji untuk orang lain"
+    },
+    "user": {
+      "title": "Saya pengguna",
+      "desc": "Menggunakan Kiji sendiri"
+    }
+  },
+  "welcome": {
+    "intro": "Kiji menyamarkan PII dalam prompt Anda sebelum sampai ke provider AI mana pun — semuanya di perangkat Anda.",
+    "getStarted": "Mulai"
+  },
+  "promises": {
+    "local": {
+      "title": "100% lokal",
+      "desc": "Deteksi PII berjalan di perangkat Anda."
+    },
+    "thirdParty": {
+      "title": "Tanpa pihak ketiga",
+      "desc": "Data hanya dikirim ke AI pilihan Anda."
+    },
+    "openSource": {
+      "title": "Sumber terbuka",
+      "desc": "Periksa dan verifikasi setiap klaim."
+    }
+  }
+}

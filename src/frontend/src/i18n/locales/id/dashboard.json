@@ -1,0 +1,95 @@
+{
+  "title": "Ringkasan",
+  "subtitle": "Semua yang melewati Kiji, disamarkan sebelum keluar dari perangkat Anda.",
+  "status": {
+    "intercepting": "Mencegat",
+    "idle": "Siaga"
+  },
+  "range": {
+    "selectLabel": "{{label}} terakhir",
+    "chartSuffix": "{{label}} terakhir",
+    "24h": "24 jam",
+    "7d": "7 hari",
+    "30d": "30 hari",
+    "90d": "90 hari"
+  },
+  "serverError": "Tidak dapat terhubung ke server Kiji: {{error}}. Pastikan proxy berjalan di localhost:8080.",
+  "kpi": {
+    "piiProtected": "PII terlindungi",
+    "piiProtectedDelta": "dalam {{window}} terakhir",
+    "windowUnit": {
+      "h": " jam",
+      "d": " hari",
+      "w": " minggu",
+      "mo": " bulan"
+    },
+    "requestsProxied": "Request melalui proxy",
+    "requestsToday": "{{value}} hari ini",
+    "avgLatency": "Rata-rata latensi tambahan",
+    "latencyUnit": "ms",
+    "latencyCaption": "privasi, tanpa melambat"
+  },
+  "chart": {
+    "title": "PII yang disamarkan dari waktu ke waktu",
+    "notEnough": "Aktivitas belum cukup untuk ditampilkan dalam grafik.",
+    "readyTitle": "Kiji sudah berjalan dan siap.",
+    "readyBody": "Kirim request pertama Anda melalui proxy untuk mulai melindungi data."
+  },
+  "composition": {
+    "title": "Yang kami samarkan",
+    "thisPeriod": "periode ini",
+    "entities": "entitas",
+    "empty": "Belum ada yang disamarkan."
+  },
+  "providers": {
+    "title": "Traffic per provider",
+    "requests": "request",
+    "empty": "Belum ada traffic."
+  },
+  "highlights": {
+    "peakToday": "Puncak hari ini",
+    "reqPerMin": "perm/mnt",
+    "busiestSource": "Sumber tersibuk",
+    "detectionConfidence": "Keyakinan deteksi",
+    "avgSuffix": "% rata-rata"
+  },
+  "recent": {
+    "title": "Cegatan terbaru",
+    "live": "langsung",
+    "requestFallback": "request",
+    "maskedLabel": "disamarkan",
+    "piiCount": "{{count}} PII",
+    "empty": "Belum ada request yang dicegat.",
+    "viewAll": "Lihat semua aktivitas"
+  },
+  "time": {
+    "justNow": "baru saja",
+    "secondsAgo": "{{count}} dtk lalu",
+    "minutesAgo": "{{count}} mnt lalu",
+    "hoursAgo": "{{count}} jam lalu",
+    "daysAgo": "{{count}} hari lalu"
+  },
+  "empty": "—",
+  "sidebar": {
+    "brandSuffix": "Proxy",
+    "sectionWorkspace": "Ruang Kerja",
+    "sectionConfigure": "Konfigurasi",
+    "nav": {
+      "dashboard": "Dashboard",
+      "playground": "Playground",
+      "playgroundBadge": "samarkan",
+      "activity": "Aktivitas",
+      "mappings": "Mappings",
+      "settings": "Pengaturan",
+      "about": "Tentang Kiji"
+    },
+    "server": {
+      "online": "Server online",
+      "degraded": "Model terganggu",
+      "offline": "Server offline",
+      "uptime": "waktu aktif",
+      "port": "port",
+      "model": "model"
+    }
+  }
+}

@@ -165,12 +165,12 @@ Route terminal coding agents through the proxy so PII in prompts, code, and tool
 ### [Chapter 10: Internationalization (i18n)](10-internationalization.md)
 
 Localize the desktop/renderer UI with react-i18next. English is the base
-language; French, Japanese, and Korean are the translations.
+language; French, Japanese, Korean, and Indonesian are the translations.
 
 **Topics:**
 - How i18next is wired (namespaces, detection, persistence)
 - Using `t()` and `<Trans>`, interpolation, and pluralization
-- Per-locale plural categories (French `many`, Japanese/Korean `other`-only)
+- Per-locale plural categories (French `many`, Japanese/Korean/Indonesian `other`-only)
 - Language selector and the Electron native-menu sync
 - Adding/changing strings and the parity + lint tooling
 

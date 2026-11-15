@@ -227,6 +227,9 @@ func loadApplicationConfig(cfg *config.Config) {
 	if proxyPort := os.Getenv("PROXY_PORT"); proxyPort != "" {
 		cfg.ProxyPort = proxyPort
 	}
+	if listenHost := os.Getenv("KIJI_LISTEN_HOST"); listenHost != "" {
+		cfg.ListenHost = listenHost
+	}
 	if socketPath := os.Getenv("PROXY_UNIX_SOCKET_PATH"); socketPath != "" {
 		cfg.UnixSocketPath = socketPath
 	}
