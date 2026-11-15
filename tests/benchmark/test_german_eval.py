@@ -1,4 +1,4 @@
-"""Offline checks for the German evaluation loaders (no Hub access, no model)."""
+"""Offline checks for the German and English evaluation loaders (no Hub access, no model)."""
 
 from tests.benchmark.german_eval import (
     SOURCES,
@@ -6,9 +6,11 @@ from tests.benchmark.german_eval import (
     convert_nobody_row,
     convert_nym_row,
     load_german_samples,
+    looks_english,
     looks_german,
     merge_coarse_spans,
     split_street_address,
+    unscored_ai4privacy_spans,
 )
 
 
@@ -122,3 +124,58 @@ def test_looks_german():
     assert not looks_german(
         "Vă rog să configurați plata, vom configura contul de plată vom trimite."
     )
+
+
+def test_looks_english():
+    assert looks_english(
+        "Please send the documents to your manager by the end of the week."
+    )
+    assert not looks_english(
+        "Sehr geehrte Frau Böhm, bitte senden Sie mir die Unterlagen und den Vertrag."
+    )
+    assert not looks_english(
+        "Bonjour, nous avons reçu votre demande et la facture du mois."
+    )
+    assert not looks_english("Invoice 4711")
+
+
+def test_english_sources_reuse_the_german_converters():
+    nobody_en, nym_en = SOURCES["nobody-en"], SOURCES["nym-en"]
+    assert nobody_en.loader.keywords == {"lang": "en"}
+    assert nobody_en.scheme == SOURCES["nobody-de"].scheme == "coarse"
+    assert nobody_en.labels == SOURCES["nobody-de"].labels
+    assert nym_en.loader.keywords == {"is_language": looks_english}
+    assert nym_en.labels == SOURCES["nym-de"].labels
+    assert SOURCES["ai4privacy-300k-en"].loader.keywords == {"lang": "en"}
+    assert SOURCES["ai4privacy-300k-en"].default_split == "validation"
+
+
+def test_unscored_ai4privacy_spans_are_ip_addresses_and_coordinates():
+    text = "Login from 10.0.0.1 by anna at 14:05"
+    row = {
+        "source_text": text,
+        "privacy_mask": [
+            {"label": "IP", "value": "10.0.0.1", "start": 11, "end": 19},
+            {"label": "USERNAME", "value": "anna", "start": 23, "end": 27},
+            {"label": "TIME", "value": "14:05", "start": 31, "end": 36},
+            # Offsets that do not match the value are skipped, as in training.
+            {"label": "IP", "value": "1.2.3.4", "start": 0, "end": 7},
+        ],
+    }
+    # TIME stays scored: masking an ordinary time is over-masking.
+    assert unscored_ai4privacy_spans(row) == [(11, 19)]
+
+
+def test_nym_unscored_spans_are_unmapped_identifiers_only():
+    text = "Account 12345678 opened on 2024-05-01 for Anna"
+    row = {
+        "text": text,
+        "entities": [
+            {"label": "ACCOUNT_NUMBER", "start": 8, "end": 16},
+            {"label": "DATE", "start": 27, "end": 37},
+            {"label": "GIVEN_NAME", "start": 42, "end": 46},
+        ],
+    }
+    sample = convert_nym_row(row)
+    assert sample["entities"] == [(42, 46, "FIRSTNAME")]
+    assert sample["unscored"] == [(8, 16)]

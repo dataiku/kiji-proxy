@@ -1,4 +1,4 @@
-"""German evaluation sets for the offline PII benchmark.
+"""German and English evaluation sets for the offline PII benchmark.
 
 Every loader returns samples in the benchmark format::
 
@@ -6,8 +6,10 @@ Every loader returns samples in the benchmark format::
 
 ``values`` holds the source's own entity strings (parallel to ``entities``) so
 offsets can be checked with ``text[start:end] == value``; the benchmark ignores
-it. See ``tests/benchmark/GERMAN_EVAL.md`` for licences, label mappings and
-contamination notes.
+it. A sample may also carry ``unscored``: spans the source annotates with a
+label Kiji does not have (IP addresses, times, ...). Predictions on them are
+neither true nor false positives. See ``tests/benchmark/GERMAN_EVAL.md`` for
+licences, label mappings and contamination notes.
 
 Usage (sanity check, no model inference):
     uv run python -m tests.benchmark.german_eval --check --num 5
@@ -24,6 +26,7 @@ import sys
 from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 
 Span = tuple[int, int, str]
@@ -35,9 +38,15 @@ NOBODY_REPO = "naeyn/nobody-pii-synth-de"
 NOBODY_REVISION = "23eba3fadef50ef4c01738bea0b0ee1c392426e6"
 NYM_REPO = "Wismut/nym-pii-multilingual-data"
 AI4PRIVACY_REPO = "ai4privacy/pii-masking-300k"
-AI4PRIVACY_GERMAN_FILES = {
-    "train": "data/train/german_openpii_30k.jsonl",
-    "validation": "data/validation/german_openpii_8k.jsonl",
+AI4PRIVACY_FILES = {
+    "de": {
+        "train": "data/train/german_openpii_30k.jsonl",
+        "validation": "data/validation/german_openpii_8k.jsonl",
+    },
+    "en": {
+        "train": "data/train/1english_openpii_30k.jsonl",
+        "validation": "data/validation/1english_openpii_8k.jsonl",
+    },
 }
 
 # ---------------------------------------------------------------------------
@@ -122,6 +131,25 @@ NYM_TO_KIJI: dict[str, str | None] = {
     "MAC_ADDRESS": None,
 }
 
+# Dropped labels that are still personal identifiers. A Kiji mask on one of
+# them is right to mask, so it is left out of scoring instead of counted as a
+# false positive. Dates, times, gender, titles and card issuers stay scored:
+# masking an ordinary date or "Mr" is over-masking.
+UNSCORED_NYM_LABELS = frozenset(
+    {
+        "CUSTOMER_ID",
+        "EMPLOYEE_ID",
+        "ACCOUNT_NUMBER",
+        "ROUTING_NUMBER",
+        "SWIFT_BIC",
+        "CVV",
+        "PIN",
+        "MEDICAL_RECORD_NUMBER",
+        "MAC_ADDRESS",
+    }
+)
+UNSCORED_AI4PRIVACY_LABELS = frozenset({"IP", "GEOCOORD"})
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -193,6 +221,13 @@ def looks_german(text: str) -> bool:
     de_words = [w.lower() for w in _DE_WORDS.findall(text)]
     other = max(len(p.findall(text)) for p in _OTHER_LANG_WORDS)
     return len(set(de_words)) >= 2 and len(de_words) >= 3 and len(de_words) > 2 * other
+
+
+def looks_english(text: str) -> bool:
+    """Same heuristic as looks_german, for English function words."""
+    en_words = [w.lower() for w in _OTHER_LANG_WORDS[0].findall(text)]
+    other = max(len(p.findall(text)) for p in [_DE_WORDS, *_OTHER_LANG_WORDS[1:]])
+    return len(set(en_words)) >= 2 and len(en_words) >= 4 and len(en_words) > 2 * other
 
 
 def token_char_offsets(text: str, tokens: list[str]) -> list[tuple[int, int]] | None:
@@ -276,9 +311,12 @@ def convert_nym_row(row: dict) -> dict:
     """Wismut/nym-pii-multilingual-data row → sample with Kiji labels."""
     text = row["text"]
     entities = []
+    unscored = []
     for ent in row["entities"]:
         kiji = NYM_TO_KIJI.get(ent["label"])
         if kiji is None:
+            if ent["label"] in UNSCORED_NYM_LABELS:
+                unscored.append((ent["start"], ent["end"]))
             continue
         start, end = ent["start"], ent["end"]
         if ent["label"] == "STREET_ADDRESS":
@@ -286,7 +324,9 @@ def convert_nym_row(row: dict) -> dict:
         else:
             parts = [(start, end, kiji)]
         entities.extend((s, e, lbl, text[s:e]) for s, e, lbl in parts)
-    return _sample(text, entities)
+    sample = _sample(text, entities)
+    sample["unscored"] = unscored
+    return sample
 
 
 def convert_probe_row(row: dict) -> dict:
@@ -312,11 +352,11 @@ def convert_probe_row(row: dict) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def load_nobody(num: int, seed: int, split: str) -> list[dict]:
+def load_nobody(num: int, seed: int, split: str, lang: str = "de") -> list[dict]:
     ds = _load_dataset(NOBODY_REPO, revision=NOBODY_REVISION, split=split)
     samples = []
     for row in ds:
-        if row["lang"] != "de":
+        if row["lang"] != lang:
             continue
         sample = convert_nobody_row(row)
         if sample is not None:
@@ -325,18 +365,44 @@ def load_nobody(num: int, seed: int, split: str) -> list[dict]:
     return _take(samples, num, seed)
 
 
-def load_nym(num: int, seed: int, split: str) -> list[dict]:
+def load_nym(
+    num: int,
+    seed: int,
+    split: str,
+    is_language: Callable[[str], bool] = looks_german,
+) -> list[dict]:
     ds = _load_dataset(NYM_REPO, data_files={split: f"{split}.jsonl"}, split=split)
-    samples = [convert_nym_row(row) for row in ds if looks_german(row["text"])]
+    samples = [convert_nym_row(row) for row in ds if is_language(row["text"])]
     return _take([s for s in samples if s["entities"]], num, seed)
 
 
-def load_ai4privacy_de(num: int, seed: int, split: str) -> list[dict]:
+def unscored_ai4privacy_spans(row: dict) -> list[tuple[int, int]]:
+    """Spans of ai4privacy IP addresses and coordinates.
+
+    The label mapping drops them because Kiji has no such label, so a model
+    that masks an IP address would otherwise be charged a false positive.
+    """
+    text = row.get("source_text", "")
+    spans = []
+    for entity in row.get("privacy_mask", []):
+        if entity.get("label") not in UNSCORED_AI4PRIVACY_LABELS:
+            continue
+        start, end = entity.get("start"), entity.get("end")
+        if (
+            start is not None
+            and end is not None
+            and text[start:end] == entity.get("value")
+        ):
+            spans.append((start, end))
+    return spans
+
+
+def load_ai4privacy(num: int, seed: int, split: str, lang: str = "de") -> list[dict]:
     from model.dataset.huggingface.import_ai4privacy import convert_ai4privacy_sample
 
     ds = _load_dataset(
         AI4PRIVACY_REPO,
-        data_files={split: AI4PRIVACY_GERMAN_FILES[split]},
+        data_files={split: AI4PRIVACY_FILES[lang][split]},
         split=split,
     )
     samples = []
@@ -348,7 +414,9 @@ def load_ai4privacy_de(num: int, seed: int, split: str) -> list[dict]:
             (e["start"], e["end"], e["label"], e["value"])
             for e in converted["privacy_mask"]
         ]
-        samples.append(_sample(converted["text"], entities))
+        sample = _sample(converted["text"], entities)
+        sample["unscored"] = unscored_ai4privacy_spans(row)
+        samples.append(sample)
     return _take(samples, num, seed)
 
 
@@ -402,6 +470,23 @@ SOURCES: dict[str, EvalSource] = {
             scheme="coarse",
         ),
         EvalSource(
+            name="nobody-en",
+            description=f"{NOBODY_REPO} (English rows, coarse PERSON/ADDRESS spans)",
+            default_split="test",
+            splits=("train", "validation", "test"),
+            loader=partial(load_nobody, lang="en"),
+            labels=frozenset(NOBODY_TO_COARSE.values()),
+            scheme="coarse",
+        ),
+        EvalSource(
+            name="nym-en",
+            description=f"{NYM_REPO} (English rows by heuristic, Kiji labels)",
+            default_split="test",
+            splits=("train", "validation", "test"),
+            loader=partial(load_nym, is_language=looks_english),
+            labels=frozenset(v for v in NYM_TO_KIJI.values() if v is not None),
+        ),
+        EvalSource(
             name="nym-de",
             description=f"{NYM_REPO} (German rows by heuristic, Kiji labels)",
             default_split="test",
@@ -414,7 +499,14 @@ SOURCES: dict[str, EvalSource] = {
             description=f"{AI4PRIVACY_REPO} German files",
             default_split="validation",
             splits=("train", "validation"),
-            loader=load_ai4privacy_de,
+            loader=partial(load_ai4privacy, lang="de"),
+        ),
+        EvalSource(
+            name="ai4privacy-300k-en",
+            description=f"{AI4PRIVACY_REPO} English files",
+            default_split="validation",
+            splits=("train", "validation"),
+            loader=partial(load_ai4privacy, lang="en"),
         ),
         EvalSource(
             name="probes-de",

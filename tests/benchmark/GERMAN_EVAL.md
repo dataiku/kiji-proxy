@@ -1,4 +1,4 @@
-# German held-out evaluation
+# German and English held-out evaluation
 
 The offline benchmark (`tests/benchmark/run.py`) scores the ONNX model on the
 ai4privacy/pii-masking-300k **train** split. Kiji's training data also comes from
@@ -7,10 +7,11 @@ exact-span F1 of 0.94 is measured on training data. An external user scored
 German workshop e-mails at F1 0.70: person names had recall 0.66, address/PLZ
 0.48, and automotive codes were over-masked. This page lists German evaluation
 sets that Kiji has not trained on, so we can tell whether the model or the eval
-is the problem.
+is the problem. [English held-out sets](#english-held-out-sets) does the same
+for English.
 
-No model inference was run while preparing this; there are no German scores
-here yet. See [Commands](#commands) to produce them.
+[Results](#results-november-2026) has scores for the shipped model and two
+German-mix models. See [Commands](#commands) to produce them.
 
 ## Recommendation
 
@@ -25,6 +26,85 @@ Use `nobody-de` to answer "does Kiji mask German PII in e-mail-like text"
 (coarse PERSON/ADDRESS, scored with relaxed overlap). Use `nym-de` to answer
 "which German labels fail" (exact Kiji labels). Run `probes-de --verbose` as a
 quick regression check for the reported failure modes.
+
+## English held-out sets
+
+The default benchmark (`run.py --language English`) has the same problem as
+German: it scores on ai4privacy-300k **train**, the split the shipped model was
+trained on. A model trained without ai4privacy loses most of its points there
+to ai4privacy's labelling habits rather than to unmasked PII. The same two
+sources as for German have English rows, and ai4privacy-300k has an English
+validation file:
+
+| `--dataset` | Source | Default split | Notes |
+|---|---|---|---|
+| `nobody-en` | `naeyn/nobody-pii-synth-de`, rows with `lang == "en"` | `test` (127 docs) | Same generator, coarse labels and projection as `nobody-de`. UK names, addresses and phone numbers. |
+| `nym-en` | `Wismut/nym-pii-multilingual-data`, English rows by the same function-word heuristic (`looks_english`) | `test` (2,343 rows) | Kiji labels, as `nym-de`. Most English rows use UK formats. |
+| `ai4privacy-300k-en` | `ai4privacy/pii-masking-300k`, `data/validation/1english_openpii_8k.jsonl` | `validation` | Same generator as the default benchmark but rows the shipped model did not train on. |
+
+Use `nobody-en` and `nym-en` to compare models fairly, and
+`ai4privacy-300k-en` to see how much of the default English score depends on
+training on ai4privacy. Look at `masked_any_label` (below) as well as the
+same-label scores: on ai4privacy many misses are a different Kiji label on
+correctly masked text, for example IDCARDNUM for ai4privacy's ID cards,
+which the mapping calls NATIONALID.
+
+## Report fields
+
+Besides exact and relaxed same-label F1, every report has:
+
+- `masked_any_label`: one-to-one span overlap where any label counts. It
+  answers "was this PII masked at all?". `masked_share_per_gold_label` is the
+  share of each gold label's entities that got masked.
+- `predictions_on_unscored_spans`: predictions on entities the source labels
+  as personal identifiers Kiji has no label for (ai4privacy IP addresses and
+  coordinates; nym account, customer, employee and medical-record numbers,
+  routing numbers, SWIFT/BIC, CVV, PIN, MAC addresses). They are left out of
+  every score, so masking an IP address is neither rewarded nor penalised.
+  Dates, times, gender, titles and card issuers stay scored: masking them is
+  over-masking.
+
+## Results (November 2026)
+
+Three ONNX models, one seed each:
+
+- **shipped**: `model/quantized`. Its 0.96 on ai4privacy English against 0.60
+  on `nobody-de` suggests it was trained on ai4privacy-300k.
+- **v3 s42** and **v4 s42**: `mdeberta-v3-base` trained on the German training
+  mix v3 and v4 (Kiji data, German nym and openpii rows, template negatives,
+  no ai4privacy-300k), seed 42.
+
+Relaxed same-label F1 / any-label F1 (`masked_any_label`):
+
+| Set | Texts | shipped | v3 s42 | v4 s42 |
+|---|---:|---|---|---|
+| `probes-de` | 22 | 0.824 / 0.843 | 0.980 / 0.980 | 0.980 / 0.980 |
+| `nobody-de` | 296 | 0.604 / 0.627 | 0.906 / 0.927 | 0.910 / 0.932 |
+| `nym-de` | 1,063 | 0.765 / 0.856 | 0.965 / 0.980 | 0.974 / 0.984 |
+| `nobody-en` | 127 | 0.600 / 0.643 | 0.881 / 0.917 | 0.900 / 0.925 |
+| `nym-en` | 2,343 | 0.740 / 0.879 | 0.800 / 0.906 | 0.813 / 0.911 |
+| `ai4privacy-300k-en` (validation) | 2,000 | 0.953 / 0.972 | 0.704 / 0.903 | 0.706 / 0.905 |
+| `--language English` (train) | 2,000 | 0.963 / 0.973 | 0.681 / 0.898 | 0.684 / 0.894 |
+
+PII-free texts with any mask: `probes-de` 4 / 1 / 1 of 8, `nobody-de`
+15 / 11 / 10 of 29, `nobody-en` 1 / 1 / 0 of 5.
+
+Predictions on unscored spans (shipped / v3 / v4): `nym-de` 416 / 664 / 580,
+`nym-en` 989 / 1,671 / 1,445, `ai4privacy-300k-en` 1 / 728 / 683. Before these
+were left out, they counted as false positives: v4's `nym-de` relaxed F1 was
+0.923 and its `--language English` F1 0.668.
+
+What this shows:
+
+- On the held-out English sets the German-mix models beat the shipped model
+  (`nobody-en` 0.90 against 0.60), so they have not lost English in general.
+- On ai4privacy English the shipped model still leads, but by 0.07 any-label
+  F1 rather than 0.25 same-label F1. Most of the gap is labels: the same text
+  is masked under a different Kiji label (ID cards as IDCARDNUM, not
+  NATIONALID), which ai4privacy's conventions decide.
+- `nym-en` is the weakest held-out set for the German-mix models: v4 has low
+  precision on NATIONALID, DRIVERLICENSENUM, PASSPORTID and TAXNUM, and misses
+  about 40% of COUNTRY.
 
 ## Candidate comparison
 
@@ -103,14 +183,18 @@ ADDRESS.
 
 Dropped because Kiji has no equivalent: DATE, TIME, GENDER, CUSTOMER_ID,
 EMPLOYEE_ID, ACCOUNT_NUMBER, ROUTING_NUMBER, SWIFT_BIC, CVV, PIN,
-MEDICAL_RECORD_NUMBER, MAC_ADDRESS. As with the existing ai4privacy loader, a
-Kiji prediction on a dropped span counts as a false positive. The only Kiji
-label nym has no source for is IDCARDNUM; those predictions are reported, not
-scored.
+MEDICAL_RECORD_NUMBER, MAC_ADDRESS. A Kiji prediction on a dropped DATE, TIME
+or GENDER span counts as a false positive; one on a dropped identifier is left
+out of scoring (see [Report fields](#report-fields)). The only Kiji label nym
+has no source for is IDCARDNUM; those predictions are reported, not scored.
+`nym-en` uses the same mapping.
 
-### `ai4privacy-300k-de`
+### `ai4privacy-300k-de` and `ai4privacy-300k-en`
 
-Uses the existing `AI4PRIVACY_TO_KIJI` unchanged.
+Use the existing `AI4PRIVACY_TO_KIJI` unchanged, so ai4privacy's IDCARD is
+scored as NATIONALID. IP and GEOCOORD spans are left out of scoring; DATE,
+TIME, SEX, TITLE and CARDISSUER spans are not. The default English benchmark
+(`--language English`) handles them the same way.
 
 ### Gold-span hygiene
 
@@ -137,7 +221,12 @@ through the same importer and has the same issue; that path is unchanged here
   `abubasith86/pii-dataset-de-v1`, is in-distribution. Do not use it as an
   eval.
 - `nobody-de`, `nym-de` and CodE Alltag share no rows or generator with Kiji
-  training. Both nobody and nym are template-based, so a score on them still
+  training.
+- `nobody-en` and `nym-en` share no rows with the shipped model's training data
+  or with the German training mixes. The German mixes train on German nym
+  rows; nym's English rows may come from translated versions of the same
+  templates, so a German-mix model can look a little better on `nym-en` than
+  it is. `nobody-en` is clean but small (127 docs). Both nobody and nym are template-based, so a score on them still
   says nothing about real noisy e-mail. CodE Alltag would.
 
 ## Hard negatives and sign-off probes
@@ -222,6 +311,16 @@ uv run python -m tests.benchmark.run --dataset ai4privacy-300k-de --num 2000 \
   --report tests/benchmark/reports/german_ai4p300k_validation.json
 uv run python -m tests.benchmark.run --language German --num 2000 \
   --report tests/benchmark/reports/german_ai4p300k_train.json
+
+# 5. English: held-out sets, then the ai4privacy validation and train splits
+uv run python -m tests.benchmark.run --dataset nobody-en --num 0 \
+  --report tests/benchmark/reports/english_nobody_test.json
+uv run python -m tests.benchmark.run --dataset nym-en --num 0 \
+  --report tests/benchmark/reports/english_nym_test.json
+uv run python -m tests.benchmark.run --dataset ai4privacy-300k-en --num 2000 \
+  --report tests/benchmark/reports/english_ai4p300k_validation.json
+uv run python -m tests.benchmark.run --language English --num 2000 \
+  --report tests/benchmark/reports/english_ai4p300k_train.json
 ```
 
 How to read the results:

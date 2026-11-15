@@ -8,7 +8,8 @@ Usage:
     uv run python -m tests.benchmark.run --num 5000 --model-path ./model/quantized
     uv run python -m tests.benchmark.run --dataset nobody-de --num 0
 
-German held-out sets (--dataset) are described in tests/benchmark/GERMAN_EVAL.md.
+German and English held-out sets (--dataset) are described in
+tests/benchmark/GERMAN_EVAL.md.
 """
 
 from __future__ import annotations
@@ -27,7 +28,7 @@ from transformers import AutoTokenizer
 
 from model.dataset.huggingface.import_ai4privacy import convert_ai4privacy_sample
 from tests.benchmark.german_eval import SOURCES as GERMAN_SOURCES
-from tests.benchmark.german_eval import load_german_samples
+from tests.benchmark.german_eval import load_german_samples, unscored_ai4privacy_spans
 
 # ---------------------------------------------------------------------------
 # ONNX model wrapper
@@ -523,13 +524,15 @@ class RelaxedOverlapMetrics(SpanMetrics):
     def _overlap_len(left: Span, right: Span) -> int:
         return max(0, min(left[1], right[1]) - max(left[0], right[0]))
 
+    match_labels = True
+
     def update(self, gold: list[Span], predicted: list[Span]) -> None:
         gold_spans = sorted(set(gold))
         pred_spans = sorted(set(predicted))
         candidates: list[tuple[int, int, int]] = []
         for gold_idx, gold_span in enumerate(gold_spans):
             for pred_idx, pred_span in enumerate(pred_spans):
-                if gold_span[2] != pred_span[2]:
+                if self.match_labels and gold_span[2] != pred_span[2]:
                     continue
                 overlap_len = self._overlap_len(gold_span, pred_span)
                 if overlap_len > 0:
@@ -550,6 +553,47 @@ class RelaxedOverlapMetrics(SpanMetrics):
         for idx, span in enumerate(pred_spans):
             if idx not in matched_pred:
                 self.fp[span[2]] += 1
+
+
+class AnyLabelOverlapMetrics(RelaxedOverlapMetrics):
+    """One-to-one span overlap with any label: was the PII masked at all?
+
+    A match counts toward the gold label (so per-label recall is the share of
+    that label's entities that got masked); an unmatched prediction counts
+    toward its own label.
+    """
+
+    match_labels = False
+
+    def summary(self) -> dict:
+        tp = sum(self.tp.values())
+        fp = sum(self.fp.values())
+        fn = sum(self.fn.values())
+        prec = tp / (tp + fp) if (tp + fp) else 0.0
+        rec = tp / (tp + fn) if (tp + fn) else 0.0
+        f1 = 2 * prec * rec / (prec + rec) if (prec + rec) else 0.0
+        masked = {
+            label: round(self.tp[label] / (self.tp[label] + self.fn[label]), 4)
+            for label in sorted(set(self.tp) | set(self.fn))
+        }
+        return {
+            "precision": round(prec, 4),
+            "recall": round(rec, 4),
+            "f1": round(f1, 4),
+            "masked_share_per_gold_label": masked,
+        }
+
+
+def drop_unscored(
+    predicted: list[Span], unscored: list[tuple[int, int]]
+) -> tuple[list[Span], int]:
+    """Remove predictions that overlap a span the source leaves unscored."""
+    kept = [
+        p
+        for p in predicted
+        if not any(min(p[1], e) > max(p[0], s) for s, e in unscored)
+    ]
+    return kept, len(predicted) - len(kept)
 
 
 # ---------------------------------------------------------------------------
@@ -595,6 +639,7 @@ def load_ai4privacy_samples(
             {
                 "text": sample["text"],
                 "entities": entities,
+                "unscored": unscored_ai4privacy_spans(row),
             }
         )
         if len(samples) >= num:
@@ -667,7 +712,8 @@ def parse_args() -> argparse.Namespace:
         choices=[DEFAULT_DATASET, *sorted(GERMAN_SOURCES)],
         default=DEFAULT_DATASET,
         help="Evaluation set. Default: ai4privacy/pii-masking-300k train split "
-        "(also used for training). Others: see tests/benchmark/GERMAN_EVAL.md.",
+        "(also used for training). Others (German and English held-out sets): "
+        "see tests/benchmark/GERMAN_EVAL.md.",
     )
     ap.add_argument(
         "--split",
@@ -752,6 +798,8 @@ def main() -> int:
 
     exact_metrics = SpanMetrics()
     relaxed_metrics = RelaxedOverlapMetrics()
+    any_label_metrics = AnyLabelOverlapMetrics()
+    predictions_on_unscored = 0
     latencies: list[float] = []
     # Predictions with labels the source does not annotate (not scored).
     out_of_schema: dict[str, int] = defaultdict(int)
@@ -763,6 +811,8 @@ def main() -> int:
         predicted = model.predict(sample["text"])
         elapsed_ms = (time.perf_counter() - t0) * 1000
         latencies.append(elapsed_ms)
+        predicted, on_unscored = drop_unscored(predicted, sample.get("unscored", []))
+        predictions_on_unscored += on_unscored
         if source is not None:
             predicted, ignored = source.project(sample["text"], predicted)
             for _, _, label in ignored:
@@ -772,6 +822,7 @@ def main() -> int:
                 pii_free_with_predictions += bool(predicted or ignored)
         exact_metrics.update(sample["entities"], predicted)
         relaxed_metrics.update(sample["entities"], predicted)
+        any_label_metrics.update(sample["entities"], predicted)
         if args.verbose:
             print_sample_detections(
                 i,
@@ -826,6 +877,11 @@ def main() -> int:
             "macro_f1": round(relaxed_macro_f1, 4),
             "per_label": relaxed_per_label,
         },
+        # Label-agnostic: did each gold entity get masked, whatever the label?
+        "masked_any_label": any_label_metrics.summary(),
+        # Predictions on entities the source annotates with a label Kiji does
+        # not have (ai4privacy IPs, times, ...); left out of every score above.
+        "predictions_on_unscored_spans": predictions_on_unscored,
     }
     if source is not None:
         report["label_scheme"] = source.scheme
@@ -846,6 +902,13 @@ def main() -> int:
     print(f"  exact span macro-F1          : {report['exact_span_macro_f1']}")
     print(f"  relaxed overlap micro-F1    : {report['relaxed_overlap_f1']}")
     print(f"  relaxed overlap macro-F1    : {report['relaxed_overlap_macro_f1']}")
+    masked = report["masked_any_label"]
+    print(
+        f"  masked, any label  F1 / P / R : {masked['f1']} / {masked['precision']}"
+        f" / {masked['recall']}"
+    )
+    if predictions_on_unscored:
+        print(f"  predictions on unscored spans: {predictions_on_unscored}")
     print(f"  latency p50: {report['latency_ms']['p50']} ms")
     print(f"  latency p95: {report['latency_ms']['p95']} ms")
     print(f"  latency p99: {report['latency_ms']['p99']} ms")
