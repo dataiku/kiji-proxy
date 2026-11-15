@@ -656,11 +656,13 @@ class PIITrainer:
         logging.info("=" * 60)
         trainer.train()
 
-        # Save
+        # Save (save_model writes from the main process only; the rest must too,
+        # or every data-parallel process writes the same files at once)
         trainer.save_model()
-        self.model.encoder.config._name_or_path = self.config.model_name
-        self.model.encoder.config.save_pretrained(self.config.output_dir)
-        self.tokenizer.save_pretrained(self.config.output_dir)
+        if trainer.is_world_process_zero():
+            self.model.encoder.config._name_or_path = self.config.model_name
+            self.model.encoder.config.save_pretrained(self.config.output_dir)
+            self.tokenizer.save_pretrained(self.config.output_dir)
         logging.info(
             f"\n✅ Training completed. Model saved to {self.config.output_dir}"
         )

@@ -30,6 +30,11 @@ def get_best_device() -> torch.device:
     return torch.device("cpu")
 
 
+def is_distributed_launch() -> bool:
+    """Return True when a launcher such as torchrun started several processes."""
+    return int(os.environ.get("WORLD_SIZE", "1")) > 1 and "LOCAL_RANK" in os.environ
+
+
 def configure_accelerate_device() -> None:
     """Point the HF Trainer and accelerate at the TPU when TorchTPU is present.
 
@@ -38,6 +43,39 @@ def configure_accelerate_device() -> None:
     """
     if is_tpu_available():
         os.environ.setdefault("ACCELERATE_TORCH_DEVICE", "tpu")
+        if is_distributed_launch():
+            enable_tpu_data_parallel()
+
+
+def enable_tpu_data_parallel() -> None:
+    """Make accelerate run DDP over TorchTPU's "tpu_dist" process group.
+
+    Launch with one process per chip:
+        eval $(python -m torch.tpu.distributed | sed 's/^/export /')
+        torchrun --nproc_per_node=$WORLD_SIZE <script>
+
+    accelerate has no TorchTPU branch: under torchrun it finds no GPU, turns
+    distributed training off, and every process trains its own full copy of
+    the model. Route the backend choice to "tpu_dist" and report the run as
+    multi-device so the Trainer wraps the model in DDP and shards the data.
+    ACCELERATE_BYPASS_DEVICE_MAP builds DDP without device_ids: each TorchTPU
+    process sees only its own chip, as tpu:0.
+    """
+    from accelerate.state import PartialState
+    from accelerate.utils import DistributedType
+
+    os.environ.setdefault("ACCELERATE_BYPASS_DEVICE_MAP", "true")
+    if getattr(PartialState._prepare_backend, "_tpu_data_parallel", False):
+        return
+    original_prepare_backend = PartialState._prepare_backend
+
+    def prepare_backend(self, cpu=False, sagemaker_dp=False, backend=None):
+        if cpu or sagemaker_dp or not is_distributed_launch():
+            return original_prepare_backend(self, cpu, sagemaker_dp, backend)
+        return backend or "tpu_dist", DistributedType.MULTI_GPU
+
+    prepare_backend._tpu_data_parallel = True
+    PartialState._prepare_backend = prepare_backend
 
 
 @dataclass
@@ -55,7 +93,7 @@ class TrainingConfig:
     # Training parameters
     num_epochs: int = 5
     batch_size: int = 16
-    # Effective batch = batch_size * gradient_accumulation_steps (per device)
+    # Effective batch = batch_size * gradient_accumulation_steps * number of devices
     gradient_accumulation_steps: int = 1
     learning_rate: float = 3e-5
     max_samples: int = 400000

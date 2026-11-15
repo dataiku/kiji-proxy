@@ -17,15 +17,20 @@ class CleanMetricsCallback(TrainerCallback):
     def on_train_begin(self, args, state, control, **kwargs):
         self.train_start_time = time.time()
         self.total_steps = state.max_steps
+        if not state.is_world_process_zero:
+            return
         logging.warning(
             f"  Training: {self.total_steps} steps, "
             f"{args.num_train_epochs:.0f} epochs, "
             f"batch_size={args.per_device_train_batch_size} "
-            f"x {args.gradient_accumulation_steps} accumulation steps"
+            f"x {args.gradient_accumulation_steps} accumulation steps "
+            f"x {args.world_size} devices"
         )
         sys.stderr.flush()
 
     def on_train_end(self, args, state, control, **kwargs):
+        if not state.is_world_process_zero:
+            return
         elapsed = time.time() - self.train_start_time
         mins = elapsed / 60
         logging.warning(
@@ -36,7 +41,7 @@ class CleanMetricsCallback(TrainerCallback):
 
     def on_evaluate(self, args, state, control, metrics=None, **kwargs):
         """Called after evaluation - print a formatted metrics table."""
-        if metrics is None:
+        if metrics is None or not state.is_world_process_zero:
             return
 
         step = state.global_step
@@ -107,7 +112,7 @@ class CleanMetricsCallback(TrainerCallback):
 
     def on_log(self, args, state, control, logs=None, **kwargs):
         """Called when logging - only print training loss, suppress eval dicts."""
-        if logs is None:
+        if logs is None or not state.is_world_process_zero:
             return
 
         # Skip eval logs (handled by on_evaluate)
