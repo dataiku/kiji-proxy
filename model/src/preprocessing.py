@@ -2,8 +2,9 @@
 
 import json
 import random
+import re
 import sys
-from collections import Counter
+from collections import Counter, defaultdict
 from pathlib import Path
 from typing import ClassVar
 
@@ -141,6 +142,7 @@ class DatasetProcessor:
                         "privacy_mask": [],
                         "language": data.get("language"),
                         "country": data.get("country"),
+                        "source": data.get("source"),
                     }
                 return None
 
@@ -185,6 +187,7 @@ class DatasetProcessor:
                 "privacy_mask": privacy_mask,
                 "language": ls_sample.get("data", {}).get("language"),
                 "country": ls_sample.get("data", {}).get("country"),
+                "source": ls_sample.get("data", {}).get("source"),
             }
 
         except Exception as e:
@@ -232,7 +235,8 @@ class DatasetProcessor:
             raise ValueError(f"Training samples directory not found: {samples_dir}")
 
         samples = []
-        json_files = list(samples_dir.glob("*.json"))
+        # Sorted, so the same seed gives the same split on every machine.
+        json_files = sorted(samples_dir.glob("*.json"))
 
         logging.info(f"\n📥 Loading training samples from {samples_dir}...")
         logging.info(f"Found {len(json_files)} JSON files")
@@ -400,9 +404,27 @@ class DatasetProcessor:
         return entity_types
 
     def _split_train_validation(
-        self, formatted_samples: list[dict]
+        self,
+        formatted_samples: list[dict],
+        strata: list | None = None,
+        groups: list | None = None,
     ) -> tuple[list[dict], list[dict]]:
-        """Create a deterministic, rare-label-aware train/validation split."""
+        """Create a deterministic train/validation split.
+
+        The validation set is a stratified random sample: every group in
+        ``strata`` (for example source, language and PII-free) gets its share,
+        so validation has the same mix of sources, languages and negative rows
+        as training. With ``balanced_validation_split``, labels the random
+        sample under-represents are then topped up with rows that contain
+        them, so every label has enough validation rows for macro F1.
+
+        Rows with the same key in ``groups`` (for example the same template
+        with different PII values filled in) always land on the same side, so
+        validation does not score templates the model was trained on.
+
+        ``max_eval_samples`` caps the random sample; rows over the cap stay in
+        training.
+        """
         if not formatted_samples:
             return [], []
 
@@ -410,65 +432,60 @@ class DatasetProcessor:
         if eval_ratio <= 0:
             return formatted_samples, []
 
-        val_count = int(len(formatted_samples) * eval_ratio)
-        val_count = min(max(val_count, 1), len(formatted_samples) - 1)
+        num_samples = len(formatted_samples)
+        val_count = int(num_samples * eval_ratio)
+        if self.config.max_eval_samples > 0:
+            val_count = min(val_count, self.config.max_eval_samples)
+        val_count = min(max(val_count, 1), num_samples - 1)
 
         rng = random.Random(self.config.seed)
-        indexed_samples = list(enumerate(formatted_samples))
-        rng.shuffle(indexed_samples)
+        if strata is None or len(strata) != num_samples:
+            strata = [None] * num_samples
+        if groups is None or len(groups) != num_samples:
+            groups = list(range(num_samples))
 
-        if not self.config.balanced_validation_split:
-            val_indices = {idx for idx, _ in indexed_samples[:val_count]}
-        else:
-            sample_labels = {
-                idx: self._sample_entity_types(sample)
-                for idx, sample in indexed_samples
-            }
-            label_frequency: Counter = Counter()
-            for labels in sample_labels.values():
-                label_frequency.update(labels)
+        # Units of rows that move together, in order of their first row.
+        unit_rows: dict = {}
+        for idx, key in enumerate(groups):
+            unit_rows.setdefault(key, []).append(idx)
+        units = list(unit_rows.values())
+        stratum_units: dict = defaultdict(list)
+        stratum_rows: Counter = Counter()
+        for unit in units:
+            stratum_units[strata[unit[0]]].append(unit)
+            stratum_rows[strata[unit[0]]] += len(unit)
 
-            label_targets = {
-                label: max(1, int(round(count * eval_ratio)))
-                for label, count in label_frequency.items()
-            }
-            val_label_counts: Counter = Counter()
-            val_indices = set()
+        # Largest-remainder allocation, so stratum shares add up to val_count.
+        quotas = {
+            key: rows * val_count / num_samples for key, rows in stratum_rows.items()
+        }
+        allocation = {key: int(quota) for key, quota in quotas.items()}
+        leftover = val_count - sum(allocation.values())
+        by_remainder = sorted(
+            quotas, key=lambda k: (quotas[k] - allocation[k], str(k)), reverse=True
+        )
+        for key in by_remainder[:leftover]:
+            allocation[key] += 1
 
-            def rarity_score(item: tuple[int, dict]) -> tuple[float, float]:
-                idx, _sample = item
-                labels = sample_labels[idx]
-                if not labels:
-                    return (0.0, rng.random())
-                return (
-                    sum(1.0 / label_frequency[label] for label in labels),
-                    rng.random(),
-                )
-
-            for idx, _sample in sorted(indexed_samples, key=rarity_score, reverse=True):
-                if len(val_indices) >= val_count:
+        val_indices: set[int] = set()
+        for key in sorted(stratum_units, key=str):
+            candidates = list(stratum_units[key])
+            rng.shuffle(candidates)
+            taken = 0
+            for unit in candidates:
+                if taken >= allocation[key]:
                     break
-                labels = sample_labels[idx]
-                if not labels:
-                    continue
-                if any(
-                    val_label_counts[label] < label_targets[label] for label in labels
-                ):
-                    val_indices.add(idx)
-                    val_label_counts.update(labels)
+                if taken + len(unit) > allocation[key] and taken > 0:
+                    continue  # a big template group would overshoot; try smaller
+                val_indices.update(unit)
+                taken += len(unit)
 
-            for idx, _sample in indexed_samples:
-                if len(val_indices) >= val_count:
-                    break
-                val_indices.add(idx)
-
-            covered_labels = sum(
-                1 for label in label_frequency if val_label_counts[label] > 0
-            )
+        if self.config.balanced_validation_split:
+            added = self._top_up_rare_labels(formatted_samples, val_indices, units, rng)
             logging.info(
-                "Balanced validation split: %d/%d entity types represented",
-                covered_labels,
-                len(label_frequency),
+                "Validation split: %d stratified rows + %d rows for rare labels",
+                val_count,
+                added,
             )
 
         train_samples = [
@@ -480,6 +497,83 @@ class DatasetProcessor:
             sample for idx, sample in enumerate(formatted_samples) if idx in val_indices
         ]
         return train_samples, val_samples
+
+    @staticmethod
+    def _template_key(sample: dict) -> str:
+        """The sample's text with PII replaced by its label and digits by 0.
+
+        Rows generated from the same template with different values get the
+        same key.
+        """
+        text = sample["text"]
+        spans = sorted(
+            (
+                m
+                for m in sample.get("privacy_mask", [])
+                if isinstance(m.get("start"), int) and isinstance(m.get("end"), int)
+            ),
+            key=lambda m: m["start"],
+            reverse=True,
+        )
+        last_start = len(text) + 1
+        for m in spans:
+            if m["end"] > last_start:
+                continue  # overlapping span; keep the later one
+            text = text[: m["start"]] + f"<{m['label']}>" + text[m["end"] :]
+            last_start = m["start"]
+        text = re.sub(r"\d", "0", text.lower())
+        return re.sub(r"\s+", " ", text).strip()
+
+    def _top_up_rare_labels(
+        self,
+        formatted_samples: list[dict],
+        val_indices: set[int],
+        units: list[list[int]],
+        rng: random.Random,
+    ) -> int:
+        """Move rows into validation for labels below 80% of their fair share.
+
+        A label's fair share is its row count times the validation fraction.
+        At most half of a label's rows go to validation, so training keeps the
+        other half. Changes ``val_indices`` in place; returns the rows added.
+        """
+        num_samples = len(formatted_samples)
+        fraction = len(val_indices) / num_samples
+        sample_labels = [self._sample_entity_types(s) for s in formatted_samples]
+        label_rows: Counter = Counter()
+        for labels in sample_labels:
+            label_rows.update(labels)
+        val_label_rows: Counter = Counter()
+        for idx in val_indices:
+            val_label_rows.update(sample_labels[idx])
+
+        candidates = [unit for unit in units if unit[0] not in val_indices]
+        rng.shuffle(candidates)
+        added = 0
+        for label in sorted(label_rows, key=lambda lab: (label_rows[lab], lab)):
+            minimum = min(
+                max(1, int(0.8 * label_rows[label] * fraction)),
+                label_rows[label] // 2,
+            )
+            for unit in candidates:
+                if val_label_rows[label] >= minimum:
+                    break
+                if unit[0] in val_indices or not any(
+                    label in sample_labels[idx] for idx in unit
+                ):
+                    continue
+                for idx in unit:
+                    val_indices.add(idx)
+                    val_label_rows.update(sample_labels[idx])
+                added += len(unit)
+
+        covered = sum(1 for label in label_rows if val_label_rows[label] > 0)
+        logging.info(
+            "Balanced validation split: %d/%d entity types represented",
+            covered,
+            len(label_rows),
+        )
+        return added
 
     def prepare_datasets(
         self, subsample_count: int = 0
@@ -553,9 +647,17 @@ class DatasetProcessor:
         if len(formatted_samples) == 0:
             raise ValueError("No samples could be tokenized!")
 
-        # Split into train and validation. The default split is rare-label aware so
-        # macro F1 and best-checkpoint selection are less sensitive to common labels.
-        train_samples, val_samples = self._split_train_validation(formatted_samples)
+        # Split into train and validation, stratified by source, language and
+        # PII-free so validation has the same mix as training
+        # (formatted_samples keeps the order of all_samples).
+        strata = [
+            (s.get("source"), s.get("language"), not s["privacy_mask"])
+            for s in all_samples
+        ]
+        groups = [self._template_key(s) for s in all_samples]
+        train_samples, val_samples = self._split_train_validation(
+            formatted_samples, strata, groups
+        )
 
         # Create HuggingFace datasets
         train_dataset = Dataset.from_list(train_samples)
