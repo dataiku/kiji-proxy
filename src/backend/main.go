@@ -1,13 +1,11 @@
 package main
 
 import (
-	"embed"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
-	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
@@ -396,48 +394,4 @@ func expandPath(path string) string {
 
 	// Otherwise, return path as-is
 	return path
-}
-
-// extractEmbeddedModelFiles extracts embedded model files into targetDir.
-func extractEmbeddedModelFiles(modelFS embed.FS, targetDir string) error {
-	if targetDir == "" {
-		return fmt.Errorf("extractEmbeddedModelFiles: targetDir is empty (was the binary built with the embed tag?)")
-	}
-	if err := os.MkdirAll(targetDir, 0750); err != nil {
-		return err
-	}
-
-	// Walk through embedded files and extract them
-	return fs.WalkDir(modelFS, ".", func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-
-		// Skip directories
-		if d.IsDir() {
-			return nil
-		}
-
-		// Read embedded file
-		content, err := modelFS.ReadFile(path)
-		if err != nil {
-			return err
-		}
-
-		// Create target file path
-		targetPath := filepath.Join(targetDir, filepath.Base(path))
-
-		// Write file to disk
-		if err := os.WriteFile(targetPath, content, 0600); err != nil {
-			return err
-		}
-
-		// Get file size for verification
-		if info, err := os.Stat(targetPath); err == nil {
-			log.Printf("Extracted: %s (size: %d bytes)", targetPath, info.Size())
-		} else {
-			log.Printf("Extracted: %s (size: unknown)", targetPath)
-		}
-		return nil
-	})
 }
