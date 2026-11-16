@@ -61,7 +61,7 @@ edits are reverted with the repair.
 ## v5: English ID rows
 
 v5 is v4 unchanged plus 1,500 English template rows from
-`model/dataset/id_templates.py` (prefix `synid_`, half UK, half US, 517
+`model/dataset/id_templates.py` (prefix `synid_`, half UK, half US, 493
 PII-free); 82,041 rows in all. Config: `mdeberta_german_mix_v5.toml`. Build:
 
 ```bash
@@ -86,17 +86,27 @@ The new rows put realistic UK and US formats after their cue words: NI
 number (NATIONALID), UK passport, DVLA driving licence (built from surname
 and birth date), UTR (TAXNUM); US SSN, EIN and ITIN (TAXNUM; ITINs look like
 SSNs, only the cue differs), passport, state driving licence, state ID card
-(IDCARDNUM). They sit in bank account opening, HR onboarding, travel, car
+(IDCARDNUM), each in its home state's format. A person has an SSN or an
+ITIN, never both; EINs appear only for business accounts. They sit in bank account opening, HR onboarding, travel, car
 rental, money transfers and key/value records, next to look-alike numbers
 that are not PII (case, order, booking, confirmation, e-ticket numbers) and
 PII-free rows that name a document without its number ("bring your
-passport"). Country names come from 167 countries.
+passport"); those are put together from interchangeable sentences rather
+than a few fixed frames. Country names come from 167 countries.
 
 Choices: the rows teach the label from the cue, not nym's habit of labelling
 bare numbers by format; a UK National Insurance number is NATIONALID (as in
 most Kiji rows; nym calls it SSN, so nym-en keeps counting those as a wrong
-label, though masked); NHS numbers are left out (no model label). The
-conflicting Kiji labels are not changed yet.
+label, though masked); UK rows name the country only as United Kingdom /
+UK, because Kiji labels Scotland, Wales and Northern Ireland STATE; NHS
+numbers are left out (no model label). The conflicting Kiji labels are not
+changed yet.
+
+Birth dates: 36% of the new rows' birth dates have no birth word in front
+("Eilidh Lewis, 12th May 1989, living at ...", CSV/JSON keys `date`, `d`).
+Every ID row needs a person, so with cued birth dates only, the rows would
+have lowered the English share of uncued birth dates from 33% to 23%, the
+direction of the v2 regression; with them it is 34%.
 
 Judge v5 on the held-out sets (`nym-en`, `nobody-en`, `ai4privacy-300k-en`
 and the German sets; see `tests/benchmark/GERMAN_EVAL.md`), not on its own
