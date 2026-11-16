@@ -9,9 +9,9 @@ English-speaking countries of the Kiji data. These rows teach:
 
 - the label from the cue word, with realistic, varied formats: UK National
   Insurance number (NATIONALID), passport, driving licence (derived from the
-  surname and birth date like a real DVLA number), Unique Taxpayer Reference
-  (TAXNUM); US Social Security number, EIN and ITIN (TAXNUM),
-  passport, state driving licence and state ID card (IDCARDNUM);
+  name and birth date like a real DVLA number), Unique Taxpayer Reference
+  (TAXNUM); US Social Security number, ITIN and EIN (TAXNUM), passport,
+  state driving licence and state ID card (IDCARDNUM) in that state's format;
 - that the same shapes are not PII after a non-ID cue: order, case, booking,
   confirmation, e-ticket and form numbers, flight numbers, issue and expiry
   dates; and that a cue word without a number ("bring your passport") labels
@@ -21,7 +21,15 @@ English-speaking countries of the Kiji data. These rows teach:
 
 Settings: bank account opening (identity checks), HR onboarding (payroll,
 right to work), air travel and hotels, car rental, money transfers, and
-key/value records (forms, CSV, JSON). About a third of the rows are PII-free.
+key/value records (forms, CSV, JSON). About a third of the rows are PII-free;
+those are put together from interchangeable sentences, so they do not repeat
+a handful of fixed frames.
+
+Conventions follow the Kiji English rows: a UK National Insurance number is
+NATIONALID, UK rows name the country only as "United Kingdom" or "UK" (Kiji
+labels Scotland, Wales and Northern Ireland as STATE), and about 40% of the
+birth dates have no birth word in front of them, so the cue-heavy ID rows do
+not teach "no birth word, no birth date" (the v2 regression).
 
 Usage:
     from model.dataset.id_templates import generate
@@ -70,10 +78,8 @@ COUNTRIES = _l(
     "Vanuatu|Venezuela|Vietnam|Yemen|Zambia|Zimbabwe"
 )
 HOME_COUNTRIES = {
-    "uk": _l(
-        "United Kingdom|United Kingdom|UK|England|Scotland|Wales|Northern Ireland"
-    ),
-    "us": _l("United States|United States|USA|U.S."),
+    "uk": _l("United Kingdom|United Kingdom|UK"),
+    "us": _l("United States|United States|USA"),
 }
 
 # NI number prefixes: neither letter D, F, I, Q, U or V, second letter not O,
@@ -81,6 +87,34 @@ HOME_COUNTRIES = {
 _NI_FIRST = [c for c in string.ascii_uppercase if c not in "DFIQUV"]
 _NI_SECOND = [c for c in string.ascii_uppercase if c not in "DFIQUVO"]
 _NI_BAD = {"BG", "GB", "KN", "NK", "NT", "TN", "ZZ"}
+
+# EIN prefixes the IRS assigns (00, 07-09, 17-19, 28, 29, 49, 69, 70, 78, 79,
+# 89, 96 and 97 are never used).
+EIN_PREFIXES = [
+    f"{n:02d}"
+    for n in range(1, 100)
+    if n not in {7, 8, 9, 17, 18, 19, 28, 29, 49, 69, 70, 78, 79, 89, 96, 97}
+]
+
+# Driving licence / state ID card number format per state.
+STATE_FORMATS = {
+    "CA": "{C1}{d7}",
+    "NY": "{d3} {d3} {d3}",
+    "TX": "{d8}",
+    "FL": "{C1}{d3}-{d3}-{d2}-{d3}-{d1}",
+    "IL": "{C1}{d3}-{d4}-{d4}",
+    "WA": "WDL{C2}{d5}{C2}",
+}
+
+FEMALE_NAMES = set(
+    _l(
+        "Amelia|Isla|Ava|Mia|Grace|Freya|Lily|Sophie|Evie|Poppy|Siân|Eilidh|Niamh|"
+        "Priya|Aisha|Chloe|Ellie|Bethan|Zainab|Fiona|Megan|Rosie|Mary-Kate|"
+        "Mary|Patricia|Jennifer|Linda|Elizabeth|Maria|Guadalupe|Keisha|Aaliyah|"
+        "Ashley|Brittany|Madison|Mai|Yuki|Ananya|Fatima|Svetlana|Kayla|Savannah|"
+        "Ximena|Imani|Molly|Olivia|Emma"
+    )
+)
 
 
 @dataclass
@@ -90,7 +124,8 @@ class Country:
     first_names: list[str]
     surnames: list[str]
     streets: list[str]
-    cities: list[tuple[str, str]]  # (ZIP pattern, city) or (state, city) for US
+    # UK: (postcode pattern, city); US: (state, city, first three ZIP digits)
+    cities: list[tuple[str, ...]]
     phone_formats: list[str]
     email_domains: list[str]
     months: list[str]
@@ -145,7 +180,7 @@ US = Country(
     first_names=_l(
         "James|Mary|Michael|Patricia|Robert|Jennifer|David|Linda|John|Elizabeth|"
         "Carlos|Maria|Jose|Guadalupe|Tyrone|Keisha|DeShawn|Aaliyah|Kevin|Ashley|"
-        "Brandon|Brittany|Tyler|Madison|Nguyen|Mai|Hiroshi|Yuki|Rajesh|Ananya|"
+        "Brandon|Brittany|Tyler|Madison|Mai|Hiroshi|Yuki|Rajesh|Ananya|"
         "Omar|Fatima|Dmitri|Svetlana|Cody|Kayla|Hunter|Savannah|Luis|Ximena|"
         "Jamal|Imani|Connor|Molly|Ethan|Olivia|Noah|Emma"
     ),
@@ -163,26 +198,24 @@ US = Country(
         "Lincoln Way|Magnolia Lane|Ridge Road"
     ),
     cities=[
-        ("TX", "Austin"),
-        ("TX", "Houston"),
-        ("CA", "Sacramento"),
-        ("CA", "San Diego"),
-        ("NY", "Albany"),
-        ("NY", "Buffalo"),
-        ("FL", "Tampa"),
-        ("FL", "Orlando"),
-        ("IL", "Springfield"),
-        ("IL", "Naperville"),
-        ("WA", "Spokane"),
-        ("OH", "Columbus"),
-        ("GA", "Savannah"),
-        ("AZ", "Tucson"),
-        ("CO", "Boulder"),
-        ("PA", "Pittsburgh"),
-        ("MI", "Ann Arbor"),
-        ("NC", "Raleigh"),
-        ("MN", "Duluth"),
-        ("OR", "Eugene"),
+        ("TX", "Austin", "787"),
+        ("TX", "Houston", "770"),
+        ("TX", "El Paso", "799"),
+        ("CA", "Sacramento", "958"),
+        ("CA", "San Diego", "921"),
+        ("CA", "Fresno", "937"),
+        ("NY", "Albany", "122"),
+        ("NY", "Buffalo", "142"),
+        ("NY", "Rochester", "146"),
+        ("FL", "Tampa", "336"),
+        ("FL", "Orlando", "328"),
+        ("FL", "Tallahassee", "323"),
+        ("IL", "Springfield", "627"),
+        ("IL", "Naperville", "605"),
+        ("IL", "Peoria", "616"),
+        ("WA", "Spokane", "992"),
+        ("WA", "Tacoma", "984"),
+        ("WA", "Olympia", "985"),
     ],
     phone_formats=_l(
         "({D3}) {D3}-{d4}|{D3}-{D3}-{d4}|+1 {D3} {D3} {d4}|{D3}.{D3}.{d4}"
@@ -194,10 +227,8 @@ US = Country(
             "Social Security number|SSN|social security no.|SS#|Social Security "
             "Number (SSN)"
         ),
-        "TAXNUM": _l(
-            "EIN|Employer Identification Number|federal tax ID (EIN)|ITIN|"
-            "Individual Taxpayer Identification Number"
-        ),
+        # A person's tax ID without an SSN; EINs (EIN_CUES) only for businesses.
+        "TAXNUM": _l("ITIN|Individual Taxpayer Identification Number|ITIN number"),
         "PASSPORTID": _l(
             "passport number|U.S. passport no.|passport book number|passport"
         ),
@@ -209,7 +240,7 @@ US = Country(
     },
     keys={
         "SSN": _l("SSN|Social Security No.|ssn|social_security_number"),
-        "TAXNUM": _l("Tax ID|TIN|tax_id"),
+        "TAXNUM": _l("ITIN|Tax ID|TIN|tax_id"),
         "PASSPORTID": _l("Passport No.|Passport number|passport_no"),
         "DRIVERLICENSENUM": _l(
             "Driver's License #|DL Number|dl_number|drivers_license"
@@ -220,11 +251,18 @@ US = Country(
     tax_forms=_l("W-4|W-9|I-9|1099-NEC|W-2|form 1040|Form SS-5"),
 )
 COUNTRIES_BY_CODE = {"uk": UK, "us": US}
+EIN_CUES = _l("EIN|Employer Identification Number|federal tax ID (EIN)")
 
 # Labels each country's rows can carry, besides names, dates and addresses.
 ID_LABELS = {
     "uk": ["NATIONALID", "PASSPORTID", "DRIVERLICENSENUM", "TAXNUM"],
     "us": ["SSN", "TAXNUM", "PASSPORTID", "DRIVERLICENSENUM", "IDCARDNUM"],
+}
+
+# Keys / column names for a birth date in records. Half carry no birth word.
+DOB_KEYS = {
+    "form": _l("Date of birth|DOB|Date of birth|Date|Born"),
+    "column": _l("dob|date_of_birth|dob|date|d"),
 }
 
 
@@ -269,50 +307,53 @@ class _IdGen(_Gen):
         y = self.r.randint(1945, 2005)
         first = self.pick(self.c.first_names)
         last = self.pick(self.c.surnames)
+        email_user = f"{_ascii(first)}{self.pick(['.', '_', ''])}{_ascii(last)}"
         return {
             "first": first,
             "last": last,
-            "female": self.r.random() < 0.5,
+            "female": first in FEMALE_NAMES,
             "dob_parts": (d, m, y),
-            "dob": self.us_or_uk_date(d, m, y),
-            "email": f"{_ascii(first)}{self.pick(['.', '_', ''])}{_ascii(last)}"
-            f"@{self.pick(self.c.email_domains)}".replace(" ", "").replace("'", ""),
+            "dob": self.date_str(d, m, y),
+            "email": email_user.replace(" ", "").replace("'", "")
+            + f"@{self.pick(self.c.email_domains)}",
             "phone": self.expand(self.pick(self.c.phone_formats)),
+            "home": self.pick(self.c.cities),
         }
 
-    def us_or_uk_date(self, d: int, m: int, y: int) -> str:
+    def date_str(self, d: int, m: int, y: int, style: int | None = None) -> str:
         month = self.c.months[m - 1]
         if self.c.code == "us":
-            return self.pick(
-                [f"{m:02d}/{d:02d}/{y}", f"{month} {d}, {y}", f"{y}-{m:02d}-{d:02d}"]
-            )
-        day = f"{d}{EN_ORDINALS.get(d, 'th')}"
-        return self.pick(
-            [f"{d:02d}/{m:02d}/{y}", f"{d} {month} {y}", f"{day} {month} {y}"]
-        )
+            styles = [
+                f"{m:02d}/{d:02d}/{y}",
+                f"{month} {d}, {y}",
+                f"{y}-{m:02d}-{d:02d}",
+            ]
+        else:
+            day = f"{d}{EN_ORDINALS.get(d, 'th')}"
+            styles = [f"{d:02d}/{m:02d}/{y}", f"{d} {month} {y}", f"{day} {month} {y}"]
+        return styles[self.r.randrange(3) if style is None else style]
 
     def event_date(self, years: tuple[int, int] = (2024, 2027)) -> str:
         d, m = self.r.randint(1, 28), self.r.randint(1, 12)
-        return self.us_or_uk_date(d, m, self.r.randint(*years))
+        return self.date_str(d, m, self.r.randint(*years))
 
     def issue_and_expiry(self) -> tuple[str, str]:
-        d, m, y = (
-            self.r.randint(1, 28),
-            self.r.randint(1, 12),
-            self.r.randint(2016, 2025),
-        )
-        return self.us_or_uk_date(d, m, y), self.us_or_uk_date(d, m, y + 10)
+        """Issue and expiry date ten years apart, in the same format."""
+        d, m = self.r.randint(1, 28), self.r.randint(1, 12)
+        y, style = self.r.randint(2016, 2025), self.r.randrange(3)
+        return self.date_str(d, m, y, style), self.date_str(d, m, y + 10, style)
 
-    def address_parts(self) -> list[Part]:
+    def address_parts(self, p: dict) -> list[Part]:
+        """The person's home address; the city, state and ZIP agree."""
         num = str(self.r.randint(1, 4800 if self.c.code == "us" else 180))
         street = self.pick(self.c.streets)
         parts: list[Part] = [(num, "BUILDINGNUM"), (" ", None), (street, "STREET")]
         if self.c.code == "us":
-            state, city = self.pick(self.c.cities)
+            state, city, zip3 = p["home"]
             parts += [(", ", None), (city, "CITY"), (", ", None), (state, "STATE")]
-            parts += [(" ", None), (self.expand("{D5}"), "ZIP")]
+            parts += [(" ", None), (zip3 + self.digits(2), "ZIP")]
         else:
-            zip_, city = self.pick(self.c.cities)
+            zip_, city = p["home"]
             parts += [(", ", None), (city, "CITY"), (" ", None)]
             parts.append((self.expand(zip_, "ABDEFGHJLNPQRSTUWXYZ"), "ZIP"))
         if self.r.random() < 0.3:
@@ -338,9 +379,12 @@ class _IdGen(_Gen):
         )
 
     def uk_driving_licence(self, p: dict) -> str:
-        """DVLA format: surname (5, padded with 9), decade digit, month (+50
-        for women), day, year digit, two initials (padded), 9, two letters."""
+        """DVLA format: surname (5, Mac -> MC, padded with 9), decade digit,
+        month (+50 for women), day, year digit, two initials (padded), 9,
+        two letters."""
         name = "".join(ch for ch in _ascii(p["last"]).upper() if ch.isalpha())
+        if name.startswith("MAC"):
+            name = "MC" + name[3:]
         d, m, y = p["dob_parts"]
         month = m + 50 if p["female"] else m
         initials = _ascii(p["first"])[:1].upper() + self.pick(["", self.letters(1)])
@@ -365,52 +409,35 @@ class _IdGen(_Gen):
         sep = "-" if self.r.random() < 0.85 else self.pick([" ", ""])
         return f"{area:03d}{sep}{group:02d}{sep}{serial:04d}"
 
-    def us_tax_id(self) -> tuple[str, str]:
-        """(cue, number): EIN 12-3456789 or ITIN 9XX-7X-XXXX."""
-        if self.r.random() < 0.6:
-            cue = self.pick(
-                ["EIN", "Employer Identification Number", "federal tax ID (EIN)"]
-            )
-            return cue, f"{self.r.randint(10, 99)}-{self.digits(7)}"
-        cue = self.pick(["ITIN", "Individual Taxpayer Identification Number"])
-        return cue, f"9{self.digits(2)}-{self.r.randint(70, 88)}-{self.digits(4)}"
+    def itin(self) -> str:
+        return f"9{self.digits(2)}-{self.r.randint(70, 88)}-{self.digits(4)}"
+
+    def ein(self) -> str:
+        return f"{self.pick(EIN_PREFIXES)}-{self.digits(7)}"
 
     def passport(self) -> str:
         if self.c.code == "uk":
             return self.expand("{D9}")
         return self.expand(self.pick(["{D9}", "{C1}{d8}"]))
 
-    def us_state_number(self) -> str:
-        """Driving licence / state ID formats of a few states."""
-        return self.expand(
-            self.pick(
-                [
-                    "{C1}{d7}",  # California
-                    "{d3} {d3} {d3}",  # New York
-                    "{d8}",  # Texas
-                    "{C1}{d3}-{d3}-{d2}-{d3}-{d1}",  # Florida
-                    "{C1}{d3}-{d4}-{d4}",  # Illinois
-                    "WDL{C2}{d5}{C2}",  # Washington
-                ]
-            )
-        )
+    def state_number(self, p: dict) -> str:
+        """Driving licence / state ID number in the home state's format."""
+        return self.expand(STATE_FORMATS[p["home"][0]])
 
     def id_number(self, label: str, p: dict) -> tuple[str, str]:
         """(cue, number) for ``label``; the cue matches the number's type."""
         c = self.c
-        if label == "TAXNUM" and c.code == "us":
-            return self.us_tax_id()
         number = {
             "NATIONALID": self.ni_number,
             "PASSPORTID": self.passport,
             "DRIVERLICENSENUM": (
                 (lambda: self.uk_driving_licence(p))
                 if c.code == "uk"
-                else self.us_state_number
+                else (lambda: self.state_number(p))
             ),
-            "TAXNUM": self.utr,
+            "TAXNUM": self.utr if c.code == "uk" else self.itin,
             "SSN": self.ssn,
-            "IDCARDNUM": self.us_state_number,
+            "IDCARDNUM": lambda: self.state_number(p),
         }[label]()
         return self.pick(c.cues[label]), number
 
@@ -442,67 +469,91 @@ def _name(p: dict) -> list[Part]:
     return [(p["first"], "FIRSTNAME"), (" ", None), (p["last"], "SURNAME")]
 
 
-def _id_phrase(g: _IdGen, label: str, p: dict) -> list[Part]:
-    cue, number = g.id_number(label, p)
-    joiner = g.pick([" ", " ", ": ", " is ", " "])
-    return [(cue + joiner, None), (number, label)]
-
-
-def _ref_phrase(g: _IdGen, setting: str) -> list[Part]:
-    cue, code = g.reference(setting)
-    return [(f"{cue} {code}", None)]
-
-
 def _pick_ids(g: _IdGen, k: int) -> list[str]:
-    return g.r.sample(ID_LABELS[g.c.code], k)
+    """``k`` ID labels for one person; a US person has an SSN or an ITIN
+    (TAXNUM), never both."""
+    labels = g.r.sample(ID_LABELS[g.c.code], k)
+    if "SSN" in labels and "TAXNUM" in labels:
+        labels.remove(g.pick(["SSN", "TAXNUM"]))
+    return labels
 
 
 def _licence_word(g: _IdGen) -> str:
     return "driving licence" if g.c.code == "uk" else "driver's license"
 
 
-def t_account_opening(g: _IdGen, pii: bool) -> list[Part]:
-    product = g.pick(
-        [
-            "current account",
-            "savings account",
-            "credit card",
-            "ISA" if g.c.code == "uk" else "IRA",
-            "checking account" if g.c.code == "us" else "joint account",
-            "brokerage account",
-            "mortgage",
+def _dob_after_name(g: _IdGen, p: dict) -> list[Part]:
+    """ ", born <date>" or, without a birth word, ", <date>" / " (<date>)"."""
+    style = g.r.random()
+    if style < 0.55:
+        return [
+            (g.pick([", born ", ", date of birth ", ", DOB "]), None),
+            (p["dob"], "DATEOFBIRTH"),
         ]
+    if style < 0.8:
+        return [(", ", None), (p["dob"], "DATEOFBIRTH")]
+    return [(" (", None), (p["dob"], "DATEOFBIRTH"), (")", None)]
+
+
+def _sentences(
+    g: _IdGen, openers: list[str], middles: list[str], closers: list[str]
+) -> str:
+    """One opener, one or two middles and maybe a closer, for PII-free rows."""
+    picked = [g.pick(openers)] + g.r.sample(middles, g.r.randint(1, 2))
+    if g.r.random() < 0.6:
+        picked.append(g.pick(closers))
+    return " ".join(picked)
+
+
+def t_account_opening(g: _IdGen, pii: bool) -> list[Part]:
+    business = g.c.code == "us" and g.r.random() < 0.2
+    product = (
+        g.pick(["business checking account", "sole proprietor account"])
+        if business
+        else g.pick(
+            [
+                "current account",
+                "savings account",
+                "credit card",
+                "ISA" if g.c.code == "uk" else "IRA",
+                "checking account" if g.c.code == "us" else "joint account",
+                "brokerage account",
+                "mortgage",
+            ]
+        )
     )
     if not pii:
         cue, code = g.reference("bank")
         doc = g.pick(["passport", _licence_word(g), "photo ID", "proof of address"])
-        return [
-            (
-                g.pick(
-                    [
-                        f"Thank you for your {product} application ({cue} {code}). "
-                        f"To finish the identity check, please upload a clear photo of "
-                        f"your {doc} and a bank statement dated after "
-                        f"{g.event_date()}. Uploads are reviewed within 2 working "
-                        f"days; quote {code} if you call us.",
-                        f"We could not verify your identity yet ({cue} {code}). The "
-                        f"photo of your {doc} was blurred. Please upload it again "
-                        f"before {g.event_date()}; your application stays open until "
-                        f"then.",
-                        f"Reminder: for your {product}, we still need a copy of your "
-                        f"{doc}. You can bring it to any branch and mention "
-                        f"{cue} {code}. Opening hours: Mon-Fri 9:00-17:00.",
-                    ]
-                ),
-                None,
-            )
-        ]
+        text = _sentences(
+            g,
+            [
+                f"Thank you for your {product} application ({cue} {code}).",
+                f"We could not verify your identity yet ({cue} {code}).",
+                f"Reminder about your {product} ({cue} {code}).",
+                f"Your {product} application is almost complete.",
+                f"Re: {cue} {code}.",
+            ],
+            [
+                f"Please upload a clear photo of your {doc}.",
+                f"The photo of your {doc} was blurred, so please upload it again.",
+                f"We also need a bank statement dated after {g.event_date()}.",
+                f"You can bring your {doc} to any branch instead.",
+                f"Uploads are reviewed within {g.r.randint(2, 5)} working days.",
+                f"Your application stays open until {g.event_date()}.",
+                "We never ask for your PIN or full password.",
+            ],
+            [
+                f"Quote {code} if you call us.",
+                "Opening hours: Mon-Fri 9:00-17:00.",
+                "Thank you for banking with us.",
+            ],
+        )
+        return [(text, None)]
     p = g.person()
     parts: list[Part] = [
         (g.pick(["Dear ", "Hi ", "Hello "]), None),
         (p["first"], "FIRSTNAME"),
-    ]
-    parts.append(
         (
             g.pick(
                 [
@@ -513,22 +564,31 @@ def t_account_opening(g: _IdGen, pii: bool) -> list[Part]:
                 ]
             ),
             None,
-        )
-    )
-    parts += _name(p)
-    parts += [(", born ", None), (p["dob"], "DATEOFBIRTH"), (", living at ", None)]
-    parts += g.address_parts()
-    parts.append((". ", None))
+        ),
+    ]
+    parts += _name(p) + _dob_after_name(g, p)
+    parts += [(", living at ", None)] + g.address_parts(p) + [(". ", None)]
+    ids: list[tuple[str, str, str]] = []  # (cue, number, label)
+    if business:
+        ids.append((g.pick(EIN_CUES), g.ein(), "TAXNUM"))
     for label in _pick_ids(g, g.r.randint(1, 2)):
-        parts.append((g.pick(["Your ", "The ", "We verified your "]), None))
-        parts += _id_phrase(g, label, p)
-        parts.append(
-            (g.pick([" matches our records. ", " has been checked. ", ". "]), None)
+        if business and label == "TAXNUM":
+            continue
+        cue, number = g.id_number(label, p)
+        ids.append((cue, number, label))
+    for cue, number, label in ids:
+        before, after = g.pick(
+            [
+                (f"Your {cue} ", " matches our records. "),
+                (f"We verified your {cue}: ", ". "),
+                (f"The {cue} you gave us (", ") has been checked. "),
+                (f"Your {cue} is ", ". "),
+            ]
         )
-    parts.append(("Your ", None))
-    parts += _ref_phrase(g, "bank")
+        parts += [(before, None), (number, label), (after, None)]
+    cue, code = g.reference("bank")
     parts.append(
-        (g.pick([" stays the same.", " is unchanged.", " is still valid."]), None)
+        (f"Your {cue} {code} " + g.pick(["stays the same.", "is unchanged."]), None)
     )
     return parts
 
@@ -537,49 +597,60 @@ def t_onboarding(g: _IdGen, pii: bool) -> list[Part]:
     forms = g.r.sample(g.c.tax_forms, 2)
     start = g.event_date()
     if not pii:
-        return [
-            (
-                g.pick(
-                    [
-                        f"Onboarding checklist (starts {start}): sign the contract, "
-                        f"return the {forms[0]} and {forms[1]}, complete the security "
-                        f"training (module {g.expand('SEC-{d3}')}) and collect your "
-                        f"laptop, asset tag {g.expand('{C2}{d6}')}. Payroll cut-off is "
-                        f"the {g.r.randint(15, 25)}th; cost centre {g.expand('{d4}')}.",
-                        f"Hi team, three new starters join on {start}. Payroll needs "
-                        f"their {forms[0]} by Friday; HR will check passports for the "
-                        f"right-to-work file on day one. Desk numbers "
-                        f"{g.expand('{d1}.{d2}')} to {g.expand('{d1}.{d2}')}, "
-                        f"requisition {g.expand('REQ-{d6}')}.",
-                        f"Please do not send your {forms[0]} or {forms[1]} by email. "
-                        f"Upload them in the HR portal under case {g.expand('{D9}')}; "
-                        f"the portal accepts PDF files up to 10 MB.",
-                    ]
-                ),
-                None,
-            )
-        ]
+        text = _sentences(
+            g,
+            [
+                f"Onboarding checklist (starts {start}):",
+                f"Hi team, {g.pick(['two', 'three', 'four'])} new starters join on {start}.",
+                f"Welcome aboard! Your first day is {start}.",
+                f"HR update for requisition {g.expand('REQ-{d6}')}.",
+            ],
+            [
+                f"Please return the {forms[0]} and {forms[1]} before payroll cut-off "
+                f"on the {g.r.randint(15, 25)}th.",
+                "HR will check passports for the right-to-work file on day one.",
+                f"Complete the security training (module {g.expand('SEC-{d3}')}).",
+                f"Collect your laptop, asset tag {g.expand('{C2}{d6}')}.",
+                f"Upload documents in the HR portal under case {g.expand('{D9}')}.",
+                f"Please do not send your {forms[0]} by email.",
+                f"Desk {g.expand('{d1}.{d2}')}, cost centre {g.expand('{d4}')}.",
+            ],
+            [
+                "The portal accepts PDF files up to 10 MB.",
+                "See you soon!",
+                f"Questions? Ticket #{g.expand('{D6}')}.",
+            ],
+        )
+        return [(text, None)]
     p = g.person()
     parts: list[Part] = [
         (g.pick(["New starter: ", "Employee: ", "Starter form for "]), None)
     ]
     parts += _name(p)
-    parts += [
-        (f", start date {start}. Date of birth ", None),
-        (p["dob"], "DATEOFBIRTH"),
-    ]
-    parts += [(". Home address: ", None)]
-    parts += g.address_parts()
-    parts += [(". Mobile ", None), (p["phone"], "PHONENUMBER"), (". ", None)]
-    labels = ["NATIONALID", "TAXNUM"] if g.c.code == "uk" else ["SSN", "TAXNUM"]
-    labels = labels[: g.r.randint(1, 2)]
+    if g.r.random() < 0.5:
+        parts += [
+            (f", start date {start}. Date of birth ", None),
+            (p["dob"], "DATEOFBIRTH"),
+        ]
+    else:  # no birth word
+        parts += [
+            (" (", None),
+            (p["dob"], "DATEOFBIRTH"),
+            (f"), start date {start}", None),
+        ]
+    parts += [(". Home address: ", None)] + g.address_parts(p)
+    parts += [(". Mobile ", None), (p["phone"], "PHONENUMBER"), (".", None)]
+    if g.c.code == "uk":
+        labels = ["NATIONALID", "TAXNUM"][: g.r.randint(1, 2)]
+    else:
+        labels = ["SSN"] if g.r.random() < 0.8 else ["TAXNUM"]  # SSN or ITIN
     if g.r.random() < 0.5:
         labels.append("PASSPORTID")  # right to work / I-9
     for label in labels:
-        parts += _id_phrase(g, label, p)
-        parts.append(("; ", None))
+        cue, number = g.id_number(label, p)
+        parts += [(f" {cue}{g.pick([': ', ' '])}", None), (number, label), (";", None)]
     parts.append(
-        (f"{forms[0]} received, {forms[1]} outstanding (ticket #{g.digits(6)}).", None)
+        (f" {forms[0]} received, {forms[1]} outstanding (ticket #{g.digits(6)}).", None)
     )
     return parts
 
@@ -588,27 +659,31 @@ def t_travel(g: _IdGen, pii: bool) -> list[Part]:
     flight, ref = g.flight(), g.expand("{C6}")
     seat = f"{g.r.randint(1, 45)}{g.pick('ABCDEF')}"
     if not pii:
-        return [
-            (
-                g.pick(
-                    [
-                        f"Flight {flight} (booking reference {ref}) has been "
-                        f"rescheduled to {g.event_date()}. Your seat {seat} and "
-                        f"e-ticket {g.eticket()} stay valid. Please bring the passport "
-                        f"you booked with; online check-in opens 24 hours before "
-                        f"departure.",
-                        f"Your hotel booking {g.expand('{D9}')} is confirmed for "
-                        f"{g.event_date()}, room type Double, rate code "
-                        f"{g.expand('{C3}{d2}')}. Guests from outside the EU are asked "
-                        f"to show a passport at check-in.",
-                        f"Baggage claim {g.expand('{C3}{d5}')} for flight {flight}: "
-                        f"we located your bag and will deliver it by {g.event_date()}. "
-                        f"Keep your e-ticket {g.eticket()} for reference.",
-                    ]
-                ),
-                None,
-            )
-        ]
+        text = _sentences(
+            g,
+            [
+                f"Flight {flight} (booking reference {ref}) has been rescheduled to "
+                f"{g.event_date()}.",
+                f"Your hotel booking {g.expand('{D9}')} is confirmed for "
+                f"{g.event_date()}.",
+                f"Baggage claim {g.expand('{C3}{d5}')} for flight {flight}:",
+                f"Check-in for {flight} is now open.",
+            ],
+            [
+                f"Your seat {seat} and e-ticket {g.eticket()} stay valid.",
+                "Please bring the passport you booked with.",
+                "Guests from outside the EU are asked to show a passport at check-in.",
+                f"We located your bag and will deliver it by {g.event_date()}.",
+                f"Room type Double, rate code {g.expand('{C3}{d2}')}.",
+                f"Boarding closes 30 minutes before departure at gate {g.expand('{C1}{d2}')}.",
+            ],
+            [
+                "Online check-in opens 24 hours before departure.",
+                f"Keep your e-ticket {g.eticket()} for reference.",
+                "Have a pleasant trip.",
+            ],
+        )
+        return [(text, None)]
     p = g.person()
     issue = g.pick([g.c.country, g.pick(HOME_COUNTRIES[g.c.code]), g.country()])
     issued, expires = g.issue_and_expiry()
@@ -641,45 +716,48 @@ def t_car_rental(g: _IdGen, pii: bool) -> list[Part]:
     licence = _licence_word(g)
     if not pii:
         cue, code = g.reference("rental")
-        return [
-            (
-                g.pick(
-                    [
-                        f"Your reservation ({cue} {code}) for a compact car is "
-                        f"confirmed: pick-up {g.event_date()} at 10:00. The main driver "
-                        f"must show a full {licence} held for at least a year and a "
-                        f"credit card in their own name. Rental agreement {agreement} "
-                        f"will be printed at the desk.",
-                        f"Thanks for returning the car. Rental agreement {agreement} is "
-                        f"closed; fuel level full, {g.number(g.r.randint(120, 2400))} "
-                        f"miles driven. Your deposit is released within 5 days "
-                        f"({cue} {code}).",
-                        f"Can I add a second driver to {cue} {code}? They will bring "
-                        f"their {licence} to the counter on {g.event_date()}.",
-                    ]
-                ),
-                None,
-            )
-        ]
+        text = _sentences(
+            g,
+            [
+                f"Your reservation ({cue} {code}) for a compact car is confirmed.",
+                f"Thanks for returning the car. Rental agreement {agreement} is closed.",
+                f"Can I add a second driver to {cue} {code}?",
+                f"Pick-up reminder for {cue} {code}.",
+            ],
+            [
+                f"The main driver must show a full {licence} held for at least a year.",
+                f"They will bring their {licence} to the counter on {g.event_date()}.",
+                f"Pick-up is on {g.event_date()} at {g.r.randint(8, 17)}:00.",
+                f"Fuel level full, {g.number(g.r.randint(120, 2400))} miles driven.",
+                "Please bring a credit card in the main driver's name.",
+                f"Rental agreement {agreement} will be printed at the desk.",
+            ],
+            [
+                "Your deposit is released within 5 days.",
+                "Drive safely!",
+                "Late returns are charged per hour.",
+            ],
+        )
+        return [(text, None)]
     p = g.person()
     cue, number = g.id_number("DRIVERLICENSENUM", p)
     if g.r.random() < 0.4:  # sentence
         parts: list[Part] = [("Please add ", None)] + _name(p)
+        parts += _dob_after_name(g, p)
         parts += [
-            (f" as a second driver on agreement {agreement}. Their {cue} is ", None)
+            (f" as a second driver on agreement {agreement}. Their {cue} is ", None),
+            (number, "DRIVERLICENSENUM"),
+            (".", None),
         ]
-        parts += [(number, "DRIVERLICENSENUM"), (", date of birth ", None)]
-        parts += [(p["dob"], "DATEOFBIRTH"), (".", None)]
         return parts
     parts = [(f"Rental agreement {agreement}\nMain driver: ", None)] + _name(p)
     parts += [("\nDate of birth: ", None), (p["dob"], "DATEOFBIRTH")]
     parts += [(f"\n{cue[0].upper() + cue[1:]}: ", None), (number, "DRIVERLICENSENUM")]
     if g.c.code == "us":
-        state, _ = g.pick(g.c.cities)
-        parts += [(", issued in ", None), (state, "STATE")]
+        parts += [(", issued in ", None), (p["home"][0], "STATE")]
     else:
         parts += [(", issued in ", None), (g.pick(HOME_COUNTRIES["uk"]), "COUNTRY")]
-    parts += [("\nAddress: ", None)] + g.address_parts()
+    parts += [("\nAddress: ", None)] + g.address_parts(p)
     cue2, code = g.reference("rental")
     parts += [(f"\nPick-up {g.event_date()}, {cue2} {code}", None)]
     return parts
@@ -732,7 +810,7 @@ def t_record(g: _IdGen, pii: bool) -> list[Part]:
     if style == 0:  # form
         p = people[0]
         parts += [(g.pick(["Full name: ", "Name: "]), None)] + _name(p)
-        parts += [("\nDate of birth: ", None), (p["dob"], "DATEOFBIRTH")]
+        parts += [(f"\n{g.pick(DOB_KEYS['form'])}: ", None), (p["dob"], "DATEOFBIRTH")]
         for lab in labels:
             parts += [(f"\n{keys[lab]}: ", None), (g.id_number(lab, p)[1], lab)]
         parts += [
@@ -741,7 +819,8 @@ def t_record(g: _IdGen, pii: bool) -> list[Part]:
         ]
         parts += [(f"\nForm ref: {g.expand('{C2}-{d6}')}", None)]
     elif style == 1:  # CSV
-        cols = ["first_name", "last_name", "dob"] + [keys[lab] for lab in labels]
+        dob_key = g.pick(DOB_KEYS["column"])
+        cols = ["first_name", "last_name", dob_key] + [keys[lab] for lab in labels]
         parts.append((",".join(cols) + ",record_id\n", None))
         for p in people:
             parts += [(p["first"], "FIRSTNAME"), (",", None), (p["last"], "SURNAME")]
@@ -752,10 +831,15 @@ def t_record(g: _IdGen, pii: bool) -> list[Part]:
                 parts += [(",", None), (g.id_number(lab, p)[1], lab)]
             parts.append((f",{g.expand('{d7}')}\n", None))
     else:  # JSON
+        dob_key = g.pick(DOB_KEYS["column"])
         parts.append(("[\n", None))
         for i, p in enumerate(people):
             parts += [('  {"name": "', None)] + _name(p)
-            parts += [('", "dob": "', None), (p["dob"], "DATEOFBIRTH"), ('"', None)]
+            parts += [
+                (f'", "{dob_key}": "', None),
+                (p["dob"], "DATEOFBIRTH"),
+                ('"', None),
+            ]
             for lab in labels:
                 parts += [
                     (f', "{keys[lab]}": "', None),

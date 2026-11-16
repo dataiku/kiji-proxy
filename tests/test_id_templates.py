@@ -6,8 +6,12 @@ import re
 import pytest
 
 from model.dataset.id_templates import (
+    EIN_CUES,
+    EIN_PREFIXES,
+    FEMALE_NAMES,
     ID_LABELS,
     REFERENCES,
+    STATE_FORMATS,
     UK,
     US,
     _IdGen,
@@ -74,9 +78,10 @@ def test_every_id_follows_a_cue_for_its_own_label():
     rows teach "label from context", not "label from shape"."""
     for r in ROWS:
         c = COUNTRY_OF[r["country"]]
-        cues = {
-            label: _cue_re(c.cues[label] + c.keys[label]) for label in ID_LABELS[c.code]
-        }
+        phrases = {lab: c.cues[lab] + c.keys[lab] for lab in ID_LABELS[c.code]}
+        if c is US:
+            phrases["TAXNUM"] = phrases["TAXNUM"] + EIN_CUES  # business accounts
+        cues = {label: _cue_re(p) for label, p in phrases.items()}
         for m in r["privacy_mask"]:
             if m["label"] not in cues:
                 continue
@@ -147,6 +152,7 @@ def test_ni_numbers_have_valid_prefixes():
         ("Bennett-Jones", "Oliver", False, "BENNE807035O"),
         ("Wood", "Freya", True, "WOOD9857035F"),
         ("O'Brien", "Siân", False, "OBRIE807035S"),
+        ("MacLeod", "Hamish", False, "MCLEO807035H"),
     ],
 )
 def test_uk_driving_licence_follows_the_dvla_pattern(last, first, female, expected):
@@ -175,3 +181,100 @@ def test_ssns_and_itins_are_told_apart_by_the_cue():
 def test_generation_is_deterministic():
     assert generate(60, seed=2) == generate(60, seed=2)
     assert generate(60, seed=2) != generate(60, seed=3)
+
+
+def _spans(r: dict, label: str) -> list[str]:
+    return [m["value"] for m in r["privacy_mask"] if m["label"] == label]
+
+
+def test_uk_and_us_rows_name_their_country_as_kiji_does():
+    """Kiji labels Scotland, Wales and Northern Ireland STATE, so UK rows use
+    only "United Kingdom" / "UK"; "U.S." would be relabelled inside the cue
+    "U.S. passport no." by the Label Studio converter."""
+    uk_nations = {"England", "Scotland", "Wales", "Northern Ireland"}
+    for r in ROWS:
+        assert not set(_spans(r, "COUNTRY")) & uk_nations
+        assert "U.S." not in _spans(r, "COUNTRY")
+
+
+def test_person_birth_sex_drives_the_dvla_month():
+    for country in (UK, US):
+        g = _IdGen(random.Random(1), country)
+        people = [g.person() for _ in range(300)]
+        assert all(p["female"] == (p["first"] in FEMALE_NAMES) for p in people)
+        assert 0.3 < sum(p["female"] for p in people) / len(people) < 0.7
+
+
+def test_a_us_person_has_an_ssn_or_an_itin_not_both():
+    for r in ROWS:
+        if r["country"] != US.country:
+            continue
+        itins = [v for v in _spans(r, "TAXNUM") if re.fullmatch(r"9\d\d-\d\d-\d{4}", v)]
+        assert not (itins and _spans(r, "SSN")), r["text"]
+
+
+def test_eins_use_assigned_prefixes():
+    eins = [
+        v for r in ROWS for v in _spans(r, "TAXNUM") if re.fullmatch(r"\d\d-\d{7}", v)
+    ]
+    assert eins
+    assert all(v[:2] in EIN_PREFIXES for v in eins)
+
+
+def _format_re(pattern: str) -> re.Pattern:
+    rx = re.escape(pattern)
+    for kind, chars in (("d", r"\d"), ("C", "[A-Z]")):
+        rx = re.sub(
+            r"\\\{" + kind + r"(\d+)\\\}", lambda m, c=chars: f"{c}{{{m.group(1)}}}", rx
+        )
+    return re.compile(rx)
+
+
+def test_us_licences_zips_and_states_agree():
+    zip3 = {(state, city): z for state, city, z in US.cities}
+    checked = 0
+    for r in ROWS:
+        if r["country"] != US.country:
+            continue
+        mask = sorted(r["privacy_mask"], key=lambda m: m["start"])
+        for a, b, c in zip(mask, mask[1:], mask[2:], strict=False):
+            if (a["label"], b["label"], c["label"]) == ("CITY", "STATE", "ZIP"):
+                assert c["value"][:3] == zip3[(b["value"], a["value"])]
+                checked += 1
+        hit = re.search(r": (\S[^\n]*), issued in ([A-Z]{2})\n", r["text"])
+        if hit:
+            assert _format_re(STATE_FORMATS[hit.group(2)]).fullmatch(hit.group(1))
+            checked += 1
+    assert checked > 100
+
+
+_BIRTH_WORD = re.compile(r"birth|born|\bdob\b", re.IGNORECASE)
+
+
+def test_many_birth_dates_have_no_birth_word():
+    """Cue-only birth dates teach "no birth word, no birth date"."""
+    total = uncued = 0
+    for r in ROWS:
+        for m in r["privacy_mask"]:
+            if m["label"] != "DATEOFBIRTH":
+                continue
+            header = _csv_header_key(r["text"], m["start"])
+            line_start = r["text"].rfind("\n", 0, m["start"]) + 1
+            before = (
+                header if header is not None else r["text"][line_start : m["start"]]
+            )
+            total += 1
+            uncued += not _BIRTH_WORD.search(before[-40:])
+    assert 0.3 < uncued / total < 0.6
+
+
+def test_pii_free_rows_are_not_a_few_fixed_frames():
+    free = [r["text"] for r in ROWS if r["pii_free"]]
+    skeletons = {re.sub(r"[A-Z0-9]{2,}|\d", "#", t) for t in free}
+    assert len(skeletons) > 0.5 * len(free)
+
+
+def test_sentences_are_not_broken():
+    for r in ROWS:
+        assert ".." not in r["text"]
+        assert not re.search(r" is \S+ (matches|has been)", r["text"]), r["text"]

@@ -372,7 +372,9 @@ def main() -> None:
     written = {}
     if args.extend_from:
         print(f"Copying all samples from {args.extend_from} ...")
-        written.update(copy_samples(args.extend_from, out_dir, skip_prefix=None))
+        # Regenerated ID rows replace any the earlier mix already has.
+        skip = ID_PREFIX if args.id_rows else None
+        written.update(copy_samples(args.extend_from, out_dir, skip_prefix=skip))
     else:
         if args.kiji_dir:
             print(f"Loading the cleaned {KIJI_REPO} export from {args.kiji_dir} ...")
