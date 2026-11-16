@@ -55,6 +55,11 @@ training = [
     "metaflow-checkpoint>=0.1.0",
 ]
 
+# Cloud TPU tooling (TPU chip monitoring CLI: `tpu-info`)
+tpu = [
+    "tpu-info>=0.14.2",
+]
+
 # ONNX quantization dependencies
 quantization = [
     "optimum[onnxruntime]>=1.15.0",
@@ -76,7 +81,7 @@ labelstudio = [
 
 # All optional dependencies combined
 all = [
-    "kiji-proxy[dev,training,quantization,signing,labelstudio]",
+    "kiji-proxy[dev,training,tpu,quantization,signing,labelstudio]",
 ]
 
 [project.urls]

@@ -1451,6 +1451,15 @@ wheels = [
 ]
 
 [[package]]
+name = "immutabledict"
+version = "4.3.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/1d/e6/718471048fea0366c3e3d1df3acfd914ca66d571cdffcf6d37bbcd725708/immutabledict-4.3.1.tar.gz", hash = "sha256:f844a669106cfdc73f47b1a9da003782fb17dc955a54c80972e0d93d1c63c514", size = 7806, upload-time = "2026-02-15T10:32:34.668Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a3/ce/f9018bf69ae91b273b6391a095e7c93fa5e1617f25b6ba81ad4b20c9df10/immutabledict-4.3.1-py3-none-any.whl", hash = "sha256:c9facdc0ff30fdb8e35bd16532026cac472a549e182c94fa201b51b25e4bf7bf", size = 5000, upload-time = "2026-02-15T10:32:33.672Z" },
+]
+
+[[package]]
 name = "importlib-metadata"
 version = "8.7.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1688,6 +1697,7 @@ all = [
     { name = "scipy" },
     { name = "seqeval" },
     { name = "sympy" },
+    { name = "tpu-info" },
     { name = "tqdm" },
     { name = "wandb" },
 ]
@@ -1708,6 +1718,9 @@ quantization = [
 ]
 signing = [
     { name = "model-signing" },
+]
+tpu = [
+    { name = "tpu-info" },
 ]
 training = [
     { name = "accelerate" },
@@ -1735,7 +1748,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.104.0" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "huggingface-hub", specifier = ">=0.35.3" },
-    { name = "kiji-proxy", extras = ["dev", "training", "quantization", "signing", "labelstudio"], marker = "extra == 'all'" },
+    { name = "kiji-proxy", extras = ["dev", "training", "tpu", "quantization", "signing", "labelstudio"], marker = "extra == 'all'" },
     { name = "label-studio", marker = "extra == 'labelstudio'", specifier = "==1.22.0" },
     { name = "metaflow", marker = "extra == 'training'", specifier = ">=2.12.0" },
     { name = "metaflow-checkpoint", marker = "extra == 'training'", specifier = ">=0.1.0" },
@@ -1761,12 +1774,13 @@ requires-dist = [
     { name = "seqeval", marker = "extra == 'training'", specifier = ">=1.2.2" },
     { name = "sympy", marker = "extra == 'training'", specifier = ">=1.0.0" },
     { name = "torch", specifier = ">=1.9.0" },
+    { name = "tpu-info", marker = "extra == 'tpu'", specifier = ">=0.14.2" },
     { name = "tqdm", marker = "extra == 'training'", specifier = ">=4.64.0" },
     { name = "transformers", specifier = ">=4.20.0,<4.52.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.24.0" },
     { name = "wandb", marker = "extra == 'training'", specifier = ">=0.12.0" },
 ]
-provides-extras = ["dev", "training", "quantization", "signing", "labelstudio", "all"]
+provides-extras = ["dev", "training", "tpu", "quantization", "signing", "labelstudio", "all"]
 
 [[package]]
 name = "label-studio"
@@ -2733,6 +2747,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/f9/e2/3e91f31a7d2b083fe6ef3fa267035b518369d9511ffab804f839851d2779/pluggy-1.6.0.tar.gz", hash = "sha256:7dcc130b76258d33b90f61b658791dede3486c3e6bfb003ee5c9bfb396dd22f3", size = 69412, upload-time = "2025-05-15T12:30:07.975Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/54/20/4d324d65cc6d9205fabedc306948156824eb9f0ee1633355a8f7ec5c66bf/pluggy-1.6.0-py3-none-any.whl", hash = "sha256:e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746", size = 20538, upload-time = "2025-05-15T12:30:06.134Z" },
+]
+
+[[package]]
+name = "prometheus-client"
+version = "0.26.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/52/73/f1334c29c2af4cd9dba6c7817e61b611bd0215e2eb5565c6064a4de18802/prometheus_client-0.26.0.tar.gz", hash = "sha256:04a91bcf94e2cf74a44a1a874d651a2e853ed354b6e822f3b7487751465d5c2b", size = 92910, upload-time = "2026-07-24T19:36:41.893Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/eb/a3/b69efbf4143b5b9859b977770bbbabcc2796b702fa69dc40271e45cd5a56/prometheus_client-0.26.0-py3-none-any.whl", hash = "sha256:fa93d06737aa02bacd05794768508bb97d2fbee28cb3bca04eaae92f0ca953d6", size = 64494, upload-time = "2026-07-24T19:36:40.854Z" },
 ]
 
 [[package]]
@@ -3986,6 +4009,22 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/86/5c/5b2e5d84f5b9850cd1e71af07524d8cbb74cba19379800f1f9f7c997fc70/torch-2.9.1-cp314-cp314t-manylinux_2_28_aarch64.whl", hash = "sha256:0a2bd769944991c74acf0c4ef23603b9c777fdf7637f115605a4b2d8023110c7", size = 104145788, upload-time = "2025-11-12T15:23:52.109Z" },
     { url = "https://files.pythonhosted.org/packages/a9/8c/3da60787bcf70add986c4ad485993026ac0ca74f2fc21410bc4eb1bb7695/torch-2.9.1-cp314-cp314t-manylinux_2_28_x86_64.whl", hash = "sha256:07c8a9660bc9414c39cac530ac83b1fb1b679d7155824144a40a54f4a47bfa73", size = 899735500, upload-time = "2025-11-12T15:24:08.788Z" },
     { url = "https://files.pythonhosted.org/packages/db/2b/f7818f6ec88758dfd21da46b6cd46af9d1b3433e53ddbb19ad1e0da17f9b/torch-2.9.1-cp314-cp314t-win_amd64.whl", hash = "sha256:c88d3299ddeb2b35dcc31753305612db485ab6f1823e37fb29451c8b2732b87e", size = 111163659, upload-time = "2025-11-12T15:23:20.009Z" },
+]
+
+[[package]]
+name = "tpu-info"
+version = "0.14.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "grpcio" },
+    { name = "immutabledict" },
+    { name = "packaging" },
+    { name = "prometheus-client" },
+    { name = "protobuf" },
+    { name = "rich" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/da/dc/9e8fc37cfa42e8cb8a9225e57d4c50be668c7ff0a07560ba27c6357f7cce/tpu_info-0.14.2-py3-none-any.whl", hash = "sha256:9e11ccdb4a64b9c6858311a560c992546224a1fa09da660b7b63983af17c4196", size = 44263, upload-time = "2026-07-06T19:21:06.744Z" },
 ]
 
 [[package]]
