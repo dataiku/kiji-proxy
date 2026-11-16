@@ -4,7 +4,7 @@ import torch
 from torch import nn
 from torch.nn import functional
 from torchcrf import CRF
-from transformers import AutoModel
+from transformers import AutoModel, PretrainedConfig
 
 
 class MaskedSparseCategoricalCrossEntropy(nn.Module):
@@ -101,6 +101,8 @@ class PIIDetectionModel(nn.Module):
         model_name: str,
         num_pii_labels: int,
         id2label_pii: dict[int, str],
+        *,
+        encoder_config: PretrainedConfig | None = None,
     ):
         """
         Initialize PII detection model.
@@ -109,11 +111,17 @@ class PIIDetectionModel(nn.Module):
             model_name: Name of the base BERT model
             num_pii_labels: Number of PII detection labels
             id2label_pii: Mapping from PII label IDs to label names
+            encoder_config: Saved architecture for checkpoint loading; when supplied,
+                initialize the encoder without downloading pretrained weights.
         """
         super().__init__()
 
         # Shared encoder
-        self.encoder = AutoModel.from_pretrained(model_name)
+        self.encoder = (
+            AutoModel.from_config(encoder_config)
+            if encoder_config is not None
+            else AutoModel.from_pretrained(model_name)
+        )
         hidden_size = self.encoder.config.hidden_size
 
         # PII detection head (MLP with bottleneck)
@@ -192,4 +200,26 @@ class PIIDetectionModel(nn.Module):
         Returns:
             List of predicted label sequences
         """
-        return self.crf.decode(pii_logits, mask=attention_mask.bool())
+        return viterbi_decode_on_cpu(self.crf, pii_logits, attention_mask)
+
+
+def viterbi_decode_on_cpu(
+    crf: CRF, emissions: torch.Tensor, attention_mask: torch.Tensor
+) -> list[list[int]]:
+    """Viterbi-decode on CPU, whatever device the model is on.
+
+    torchcrf backtracks with one ``.item()`` per token. On an accelerator each
+    is a device-to-host sync (about 10,000 per eval batch), which made TPU
+    evaluation run at about 20 rows/s. The emissions and the small transition
+    matrices are copied to CPU once instead. The result is the same: the
+    decode adds and compares in float32 on any device.
+    """
+    if crf.transitions.device.type != "cpu":
+        cpu_crf = CRF(crf.num_tags, batch_first=crf.batch_first)
+        cpu_crf.load_state_dict(
+            {name: value.detach().cpu() for name, value in crf.state_dict().items()}
+        )
+        crf = cpu_crf
+    return crf.decode(
+        emissions.detach().float().cpu(), mask=attention_mask.detach().bool().cpu()
+    )

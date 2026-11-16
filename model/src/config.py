@@ -10,6 +10,74 @@ import torch
 from absl import logging
 
 
+def is_tpu_available() -> bool:
+    """Return True when TorchTPU has registered a usable "tpu" device."""
+    accelerator = getattr(torch, "accelerator", None)
+    if accelerator is None or not accelerator.is_available():
+        return False
+    device = accelerator.current_accelerator()
+    return device is not None and device.type == "tpu"
+
+
+def get_best_device() -> torch.device:
+    """Get the best available device (TPU > MPS > CUDA > CPU)."""
+    if is_tpu_available():
+        return torch.device("tpu")
+    if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+        return torch.device("mps")
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    return torch.device("cpu")
+
+
+def is_distributed_launch() -> bool:
+    """Return True when a launcher such as torchrun started several processes."""
+    return int(os.environ.get("WORLD_SIZE", "1")) > 1 and "LOCAL_RANK" in os.environ
+
+
+def configure_accelerate_device() -> None:
+    """Point the HF Trainer and accelerate at the TPU when TorchTPU is present.
+
+    accelerate does not auto-detect TorchTPU's "tpu" device and would otherwise
+    train on CPU. Must run before TrainingArguments is created.
+    """
+    if is_tpu_available():
+        os.environ.setdefault("ACCELERATE_TORCH_DEVICE", "tpu")
+        if is_distributed_launch():
+            enable_tpu_data_parallel()
+
+
+def enable_tpu_data_parallel() -> None:
+    """Make accelerate run DDP over TorchTPU's "tpu_dist" process group.
+
+    Launch with one process per chip:
+        eval $(python -m torch.tpu.distributed | sed 's/^/export /')
+        torchrun --nproc_per_node=$WORLD_SIZE <script>
+
+    accelerate has no TorchTPU branch: under torchrun it finds no GPU, turns
+    distributed training off, and every process trains its own full copy of
+    the model. Route the backend choice to "tpu_dist" and report the run as
+    multi-device so the Trainer wraps the model in DDP and shards the data.
+    ACCELERATE_BYPASS_DEVICE_MAP builds DDP without device_ids: each TorchTPU
+    process sees only its own chip, as tpu:0.
+    """
+    from accelerate.state import PartialState
+    from accelerate.utils import DistributedType
+
+    os.environ.setdefault("ACCELERATE_BYPASS_DEVICE_MAP", "true")
+    if getattr(PartialState._prepare_backend, "_tpu_data_parallel", False):
+        return
+    original_prepare_backend = PartialState._prepare_backend
+
+    def prepare_backend(self, cpu=False, sagemaker_dp=False, backend=None):
+        if cpu or sagemaker_dp or not is_distributed_launch():
+            return original_prepare_backend(self, cpu, sagemaker_dp, backend)
+        return backend or "tpu_dist", DistributedType.MULTI_GPU
+
+    prepare_backend._tpu_data_parallel = True
+    PartialState._prepare_backend = prepare_backend
+
+
 @dataclass
 class TrainingConfig:
     """Configuration for PII detection model training."""
@@ -25,6 +93,8 @@ class TrainingConfig:
     # Training parameters
     num_epochs: int = 5
     batch_size: int = 16
+    # Effective batch = batch_size * gradient_accumulation_steps * number of devices
+    gradient_accumulation_steps: int = 1
     learning_rate: float = 3e-5
     max_samples: int = 400000
 
@@ -54,9 +124,14 @@ class TrainingConfig:
 
     # Dataset settings
     eval_size_ratio: float = 0.1  # Validation set size as ratio of training
-    max_eval_samples: int = 0  # Cap eval set size (0 = no cap)
+    max_eval_samples: int = 0  # Cap eval set size; rows over it train (0 = no cap)
     balanced_validation_split: bool = True
     max_sequence_length: int = 512
+    # Pad each batch up to the next multiple of pad_bucket_size (capped at
+    # max_sequence_length) so XLA compiles one graph per bucket instead of one
+    # per batch length. None = enabled only on TPU.
+    static_padding: bool | None = None
+    pad_bucket_size: int = 128
     training_samples_dir: str = "model/dataset/data_samples/training_samples"  # Use training samples by default, exported from Label Studio
 
     # Sample filtering
@@ -78,12 +153,66 @@ class TrainingConfig:
         """Create output directory after initialization."""
         Path(self.output_dir).mkdir(parents=True, exist_ok=True)
 
+    @classmethod
+    def from_toml(
+        cls, cfg: dict, environ: dict[str, str] | None = None
+    ) -> "TrainingConfig":
+        """Build the config from a parsed training TOML (training_config.toml).
+
+        Shared by the Metaflow pipeline and the direct TPU launcher, so both
+        read the same keys with the same defaults. TRAINING_SEED and
+        NUM_AI4PRIVACY_SAMPLES in ``environ`` override the file.
+        """
+        environ = os.environ if environ is None else environ
+        training = cfg.get("training", {})
+        paths = cfg.get("paths", {})
+        data = cfg.get("data", {})
+        return cls(
+            model_name=cfg.get("model", {}).get("name", "microsoft/deberta-v3-base"),
+            num_epochs=training.get("num_epochs", 5),
+            batch_size=training.get("batch_size", 16),
+            gradient_accumulation_steps=training.get("gradient_accumulation_steps", 1),
+            learning_rate=training.get("learning_rate", 3e-5),
+            training_samples_dir=paths.get(
+                "training_samples_dir", "model/dataset/data_samples/training_samples"
+            ),
+            output_dir=paths.get("output_dir", "model/trained"),
+            warmup_steps=training.get("warmup_steps", 200),
+            weight_decay=training.get("weight_decay", 0.01),
+            eval_steps=training.get("eval_steps", 500),
+            logging_steps=training.get("logging_steps", 500),
+            early_stopping_enabled=training.get("early_stopping_enabled", True),
+            early_stopping_patience=training.get("early_stopping_patience", 3),
+            early_stopping_threshold=training.get("early_stopping_threshold", 0.01),
+            num_ai4privacy_samples=int(
+                environ.get(
+                    "NUM_AI4PRIVACY_SAMPLES", data.get("num_ai4privacy_samples", -1)
+                )
+            ),
+            lr_scheduler_type=training.get("lr_scheduler_type", "cosine_with_restarts"),
+            lr_scheduler_num_cycles=training.get("lr_scheduler_num_cycles", 3),
+            layerwise_lr_decay=training.get("layerwise_lr_decay", 0.95),
+            bf16=training.get("bf16", False),
+            torch_compile=training.get("torch_compile", False),
+            eval_size_ratio=training.get("eval_size_ratio", 0.1),
+            max_eval_samples=training.get("max_eval_samples", 0),
+            balanced_validation_split=training.get("balanced_validation_split", True),
+            auxiliary_ce_loss_weight=training.get("auxiliary_ce_loss_weight", 0.2),
+            static_padding=training.get("static_padding"),
+            pad_bucket_size=training.get("pad_bucket_size", 128),
+            audit_allowlist=data.get("audit_allowlist", ""),
+            seed=int(environ.get("TRAINING_SEED", training.get("seed", 42))),
+        )
+
     def print_summary(self):
         """Print configuration summary."""
         logging.info("\n📋 Training Configuration:")
         logging.info(f"  Model: {self.model_name}")
         logging.info(f"  Epochs: {self.num_epochs}")
-        logging.info(f"  Batch Size: {self.batch_size}")
+        logging.info(
+            f"  Batch Size: {self.batch_size} "
+            f"x {self.gradient_accumulation_steps} accumulation steps"
+        )
         logging.info(f"  Learning Rate: {self.learning_rate}")
         logging.info(f"  Max Samples: {self.max_samples}")
         logging.info(f"  Output Dir: {self.output_dir}")
@@ -181,14 +310,17 @@ class EnvironmentSetup:
 
     @staticmethod
     def check_gpu():
-        """Check and print GPU availability (MPS, CUDA, or CPU)."""
-        # Check MPS (Apple Silicon) first
+        """Check and print accelerator availability (TPU, MPS, CUDA, or CPU)."""
         mps_available = (
             hasattr(torch.backends, "mps") and torch.backends.mps.is_available()
         )
         cuda_available = torch.cuda.is_available()
 
-        if mps_available:
+        if is_tpu_available():
+            logging.info("\n✅ TPU available via TorchTPU")
+            logging.info(f"   Chips: {torch.accelerator.device_count()}")
+            logging.info("   Device: tpu")
+        elif mps_available:
             logging.info(
                 f"\n✅ MPS (Metal) available: {torch.backends.mps.is_available()}"
             )
@@ -209,10 +341,5 @@ class EnvironmentSetup:
 
     @staticmethod
     def get_device():
-        """Get the best available device (MPS > CUDA > CPU)."""
-        if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-            return torch.device("mps")
-        elif torch.cuda.is_available():
-            return torch.device("cuda")
-        else:
-            return torch.device("cpu")
+        """Get the best available device (TPU > MPS > CUDA > CPU)."""
+        return get_best_device()

@@ -25,7 +25,7 @@ from pathlib import Path
 import torch
 from absl import logging
 from safetensors import safe_open
-from transformers import AutoTokenizer
+from transformers import AutoConfig, AutoTokenizer
 
 # Add project root to path for imports
 project_root = Path(__file__).parent.parent
@@ -39,6 +39,14 @@ except ImportError:
         from .model import PIIDetectionModel
     except ImportError:
         from model import PIIDetectionModel
+
+try:
+    from model.src.config import get_best_device
+except ImportError:
+    try:
+        from .config import get_best_device
+    except ImportError:
+        from config import get_best_device
 
 try:
     from model.src.checkpoint_utils import (
@@ -69,13 +77,8 @@ except ImportError:
 
 
 def get_device():
-    """Get the best available device (MPS > CUDA > CPU)."""
-    if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-        return torch.device("mps")
-    elif torch.cuda.is_available():
-        return torch.device("cuda")
-    else:
-        return torch.device("cpu")
+    """Get the best available device (TPU > MPS > CUDA > CPU)."""
+    return get_best_device()
 
 
 # =============================================================================
@@ -124,25 +127,17 @@ class PIIModelLoader:
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_path)
         logging.info("✅ Loaded tokenizer")
 
-        # Load model config to get base model name
+        # The model type alone cannot distinguish English and multilingual
+        # DeBERTa. Reconstruct the exact architecture from the saved config.
         config_path = Path(self.model_path) / "config.json"
-        model_type_defaults = {
-            "bert": "bert-base-cased",
-            "distilbert": "distilbert-base-cased",
-            "roberta": "roberta-base",
-            "deberta-v2": "microsoft/deberta-v3-base",
-        }
+        encoder_config = None
+        base_model_name = "microsoft/deberta-v3-base"
         if config_path.exists():
-            with config_path.open() as f:
-                model_config = json.load(f)
-            base_model_name = model_config.get("_name_or_path", "")
-            if not base_model_name or base_model_name in model_type_defaults:
-                model_type = model_config.get("model_type", "distilbert")
-                base_model_name = model_type_defaults.get(
-                    model_type, "microsoft/deberta-v3-base"
-                )
+            encoder_config = AutoConfig.from_pretrained(
+                self.model_path, local_files_only=True
+            )
+            base_model_name = self.model_path
         else:
-            base_model_name = "microsoft/deberta-v3-base"
             logging.warning(
                 "⚠️  config.json not found, using default: microsoft/deberta-v3-base"
             )
@@ -189,6 +184,7 @@ class PIIModelLoader:
             model_name=base_model_name,
             num_pii_labels=num_pii_labels,
             id2label_pii=self.pii_id2label,
+            encoder_config=encoder_config,
         )
 
         # Load model weights into the model
@@ -219,9 +215,7 @@ class PIIModelLoader:
                 )
             logging.info("✅ Model weights loaded")
         else:
-            logging.warning(
-                "⚠️  Model weights not found, using randomly initialized model"
-            )
+            raise FileNotFoundError(f"Model weights not found in {self.model_path}")
 
         self.model.to(self.device)
         self.model.eval()
