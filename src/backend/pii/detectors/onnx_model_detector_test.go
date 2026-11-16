@@ -768,6 +768,63 @@ func TestFinalizeEntity_ZeroOffsetBeforeRealTokens(t *testing.T) {
 	}
 }
 
+func TestFinalizeEntity_AllOffsetsInvalid(t *testing.T) {
+	cases := []struct {
+		name    string
+		offsets []tokenizers.Offset
+	}{
+		{
+			name:    "special or padding tokens",
+			offsets: []tokenizers.Offset{{0, 0}, {0, 0}, {0, 0}},
+		},
+		{
+			name:    "offsets past end of text",
+			offsets: []tokenizers.Offset{{0, 0}, {22, 30}, {30, 99}},
+		},
+		{
+			name:    "reversed token offsets",
+			offsets: []tokenizers.Offset{{0, 0}, {10, 6}, {22, 10}},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			detector := &ONNXModelDetectorSimple{}
+			entity := &Entity{Label: "EMAIL", Confidence: 0.91}
+			originalText := "hello user@example.com"
+			tokenIndices := []int{1, 2}
+
+			detector.finalizeEntity(entity, tokenIndices, originalText, tc.offsets)
+
+			if entity.Text != "" {
+				t.Errorf("Expected empty text, got '%s'", entity.Text)
+			}
+			if entities := filterEmptyEntities([]Entity{*entity}); len(entities) != 0 {
+				t.Errorf("Expected invalid entity to be filtered out, got %+v", entities)
+			}
+		})
+	}
+}
+
+func TestFinalizeEntity_LastTokenEndsBeforeFirstStarts(t *testing.T) {
+	// The trailing token is individually in bounds, but including it would
+	// produce originalText[6:5]. Keep the valid email span instead.
+	detector := &ONNXModelDetectorSimple{}
+	entity := &Entity{Label: "EMAIL", Confidence: 0.91}
+	originalText := "hello user@example.com"
+	offsets := []tokenizers.Offset{{0, 5}, {6, 10}, {10, 22}, {0, 5}}
+	tokenIndices := []int{1, 2, 3}
+
+	detector.finalizeEntity(entity, tokenIndices, originalText, offsets)
+
+	if entity.Text != "user@example.com" {
+		t.Errorf("Expected 'user@example.com', got '%s'", entity.Text)
+	}
+	if entity.StartPos != 6 || entity.EndPos != 22 {
+		t.Errorf("Expected pos (6,22), got (%d,%d)", entity.StartPos, entity.EndPos)
+	}
+}
+
 // ============================================
 // Tests for entityGroupingState.consume()
 // ============================================
