@@ -6,6 +6,10 @@ and reports span-based precision, recall, and F1 per label.
 Usage:
     uv run python -m tests.benchmark.run
     uv run python -m tests.benchmark.run --num 5000 --model-path ./model/quantized
+    uv run python -m tests.benchmark.run --dataset nobody-de --num 0
+
+German and English held-out sets (--dataset) are described in
+tests/benchmark/GERMAN_EVAL.md.
 """
 
 from __future__ import annotations
@@ -23,6 +27,8 @@ from datasets import load_dataset
 from transformers import AutoTokenizer
 
 from model.dataset.huggingface.import_ai4privacy import convert_ai4privacy_sample
+from tests.benchmark.german_eval import SOURCES as GERMAN_SOURCES
+from tests.benchmark.german_eval import load_german_samples, unscored_ai4privacy_spans
 
 # ---------------------------------------------------------------------------
 # ONNX model wrapper
@@ -518,13 +524,15 @@ class RelaxedOverlapMetrics(SpanMetrics):
     def _overlap_len(left: Span, right: Span) -> int:
         return max(0, min(left[1], right[1]) - max(left[0], right[0]))
 
+    match_labels = True
+
     def update(self, gold: list[Span], predicted: list[Span]) -> None:
         gold_spans = sorted(set(gold))
         pred_spans = sorted(set(predicted))
         candidates: list[tuple[int, int, int]] = []
         for gold_idx, gold_span in enumerate(gold_spans):
             for pred_idx, pred_span in enumerate(pred_spans):
-                if gold_span[2] != pred_span[2]:
+                if self.match_labels and gold_span[2] != pred_span[2]:
                     continue
                 overlap_len = self._overlap_len(gold_span, pred_span)
                 if overlap_len > 0:
@@ -545,6 +553,47 @@ class RelaxedOverlapMetrics(SpanMetrics):
         for idx, span in enumerate(pred_spans):
             if idx not in matched_pred:
                 self.fp[span[2]] += 1
+
+
+class AnyLabelOverlapMetrics(RelaxedOverlapMetrics):
+    """One-to-one span overlap with any label: was the PII masked at all?
+
+    A match counts toward the gold label (so per-label recall is the share of
+    that label's entities that got masked); an unmatched prediction counts
+    toward its own label.
+    """
+
+    match_labels = False
+
+    def summary(self) -> dict:
+        tp = sum(self.tp.values())
+        fp = sum(self.fp.values())
+        fn = sum(self.fn.values())
+        prec = tp / (tp + fp) if (tp + fp) else 0.0
+        rec = tp / (tp + fn) if (tp + fn) else 0.0
+        f1 = 2 * prec * rec / (prec + rec) if (prec + rec) else 0.0
+        masked = {
+            label: round(self.tp[label] / (self.tp[label] + self.fn[label]), 4)
+            for label in sorted(set(self.tp) | set(self.fn))
+        }
+        return {
+            "precision": round(prec, 4),
+            "recall": round(rec, 4),
+            "f1": round(f1, 4),
+            "masked_share_per_gold_label": masked,
+        }
+
+
+def drop_unscored(
+    predicted: list[Span], unscored: list[tuple[int, int]]
+) -> tuple[list[Span], int]:
+    """Remove predictions that overlap a span the source leaves unscored."""
+    kept = [
+        p
+        for p in predicted
+        if not any(min(p[1], e) > max(p[0], s) for s, e in unscored)
+    ]
+    return kept, len(predicted) - len(kept)
 
 
 # ---------------------------------------------------------------------------
@@ -590,6 +639,7 @@ def load_ai4privacy_samples(
             {
                 "text": sample["text"],
                 "entities": entities,
+                "unscored": unscored_ai4privacy_spans(row),
             }
         )
         if len(samples) >= num:
@@ -643,6 +693,9 @@ def print_sample_detections(
 # ---------------------------------------------------------------------------
 
 
+DEFAULT_DATASET = "ai4privacy-300k"
+
+
 def parse_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser(
         description="Benchmark kiji PII model against ai4privacy/pii-masking-300k"
@@ -651,7 +704,21 @@ def parse_args() -> argparse.Namespace:
         "--num",
         type=int,
         default=1000,
-        help="Number of samples to evaluate (default: 1000).",
+        help="Number of samples to evaluate (default: 1000; 0 = all rows of a "
+        "--dataset source).",
+    )
+    ap.add_argument(
+        "--dataset",
+        choices=[DEFAULT_DATASET, *sorted(GERMAN_SOURCES)],
+        default=DEFAULT_DATASET,
+        help="Evaluation set. Default: ai4privacy/pii-masking-300k train split "
+        "(also used for training). Others (German and English held-out sets): "
+        "see tests/benchmark/GERMAN_EVAL.md.",
+    )
+    ap.add_argument(
+        "--split",
+        default=None,
+        help="Split for --dataset sources (default: the source's held-out split).",
     )
     ap.add_argument(
         "--model-path",
@@ -688,6 +755,10 @@ def parse_args() -> argparse.Namespace:
     args = ap.parse_args()
     if args.verbose and args.num >= 50:
         ap.error("--verbose is only allowed with --num < 50")
+    if args.dataset == DEFAULT_DATASET and args.split is not None:
+        ap.error("--split only applies to --dataset sources other than ai4privacy-300k")
+    if args.dataset != DEFAULT_DATASET and args.language is not None:
+        ap.error("--language only applies to the default ai4privacy-300k dataset")
     return args
 
 
@@ -702,9 +773,23 @@ def main() -> int:
     )
     print(f"  CRF decoding: {'enabled' if model.uses_crf else 'disabled'}")
 
-    lang_desc = f" (language={args.language})" if args.language else ""
-    print(f"Loading {args.num} samples from ai4privacy/pii-masking-300k{lang_desc} ...")
-    samples = load_ai4privacy_samples(args.num, seed=args.seed, language=args.language)
+    source = None
+    if args.dataset == DEFAULT_DATASET:
+        dataset_name = "ai4privacy/pii-masking-300k"
+        split = "train"
+        lang_desc = f" (language={args.language})" if args.language else ""
+        print(f"Loading {args.num} samples from {dataset_name}{lang_desc} ...")
+        samples = load_ai4privacy_samples(
+            args.num, seed=args.seed, language=args.language
+        )
+    else:
+        source = GERMAN_SOURCES[args.dataset]
+        dataset_name = args.dataset
+        split = args.split or source.default_split
+        print(
+            f"Loading {args.num or 'all'} samples from {source.description} [{split}] ..."
+        )
+        samples = load_german_samples(args.dataset, args.num, args.seed, split)
     print(f"  Loaded {len(samples)} samples with mappable entities.")
 
     if not samples:
@@ -713,15 +798,31 @@ def main() -> int:
 
     exact_metrics = SpanMetrics()
     relaxed_metrics = RelaxedOverlapMetrics()
+    any_label_metrics = AnyLabelOverlapMetrics()
+    predictions_on_unscored = 0
     latencies: list[float] = []
+    # Predictions with labels the source does not annotate (not scored).
+    out_of_schema: dict[str, int] = defaultdict(int)
+    pii_free_samples = 0
+    pii_free_with_predictions = 0
 
     for i, sample in enumerate(samples):
         t0 = time.perf_counter()
         predicted = model.predict(sample["text"])
         elapsed_ms = (time.perf_counter() - t0) * 1000
         latencies.append(elapsed_ms)
+        predicted, on_unscored = drop_unscored(predicted, sample.get("unscored", []))
+        predictions_on_unscored += on_unscored
+        if source is not None:
+            predicted, ignored = source.project(sample["text"], predicted)
+            for _, _, label in ignored:
+                out_of_schema[label] += 1
+            if not sample["entities"]:
+                pii_free_samples += 1
+                pii_free_with_predictions += bool(predicted or ignored)
         exact_metrics.update(sample["entities"], predicted)
         relaxed_metrics.update(sample["entities"], predicted)
+        any_label_metrics.update(sample["entities"], predicted)
         if args.verbose:
             print_sample_detections(
                 i,
@@ -742,7 +843,8 @@ def main() -> int:
     relaxed_micro_f1 = relaxed_metrics.micro_f1()
     relaxed_macro_f1 = relaxed_metrics.macro_f1()
     report = {
-        "dataset": "ai4privacy/pii-masking-300k",
+        "dataset": dataset_name,
+        "split": split,
         "num_samples": len(samples),
         "seed": args.seed,
         "language": args.language,
@@ -775,7 +877,17 @@ def main() -> int:
             "macro_f1": round(relaxed_macro_f1, 4),
             "per_label": relaxed_per_label,
         },
+        # Label-agnostic: did each gold entity get masked, whatever the label?
+        "masked_any_label": any_label_metrics.summary(),
+        # Predictions on entities the source annotates with a label Kiji does
+        # not have (ai4privacy IPs, times, ...); left out of every score above.
+        "predictions_on_unscored_spans": predictions_on_unscored,
     }
+    if source is not None:
+        report["label_scheme"] = source.scheme
+        report["out_of_schema_predictions"] = dict(sorted(out_of_schema.items()))
+        report["pii_free_samples"] = pii_free_samples
+        report["pii_free_samples_with_predictions"] = pii_free_with_predictions
 
     report_path = Path(args.report)
     report_path.parent.mkdir(parents=True, exist_ok=True)
@@ -790,6 +902,13 @@ def main() -> int:
     print(f"  exact span macro-F1          : {report['exact_span_macro_f1']}")
     print(f"  relaxed overlap micro-F1    : {report['relaxed_overlap_f1']}")
     print(f"  relaxed overlap macro-F1    : {report['relaxed_overlap_macro_f1']}")
+    masked = report["masked_any_label"]
+    print(
+        f"  masked, any label  F1 / P / R : {masked['f1']} / {masked['precision']}"
+        f" / {masked['recall']}"
+    )
+    if predictions_on_unscored:
+        print(f"  predictions on unscored spans: {predictions_on_unscored}")
     print(f"  latency p50: {report['latency_ms']['p50']} ms")
     print(f"  latency p95: {report['latency_ms']['p95']} ms")
     print(f"  latency p99: {report['latency_ms']['p99']} ms")
@@ -815,6 +934,14 @@ def main() -> int:
             f"  {label:<22s} {m['precision']:6.3f} {m['recall']:6.3f} {m['f1']:6.3f}"
             f"  {m['tp']:5d} {m['fp']:5d} {m['fn']:5d}"
         )
+    if source is not None:
+        print(
+            f"\nPII-free samples with any prediction: {pii_free_with_predictions}/{pii_free_samples}"
+        )
+        if out_of_schema:
+            print("Unscored predictions (labels this source does not annotate):")
+            for label, count in sorted(out_of_schema.items(), key=lambda x: -x[1]):
+                print(f"  {label:<22s} {count:5d}")
     print(f"\nReport saved to {report_path}")
     return 0
 
