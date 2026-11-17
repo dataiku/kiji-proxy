@@ -458,6 +458,50 @@ func tokenStartsAtPreviousEnd(tokenIndex int, currentTokens []int, offsets []tok
 	return offsets[previousTokenIndex][1] == offsets[tokenIndex][0]
 }
 
+// entityTextBounds is the byte range of originalText covered by tokenIndices.
+// [SEP] and padding often have offset (0, 0) after the first sequence
+// position. Using that as the slice end panics (originalText[22:0]) and
+// fails the PII request. Tokens that are not a legal slice of the text, and
+// a last token that ends before the first token starts, are dropped. Returns
+// false when nothing usable is left so the caller leaves the entity empty.
+func entityTextBounds(originalText string, tokenIndices []int, offsets []tokenizers.Offset) (uint, uint, bool) {
+	n := uint(len(originalText))
+	indices := tokenIndices
+	for len(indices) > 0 {
+		first := indices[0]
+		last := indices[len(indices)-1]
+		if !usableTokenOffset(last, offsets, n) {
+			indices = indices[:len(indices)-1]
+			continue
+		}
+		if !usableTokenOffset(first, offsets, n) {
+			indices = indices[1:]
+			continue
+		}
+		start := offsets[first][0]
+		end := offsets[last][1]
+		if start <= end {
+			return start, end, true
+		}
+		indices = indices[:len(indices)-1]
+	}
+	return 0, 0, false
+}
+
+// usableTokenOffset reports whether offsets[index] can be sliced from a
+// string of length n. Offset (0, 0) is only usable at sequence position 0
+// ([CLS]); the same offset later is a special or padding token.
+func usableTokenOffset(index int, offsets []tokenizers.Offset, n uint) bool {
+	if index < 0 || index >= len(offsets) {
+		return false
+	}
+	off := offsets[index]
+	if off[0] == 0 && off[1] == 0 && index > 0 {
+		return false
+	}
+	return off[0] <= off[1] && off[1] <= n
+}
+
 func tokenTextAt(originalText string, offsets []tokenizers.Offset, index int) string {
 	if index >= len(offsets) || offsets[index][0] >= uint(len(originalText)) || offsets[index][1] > uint(len(originalText)) {
 		return ""
@@ -666,23 +710,21 @@ func (d *ONNXModelDetectorSimple) processOutputInline(originalText string, token
 	return entities
 }
 
-// finalizeEntity extracts the actual text from the original string using token offsets
+// finalizeEntity extracts the actual text from the original string using token offsets.
 func (d *ONNXModelDetectorSimple) finalizeEntity(entity *Entity, tokenIndices []int, originalText string, offsets []tokenizers.Offset) {
-	if len(tokenIndices) == 0 {
+	start, end, ok := entityTextBounds(originalText, tokenIndices, offsets)
+	if !ok {
+		entity.Text = ""
 		return
 	}
 
-	// Get the start and end character positions
-	startOffset := offsets[tokenIndices[0]]
-	endOffset := offsets[tokenIndices[len(tokenIndices)-1]]
-
 	// Extract the actual text from the original string
-	entity.Text = originalText[startOffset[0]:endOffset[1]]
+	entity.Text = originalText[start:end]
 
 	// Trim whitespace, trailing sentence punctuation and unbalanced
 	// brackets from the span. The SentencePiece Metaspace pre-tokenizer
 	// includes the preceding space character in token offsets.
-	trimmedStart, trimmedEnd := trimEntityBounds(originalText, startOffset[0], endOffset[1])
+	trimmedStart, trimmedEnd := trimEntityBounds(originalText, start, end)
 	if trimmedStart < trimmedEnd {
 		entity.Text = originalText[trimmedStart:trimmedEnd]
 	} else {
