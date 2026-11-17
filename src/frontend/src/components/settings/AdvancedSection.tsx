@@ -9,6 +9,7 @@ import {
   BarChart3,
 } from "lucide-react";
 import { isElectron } from "../../utils/providerHelpers";
+import ProxyPauseControl from "./ProxyPauseControl";
 
 interface AdvancedSectionProps {
   /** Opens the shared CA certificate setup wizard (owned by SettingsView). */
@@ -255,6 +256,9 @@ export default function AdvancedSection({ onOpenCACert }: AdvancedSectionProps) 
               </p>
             </div>
           </div>
+          {isElectron && (
+            <ProxyPauseControl proxyEnabled={transparentProxyEnabled} />
+          )}
         </div>
 
         {/* Crash & Error Reporting (Telemetry) Opt-in */}

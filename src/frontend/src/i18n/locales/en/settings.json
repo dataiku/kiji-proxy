@@ -144,7 +144,16 @@
       "label": "Transparent Proxy",
       "help": "Intercept HTTPS traffic system-wide for automatic PII protection.",
       "experimentalLabel": "Experimental:",
-      "experimentalHelp": "This feature requires CA certificate installation and may affect system network settings."
+      "experimentalHelp": "This feature requires CA certificate installation and may affect system network settings.",
+      "pause": {
+        "label": "Pause interception",
+        "durationLabel": "Pause duration",
+        "minutes": "{{minutes}} min",
+        "help": "Let traffic pass through untouched for a while. Interception resumes on its own when the timer ends.",
+        "requiresEnabled": "Turn on the transparent proxy to pause it.",
+        "pausedUntil": "Paused. Traffic is not masked until {{time}} ({{remaining}} left).",
+        "error": "Could not update the pause. Check that the backend is running."
+      }
     },
     "telemetry": {
       "label": "Crash & Error Reporting",

@@ -144,7 +144,16 @@
       "label": "Proxy transparent",
       "help": "Interceptez le trafic HTTPS à l'échelle du système pour une protection automatique des renseignements personnels.",
       "experimentalLabel": "Expérimental :",
-      "experimentalHelp": "Cette fonctionnalité nécessite l'installation d'un certificat racine et peut affecter les paramètres réseau du système."
+      "experimentalHelp": "Cette fonctionnalité nécessite l'installation d'un certificat racine et peut affecter les paramètres réseau du système.",
+      "pause": {
+        "label": "Suspendre l'interception",
+        "durationLabel": "Durée de la pause",
+        "minutes": "{{minutes}} min",
+        "help": "Laissez passer le trafic sans modification pendant un moment. L'interception reprend automatiquement à la fin du minuteur.",
+        "requiresEnabled": "Activez le proxy transparent pour pouvoir le suspendre.",
+        "pausedUntil": "En pause. Le trafic n'est pas masqué jusqu'à {{time}} (encore {{remaining}}).",
+        "error": "Impossible de mettre à jour la pause. Vérifiez que le backend est en cours d'exécution."
+      }
     },
     "telemetry": {
       "label": "Rapports de plantage et d'erreur",

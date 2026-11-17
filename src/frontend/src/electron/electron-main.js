@@ -12,6 +12,7 @@ const path = require("path");
 const fs = require("fs");
 const { spawn, execFile } = require("child_process");
 const { registerIpcHandlers } = require("./ipc-handlers");
+const { applyPausedUntilEnv } = require("./proxy-pause");
 const { setMenuLanguage, mt } = require("./menu-i18n");
 const isDev = process.env.NODE_ENV === "development";
 // Load the UI from the webpack dev server (HMR) instead of the Go backend.
@@ -321,6 +322,14 @@ const launchGoBinary = () => {
   // silently go to that process. A loopback bind fails with "address already in
   // use" instead, which waitForBackend reports to the user.
   env.KIJI_LISTEN_HOST = process.env.KIJI_LISTEN_HOST || BACKEND_LISTEN_HOST;
+
+  // Restore a timed proxy pause that is still running, so restarting the app
+  // (or the backend) does not silently cut a pause short or extend it.
+  try {
+    applyPausedUntilEnv(env, readConfig());
+  } catch (error) {
+    console.error("[Proxy] Failed to read proxy pause state:", error);
+  }
 
   // In development mode, set ONNX Runtime library path
   // Try multiple locations relative to project root

@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/dataiku/kiji-proxy/src/backend/paths"
 	"github.com/dataiku/kiji-proxy/src/backend/providers"
@@ -81,6 +82,11 @@ type RegexPatternConfig struct {
 	Pattern string `json:"pattern"`
 }
 
+// MaxProxyPause is the longest timed pause of the transparent proxy. The API
+// only offers durations up to this, and deadlines restored at startup are
+// clamped to it so a bad or tampered value can't pause interception for good.
+const MaxProxyPause = 60 * time.Minute
+
 // ProxyConfig holds transparent proxy configuration
 type ProxyConfig struct {
 	TransparentEnabled bool   `json:"transparent_enabled"`
@@ -88,6 +94,9 @@ type ProxyConfig struct {
 	CAPath             string `json:"ca_path"`
 	KeyPath            string `json:"key_path"`
 	EnablePAC          bool   `json:"enable_pac"` // Enable PAC (Proxy Auto-Config) for automatic system proxy setup
+	// PausedUntil restores a timed pause across restarts (set from
+	// TRANSPARENT_PROXY_PAUSED_UNTIL by the desktop app). Not read from JSON.
+	PausedUntil time.Time `json:"-"`
 }
 
 // MappingExpirationConfig controls the fixed lifetime of mappings from creation.

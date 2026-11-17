@@ -14,6 +14,15 @@ interface ProvidersConfig {
   providers: Record<ProviderType, ProviderSettings>;
 }
 
+// Timed pause of the transparent proxy (GET/POST/DELETE /api/proxy/pause).
+interface ProxyPauseResult {
+  success: boolean;
+  error?: string;
+  paused?: boolean;
+  paused_until?: string | null; // RFC 3339
+  remaining_seconds?: number;
+}
+
 interface ElectronAPI {
   // Legacy methods (delegate to active provider for backwards compatibility)
   getApiKey: () => Promise<string | null>;
@@ -92,6 +101,11 @@ interface ElectronAPI {
   setTransparentProxyEnabled: (
     enabled: boolean
   ) => Promise<{ success: boolean; error?: string }>;
+
+  // Timed pause of the transparent proxy
+  getProxyPause: () => Promise<ProxyPauseResult>;
+  pauseProxy: (minutes: number) => Promise<ProxyPauseResult>;
+  resumeProxy: () => Promise<ProxyPauseResult>;
 
   // Platform and version info
   platform: string;
