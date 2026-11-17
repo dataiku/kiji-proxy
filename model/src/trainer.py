@@ -21,12 +21,17 @@ from transformers import (
     PrinterCallback,
     Trainer,
     TrainingArguments,
+    set_seed,
 )
 
 # Import from local modules
 try:
     from .callbacks import CleanMetricsCallback
-    from .config import TrainingConfig
+    from .config import (
+        TrainingConfig,
+        configure_accelerate_device,
+        is_tpu_available,
+    )
     from .model import (
         MaskedSparseCategoricalCrossEntropy,
         PIIDetectionModel,
@@ -34,12 +39,52 @@ try:
 except ImportError:
     # Fallback for direct execution
     from callbacks import CleanMetricsCallback
-    from config import TrainingConfig
+    from config import (
+        TrainingConfig,
+        configure_accelerate_device,
+        is_tpu_available,
+    )
 
     from model import (
         MaskedSparseCategoricalCrossEntropy,
         PIIDetectionModel,
     )
+
+
+def bucketed_length(length: int, bucket_size: int, max_length: int) -> int:
+    """Round length up to the next multiple of bucket_size, capped at max_length.
+
+    Never returns less than length, so over-long batches are padded, not cut.
+    """
+    rounded = -(-length // bucket_size) * bucket_size
+    return max(length, min(rounded, max_length))
+
+
+def pii_free_overmask_metrics(
+    true_labels: list[list[str]], pred_labels: list[list[str]]
+) -> dict[str, float]:
+    """Over-masking on validation rows with no PII at all.
+
+    Entity F1 sees these rows only as false positives spread over the labels
+    they were mistaken for. Returns the share of PII-free rows with any
+    predicted entity and the predicted entity tokens per 1,000 tokens.
+    """
+    rows = masked_rows = tokens = masked_tokens = 0
+    for true_seq, pred_seq in zip(true_labels, pred_labels, strict=True):
+        if not true_seq or any(tag != "O" for tag in true_seq):
+            continue
+        rows += 1
+        tokens += len(pred_seq)
+        row_masked = sum(1 for tag in pred_seq if tag != "O")
+        masked_tokens += row_masked
+        masked_rows += row_masked > 0
+    if rows == 0:
+        return {}
+    return {
+        "eval_pii_free_rows": float(rows),
+        "eval_pii_free_overmask_rate": masked_rows / rows,
+        "eval_pii_free_masked_per_1k_tokens": 1000 * masked_tokens / max(tokens, 1),
+    }
 
 
 class PIIModelTrainer(Trainer):
@@ -275,19 +320,17 @@ class PIIModelTrainer(Trainer):
             attention_mask = inputs.get("attention_mask")
             if hasattr(model, "decode") and attention_mask is not None:
                 decoded_paths = model.decode(pii_logits, attention_mask)
+                # Built on CPU: the paths are Python lists already, and one
+                # small host-to-device copy per row is slow on a TPU.
                 decoded_predictions = torch.zeros(
-                    pii_logits.shape[:2],
-                    dtype=torch.long,
-                    device=pii_logits.device,
+                    pii_logits.shape[:2], dtype=torch.long
                 )
                 for row_idx, path in enumerate(decoded_paths):
                     path_len = min(len(path), decoded_predictions.shape[1])
                     decoded_predictions[row_idx, :path_len] = torch.tensor(
-                        path[:path_len],
-                        dtype=torch.long,
-                        device=pii_logits.device,
+                        path[:path_len], dtype=torch.long
                     )
-                predictions = decoded_predictions.detach().cpu()
+                predictions = decoded_predictions
             else:
                 predictions = pii_logits.detach().cpu()
         labels = pii_labels.detach().cpu() if pii_labels is not None else None
@@ -337,6 +380,10 @@ class PIITrainer:
 
         num_pii_labels = len(self.pii_label2id)
 
+        # The Trainer seeds only when it is created, after the model: seed here
+        # too, or the classifier head and CRF start from unseeded random values
+        # and the same seed gives a different run.
+        set_seed(self.config.seed)
         self.model = PIIDetectionModel(
             model_name=self.config.model_name,
             num_pii_labels=num_pii_labels,
@@ -431,6 +478,7 @@ class PIITrainer:
             "eval_pii_f1": pii_f1,
             "eval_pii_precision": pii_precision,
             "eval_pii_recall": pii_recall,
+            **pii_free_overmask_metrics(true_labels, pred_labels),
         }
 
         # Add per-class entity-level metrics from report
@@ -499,13 +547,17 @@ class PIITrainer:
         if self.model is None:
             raise ValueError("Model must be initialized first")
 
-        # Cap eval set size if configured
-        if (
-            self.config.max_eval_samples > 0
-            and len(val_dataset) > self.config.max_eval_samples
-        ):
-            val_dataset = val_dataset.select(range(self.config.max_eval_samples))
-            logging.info(f"Capped eval set to {self.config.max_eval_samples} samples")
+        # max_eval_samples is applied when the split is made
+        # (DatasetProcessor._split_train_validation), so rows over the cap train.
+
+        use_static_padding = self.config.static_padding
+        if use_static_padding is None:
+            use_static_padding = is_tpu_available()
+        if use_static_padding:
+            logging.info(
+                f"✅ Static padding: batches padded to multiples of "
+                f"{self.config.pad_bucket_size} (max {self.config.max_sequence_length})"
+            )
 
         # Data collator for PII detection
         def data_collator(features):
@@ -517,6 +569,12 @@ class PIITrainer:
             )
 
             max_length = max(len(f["input_ids"]) for f in features)
+            if use_static_padding:
+                max_length = bucketed_length(
+                    max_length,
+                    self.config.pad_bucket_size,
+                    self.config.max_sequence_length,
+                )
 
             batch = {}
             padded_input_ids = []
@@ -551,11 +609,15 @@ class PIITrainer:
         trainer_logger = python_logging.getLogger("transformers.trainer")
         trainer_logger.setLevel(python_logging.ERROR)
 
+        # Must run before TrainingArguments resolves its device
+        configure_accelerate_device()
+
         # Training arguments
         training_args = TrainingArguments(
             output_dir=self.config.output_dir,
             num_train_epochs=self.config.num_epochs,
             per_device_train_batch_size=self.config.batch_size,
+            gradient_accumulation_steps=self.config.gradient_accumulation_steps,
             per_device_eval_batch_size=self.config.batch_size * 2,
             warmup_steps=self.config.warmup_steps,
             weight_decay=self.config.weight_decay,
@@ -620,11 +682,13 @@ class PIITrainer:
         logging.info("=" * 60)
         trainer.train()
 
-        # Save
+        # Save (save_model writes from the main process only; the rest must too,
+        # or every data-parallel process writes the same files at once)
         trainer.save_model()
-        self.model.encoder.config._name_or_path = self.config.model_name
-        self.model.encoder.config.save_pretrained(self.config.output_dir)
-        self.tokenizer.save_pretrained(self.config.output_dir)
+        if trainer.is_world_process_zero():
+            self.model.encoder.config._name_or_path = self.config.model_name
+            self.model.encoder.config.save_pretrained(self.config.output_dir)
+            self.tokenizer.save_pretrained(self.config.output_dir)
         logging.info(
             f"\n✅ Training completed. Model saved to {self.config.output_dir}"
         )
