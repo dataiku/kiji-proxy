@@ -223,7 +223,7 @@ if [ -f /tmp/kiji-verify.log ]; then
 
     TOKENIZER_FILES=(
         "tokenizer.json"
-        "vocab.txt"
+        "spm.model"
         "special_tokens_map.json"
         "tokenizer_config.json"
         "label_mappings.json"
@@ -318,7 +318,7 @@ if [ $CHECKS_FAILED -eq 0 ]; then
     echo "The binary includes:"
     echo "  • Embedded web UI (React frontend)"
     echo "  • Embedded ML model (ONNX)"
-    echo "  • Embedded tokenizer files (tokenizer.json, vocab.txt, etc.)"
+    echo "  • Embedded tokenizer files (tokenizer.json, spm.model, etc.)"
     echo "  • ONNX Runtime library (in lib/)"
     echo ""
     echo "To deploy:"

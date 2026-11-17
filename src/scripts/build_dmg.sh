@@ -211,7 +211,7 @@ fi
 
 # Verify other critical model files
 echo "Verifying other model files..."
-for file in model.onnx.data tokenizer.json vocab.txt model_manifest.json; do
+for file in tokenizer.json spm.model label_mappings.json model_manifest.json; do
     if [ -f "model/quantized/$file" ]; then
         size=$(stat -f%z "model/quantized/$file" 2>/dev/null || stat -c%s "model/quantized/$file" 2>/dev/null || wc -c < "model/quantized/$file" 2>/dev/null || echo "0")
         echo "✅ $file: ${size} bytes"
