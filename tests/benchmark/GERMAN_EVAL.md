@@ -18,7 +18,7 @@ German-mix models. See [Commands](#commands) to produce them.
 | Role | Source | `--dataset` | Default split | Why |
 |---|---|---|---|---|
 | **Primary** | [`naeyn/nobody-pii-synth-de`](https://huggingface.co/datasets/naeyn/nobody-pii-synth-de) | `nobody-de` | `test` (296 German docs) | Apache-2.0. German business e-mails, letters, tickets and chats with sign-offs, umlaut/ß/hyphenated names, German addresses, phones, IBANs, and built-in hard negatives (order numbers, ticket IDs, ordinary dates, PII-free docs). Not in Kiji's training data. |
-| **Secondary** | [`Wismut/nym-pii-multilingual-data`](https://huggingface.co/datasets/Wismut/nym-pii-multilingual-data) | `nym-de` | `test` (1,063 German rows) | MIT. Fine-grained labels (given name / surname / street / number / ZIP / city / plate / tax ID) that map 1:1 onto Kiji labels, so it gives per-label FIRSTNAME/SURNAME/ZIP numbers that `nobody-de` cannot. Not in Kiji's training data. |
+| **Secondary** | [`Wismut/nym-pii-multilingual-data`](https://huggingface.co/datasets/Wismut/nym-pii-multilingual-data) | `nym-de` | `test` (1,063 German rows) | MIT. Fine-grained labels (given name / surname / street / number / ZIP / city / plate / tax ID) that map 1:1 onto Kiji labels, so it gives per-label FIRSTNAME/SURNAME/ZIP numbers that `nobody-de` cannot. Not in the shipped model's training data, but the German training mixes (v3–v5) train on nym's German **train** rows, which share templates with this split. See [Contamination notes](#contamination-notes). |
 | Probe | `tests/benchmark/data/german_probes.jsonl` | `probes-de` | all 22 rows | Hand-written workshop probes covering the reported failures: car codes (NC, NB, MX-5, B14, E46…), sign-off names with ß/umlauts, German address blocks, plates, Steuer-ID. |
 | Baseline | ai4privacy/pii-masking-300k German | `ai4privacy-300k-de` | `validation` (8,120 rows → 6,773 with mappable entities) | Same distribution as the current benchmark, but the split Kiji did not train on. Compare it with the German *train* score (`--language German`) to measure how much the 0.94 is inflated. |
 
@@ -39,7 +39,7 @@ validation file:
 | `--dataset` | Source | Default split | Notes |
 |---|---|---|---|
 | `nobody-en` | `naeyn/nobody-pii-synth-de`, rows with `lang == "en"` | `test` (127 docs) | Same generator, coarse labels and projection as `nobody-de`. UK names, addresses and phone numbers. |
-| `nym-en` | `Wismut/nym-pii-multilingual-data`, English rows by the same function-word heuristic (`looks_english`) | `test` (2,343 rows) | Kiji labels, as `nym-de`. Most English rows use UK formats. |
+| `nym-en` | `Wismut/nym-pii-multilingual-data`, English rows by the same function-word heuristic (`looks_english`) | `test` (2,343 rows) | Kiji labels, as `nym-de`. Most English rows use UK formats. The loader keeps only rows with at least one mapped entity, so the 1,221 PII-free English rows are dropped and the set never measures over-masking on clean text. |
 | `ai4privacy-300k-en` | `ai4privacy/pii-masking-300k`, `data/validation/1english_openpii_8k.jsonl` | `validation` | Same generator as the default benchmark but rows the shipped model did not train on. |
 
 Use `nobody-en` and `nym-en` to compare models fairly, and
@@ -89,6 +89,11 @@ Relaxed same-label F1 / any-label F1 (`masked_any_label`):
 PII-free texts with any mask: `probes-de` 4 / 1 / 1 of 8, `nobody-de`
 15 / 11 / 10 of 29, `nobody-en` 1 / 1 / 0 of 5.
 
+`nym-de` flatters v3 and v4: they train on nym's German train rows, which
+share templates with the test rows (see
+[Contamination notes](#contamination-notes)). Compare German models on
+`nobody-de` and `probes-de`.
+
 Predictions on unscored spans (shipped / v3 / v4): `nym-de` 416 / 664 / 580,
 `nym-en` 989 / 1,671 / 1,445, `ai4privacy-300k-en` 1 / 728 / 683. Before these
 were left out, they counted as false positives: v4's `nym-de` relaxed F1 was
@@ -118,7 +123,7 @@ German sizes below were counted from the downloaded files unless marked "card".
 | [ai4privacy/pii-masking-openpii-1m](https://huggingface.co/datasets/ai4privacy/pii-masking-openpii-1m) / [-1.5m](https://huggingface.co/datasets/ai4privacy/pii-masking-openpii-1.5m) | **CC-BY-4.0** ✓ (attribution: Ai4Privacy / Ai Suisse SA) | 0.9–1.1 GB validation files covering 23–30 languages; German share not counted | 19 labels (GIVENNAME, SURNAME, BUILDINGNUM, STREET, ZIPCODE, CITY…) that map almost 1:1 | Synthetic | Same family as 300k, so template overlap is likely. Best-licensed ai4privacy option if one is needed later. |
 | [ai4privacy/pii-masking-200k](https://huggingface.co/datasets/ai4privacy/pii-masking-200k) | Custom ✗ | `german_pii_52k.jsonl`, no split | older ai4privacy taxonomy | Synthetic | Same family |
 | **[naeyn/nobody-pii-synth-de](https://huggingface.co/datasets/naeyn/nobody-pii-synth-de)** | **Apache-2.0** ✓ | **test 296** · validation 300 · train 5,349 German docs (each split also has EN/NL rows) | 7 coarse labels (see mapping) | Synthetic: templates plus Faker de_DE. E-mail 84, record 44, ticket 39, plain 38, letter 31, chat 26, negative 21, contract 13 (test) | None. The card states it contains no ai4privacy rows. |
-| **[Wismut/nym-pii-multilingual-data](https://huggingface.co/datasets/Wismut/nym-pii-multilingual-data)** | **MIT** ✓ | No language field. A function-word heuristic finds **1,094 German rows in test** (40,250 rows across 23 languages); 40/40 spot-checked rows were German. Validation has the same total size; its German share was not counted. | 40 fine-grained labels, 28 mapped to Kiji | Synthetic: LLM-written templates filled by Faker. About 20% carry OCR/typo noise; some US-format values (SSN, `06/…` dates) appear in German text | None |
+| **[Wismut/nym-pii-multilingual-data](https://huggingface.co/datasets/Wismut/nym-pii-multilingual-data)** | **MIT** ✓ | No language field. A function-word heuristic finds **1,094 German rows in test** (40,250 rows across 23 languages); 40/40 spot-checked rows were German. Validation has the same total size; its German share was not counted. | 40 fine-grained labels, 28 mapped to Kiji | Synthetic: LLM-written templates filled by Faker. About 20% carry OCR/typo noise; some US-format values (SSN, `06/…` dates) appear in German text | None for the shipped model. The German training mixes (v3–v5) train on nym's German train rows, which share templates with test. |
 | [abubasith86/pii-dataset-de-v1](https://huggingface.co/datasets/abubasith86/pii-dataset-de-v1) | "other" (mixed sources) ? | 79k / 5.4k / 9.2k | 18 coarse labels | Aggregate | **Contaminated:** it includes `DataikuNLP/kiji-pii-training-data` (Kiji's own training set) and ai4privacy-300k train. Do not use. |
 | [gretelai/synthetic_pii_finance_multilingual](https://huggingface.co/datasets/gretelai/synthetic_pii_finance_multilingual) | Apache-2.0 ✓ | card: ~4,530 German docs (train + test) | 29 types; `name` and `street_address` are coarse | Synthetic finance documents | None. Third-party audit reports label noise (common nouns tagged as names, unlabelled IBANs/e-mails). Candidate third set after an audit. |
 | [E3-JSI/synthetic-multi-pii-ner-v1](https://huggingface.co/datasets/E3-JSI/synthetic-multi-pii-ner-v1) | MIT ✓ | 2,971 rows over 7 languages; German not counted (~400 if even) | Free-text German type names, **no offsets** | Synthetic LLM | None; too small and would need fuzzy alignment |
@@ -201,9 +206,15 @@ TIME, SEX, TITLE and CARDISSUER spans are not. The default English benchmark
 All German loaders trim leading and trailing whitespace from gold spans. The
 model always trims its spans, so untrimmed gold can never match exactly. This
 affected **65 ai4privacy-300k German validation spans** (mostly phone numbers
-like `'07250 37861 '`) and 9 nym spans. The existing English benchmark path goes
-through the same importer and has the same issue; that path is unchanged here
-(see [Next steps](#next-steps)).
+like `'07250 37861 '`) and 9 nym spans. The default English benchmark path goes
+through the same importer and still has untrimmed gold spans (see
+[Next steps](#next-steps)).
+
+One change does reach the default path (`run.py` without `--dataset`):
+predictions on ai4privacy IP and GEOCOORD spans are now left out of scoring
+(see [Report fields](#report-fields)). Its scores are therefore not directly
+comparable with reports made before this change. For v4, `--language English`
+moved from 0.668 to 0.684.
 
 ## Contamination notes
 
@@ -220,14 +231,22 @@ through the same importer and has the same issue; that path is unchanged here
   German rows) and anything derived from it, such as
   `abubasith86/pii-dataset-de-v1`, is in-distribution. Do not use it as an
   eval.
-- `nobody-de`, `nym-de` and CodE Alltag share no rows or generator with Kiji
-  training.
+- `nobody-de` and CodE Alltag share no rows or generator with Kiji training.
+- **`nym-de` is held out only for the shipped model.** The German training
+  mixes (v3–v5) train on all 9,549 German nym **train** rows. Only 1 test row
+  matches a training text exactly, but with each entity replaced by its label,
+  416 of the 1,063 `nym-de` rows (39%) match a template in those training
+  rows. `nym-de` therefore overstates the mix models. Use it for per-label
+  patterns, and use `nobody-de` and `probes-de` to compare German models.
 - `nobody-en` and `nym-en` share no rows with the shipped model's training data
   or with the German training mixes. The German mixes train on German nym
   rows; nym's English rows may come from translated versions of the same
   templates, so a German-mix model can look a little better on `nym-en` than
-  it is. `nobody-en` is clean but small (127 docs). Both nobody and nym are template-based, so a score on them still
-  says nothing about real noisy e-mail. CodE Alltag would.
+  it is. The v5 ID templates were also designed from an error analysis on
+  English nym **train** rows, so v5 is mildly tuned to nym's ID conventions.
+  `nobody-en` is clean but small (127 docs). Both nobody and nym are
+  template-based, so a score on them still says nothing about real noisy
+  e-mail. CodE Alltag would.
 
 ## Hard negatives and sign-off probes
 
@@ -285,9 +304,9 @@ be imported into `model/dataset/`.
 
 ## Commands
 
-The machine was busy during preparation, so none of these were run with the
-model. They need `onnxruntime`; if it is missing, add `--extra quantization`
-after `uv run`. Pass `--report` so `reports/latest.json` is not overwritten.
+These commands produce the reports behind [Results](#results-november-2026).
+They need `onnxruntime`; if it is missing, add `--extra quantization` after
+`uv run`. Pass `--report` so `reports/latest.json` is not overwritten.
 
 ```bash
 # 0. Offline sanity check (no model): convert rows and verify text[start:end] == value

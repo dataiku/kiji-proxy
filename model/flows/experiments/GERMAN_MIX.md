@@ -1,4 +1,4 @@
-# German training mix v4 (mDeBERTa-v3-base)
+# German training mixes v3–v5 (mDeBERTa-v3-base)
 
 Retrains `microsoft/mdeberta-v3-base` with the same settings as the earlier
 `mdeberta_v3_base` backbone run. The only change is the training data, built
@@ -180,9 +180,8 @@ Compare against v3 (`mdeberta_german_mix_v3_seed*`), v2, the earlier
 the German sets (`probes-de`, `nobody-de`, `nym-de`) and English.
 `model/trained/german_mix/eval/` (local) has v2's reports, `compare.py` and
 `dump_en.py` for per-sample English predictions. The
-German loaders for `tests/benchmark/run.py --dataset` are in commit 308778f
-(branch `claude/german-pii-improvement-ideas-3b6cc7`), not yet on main.
-What to look at:
+German and English loaders for `tests/benchmark/run.py --dataset` are in
+`tests/benchmark/german_eval.py`. What to look at:
 
 - Precision on DATEOFBIRTH, PASSWORD, DRIVERLICENSENUM, SECURITYTOKEN,
   NATIONALID and LICENSEPLATENUM. These over-masked most with the old data
@@ -197,8 +196,10 @@ What to look at:
 
 Caveats:
 
-- `nym-de` test shares templates with nym train, so its numbers will look
-  better than they are. Trust `nobody-de` and the probes more.
+- `nym-de` test shares templates with nym train: with each entity replaced by
+  its label, 39% of its rows match a template in the mix's German nym rows. Its
+  numbers will look better than they are. Trust `nobody-de` and the probes
+  more.
 - The probes stay held out: the template generator avoids their car codes,
   part numbers, plates and names in every language, and drops any row that
   still contains one of their codes. The sign-off style is in training,
