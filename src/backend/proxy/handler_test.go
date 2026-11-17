@@ -102,9 +102,10 @@ func (m *mockLoggingDB) SetDebugMode(enabled bool) {
 	m.debugMode = enabled
 }
 
-// mockMappingDB implements piiServices.PIIMappingDB for testing
+// mockMappingDB implements piiServices.PIIMappingDB for testing. Keys are
+// session-scoped (see mockSessionKey) so tests can assert session isolation.
 type mockMappingDB struct {
-	mappings map[string]string // original -> dummy
+	mappings map[string]string // mockSessionKey(session, original) -> dummy
 	reverse  map[string]string // dummy -> original
 }
 
@@ -115,28 +116,36 @@ func newMockMappingDB() *mockMappingDB {
 	}
 }
 
-func (m *mockMappingDB) GetOrCreateMapping(ctx context.Context, original, dummy, piiType string, confidence float64, generators ...func() string) (string, error) {
-	if existing, ok := m.mappings[original]; ok {
-		return existing, nil
-	}
-	return dummy, m.StoreMapping(ctx, original, dummy, piiType, confidence)
+func mockSessionKey(sessionID, original string) string { return sessionID + "\x00" + original }
+
+func splitMockSessionKey(key string) (sessionID, original string) {
+	sessionID, original, _ = strings.Cut(key, "\x00")
+	return sessionID, original
 }
 
-func (m *mockMappingDB) StoreMapping(_ context.Context, original, dummy, piiType string, confidence float64) error {
-	m.mappings[original] = dummy
+func (m *mockMappingDB) GetOrCreateMapping(ctx context.Context, sessionID, original, dummy, piiType string, confidence float64, generators ...func() string) (string, error) {
+	if existing, ok := m.mappings[mockSessionKey(sessionID, original)]; ok {
+		return existing, nil
+	}
+	return dummy, m.StoreMapping(ctx, sessionID, original, dummy, piiType, confidence)
+}
+
+func (m *mockMappingDB) StoreMapping(_ context.Context, sessionID, original, dummy, piiType string, confidence float64) error {
+	m.mappings[mockSessionKey(sessionID, original)] = dummy
 	m.reverse[dummy] = original
 	return nil
 }
 
 type mockMappingSnapshot map[string]string
 
-func (s mockMappingSnapshot) Lookup(_ context.Context, key string, forward bool) (string, bool, error) {
+func (s mockMappingSnapshot) Lookup(_ context.Context, sessionID, key string, forward bool) (string, bool, error) {
 	if forward {
-		value, found := s[key]
+		value, found := s[mockSessionKey(sessionID, key)]
 		return value, found, nil
 	}
-	for original, dummy := range s {
-		if dummy == key {
+	for scoped, dummy := range s {
+		session, original := splitMockSessionKey(scoped)
+		if session == sessionID && dummy == key {
 			return original, true, nil
 		}
 	}
@@ -145,28 +154,30 @@ func (s mockMappingSnapshot) Lookup(_ context.Context, key string, forward bool)
 func (s mockMappingSnapshot) Close() error { return nil }
 func (m *mockMappingDB) BeginMappingSnapshot(_ context.Context) (piiServices.MappingSnapshot, error) {
 	pairs := make(mockMappingSnapshot, len(m.mappings))
-	for original, dummy := range m.mappings {
-		pairs[original] = dummy
+	for scoped, dummy := range m.mappings {
+		pairs[scoped] = dummy
 	}
 	return pairs, nil
 }
 
 func (m *mockMappingDB) QueueMappingAccesses(_ map[string]string) {}
 
-func (m *mockMappingDB) DeleteMapping(_ context.Context, original string) error {
-	if dummy, ok := m.mappings[original]; ok {
+func (m *mockMappingDB) DeleteMapping(_ context.Context, sessionID, original string) error {
+	key := mockSessionKey(sessionID, original)
+	if dummy, ok := m.mappings[key]; ok {
 		delete(m.reverse, dummy)
 	}
-	delete(m.mappings, original)
+	delete(m.mappings, key)
 	return nil
 }
 
 // DeleteMappingByID deletes one arbitrary mapping (the mock has no real ids) and
 // returns its original/dummy, or ErrMappingNotFound when empty.
 func (m *mockMappingDB) DeleteMappingByID(_ context.Context, _ int) (string, string, error) {
-	for original, dummy := range m.mappings {
-		delete(m.mappings, original)
+	for scoped, dummy := range m.mappings {
+		delete(m.mappings, scoped)
 		delete(m.reverse, dummy)
+		_, original := splitMockSessionKey(scoped)
 		return original, dummy, nil
 	}
 	return "", "", piiServices.ErrMappingNotFound
@@ -182,19 +193,44 @@ func (m *mockMappingDB) ClearMappings(_ context.Context) error {
 	return nil
 }
 
-func (m *mockMappingDB) GetMappingsCount(_ context.Context) (int, error) {
-	return len(m.mappings), nil
+func (m *mockMappingDB) ClearSessionMappings(_ context.Context, sessionID string) (int64, error) {
+	var cleared int64
+	for scoped, dummy := range m.mappings {
+		if session, _ := splitMockSessionKey(scoped); session == sessionID {
+			delete(m.mappings, scoped)
+			delete(m.reverse, dummy)
+			cleared++
+		}
+	}
+	return cleared, nil
 }
 
-func (m *mockMappingDB) GetMappings(_ context.Context, _ int, _ int, _ string, _ bool) ([]map[string]interface{}, error) {
+func (m *mockMappingDB) matching(filter piiServices.MappingFilter) []map[string]interface{} {
 	result := make([]map[string]interface{}, 0, len(m.mappings))
-	for original, dummy := range m.mappings {
+	for scoped, dummy := range m.mappings {
+		session, original := splitMockSessionKey(scoped)
+		if filter.SessionID != nil && *filter.SessionID != session {
+			continue
+		}
+		var sessionValue interface{}
+		if session != piiServices.NullSessionID {
+			sessionValue = session
+		}
 		result = append(result, map[string]interface{}{
+			"session_id":   sessionValue,
 			"original_pii": original,
 			"dummy_pii":    dummy,
 		})
 	}
-	return result, nil
+	return result
+}
+
+func (m *mockMappingDB) GetMappingsCount(_ context.Context, filter piiServices.MappingFilter) (int, error) {
+	return len(m.matching(filter)), nil
+}
+
+func (m *mockMappingDB) GetMappings(_ context.Context, filter piiServices.MappingFilter, _ int, _ int, _ string, _ bool) ([]map[string]interface{}, error) {
+	return m.matching(filter), nil
 }
 
 func (m *mockMappingDB) Close() error {
@@ -397,12 +433,13 @@ func TestHandler_CopyHeaders(t *testing.T) {
 		src := http.Header{
 			"X-Kiji-Profile": {"healthcare"},
 			"X-Kiji-Source":  {"Kiji Playground"},
+			"X-Kiji-Session": {"chat-1"},
 			"X-Other":        {"kept"},
 		}
 		dst := http.Header{}
 		h.CopyHeaders(src, dst)
 
-		if dst.Get("X-Kiji-Profile") != "" || dst.Get("X-Kiji-Source") != "" {
+		if dst.Get("X-Kiji-Profile") != "" || dst.Get("X-Kiji-Source") != "" || dst.Get("X-Kiji-Session") != "" {
 			t.Errorf("X-Kiji-* headers must not be forwarded upstream, got %v", dst)
 		}
 		if dst.Get("X-Other") != "kept" {
@@ -521,7 +558,7 @@ func TestHandler_ProcessRequestBody(t *testing.T) {
 		var provider providers.Provider = openAIProvider
 
 		body := []byte(`{"model":"gpt-4","messages":[{"role":"user","content":"Hello world"}]}`)
-		processed, err := h.ProcessRequestBody(context.Background(), body, &provider, nil)
+		processed, err := h.ProcessRequestBody(context.Background(), body, &provider, nil, piiServices.NullSessionID)
 		if err != nil {
 			t.Fatalf("ProcessRequestBody() error = %v", err)
 		}
@@ -545,7 +582,7 @@ func TestHandler_ProcessRequestBody(t *testing.T) {
 		var provider providers.Provider = openAIProvider
 
 		body := []byte(`{"model":"gpt-4","messages":[{"role":"user","content":"Hello"}]}`)
-		_, err := h.ProcessRequestBody(context.Background(), body, &provider, nil)
+		_, err := h.ProcessRequestBody(context.Background(), body, &provider, nil, piiServices.NullSessionID)
 		if err != nil {
 			t.Fatalf("ProcessRequestBody() error = %v", err)
 		}
@@ -1150,7 +1187,7 @@ func TestHandler_MaskPIIInText(t *testing.T) {
 	}
 	h := newTestHandler(t, detector, nil)
 
-	maskedText, mapping, entities, err := h.maskPIIInText(context.Background(), "Hello John", nil, "[test]")
+	maskedText, mapping, entities, err := h.maskPIIInText(context.Background(), "Hello John", nil, piiServices.NullSessionID, "[test]")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1170,7 +1207,7 @@ func TestHandler_MaskPIIInText_NoPII(t *testing.T) {
 	detector := &mockDetector{entities: []pii.Entity{}}
 	h := newTestHandler(t, detector, nil)
 
-	maskedText, mapping, entities, err := h.maskPIIInText(context.Background(), "Hello world", nil, "[test]")
+	maskedText, mapping, entities, err := h.maskPIIInText(context.Background(), "Hello world", nil, piiServices.NullSessionID, "[test]")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1200,7 +1237,7 @@ func TestHandler_MaskPIIInText_DisabledEntityPassesThrough(t *testing.T) {
 	// Disable EMAIL only; it must pass through unmasked while FIRSTNAME is masked.
 	profile := addTestProfile(t, h, config.PIIProfile{Name: "No email", DisabledEntities: []string{"EMAIL"}})
 
-	maskedText, mapping, entities, err := h.maskPIIInText(context.Background(), "John a@b.com", profile, "[test]")
+	maskedText, mapping, entities, err := h.maskPIIInText(context.Background(), "John a@b.com", profile, piiServices.NullSessionID, "[test]")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1233,7 +1270,7 @@ func TestHandler_MaskPIIInText_EmptyDisabledMasksAll(t *testing.T) {
 	// explicit empty => mask everything
 	profile := addTestProfile(t, h, config.PIIProfile{Name: "All", DisabledEntities: []string{}})
 
-	maskedText, mapping, entities, err := h.maskPIIInText(context.Background(), "John here", profile, "[test]")
+	maskedText, mapping, entities, err := h.maskPIIInText(context.Background(), "John here", profile, piiServices.NullSessionID, "[test]")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1321,10 +1358,10 @@ func TestTruncatePreview(t *testing.T) {
 func TestHandler_HandleUnmask(t *testing.T) {
 	detector := &mockDetector{entities: []pii.Entity{}}
 	h := newTestHandler(t, detector, nil)
-	if _, err := h.piiMapping.AddMapping(context.Background(), "John Smith", "Nicole Brown", "NAME", 0.9); err != nil {
+	if _, err := h.piiMapping.AddMapping(context.Background(), piiServices.NullSessionID, "John Smith", "Nicole Brown", "NAME", 0.9); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := h.piiMapping.AddMapping(context.Background(), "john@example.com", "nicole.brown@example.invalid", "EMAIL", 0.95); err != nil {
+	if _, err := h.piiMapping.AddMapping(context.Background(), piiServices.NullSessionID, "john@example.com", "nicole.brown@example.invalid", "EMAIL", 0.95); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1455,7 +1492,7 @@ func TestHandler_HandleUnmask_NilStore(t *testing.T) {
 
 func unmaskForTest(t *testing.T, mapping *piiServices.PIIMapping, dummy string) (string, bool) {
 	t.Helper()
-	result, err := mapping.UnmaskMappings(context.Background(), []string{dummy})
+	result, err := mapping.UnmaskMappings(context.Background(), piiServices.NullSessionID, []string{dummy})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -497,7 +497,7 @@ func mustMaskText(t *testing.T, svc *MaskingService, text, prefix string, profil
 	if len(profiles) > 0 {
 		profile = profiles[0]
 	}
-	result, err := svc.MaskText(context.Background(), text, profile, prefix)
+	result, err := svc.MaskText(context.Background(), text, profile, NullSessionID, prefix)
 	if err != nil {
 		t.Fatal(err)
 	}

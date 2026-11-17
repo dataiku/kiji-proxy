@@ -29,7 +29,7 @@ func TestMaskingSnapshotTakenBeforeDetection(t *testing.T) {
 		t.Run(change, func(t *testing.T) {
 			db := newTestDB(t)
 			mapping := NewPIIMappingWithDB(db, true)
-			if _, err := mapping.AddMapping(context.Background(), "Alice", "[PINNED]", "FIRSTNAME", 1); err != nil {
+			if _, err := mapping.AddMapping(context.Background(), NullSessionID, "Alice", "[PINNED]", "FIRSTNAME", 1); err != nil {
 				t.Fatal(err)
 			}
 			text := "Alice Alice"
@@ -72,7 +72,7 @@ func TestMaskingSnapshotTakenBeforeDetection(t *testing.T) {
 			if next.MaskedText == result.MaskedText || next.MaskedText == text {
 				t.Fatalf("later request reused the retired mapping: %q", next.MaskedText)
 			}
-			if result, err := mapping.UnmaskMappings(context.Background(), []string{"[PINNED]"}); err != nil || len(result) != 0 {
+			if result, err := mapping.UnmaskMappings(context.Background(), NullSessionID, []string{"[PINNED]"}); err != nil || len(result) != 0 {
 				t.Fatal("standalone unmask revived a request snapshot")
 			}
 		})
@@ -85,7 +85,7 @@ func TestMaskingSessionKeepsNewMappingsAcrossFields(t *testing.T) {
 	detector := &stubDetector{entities: []detectors.Entity{entity("Alice", "FIRSTNAME", 0, 5)}}
 	svc := NewMaskingService(&stubDetectorProvider{detector: detector}, NewGeneratorService(), mapping)
 	profile := resolveTestProfile(t, config.PIIProfile{Confidence: 0.6})
-	request, err := svc.BeginRequest(context.Background(), profile)
+	request, err := svc.BeginRequest(context.Background(), profile, NullSessionID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +121,7 @@ func TestSnapshotIsReadOnlyAndCountsOnlyUsedPairs(t *testing.T) {
 	db := newTestDB(t)
 	ctx := context.Background()
 	for original, dummy := range map[string]string{"Alice": "dummy", "Bob": "unused", "Expired": "expired"} {
-		if err := db.StoreMapping(ctx, original, dummy, "FIRSTNAME", 1); err != nil {
+		if err := db.StoreMapping(ctx, NullSessionID, original, dummy, "FIRSTNAME", 1); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -139,13 +139,13 @@ func TestSnapshotIsReadOnlyAndCountsOnlyUsedPairs(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer snapshot.Close()
-	if got, found, err := snapshot.Lookup(ctx, "Alice", true); err != nil || !found || got != "dummy" {
+	if got, found, err := snapshot.Lookup(ctx, NullSessionID, "Alice", true); err != nil || !found || got != "dummy" {
 		t.Fatalf("bad snapshot: %q %v", got, err)
 	}
-	if _, found, err := snapshot.Lookup(ctx, "Expired", true); err != nil || found {
+	if _, found, err := snapshot.Lookup(ctx, NullSessionID, "Expired", true); err != nil || found {
 		t.Fatalf("expired snapshot: %v %v", found, err)
 	}
-	session, err := NewPIIMappingWithDB(db, true).beginMasking(context.Background())
+	session, err := NewPIIMappingWithDB(db, true).beginMasking(context.Background(), NullSessionID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -186,7 +186,7 @@ func TestStandaloneUnmaskUsesOneSnapshotForWholeBatch(t *testing.T) {
 	db := newTestDB(t)
 	ctx := context.Background()
 	for original, dummy := range map[string]string{"Alice": "alice-dummy", "Bob": "bob-dummy"} {
-		if err := db.StoreMapping(ctx, original, dummy, "FIRSTNAME", 1); err != nil {
+		if err := db.StoreMapping(ctx, NullSessionID, original, dummy, "FIRSTNAME", 1); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -198,14 +198,14 @@ func TestStandaloneUnmaskUsesOneSnapshotForWholeBatch(t *testing.T) {
 	}}
 	mapping := NewPIIMappingWithDB(wrapped, true)
 	values := []string{"alice-dummy", "bob-dummy"}
-	result, err := mapping.UnmaskMappings(ctx, values)
+	result, err := mapping.UnmaskMappings(ctx, NullSessionID, values)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if result["alice-dummy"] != "Alice" || result["bob-dummy"] != "Bob" {
 		t.Fatalf("batch mixed mapping lifetimes: %v", result)
 	}
-	if next, err := mapping.UnmaskMappings(ctx, values); err != nil || len(next) != 0 {
+	if next, err := mapping.UnmaskMappings(ctx, NullSessionID, values); err != nil || len(next) != 0 {
 		t.Fatalf("next batch reused expired values: %v", next)
 	}
 }
@@ -227,9 +227,9 @@ func (d *trackedSnapshotDB) BeginMappingSnapshot(ctx context.Context) (MappingSn
 	}
 	return &trackedSnapshot{MappingSnapshot: snapshot, owner: d}, nil
 }
-func (s *trackedSnapshot) Lookup(ctx context.Context, key string, forward bool) (string, bool, error) {
+func (s *trackedSnapshot) Lookup(ctx context.Context, sessionID, key string, forward bool) (string, bool, error) {
 	s.owner.lookups = append(s.owner.lookups, key)
-	return s.MappingSnapshot.Lookup(ctx, key, forward)
+	return s.MappingSnapshot.Lookup(ctx, sessionID, key, forward)
 }
 func (s *trackedSnapshot) Close() error {
 	s.owner.closed++
@@ -241,7 +241,7 @@ func TestMaskingReadsOnlyDetectedValuesAndReleasesSnapshot(t *testing.T) {
 	ctx := context.Background()
 	// Include unrelated real values that must never enter the request's cache.
 	for original, dummy := range map[string]string{"Alice": "alice-dummy", "Sensitive unrelated": "unused"} {
-		if err := db.StoreMapping(ctx, original, dummy, "FIRSTNAME", 1); err != nil {
+		if err := db.StoreMapping(ctx, NullSessionID, original, dummy, "FIRSTNAME", 1); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -281,12 +281,12 @@ func TestMaskingReadsOnlyDetectedValuesAndReleasesSnapshot(t *testing.T) {
 func TestUnmaskReadsOnlyRequestedValuesAndReturnsDatabaseErrors(t *testing.T) {
 	db := newTestDB(t)
 	ctx := context.Background()
-	if err := db.StoreMapping(ctx, "Alice", "dummy", "FIRSTNAME", 1); err != nil {
+	if err := db.StoreMapping(ctx, NullSessionID, "Alice", "dummy", "FIRSTNAME", 1); err != nil {
 		t.Fatal(err)
 	}
 	tracked := &trackedSnapshotDB{PIIMappingDB: db}
 	mapping := NewPIIMappingWithDB(tracked, true)
-	got, err := mapping.UnmaskMappings(ctx, []string{"dummy", "dummy", "missing"})
+	got, err := mapping.UnmaskMappings(ctx, NullSessionID, []string{"dummy", "dummy", "missing"})
 	if err != nil || len(got) != 1 || got["dummy"] != "Alice" {
 		t.Fatalf("unmask: %v %v", got, err)
 	}
@@ -300,13 +300,13 @@ func TestUnmaskReadsOnlyRequestedValuesAndReturnsDatabaseErrors(t *testing.T) {
 	}
 	cancelled, cancel := context.WithCancel(ctx)
 	cancel()
-	if _, err := mapping.UnmaskMappings(cancelled, []string{"dummy"}); err == nil {
+	if _, err := mapping.UnmaskMappings(cancelled, NullSessionID, []string{"dummy"}); err == nil {
 		t.Fatal("cancelled query reported a miss")
 	}
 	if err := db.readDB.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := mapping.UnmaskMappings(ctx, []string{"dummy"}); err == nil {
+	if _, err := mapping.UnmaskMappings(ctx, NullSessionID, []string{"dummy"}); err == nil {
 		t.Fatal("closed database reported a miss")
 	}
 }
@@ -339,7 +339,7 @@ func BenchmarkMappingSnapshotIndexedLookup(b *testing.B) {
 				if err != nil {
 					b.Fatal(err)
 				}
-				value, found, err := snapshot.Lookup(ctx, "0", true)
+				value, found, err := snapshot.Lookup(ctx, NullSessionID, "0", true)
 				if err != nil || !found || value != "dummy-0" {
 					b.Fatalf("lookup: %q %v", value, err)
 				}

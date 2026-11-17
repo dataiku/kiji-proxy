@@ -48,8 +48,9 @@ func NewMaskingService(detectorProvider DetectorProvider, generator *GeneratorSe
 }
 
 // MaskText detects PII in text and returns masked text with mappings
-func (s *MaskingService) MaskText(ctx context.Context, text string, profile *ResolvedProfile, logPrefix string) (MaskedResult, error) {
-	request, err := s.BeginRequest(ctx, profile)
+// sessionID scopes mapping reuse (NullSessionID is the legacy global pool).
+func (s *MaskingService) MaskText(ctx context.Context, text string, profile *ResolvedProfile, sessionID, logPrefix string) (MaskedResult, error) {
+	request, err := s.BeginRequest(ctx, profile, sessionID)
 	if err != nil {
 		return MaskedResult{}, err
 	}
@@ -68,14 +69,16 @@ type MaskingRequest struct {
 	profile *ResolvedProfile
 }
 
-func (s *MaskingService) BeginRequest(ctx context.Context, profile *ResolvedProfile) (*MaskingRequest, error) {
+// BeginRequest pins one mapping snapshot for a request. Mappings are reused and
+// created only within sessionID.
+func (s *MaskingService) BeginRequest(ctx context.Context, profile *ResolvedProfile, sessionID string) (*MaskingRequest, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	r := &MaskingRequest{service: s, ctx: ctx, profile: profile}
 	if s.mapping != nil {
 		var err error
-		r.session, err = s.mapping.beginMasking(ctx)
+		r.session, err = s.mapping.beginMasking(ctx, sessionID)
 		if err != nil {
 			return nil, err
 		}
@@ -198,7 +201,7 @@ func (r *MaskingRequest) MaskText(text string, logPrefix string) MaskedResult {
 				maskedEntityText = dummy
 			} else {
 				maskedEntityText = s.generator.GenerateReplacement(entity.Label, originalText)
-				if stored, err := s.mapping.AddMapping(r.ctx, originalText, maskedEntityText, entity.Label, entity.Confidence, func() string { return s.generator.GenerateReplacement(entity.Label, originalText) }); err == nil {
+				if stored, err := s.mapping.AddMapping(r.ctx, r.session.sessionID, originalText, maskedEntityText, entity.Label, entity.Confidence, func() string { return s.generator.GenerateReplacement(entity.Label, originalText) }); err == nil {
 					maskedEntityText = stored
 				} else {
 					if r.ctx.Err() != nil {

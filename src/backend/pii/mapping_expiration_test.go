@@ -82,11 +82,11 @@ func TestStartupConfigExpiresMappingsPastNewLifetime(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := db.StoreMapping(ctx, "Alice", "old-dummy", "FIRSTNAME", 1); err != nil {
+		if err := db.StoreMapping(ctx, NullSessionID, "Alice", "old-dummy", "FIRSTNAME", 1); err != nil {
 			t.Fatal(err)
 		}
 		backdateMapping(t, db, "-120 seconds")
-		if err := db.StoreMapping(ctx, "Bob", "fresh-dummy", "FIRSTNAME", 1); err != nil {
+		if err := db.StoreMapping(ctx, NullSessionID, "Bob", "fresh-dummy", "FIRSTNAME", 1); err != nil {
 			t.Fatal(err)
 		}
 		if err := db.Close(); err != nil {
@@ -122,7 +122,7 @@ func TestMappingExpirationBothDirections(t *testing.T) {
 		t.Run(map[bool]string{false: "mask", true: "unmask"}[reverse], func(t *testing.T) {
 			db := newTestDB(t)
 			m := NewPIIMappingWithDB(db, true)
-			if _, err := m.AddMapping(context.Background(), "Alice", "dummy", "FIRSTNAME", 1); err != nil {
+			if _, err := m.AddMapping(context.Background(), NullSessionID, "Alice", "dummy", "FIRSTNAME", 1); err != nil {
 				t.Fatal(err)
 			}
 			if got, ok := dummyForTest(t, m, "Alice"); !ok || got != "dummy" {
@@ -131,7 +131,7 @@ func TestMappingExpirationBothDirections(t *testing.T) {
 			if got, ok := unmaskForTest(t, m, "dummy"); !ok || got != "Alice" {
 				t.Fatal("fresh reverse mapping missing")
 			}
-			if _, err := m.AddMapping(context.Background(), "Bob", "bob-dummy", "FIRSTNAME", 1); err != nil {
+			if _, err := m.AddMapping(context.Background(), NullSessionID, "Bob", "bob-dummy", "FIRSTNAME", 1); err != nil {
 				t.Fatal(err)
 			}
 			if got, ok := dummyForTest(t, m, "Bob"); !ok || got != "bob-dummy" {
@@ -155,7 +155,7 @@ func TestMappingExpirationBothDirections(t *testing.T) {
 func TestMappingExpirationReadsDoNotRenewAndPolicyChangesApply(t *testing.T) {
 	db := newTestDB(t)
 	m := NewPIIMappingWithDB(db, true)
-	if _, err := m.AddMapping(context.Background(), "Alice", "dummy", "FIRSTNAME", 1); err != nil {
+	if _, err := m.AddMapping(context.Background(), NullSessionID, "Alice", "dummy", "FIRSTNAME", 1); err != nil {
 		t.Fatal(err)
 	}
 	backdateMapping(t, db, "-120 seconds")
@@ -178,7 +178,7 @@ func TestMappingExpirationReadsDoNotRenewAndPolicyChangesApply(t *testing.T) {
 	if _, ok := dummyForTest(t, m, "Alice"); ok {
 		t.Fatal("deleted row resurrected")
 	}
-	if _, err := m.AddMapping(context.Background(), "Alice", "new-dummy", "FIRSTNAME", 1); err != nil {
+	if _, err := m.AddMapping(context.Background(), NullSessionID, "Alice", "new-dummy", "FIRSTNAME", 1); err != nil {
 		t.Fatal(err)
 	}
 	backdateMapping(t, db, "-86400 seconds")
@@ -194,16 +194,16 @@ func TestMappingExpirationListAndCount(t *testing.T) {
 	for _, countOnly := range []bool{false, true} {
 		db := newTestDB(t)
 		m := NewPIIMappingWithDB(db, true)
-		if _, err := m.AddMapping(context.Background(), "Alice", "dummy", "FIRSTNAME", 1); err != nil {
+		if _, err := m.AddMapping(context.Background(), NullSessionID, "Alice", "dummy", "FIRSTNAME", 1); err != nil {
 			t.Fatal(err)
 		}
 		backdateMapping(t, db, "-301 seconds")
 		if countOnly {
-			if count, err := db.GetMappingsCount(context.Background()); err != nil || count != 0 {
+			if count, err := db.GetMappingsCount(context.Background(), MappingFilter{}); err != nil || count != 0 {
 				t.Fatalf("count=%d err=%v", count, err)
 			}
 		} else {
-			if rows, err := db.GetMappings(context.Background(), 10, 0, "created_at", true); err != nil || len(rows) != 0 {
+			if rows, err := db.GetMappings(context.Background(), MappingFilter{}, 10, 0, "created_at", true); err != nil || len(rows) != 0 {
 				t.Fatalf("rows=%v err=%v", rows, err)
 			}
 		}
@@ -217,7 +217,7 @@ func TestMappingExpirationSurvivesDatabaseReopen(t *testing.T) {
 		t.Fatal(err)
 	}
 	m := NewPIIMappingWithDB(db, true)
-	if _, err := m.AddMapping(context.Background(), "Alice", "dummy", "FIRSTNAME", 1); err != nil {
+	if _, err := m.AddMapping(context.Background(), NullSessionID, "Alice", "dummy", "FIRSTNAME", 1); err != nil {
 		t.Fatal(err)
 	}
 	backdateMapping(t, db, "-301 seconds")
@@ -241,7 +241,7 @@ func TestMaskingSnapshotSurvivesExpiryButNextRequestUsesFreshMapping(t *testing.
 	provider := &stubDetectorProvider{detector: &stubDetector{entities: []detectors.Entity{entityAt(t, text, "Alice", "FIRSTNAME")}}}
 	svc := NewMaskingService(provider, NewGeneratorService(), m)
 	// Use a sentinel the generator cannot randomly choose.
-	if _, err := m.AddMapping(context.Background(), "Alice", "[OLD_DUMMY]", "FIRSTNAME", 1); err != nil {
+	if _, err := m.AddMapping(context.Background(), NullSessionID, "Alice", "[OLD_DUMMY]", "FIRSTNAME", 1); err != nil {
 		t.Fatal(err)
 	}
 	result := mustMaskText(t, svc, text, "test")
@@ -266,7 +266,7 @@ func TestMappingExpirationPolicyChangeDoesNotReviveExpiredRows(t *testing.T) {
 	for _, policy := range []config.MappingExpirationConfig{{TTLSeconds: 900}, {TTLSeconds: 0}} {
 		db := newTestDB(t)
 		m := NewPIIMappingWithDB(db, true)
-		if _, err := m.AddMapping(context.Background(), "Alice", "old-dummy", "FIRSTNAME", 1); err != nil {
+		if _, err := m.AddMapping(context.Background(), NullSessionID, "Alice", "old-dummy", "FIRSTNAME", 1); err != nil {
 			t.Fatal(err)
 		}
 		backdateMapping(t, db, "-600 seconds")
@@ -283,7 +283,7 @@ func TestMappingExpirationPolicyChangeDoesNotReviveExpiredRows(t *testing.T) {
 func TestMappingExpirationShortenThenExtendWithoutLookup(t *testing.T) {
 	db := newTestDB(t)
 	m := NewPIIMappingWithDB(db, true)
-	if _, err := m.AddMapping(context.Background(), "Alice", "old-dummy", "FIRSTNAME", 1); err != nil {
+	if _, err := m.AddMapping(context.Background(), NullSessionID, "Alice", "old-dummy", "FIRSTNAME", 1); err != nil {
 		t.Fatal(err)
 	}
 	backdateMapping(t, db, "-120 seconds")
@@ -301,7 +301,7 @@ func TestMappingExpirationShortenThenExtendWithoutLookup(t *testing.T) {
 func TestMappingExpirationExtensionPreservesLiveCreationTime(t *testing.T) {
 	db := newTestDB(t)
 	m := NewPIIMappingWithDB(db, true)
-	if _, err := m.AddMapping(context.Background(), "Alice", "live-dummy", "FIRSTNAME", 1); err != nil {
+	if _, err := m.AddMapping(context.Background(), NullSessionID, "Alice", "live-dummy", "FIRSTNAME", 1); err != nil {
 		t.Fatal(err)
 	}
 	backdateMapping(t, db, "-120 seconds")
@@ -330,7 +330,7 @@ func TestMappingExpirationRestartWithExtendedPolicy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.StoreMapping(ctx, "Alice", "old-dummy", "FIRSTNAME", 1); err != nil {
+	if err := db.StoreMapping(ctx, NullSessionID, "Alice", "old-dummy", "FIRSTNAME", 1); err != nil {
 		t.Fatal(err)
 	}
 	backdateMapping(t, db, "-600 seconds")
@@ -351,7 +351,7 @@ func TestMappingExpirationRestartWithExtendedPolicy(t *testing.T) {
 func TestMappingExpirationFailedPolicyTransitionIsAtomic(t *testing.T) {
 	db := newTestDB(t)
 	ctx := context.Background()
-	if err := db.StoreMapping(ctx, "Alice", "dummy", "FIRSTNAME", 1); err != nil {
+	if err := db.StoreMapping(ctx, NullSessionID, "Alice", "dummy", "FIRSTNAME", 1); err != nil {
 		t.Fatal(err)
 	}
 	backdateMapping(t, db, "-600 seconds")
@@ -409,7 +409,7 @@ func TestZeroTTLRetainsMappingsAcrossRestartAndReenableExpiresThem(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.StoreMapping(ctx, "Alice", "dummy", "FIRSTNAME", 1); err != nil {
+	if err := db.StoreMapping(ctx, NullSessionID, "Alice", "dummy", "FIRSTNAME", 1); err != nil {
 		t.Fatal(err)
 	}
 	backdateMapping(t, db, "-30 days")

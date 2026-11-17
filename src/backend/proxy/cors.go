@@ -30,7 +30,8 @@ func setCORSHeaders(h http.Header, r *http.Request) {
 	} else {
 		h.Set("Access-Control-Allow-Headers",
 			"Content-Type, Authorization, X-Api-Key, OpenAI-Beta, "+
-				"anthropic-version, anthropic-dangerous-direct-browser-access")
+				"anthropic-version, anthropic-dangerous-direct-browser-access, "+
+				"X-Kiji-Profile, X-Kiji-Session")
 	}
 	h.Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH")
 	h.Set("Access-Control-Expose-Headers", "*")

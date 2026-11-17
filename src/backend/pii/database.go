@@ -41,17 +41,18 @@ type DatabaseConfig struct {
 // PIIMappingDB defines the interface for database operations
 type PIIMappingDB interface {
 	// GetOrCreateMapping atomically reuses a live mapping or chooses an available dummy.
-	GetOrCreateMapping(ctx context.Context, original, dummy, piiType string, confidence float64, generators ...func() string) (string, error)
+	// Originals are scoped by sessionID (NullSessionID is the legacy global pool).
+	GetOrCreateMapping(ctx context.Context, sessionID, original, dummy, piiType string, confidence float64, generators ...func() string) (string, error)
 	// StoreMapping stores a PII mapping in the database with confidence level
-	StoreMapping(ctx context.Context, original, dummy string, piiType string, confidence float64) error
+	StoreMapping(ctx context.Context, sessionID, original, dummy string, piiType string, confidence float64) error
 
 	// BeginMappingSnapshot opens an indexed read view; the caller must close it.
 	BeginMappingSnapshot(ctx context.Context) (MappingSnapshot, error)
 	// QueueMappingAccesses records best-effort statistics without blocking requests.
 	QueueMappingAccesses(pairs map[string]string)
 
-	// DeleteMapping removes a mapping from the database
-	DeleteMapping(ctx context.Context, original string) error
+	// DeleteMapping removes a session's mapping for original from the database
+	DeleteMapping(ctx context.Context, sessionID, original string) error
 
 	// DeleteMappingByID removes a single mapping by its row id, returning the
 	// deleted original and dummy values (so callers can evict caches). Returns
@@ -64,12 +65,16 @@ type PIIMappingDB interface {
 	// ClearMappings removes all PII mappings
 	ClearMappings(ctx context.Context) error
 
-	// GetMappingsCount returns the total number of PII mappings
-	GetMappingsCount(ctx context.Context) (int, error)
+	// ClearSessionMappings removes the mappings of one session, returning the
+	// number of rows removed.
+	ClearSessionMappings(ctx context.Context, sessionID string) (int64, error)
 
-	// GetMappings retrieves PII mappings with pagination and sorting.
+	// GetMappingsCount returns the number of PII mappings matching filter
+	GetMappingsCount(ctx context.Context, filter MappingFilter) (int, error)
+
+	// GetMappings retrieves PII mappings matching filter with pagination and sorting.
 	// sortColumn is validated against a whitelist; sortDescending controls direction.
-	GetMappings(ctx context.Context, limit int, offset int, sortColumn string, sortDescending bool) ([]map[string]interface{}, error)
+	GetMappings(ctx context.Context, filter MappingFilter, limit int, offset int, sortColumn string, sortDescending bool) ([]map[string]interface{}, error)
 
 	// Close closes the database connection
 	Close() error
@@ -203,21 +208,14 @@ func newSQLitePIIMappingDB(ctx context.Context, cfg DatabaseConfig, cleanupInter
 // createSQLiteTables creates the required tables if they don't exist
 func createSQLiteTables(ctx context.Context, db *sql.DB) error {
 	queries := []string{
-		`CREATE TABLE IF NOT EXISTS pii_mappings (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			original_pii TEXT NOT NULL UNIQUE,
-			dummy_pii TEXT NOT NULL UNIQUE,
-			pii_type TEXT NOT NULL,
-			confidence REAL DEFAULT 1.0,
-			created_at TEXT DEFAULT (datetime('now')),
-			last_accessed_at TEXT DEFAULT (datetime('now')),
-			access_count INTEGER DEFAULT 1
-		)`,
+		`CREATE TABLE IF NOT EXISTS pii_mappings (` + piiMappingsColumns + `)`,
+		migrateMappingsSessionColumnMarker,
 		`CREATE INDEX IF NOT EXISTS idx_pii_mappings_original ON pii_mappings(original_pii)`,
 		`CREATE INDEX IF NOT EXISTS idx_pii_mappings_dummy ON pii_mappings(dummy_pii)`,
 		`CREATE INDEX IF NOT EXISTS idx_pii_mappings_created_at ON pii_mappings(created_at)`,
 		`CREATE INDEX IF NOT EXISTS idx_pii_mappings_pii_type ON pii_mappings(pii_type)`,
 		`CREATE INDEX IF NOT EXISTS idx_pii_mappings_confidence ON pii_mappings(confidence)`,
+		`CREATE INDEX IF NOT EXISTS idx_pii_mappings_session ON pii_mappings(session_id)`,
 
 		`CREATE TABLE IF NOT EXISTS logs (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -236,6 +234,14 @@ func createSQLiteTables(ctx context.Context, db *sql.DB) error {
 	}
 
 	for _, query := range queries {
+		if query == migrateMappingsSessionColumnMarker {
+			// Rebuild pre-session tables before any index creation, since the
+			// rebuild drops the old table's indexes.
+			if err := migrateMappingsSessionColumn(ctx, db); err != nil {
+				return err
+			}
+			continue
+		}
 		if _, err := db.ExecContext(ctx, query); err != nil {
 			return fmt.Errorf("failed to execute: %s: %w", query, err)
 		}
@@ -255,11 +261,11 @@ func (s *SQLitePIIMappingDB) expireMappings(ctx context.Context) error {
 }
 
 // DeleteMapping removes a mapping from the database
-func (s *SQLitePIIMappingDB) DeleteMapping(ctx context.Context, original string) error {
+func (s *SQLitePIIMappingDB) DeleteMapping(ctx context.Context, sessionID, original string) error {
 	s.mappingMu.Lock()
 	defer s.mappingMu.Unlock()
-	query := `DELETE FROM pii_mappings WHERE original_pii = ?`
-	_, err := s.db.ExecContext(ctx, query, original)
+	query := `DELETE FROM pii_mappings WHERE session_id = ? AND original_pii = ?`
+	_, err := s.db.ExecContext(ctx, query, sessionID, original)
 	return err
 }
 
@@ -312,15 +318,27 @@ func (s *SQLitePIIMappingDB) ClearMappings(ctx context.Context) error {
 	return nil
 }
 
+// ClearSessionMappings removes all PII mappings belonging to one session.
+func (s *SQLitePIIMappingDB) ClearSessionMappings(ctx context.Context, sessionID string) (int64, error) {
+	s.mappingMu.Lock()
+	defer s.mappingMu.Unlock()
+	result, err := s.db.ExecContext(ctx, `DELETE FROM pii_mappings WHERE session_id = ?`, sessionID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to clear session mappings: %w", err)
+	}
+	return result.RowsAffected()
+}
+
 // GetMappingsCount returns the total number of PII mappings
-func (s *SQLitePIIMappingDB) GetMappingsCount(ctx context.Context) (int, error) {
+func (s *SQLitePIIMappingDB) GetMappingsCount(ctx context.Context, filter MappingFilter) (int, error) {
 	s.mappingMu.Lock()
 	defer s.mappingMu.Unlock()
 	if err := s.expireMappings(ctx); err != nil {
 		return 0, err
 	}
 	var count int
-	err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM pii_mappings`).Scan(&count)
+	where, args := filter.where()
+	err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM pii_mappings`+where, args...).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get mappings count: %w", err)
 	}
@@ -332,6 +350,7 @@ const (
 	MappingColumnOriginalPII = "original_pii"
 	MappingColumnDummyPII    = "dummy_pii"
 	MappingColumnCreatedAt   = "created_at"
+	MappingColumnSessionID   = "session_id"
 )
 
 // allowedMappingSortColumns maps API-facing sort keys to actual SQL column
@@ -342,10 +361,11 @@ var allowedMappingSortColumns = map[string]string{
 	MappingColumnOriginalPII: MappingColumnOriginalPII,
 	MappingColumnDummyPII:    MappingColumnDummyPII,
 	MappingColumnCreatedAt:   MappingColumnCreatedAt,
+	MappingColumnSessionID:   MappingColumnSessionID,
 }
 
 // GetMappings retrieves PII mappings from the database with pagination and sorting.
-func (s *SQLitePIIMappingDB) GetMappings(ctx context.Context, limit int, offset int, sortColumn string, sortDescending bool) ([]map[string]interface{}, error) {
+func (s *SQLitePIIMappingDB) GetMappings(ctx context.Context, filter MappingFilter, limit int, offset int, sortColumn string, sortDescending bool) ([]map[string]interface{}, error) {
 	s.mappingMu.Lock()
 	defer s.mappingMu.Unlock()
 	if err := s.expireMappings(ctx); err != nil {
@@ -362,15 +382,18 @@ func (s *SQLitePIIMappingDB) GetMappings(ctx context.Context, limit int, offset 
 
 	// Secondary sort by id keeps ordering stable across pages when the primary
 	// column has ties. Both column and order come only from constants above, so
-	// this Sprintf cannot be injected; limit/offset stay bound parameters.
+	// this Sprintf cannot be injected; the session filter, limit and offset stay
+	// bound parameters.
+	where, args := filter.where()
+	// #nosec G201 -- where, column and order are constant SQL fragments; values are bound parameters
 	query := fmt.Sprintf(`
-	SELECT id, original_pii, dummy_pii, pii_type, confidence, created_at, last_accessed_at, access_count
-	FROM pii_mappings
+	SELECT id, session_id, original_pii, dummy_pii, pii_type, confidence, created_at, last_accessed_at, access_count
+	FROM pii_mappings%s
 	ORDER BY %s %s, id %s
 	LIMIT ? OFFSET ?
-	`, column, order, order)
+	`, where, column, order, order)
 
-	rows, err := s.db.QueryContext(ctx, query, limit, offset)
+	rows, err := s.db.QueryContext(ctx, query, append(args, limit, offset)...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query mappings: %w", err)
 	}
@@ -379,11 +402,11 @@ func (s *SQLitePIIMappingDB) GetMappings(ctx context.Context, limit int, offset 
 	var mappings []map[string]interface{}
 	for rows.Next() {
 		var id int
-		var originalPII, dummyPII, piiType, createdAt, lastAccessedAt string
+		var sessionID, originalPII, dummyPII, piiType, createdAt, lastAccessedAt string
 		var confidence float64
 		var accessCount int
 
-		if err := rows.Scan(&id, &originalPII, &dummyPII, &piiType, &confidence, &createdAt, &lastAccessedAt, &accessCount); err != nil {
+		if err := rows.Scan(&id, &sessionID, &originalPII, &dummyPII, &piiType, &confidence, &createdAt, &lastAccessedAt, &accessCount); err != nil {
 			return nil, fmt.Errorf("failed to scan mapping row: %w", err)
 		}
 
@@ -396,8 +419,15 @@ func (s *SQLitePIIMappingDB) GetMappings(ctx context.Context, limit int, offset 
 			log.Printf("[SQLiteDB] ⚠️  Mapping row %d has unparseable created_at %q: %v", id, createdAt, err)
 		}
 
+		// The null session serializes as JSON null.
+		var session interface{}
+		if sessionID != NullSessionID {
+			session = sessionID
+		}
+
 		mappings = append(mappings, map[string]interface{}{
 			"id":                     id,
+			MappingColumnSessionID:   session,
 			MappingColumnOriginalPII: originalPII,
 			MappingColumnDummyPII:    dummyPII,
 			MappingColumnPIIType:     piiType,

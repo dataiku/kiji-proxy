@@ -102,7 +102,8 @@ export type MappingSortColumn =
   | "pii_type"
   | "original_pii"
   | "dummy_pii"
-  | "created_at";
+  | "created_at"
+  | "session_id";
 
 export type SortOrder = "asc" | "desc";
 
@@ -113,4 +114,5 @@ export interface Mapping {
   original: string; // original_pii
   masked: string; // dummy_pii
   createdAt: Date; // created_at — date of first entity
+  sessionId: string | null; // session_id — null for the global (no-session) pool
 }

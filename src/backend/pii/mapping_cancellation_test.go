@@ -26,21 +26,21 @@ func (d *interruptedMappingDB) BeginMappingSnapshot(ctx context.Context) (Mappin
 	}
 	return &interruptedSnapshot{snapshot, d}, nil
 }
-func (s *interruptedSnapshot) Lookup(ctx context.Context, key string, forward bool) (string, bool, error) {
+func (s *interruptedSnapshot) Lookup(ctx context.Context, sessionID, key string, forward bool) (string, bool, error) {
 	s.owner.lookups++
 	if s.owner.beforeLookup != nil {
 		if err := s.owner.beforeLookup(ctx); err != nil {
 			return "", false, err
 		}
 	}
-	return s.MappingSnapshot.Lookup(ctx, key, forward)
+	return s.MappingSnapshot.Lookup(ctx, sessionID, key, forward)
 }
-func (d *interruptedMappingDB) GetOrCreateMapping(ctx context.Context, original, dummy, piiType string, confidence float64, generators ...func() string) (string, error) {
+func (d *interruptedMappingDB) GetOrCreateMapping(ctx context.Context, sessionID, original, dummy, piiType string, confidence float64, generators ...func() string) (string, error) {
 	d.creates++
 	if d.beforeCreate != nil {
 		d.beforeCreate()
 	}
-	return d.PIIMappingDB.GetOrCreateMapping(ctx, original, dummy, piiType, confidence, generators...)
+	return d.PIIMappingDB.GetOrCreateMapping(ctx, sessionID, original, dummy, piiType, confidence, generators...)
 }
 
 func TestMaskingStopsOnCancellationAndLookupFailures(t *testing.T) {
@@ -70,7 +70,7 @@ func TestMaskingStopsOnCancellationAndLookupFailures(t *testing.T) {
 				wrapped.beforeCreate = cancel
 			}
 			svc := NewMaskingService(&stubDetectorProvider{detector: detector}, NewGeneratorService(), NewPIIMappingWithDB(wrapped, true))
-			request, err := svc.BeginRequest(ctx, nil)
+			request, err := svc.BeginRequest(ctx, nil, NullSessionID)
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -37,7 +37,7 @@ func TestMaskingBatchesReusedAccessesAfterSnapshotClose(t *testing.T) {
 	db := newTestDB(t)
 	ctx := context.Background()
 	for original, dummy := range map[string]string{"Alice": "alice", "Bob": "bob", "Carol": "carol"} {
-		if err := db.StoreMapping(ctx, original, dummy, "FIRSTNAME", 1); err != nil {
+		if err := db.StoreMapping(ctx, NullSessionID, original, dummy, "FIRSTNAME", 1); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -46,7 +46,7 @@ func TestMaskingBatchesReusedAccessesAfterSnapshotClose(t *testing.T) {
 			t.Fatal("statistics retained the read snapshot")
 		}
 	}}
-	session, err := NewPIIMappingWithDB(tracked, true).beginMasking(ctx)
+	session, err := NewPIIMappingWithDB(tracked, true).beginMasking(ctx, NullSessionID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +81,7 @@ func TestMaskingBatchesReusedAccessesAfterSnapshotClose(t *testing.T) {
 			t.Fatalf("%s: count %d, err %v", original, count, err)
 		}
 	}
-	empty, err := NewPIIMappingWithDB(tracked, true).beginMasking(ctx)
+	empty, err := NewPIIMappingWithDB(tracked, true).beginMasking(ctx, NullSessionID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,11 +95,11 @@ func TestAccessBatchDoesNotCountReplacedOrDeletedGenerations(t *testing.T) {
 	db := newTestDB(t)
 	ctx := context.Background()
 	for original, dummy := range map[string]string{"Alice": "old", "Bob": "deleted", "Witness": "witness"} {
-		if err := db.StoreMapping(ctx, original, dummy, "PERSON", 1); err != nil {
+		if err := db.StoreMapping(ctx, NullSessionID, original, dummy, "PERSON", 1); err != nil {
 			t.Fatal(err)
 		}
 	}
-	session, err := NewPIIMappingWithDB(db, true).beginMasking(ctx)
+	session, err := NewPIIMappingWithDB(db, true).beginMasking(ctx, NullSessionID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,11 +110,11 @@ func TestAccessBatchDoesNotCountReplacedOrDeletedGenerations(t *testing.T) {
 		}
 	}
 	for _, original := range []string{"Alice", "Bob"} {
-		if err := db.DeleteMapping(ctx, original); err != nil {
+		if err := db.DeleteMapping(ctx, NullSessionID, original); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := db.StoreMapping(ctx, "Alice", "new", "PERSON", 1); err != nil {
+	if err := db.StoreMapping(ctx, NullSessionID, "Alice", "new", "PERSON", 1); err != nil {
 		t.Fatal(err)
 	}
 	session.close()
@@ -130,7 +130,7 @@ func TestAccessBatchDoesNotCountReplacedOrDeletedGenerations(t *testing.T) {
 
 func TestUnmaskResultsSurviveBusyWriterAndExpiredReadContext(t *testing.T) {
 	db := newTestDB(t)
-	if err := db.StoreMapping(context.Background(), "Alice", "dummy", "PERSON", 1); err != nil {
+	if err := db.StoreMapping(context.Background(), NullSessionID, "Alice", "dummy", "PERSON", 1); err != nil {
 		t.Fatal(err)
 	}
 	readCtx, cancel := context.WithCancel(context.Background())
@@ -151,7 +151,7 @@ func TestUnmaskResultsSurviveBusyWriterAndExpiredReadContext(t *testing.T) {
 		t.Fatal(err)
 	}
 	start := time.Now()
-	got, err := NewPIIMappingWithDB(tracked, true).UnmaskMappings(readCtx, []string{"dummy", "dummy", "missing"})
+	got, err := NewPIIMappingWithDB(tracked, true).UnmaskMappings(readCtx, NullSessionID, []string{"dummy", "dummy", "missing"})
 	if err != nil || !reflect.DeepEqual(got, map[string]string{"dummy": "Alice"}) {
 		t.Fatalf("resolved results lost to statistics: %v %v", got, err)
 	}
@@ -238,7 +238,7 @@ func TestReadPoolCapAndCancellableMaskingAcquisition(t *testing.T) {
 	waitingCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	done := make(chan error, 1)
-	go func() { _, err := svc.MaskText(waitingCtx, "Alice", nil, "test"); done <- err }()
+	go func() { _, err := svc.MaskText(waitingCtx, "Alice", nil, NullSessionID, "test"); done <- err }()
 	deadline := time.After(time.Second)
 	for db.readDB.Stats().WaitCount == stats.WaitCount {
 		select {
@@ -267,7 +267,7 @@ func TestReadPoolCapAndCancellableMaskingAcquisition(t *testing.T) {
 	}
 	// Releasing one slot permits a fresh request; cancelling its acquisition
 	// timer on success must not invalidate the acquired transaction.
-	result, err := svc.MaskText(ctx, "Alice", nil, "test")
+	result, err := svc.MaskText(ctx, "Alice", nil, NullSessionID, "test")
 	if err != nil || result.MaskedText == "Alice" || result.MaskedText == "" {
 		t.Fatalf("pool failed to recover: %v %v", result, err)
 	}
@@ -279,7 +279,7 @@ func TestReadPoolCapAndCancellableMaskingAcquisition(t *testing.T) {
 func TestUnmaskStatisticsBudgetAlsoBoundsExternalWriterContention(t *testing.T) {
 	db := newTestDB(t)
 	ctx := context.Background()
-	if err := db.StoreMapping(ctx, "Alice", "dummy", "PERSON", 1); err != nil {
+	if err := db.StoreMapping(ctx, NullSessionID, "Alice", "dummy", "PERSON", 1); err != nil {
 		t.Fatal(err)
 	}
 	var seq int
@@ -301,7 +301,7 @@ func TestUnmaskStatisticsBudgetAlsoBoundsExternalWriterContention(t *testing.T) 
 		t.Fatal(err)
 	}
 	started := time.Now()
-	result, err := NewPIIMappingWithDB(db, true).UnmaskMappings(ctx, []string{"dummy"})
+	result, err := NewPIIMappingWithDB(db, true).UnmaskMappings(ctx, NullSessionID, []string{"dummy"})
 	if err != nil || result["dummy"] != "Alice" {
 		t.Fatalf("external writer invalidated results: %v %v", result, err)
 	}
@@ -317,7 +317,7 @@ func TestUnmaskStatisticsBudgetAlsoBoundsExternalWriterContention(t *testing.T) 
 func TestMaskingReturnsItsSnapshotDespiteStatisticsTimeout(t *testing.T) {
 	db := newTestDB(t)
 	ctx := context.Background()
-	if err := db.StoreMapping(ctx, "Alice", "dummy", "FIRSTNAME", 1); err != nil {
+	if err := db.StoreMapping(ctx, NullSessionID, "Alice", "dummy", "FIRSTNAME", 1); err != nil {
 		t.Fatal(err)
 	}
 	svc := NewMaskingService(&stubDetectorProvider{detector: &stubDetector{entities: []detectors.Entity{entity("Alice", "FIRSTNAME", 0, 5)}}}, NewGeneratorService(), NewPIIMappingWithDB(db, true))
@@ -326,7 +326,7 @@ func TestMaskingReturnsItsSnapshotDespiteStatisticsTimeout(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	result, err := svc.MaskText(ctx, "Alice", nil, "test")
+	result, err := svc.MaskText(ctx, "Alice", nil, NullSessionID, "test")
 	if err != nil || result.MaskedText != "dummy" || result.MaskedToOriginal["dummy"] != "Alice" {
 		t.Fatalf("statistics failure lost masking result: %v %v", result, err)
 	}

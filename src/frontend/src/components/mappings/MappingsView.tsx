@@ -228,6 +228,13 @@ export default function MappingsView() {
                         onSort={handleSort}
                       />
                       <SortableHeader
+                        label={t("table.session")}
+                        column="session_id"
+                        activeColumn={sortColumn}
+                        activeOrder={sortOrder}
+                        onSort={handleSort}
+                      />
+                      <SortableHeader
                         label={t("table.date")}
                         column="created_at"
                         activeColumn={sortColumn}
@@ -255,6 +262,16 @@ export default function MappingsView() {
                         </td>
                         <td className="px-4 py-3 text-sm font-mono text-stone-700 break-all">
                           {m.masked}
+                        </td>
+                        <td className="px-4 py-3 text-sm font-mono text-stone-600 break-all">
+                          {m.sessionId ?? (
+                            <span
+                              className="text-stone-400"
+                              title={t("table.noSession")}
+                            >
+                              —
+                            </span>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-sm text-stone-600 whitespace-nowrap">
                           {formatTimestamp(m.createdAt)}
