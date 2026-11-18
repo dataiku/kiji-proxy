@@ -87,6 +87,27 @@ def test_openpii_recent_event_date_stays_unlabelled():
     assert _labels(convert_openpii_row(row)) == [("SURNAME", "Graf")]
 
 
+@pytest.mark.parametrize(
+    "text, date",
+    [
+        ("Herr Jonas Weber ist am 03.04.2001 in Köln geboren.", "03.04.2001"),
+        ("Frau Weber wurde am 14.02.2012 geboren.", "14.02.2012"),
+        ("Herr Weber ist am 03.04.2001 zur Welt gekommen.", "03.04.2001"),
+    ],
+)
+def test_openpii_birth_word_after_date_is_dateofbirth(text, date):
+    row = _openpii(text, [("DATE", date), ("SURNAME", "Weber")])
+    assert ("DATEOFBIRTH", date) in _labels(convert_openpii_row(row))
+
+
+def test_openpii_birth_word_in_next_sentence_does_not_label_date():
+    row = _openpii(
+        "Bitte senden Sie das Formular bis zum 28/12/2025 an Frau Graf. Sie ist geboren in Ulm.",
+        [("DATE", "28/12/2025"), ("SURNAME", "Graf")],
+    )
+    assert _labels(convert_openpii_row(row)) == [("SURNAME", "Graf")]
+
+
 def test_nym_row_with_customer_id_is_skipped():
     text = "Bitte prüfen Sie die Kundennummer 88231 für Herrn Graf und die Rechnung."
     row = {
