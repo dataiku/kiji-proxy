@@ -26,7 +26,7 @@ import onnxruntime as ort
 import torch
 from absl import app, flags, logging
 from safetensors import safe_open
-from transformers import AutoTokenizer
+from transformers import AutoConfig, AutoTokenizer
 
 # Add project root to path for imports
 project_root = Path(__file__).parent.parent.parent
@@ -108,25 +108,14 @@ def load_pytorch_model(
     # Load tokenizer
     tokenizer = AutoTokenizer.from_pretrained(model_path)
 
-    # Load model config
+    # The model type alone cannot distinguish English and multilingual
+    # DeBERTa. Reconstruct the exact architecture from the saved config.
     config_path = model_path / "config.json"
-    model_type_defaults = {
-        "bert": "bert-base-cased",
-        "distilbert": "distilbert-base-cased",
-        "roberta": "roberta-base",
-        "deberta-v2": "microsoft/deberta-v3-base",
-    }
+    encoder_config = None
+    base_model_name = "microsoft/deberta-v3-base"
     if config_path.exists():
-        with config_path.open() as f:
-            model_config = json.load(f)
-        base_model_name = model_config.get("_name_or_path", "")
-        if not base_model_name or base_model_name in model_type_defaults:
-            model_type = model_config.get("model_type", "distilbert")
-            base_model_name = model_type_defaults.get(
-                model_type, "microsoft/deberta-v3-base"
-            )
-    else:
-        base_model_name = "microsoft/deberta-v3-base"
+        encoder_config = AutoConfig.from_pretrained(model_path, local_files_only=True)
+        base_model_name = str(model_path)
 
     # Create model
     num_pii_labels = len(pii_label2id)
@@ -135,6 +124,7 @@ def load_pytorch_model(
         model_name=base_model_name,
         num_pii_labels=num_pii_labels,
         id2label_pii=pii_id2label,
+        encoder_config=encoder_config,
     )
 
     # Load weights
