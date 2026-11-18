@@ -112,15 +112,9 @@ func (p *GeminiProvider) CreateMaskedRequest(maskedRequest map[string]interface{
 		return maskedToOriginal, &entities, fmt.Errorf("no contents field in request")
 	}
 
-	for _, content := range contents {
-		contentMap, ok := content.(map[string]interface{})
-		if !ok {
-			continue
-		}
-		parts, ok := contentMap["parts"].([]interface{})
-		if !ok {
-			continue
-		}
+	// mask runs PII detection over a single text part and merges the resulting
+	// entities and mappings into the accumulators above.
+	maskParts := func(parts []interface{}) {
 		for _, part := range parts {
 			partMap, ok := part.(map[string]interface{})
 			if !ok {
@@ -141,6 +135,28 @@ func (p *GeminiProvider) CreateMaskedRequest(maskedRequest map[string]interface{
 				maskedToOriginal[k] = v
 			}
 		}
+	}
+
+	// The system instruction lives outside `contents`; the REST API accepts
+	// both camelCase and snake_case spellings.
+	for _, key := range []string{"systemInstruction", "system_instruction"} {
+		if sysMap, ok := maskedRequest[key].(map[string]interface{}); ok {
+			if parts, ok := sysMap["parts"].([]interface{}); ok {
+				maskParts(parts)
+			}
+		}
+	}
+
+	for _, content := range contents {
+		contentMap, ok := content.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		parts, ok := contentMap["parts"].([]interface{})
+		if !ok {
+			continue
+		}
+		maskParts(parts)
 	}
 
 	return maskedToOriginal, &entities, nil
