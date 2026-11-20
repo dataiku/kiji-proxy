@@ -1,0 +1,64 @@
+{
+  "manifest_version": 3,
+  "name": "Kiji Privacy Proxy Extension",
+  "version": "1.6.8",
+  "description": "Checks for PII before submitting text to AI chat services",
+  "permissions": [
+    "storage",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://chatgpt.com/*",
+    "https://chat.openai.com/*",
+    "https://claude.ai/*",
+    "https://gemini.google.com/*",
+    "https://copilot.microsoft.com/*",
+    "https://huggingface.co/chat/*",
+    "https://chat.mistral.ai/*",
+    "https://poe.com/*",
+    "https://www.perplexity.ai/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*"
+  ],
+  "optional_host_permissions": [
+    "https://*/*"
+  ],
+  "background": {
+    "scripts": [
+      "config.js",
+      "background.js"
+    ]
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "kiji-privacy-proxy@dataiku.com",
+      "strict_min_version": "128.0",
+      "data_collection_permissions": {
+        "required": [
+          "websiteContent",
+          "personallyIdentifyingInfo"
+        ]
+      }
+    }
+  }
+}

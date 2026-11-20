@@ -22,7 +22,7 @@ jobs:
 
       - name: Stamp Version in Manifest
         run: |
-          cd chrome-extension
+          cd browser-extension
           # Update manifest.json version to match the release tag
           jq --arg v "${{ steps.version.outputs.version }}" '.version = $v' manifest.json > manifest.tmp
           mv manifest.tmp manifest.json
@@ -31,9 +31,9 @@ jobs:
 
       - name: Package Extension
         run: |
-          cd chrome-extension
+          cd browser-extension
           zip -r ../kiji-privacy-proxy-extension-${{ steps.version.outputs.version }}.zip . \
-            -x '*.DS_Store' '*.git*'
+            -x '*.DS_Store' '*.git*' 'manifest.firefox.json'
           echo "Package contents:"
           unzip -l ../kiji-privacy-proxy-extension-${{ steps.version.outputs.version }}.zip
 

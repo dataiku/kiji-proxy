@@ -77,7 +77,7 @@ jobs:
           npm version "$NEW_VERSION" --no-git-tag-version --ignore-scripts
           echo "Synced root package.json to $NEW_VERSION"
 
-          # Sync chrome-extension/manifest.json version
+          # Sync browser-extension/manifest.json version
           node src/scripts/sync-manifest-version.js
 
           # Sync pyproject.toml version

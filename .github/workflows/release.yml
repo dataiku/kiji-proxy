@@ -20,7 +20,7 @@ jobs:
   # Single source of truth for "what should this run do?". Every other job
   # keys off these two outputs instead of repeating the trigger matrix.
   #
-  #   should_build   - produce the platform artifacts (DMG, Linux, .deb, Chrome)
+  #   should_build   - produce the platform artifacts (DMG, Linux, .deb, Chrome, Firefox)
   #   should_release - tag, publish the GitHub Release, and update the tap
   #
   # The distinction matters for manual runs: a plain `workflow_dispatch` builds
@@ -83,12 +83,18 @@ jobs:
     if: needs.gate.outputs.should_build == 'true'
     uses: ./.github/workflows/_build-chrome.yml
 
+  build-firefox:
+    name: Package Firefox Extension
+    needs: gate
+    if: needs.gate.outputs.should_build == 'true'
+    uses: ./.github/workflows/_build-firefox.yml
+
   # ──────────────────────────────────────────────────────────────────────
   # Create a single GitHub Release with all assets
   # ──────────────────────────────────────────────────────────────────────
   create-release:
     name: Create GitHub Release
-    needs: [gate, build-dmg, build-linux, package-linux-deb, build-chrome]
+    needs: [gate, build-dmg, build-linux, package-linux-deb, build-chrome, build-firefox]
     if: needs.gate.outputs.should_release == 'true'
 
     runs-on: ubuntu-latest
@@ -216,6 +222,14 @@ jobs:
           4. Enable **Developer mode**
           5. Click **Load unpacked** and select the unzipped folder
 
+          ### Firefox Extension
+
+          1. Download `kiji-privacy-proxy-firefox-extension-${{ steps.version.outputs.version }}.zip` and unzip it
+          2. Open `about:debugging#/runtime/this-firefox` in Firefox 128 or later
+          3. Click **Load Temporary Add-on** and select the extracted `manifest.json`
+
+          Temporary add-ons are removed on browser restart. Permanent installation requires Mozilla signing.
+
           ### Documentation
 
           - [Getting Started Guide](https://github.com/dataiku/kiji-proxy/blob/main/docs/01-getting-started.md)
@@ -267,6 +281,9 @@ jobs:
           cp release-assets/linux-deb/*.deb.sha256 assets/ 2>/dev/null || true
           cp release-assets/chrome-assets/*.zip assets/ 2>/dev/null || true
           cp release-assets/chrome-assets/*.zip.sha256 assets/ 2>/dev/null || true
+
+          cp release-assets/firefox-assets/*.zip assets/
+          cp release-assets/firefox-assets/*.zip.sha256 assets/
 
           echo "Release assets:"
           ls -lh assets/

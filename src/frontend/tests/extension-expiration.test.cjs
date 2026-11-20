@@ -5,7 +5,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const tick = () => new Promise(resolve => setImmediate(resolve));
 
-async function setup() {
+async function setup(manifest = { version: 'test' }) {
   const elements = new Map();
   const element = id => {
     if (!elements.has(id)) elements.set(id, {
@@ -25,7 +25,7 @@ async function setup() {
     document: { addEventListener: (_, callback) => { ready = callback; }, getElementById: element },
     CONFIG: { DEFAULT_API_BASE: 'http://localhost:8080', DEFAULT_DOMAINS: [] },
     chrome: {
-      runtime: { getManifest: () => ({ version: 'test' }) },
+      runtime: { getManifest: () => manifest },
       storage: { sync: { get: async (defaults, callback) => {
         if (callback) callback(defaults);
         return defaults;
@@ -44,7 +44,7 @@ async function setup() {
       return { status: 200, ok: true, json: async () => policy };
     },
   };
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../../../chrome-extension/options.js'), 'utf8'), context);
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../../../browser-extension/options.js'), 'utf8'), context);
   ready();
   await tick();
   return {
@@ -110,4 +110,15 @@ test('extension preserves a zero draft when another client changes the lifetime'
   assert.equal(f.element('expiration-seconds').value, '0');
   assert.match(f.element('expiration-status').textContent, /changed in another client/);
   assert.deepEqual(f.current(), { ttl_seconds: 45 });
+});
+
+
+test('settings display the release label and fall back to the numeric version', async () => {
+  for (const [manifest, expected] of [
+    [{ version: '1.2.3.200000002', version_name: '1.2.3-beta.1' }, '1.2.3-beta.1'],
+    [{ version: '1.2.3' }, '1.2.3'],
+  ]) {
+    const f = await setup(manifest);
+    assert.equal(f.element('ext-version').textContent, expected);
+  }
 });

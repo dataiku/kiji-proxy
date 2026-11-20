@@ -99,7 +99,7 @@ Deep dive into advanced features, security, and troubleshooting.
 
 ---
 
-### [Chapter 6: Chrome Extension](06-chrome-extension.md)
+### [Chapter 6: Browser Extension](06-chrome-extension.md)
 
 Build, configure, and publish the Kiji PII Guard Chrome extension that intercepts AI chat input in the browser.
 

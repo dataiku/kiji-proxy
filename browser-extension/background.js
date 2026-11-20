@@ -1,7 +1,13 @@
 // Kiji Privacy Proxy Extension - Background Service Worker
 "use strict";
 
-importScripts("config.js");
+// Chrome loads this file as a service worker, while Firefox loads it from a
+// background page (where config.js is listed before this file in the
+// manifest). Guarding importScripts keeps the shared background code usable
+// in both browsers.
+if (typeof importScripts === "function") {
+  importScripts("config.js");
+}
 
 const DEFAULT_API_BASE = CONFIG.DEFAULT_API_BASE;
 const HEALTH_CHECK_INTERVAL_MS = CONFIG.HEALTH_CHECK_INTERVAL_MS;

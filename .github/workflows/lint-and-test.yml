@@ -129,6 +129,11 @@ jobs:
         working-directory: src/frontend
         run: npm test
 
+      - name: Validate Firefox extension package
+        run: |
+          npm run build:firefox-extension
+          npm run lint:firefox-extension
+
   actionlint:
     runs-on: ubuntu-latest
     name: Workflow Lint (actionlint)
