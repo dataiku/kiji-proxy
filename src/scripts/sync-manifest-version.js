@@ -11,8 +11,8 @@ const path = require("node:path");
 const repoRoot = path.resolve(__dirname, "..", "..");
 const source = path.join(repoRoot, "src", "frontend", "package.json");
 const targets = [
-  path.join(repoRoot, "chrome-extension", "manifest.json"),
-  path.join(repoRoot, "chrome-extension", "manifest.firefox.json"),
+  path.join(repoRoot, "browser-extension", "manifest.json"),
+  path.join(repoRoot, "browser-extension", "manifest.firefox.json"),
 ];
 
 const sourcePkg = JSON.parse(fs.readFileSync(source, "utf8"));

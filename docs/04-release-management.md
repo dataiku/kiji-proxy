@@ -320,7 +320,7 @@ then atomically creates the release with every asset attached
 ### Chrome Extension Build (`build-chrome`)
 
 **Steps:**
-1. Stamp the resolved version into `chrome-extension/manifest.json`
+1. Stamp the resolved version into `browser-extension/manifest.json`
 2. Package the extension into a zip
 3. Generate SHA256 checksum
 4. Upload `chrome-assets` artifact
@@ -331,7 +331,7 @@ then atomically creates the release with every asset attached
 
 **Steps:**
 1. Generate the Firefox Manifest V3 package from the shared extension source
-2. Stamp the resolved version into the generated manifest
+2. Encode the release channel in the numeric manifest version and preserve the release label in `version_name` (see [browser extension versioning](06-chrome-extension.md#release-versions))
 3. Package the extension into a zip and generate its SHA256 checksum
 4. Upload `firefox-assets` for the GitHub Release
 

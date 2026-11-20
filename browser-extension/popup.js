@@ -106,7 +106,8 @@ function renderVersion() {
   const el = document.getElementById("ext-version");
   if (!el) return;
   try {
-    el.textContent = chrome.runtime.getManifest().version;
+    const manifest = chrome.runtime.getManifest();
+    el.textContent = manifest.version_name || manifest.version;
   } catch {
     // ignore — leave placeholder
   }

@@ -6,7 +6,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const repoRoot = path.resolve(__dirname, "../..");
-const sourceDir = path.join(repoRoot, "chrome-extension");
+const sourceDir = path.join(repoRoot, "browser-extension");
 const args = process.argv.slice(2);
 let outputDir = path.join(repoRoot, "dist/firefox-extension");
 let version;
@@ -28,10 +28,30 @@ if (!sourceRelative.startsWith(`..${path.sep}`) || !outputRelative.startsWith(`.
   throw new Error("Output must be outside the extension source and its parent directories");
 }
 const manifest = JSON.parse(fs.readFileSync(path.join(sourceDir, "manifest.firefox.json"), "utf8"));
-if (version) manifest.version = version;
-if (!/^(0|[1-9]\d*)(\.(0|[1-9]\d*)){0,3}$/.test(manifest.version)) {
-  throw new Error("Firefox extension version must contain one to four numeric components");
+const releaseVersion = version || manifest.version;
+// Firefox/AMO accepts up to four numeric components, each at most nine digits.
+// Reserve the fourth component for the release channel so alpha < beta < rc
+// < stable, including updates from the last prerelease to the stable release.
+const semver = /^(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})(?:-(alpha|beta|rc)(?:\.(0|[1-9]\d{0,7}))?)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
+const match = releaseVersion.match(semver);
+if (match) {
+  const [, major, minor, patch, channel, sequence] = match;
+  // Unnumbered alpha precedes alpha.0. Leave room for numbered prereleases
+  // without overlapping the next channel's range.
+  const ordinal = sequence === undefined ? 0 : Number(sequence) + 1;
+  if (ordinal >= 100_000_000) {
+    throw new Error("Prerelease sequence must be between 0 and 99999998");
+  }
+  const channelBase = { alpha: 100_000_000, beta: 200_000_000, rc: 300_000_000 };
+  const revision = channel ? channelBase[channel] + ordinal : 400_000_000;
+  manifest.version = [major, minor, patch, revision].join(".");
+} else if (/^(0|[1-9]\d{0,8})(\.(0|[1-9]\d{0,8})){0,3}$/.test(releaseVersion)) {
+  // Preserve explicit one-, two-, or four-component Firefox version overrides.
+  manifest.version = releaseVersion;
+} else {
+  throw new Error("Expected a numeric version or a SemVer alpha, beta, rc, or stable release");
 }
+manifest.version_name = releaseVersion;
 
 // Refuse to overwrite unrelated files in a caller-supplied directory.
 if (fs.existsSync(outputDir) && fs.readdirSync(outputDir).length > 0) {

@@ -14,7 +14,8 @@
   "devDependencies": {
     "@babel/core": "^8.1.0",
     "@changesets/cli": "^3.0.3",
-    "@electron/notarize": "^3.1.2"
+    "@electron/notarize": "^3.1.2",
+    "web-ext": "9.4.0"
   },
   "repository": {
     "type": "git",
@@ -41,7 +42,8 @@
     "type-check": "cd src/frontend && npm run type-check",
     "changeset": "changeset",
     "version": "changeset version && node src/scripts/sync-manifest-version.js",
-    "release": "changeset publish"
+    "release": "changeset publish",
+    "lint:firefox-extension": "web-ext lint --source-dir dist/firefox-extension"
   },
   "engines": {
     "node": "^24.11.0",

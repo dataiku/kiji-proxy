@@ -262,4 +262,4 @@ Edit the template in-repo to change cask metadata (description, zap paths, depen
 
 ### Firefox extension validation and packaging
 
-The frontend CI job builds the shared Firefox package and validates it with pinned `web-ext@9.4.0`. The reusable `_build-firefox.yml` workflow uses the Node version in `.nvmrc`, produces `firefox-assets` (ZIP and SHA256), and needs no additional secrets. `create-release` attaches these artifacts alongside the Chrome package. Mozilla signing and Firefox Add-ons publication are separate manual steps.
+The frontend CI job builds the shared Firefox package and validates it with `npm run lint:firefox-extension`. The exact `web-ext` dev dependency and its transitive dependencies are installed from `package-lock.json` by `npm ci`. The reusable `_build-firefox.yml` workflow uses the Node version in `.nvmrc`, produces `firefox-assets` (ZIP and SHA256), and needs no additional secrets. `create-release` attaches these artifacts alongside the Chrome package. Mozilla signing and Firefox Add-ons publication are separate manual steps.

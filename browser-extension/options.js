@@ -8,7 +8,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.getElementById("ext-version");
   if (versionEl) {
     try {
-      versionEl.textContent = chrome.runtime.getManifest().version;
+      const manifest = chrome.runtime.getManifest();
+      versionEl.textContent = manifest.version_name || manifest.version;
     } catch {
       // ignore — leave placeholder
     }

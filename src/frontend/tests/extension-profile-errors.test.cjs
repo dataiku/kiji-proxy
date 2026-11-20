@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const read = name => fs.readFileSync(path.join(__dirname, '../../../chrome-extension', name), 'utf8');
+const read = name => fs.readFileSync(path.join(__dirname, '../../../browser-extension', name), 'utf8');
 
 // Execute the production background checker and content-script submission
 // handlers with transport/DOM boundaries mocked. No browser or backend needed.

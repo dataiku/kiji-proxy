@@ -41,7 +41,7 @@ while IFS= read -r file; do
       cat="chore" ;;
     # Source code — could be feat, fix, refactor, perf, style
     # We label these generically as "code" since we can't tell the intent
-    src/*|model/src/*|chrome-extension/*)
+    src/*|model/src/*|browser-extension/*)
       cat="code" ;;
     # Fallback
     *)

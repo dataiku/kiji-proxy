@@ -68,7 +68,7 @@ Every profile has a stable **ID**, shown under its name (e.g. `X-Kiji-Profile: h
     -d '{"model": "gpt-4o-mini", "messages": [{"role": "user", "content": "..."}]}'
   ```
 
-- **Chrome extension:** choose the profile in the extension's settings (see [Chrome Extension](06-chrome-extension.md)).
+- **Browser extension:** choose the profile in the extension's settings (see [Browser Extension](06-chrome-extension.md)).
 
 A request that names a profile that doesn't exist is **rejected with HTTP 400** rather than silently masked with other settings.
 
