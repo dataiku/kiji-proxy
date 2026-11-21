@@ -852,18 +852,20 @@ train-and-sign-oidc:
 **"No such file or directory" when copying library:**
 
 ```bash
+ONNX_VERSION="$(./src/scripts/onnxruntime-version.sh)"
+
 # Verify extracted directory
-ls -la build/onnxruntime-linux-x64-1.24.2/
+ls -la "build/onnxruntime-linux-x64-${ONNX_VERSION}/"
 
 # Check library exists
-ls -la build/onnxruntime-linux-x64-1.24.2/lib/libonnxruntime.so.1.24.2
+ls -la "build/onnxruntime-linux-x64-${ONNX_VERSION}/lib/libonnxruntime.so.${ONNX_VERSION}"
 
 # Manual copy
-cp build/onnxruntime-linux-x64-1.24.2/lib/libonnxruntime.so.1.24.2 build/
-cd build && ln -sf libonnxruntime.so.1.24.2 libonnxruntime.so
+cp "build/onnxruntime-linux-x64-${ONNX_VERSION}/lib/libonnxruntime.so.${ONNX_VERSION}" build/
+cd build && ln -sf "libonnxruntime.so.${ONNX_VERSION}" libonnxruntime.so
 
 # Verify
-ls -lh build/libonnxruntime.so.1.24.2  # Should be ~21MB
+ls -lh "build/libonnxruntime.so.${ONNX_VERSION}"  # Should be ~21MB
 ```
 
 **Library not found at runtime:**
@@ -877,7 +879,7 @@ export LD_LIBRARY_PATH=$(pwd)/lib:$LD_LIBRARY_PATH
 ./bin/kiji-proxy
 
 # macOS
-export ONNXRUNTIME_SHARED_LIBRARY_PATH=$(pwd)/build/libonnxruntime.1.24.2.dylib
+export ONNXRUNTIME_SHARED_LIBRARY_PATH=$(pwd)/build/libonnxruntime.dylib
 ```
 
 ### Git LFS Issues
@@ -1050,7 +1052,8 @@ echo "Git LFS: $(git lfs version 2>/dev/null || echo '❌ Not found')"
 
 # Build artifacts
 [ -f build/tokenizers/libtokenizers.a ] && echo "✅ Tokenizers" || echo "❌ Tokenizers"
-[ -f build/libonnxruntime.so.1.24.2 ] && echo "✅ ONNX Runtime" || echo "❌ ONNX Runtime"
+ONNX_VERSION="$(./src/scripts/onnxruntime-version.sh)"
+[ -f "build/libonnxruntime.so.${ONNX_VERSION}" ] && echo "✅ ONNX Runtime" || echo "❌ ONNX Runtime"
 [ -f model/quantized/model_quantized.onnx ] && echo "✅ Model" || echo "❌ Model"
 
 # Model size

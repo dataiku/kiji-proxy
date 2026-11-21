@@ -358,7 +358,7 @@ Cached across the three build jobs as appropriate:
 - **Git LFS objects** — model files (~100 MB)
 - **Go modules** — keyed by `go.sum`
 - **Rust/Cargo / tokenizers** — keyed by tokenizers version parsed from `go.mod`
-- **ONNX Runtime** — pre-built libraries (version 1.24.2)
+- **ONNX Runtime** — pre-built libraries keyed by `.onnxruntime-version`
 - **Python packages** (macOS, via uv) — ONNX Runtime Python
 - **Node modules** — `actions/setup-node` `cache: npm`
 

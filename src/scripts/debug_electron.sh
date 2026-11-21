@@ -91,6 +91,8 @@ echo ""
 # Get project root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+ONNX_VERSION="$("$SCRIPT_DIR/onnxruntime-version.sh")"
+ONNX_DARWIN_LIBRARY="libonnxruntime.${ONNX_VERSION}.dylib"
 cd "$PROJECT_ROOT"
 
 # Build if requested
@@ -109,8 +111,9 @@ if [ "$REBUILD" = true ]; then
     cp build/kiji-proxy src/frontend/resources/kiji-proxy
     chmod +x src/frontend/resources/kiji-proxy
 
-    if [ -f "build/libonnxruntime.1.24.2.dylib" ]; then
-        cp build/libonnxruntime.1.24.2.dylib src/frontend/resources/libonnxruntime.1.24.2.dylib
+    if [ -f "build/${ONNX_DARWIN_LIBRARY}" ]; then
+        cp "build/${ONNX_DARWIN_LIBRARY}" "src/frontend/resources/${ONNX_DARWIN_LIBRARY}"
+        ln -sf "$ONNX_DARWIN_LIBRARY" src/frontend/resources/libonnxruntime.dylib
         echo -e "${GREEN}✓ Resources prepared${NC}"
     else
         echo -e "${YELLOW}⚠️  ONNX library not found${NC}"

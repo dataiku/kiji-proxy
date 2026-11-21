@@ -120,7 +120,7 @@ ls -lh model/quantized/model.onnx  # Should be a real model file, not a small LF
 │    └── PII Detection Engine            │
 │    (Web UI on :8080)                    │
 │                                          │
-│  lib/libonnxruntime.so.1.24.2           │
+│  lib/libonnxruntime.so.<version>        │
 │                                          │
 │  run.sh (launcher with LD_LIBRARY_PATH) │
 │  README.txt (usage guide)               │
@@ -147,11 +147,11 @@ The `build_dmg.sh` script performs these steps:
 
 ```bash
 # Create virtual environment
-python3 -m venv .venv
-source .venv/bin/activate
+uv venv --python 3.13
+ONNX_VERSION="$(./src/scripts/onnxruntime-version.sh)"
 
 # Install ONNX Runtime
-pip install onnxruntime
+uv pip install "onnxruntime==${ONNX_VERSION}"
 ```
 
 **2. Extract ONNX Runtime Library:**
@@ -161,7 +161,9 @@ pip install onnxruntime
 LIB_PATH=$(find .venv -name "libonnxruntime*.dylib" | head -1)
 
 # Copy to build directory
-cp "$LIB_PATH" build/libonnxruntime.1.24.2.dylib
+ONNX_VERSION="$(./src/scripts/onnxruntime-version.sh)"
+cp "$LIB_PATH" "build/libonnxruntime.${ONNX_VERSION}.dylib"
+ln -sf "libonnxruntime.${ONNX_VERSION}.dylib" build/libonnxruntime.dylib
 ```
 
 **3. Build Tokenizers Library:**
@@ -305,18 +307,19 @@ cd ../..
 
 ```bash
 cd build
+ONNX_VERSION="$(../src/scripts/onnxruntime-version.sh)"
 
 # Download if not cached
-wget https://github.com/microsoft/onnxruntime/releases/download/v1.24.2/onnxruntime-linux-x64-1.24.2.tgz
+wget "https://github.com/microsoft/onnxruntime/releases/download/v${ONNX_VERSION}/onnxruntime-linux-x64-${ONNX_VERSION}.tgz"
 
 # Extract
-tar -xzf onnxruntime-linux-x64-1.24.2.tgz
+tar -xzf "onnxruntime-linux-x64-${ONNX_VERSION}.tgz"
 
 # Copy library to build root
-cp onnxruntime-linux-x64-1.24.2/lib/libonnxruntime.so.1.24.2 .
+cp "onnxruntime-linux-x64-${ONNX_VERSION}/lib/libonnxruntime.so.${ONNX_VERSION}" .
 
 # Create symlink
-ln -sf libonnxruntime.so.1.24.2 libonnxruntime.so
+ln -sf "libonnxruntime.so.${ONNX_VERSION}" libonnxruntime.so
 
 cd ..
 ```
@@ -368,8 +371,9 @@ mkdir -p ${PACKAGE_DIR}/{bin,lib}
 cp build/kiji-proxy ${PACKAGE_DIR}/bin/
 
 # Copy library
-cp build/libonnxruntime.so.1.24.2 ${PACKAGE_DIR}/lib/
-ln -sf libonnxruntime.so.1.24.2 ${PACKAGE_DIR}/lib/libonnxruntime.so
+ONNX_VERSION="$(./src/scripts/onnxruntime-version.sh)"
+cp "build/libonnxruntime.so.${ONNX_VERSION}" "${PACKAGE_DIR}/lib/"
+ln -sf "libonnxruntime.so.${ONNX_VERSION}" "${PACKAGE_DIR}/lib/libonnxruntime.so"
 ```
 
 **6. Create Helper Scripts:**
@@ -705,9 +709,9 @@ git lfs ls-files
 **macOS:**
 ```bash
 # Reinstall ONNX Runtime
-python3 -m venv .venv
-source .venv/bin/activate
-pip install onnxruntime
+uv venv --python 3.13
+ONNX_VERSION="$(./src/scripts/onnxruntime-version.sh)"
+uv pip install "onnxruntime==${ONNX_VERSION}"
 
 # Find and copy
 find .venv -name "libonnxruntime*.dylib" -exec cp {} build/ \;
@@ -717,9 +721,10 @@ find .venv -name "libonnxruntime*.dylib" -exec cp {} build/ \;
 ```bash
 # Download manually
 cd build
-wget https://github.com/microsoft/onnxruntime/releases/download/v1.24.2/onnxruntime-linux-x64-1.24.2.tgz
-tar -xzf onnxruntime-linux-x64-1.24.2.tgz
-cp onnxruntime-linux-x64-1.24.2/lib/libonnxruntime.so.1.24.2 .
+ONNX_VERSION="$(../src/scripts/onnxruntime-version.sh)"
+wget "https://github.com/microsoft/onnxruntime/releases/download/v${ONNX_VERSION}/onnxruntime-linux-x64-${ONNX_VERSION}.tgz"
+tar -xzf "onnxruntime-linux-x64-${ONNX_VERSION}.tgz"
+cp "onnxruntime-linux-x64-${ONNX_VERSION}/lib/libonnxruntime.so.${ONNX_VERSION}" .
 ```
 
 ### Tokenizers Build Failed
@@ -796,7 +801,7 @@ export LD_LIBRARY_PATH=/path/to/lib:$LD_LIBRARY_PATH
 ./bin/kiji-proxy
 
 # Or install system-wide
-sudo cp lib/libonnxruntime.so.1.24.2 /usr/local/lib/
+sudo cp lib/libonnxruntime.so /usr/local/lib/
 sudo ldconfig
 ```
 

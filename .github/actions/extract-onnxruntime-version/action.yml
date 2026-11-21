@@ -1,0 +1,15 @@
+name: Extract ONNX Runtime version
+description: Read and validate the repository's pinned native ONNX Runtime version.
+outputs:
+  version:
+    description: The native ONNX Runtime version.
+    value: ${{ steps.runtime.outputs.version }}
+runs:
+  using: composite
+  steps:
+    - id: runtime
+      shell: bash
+      run: |
+        set -euo pipefail
+        version="$(./src/scripts/onnxruntime-version.sh)"
+        echo "version=$version" >> "$GITHUB_OUTPUT"
