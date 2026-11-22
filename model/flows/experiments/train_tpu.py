@@ -48,9 +48,11 @@ def build_config(args: argparse.Namespace) -> TrainingConfig:
         training["num_epochs"] = args.num_epochs
     if args.max_eval_samples is not None:
         training["max_eval_samples"] = args.max_eval_samples
+    config = TrainingConfig.from_toml(cfg)
     if args.seed is not None:
-        training["seed"] = args.seed
-    return TrainingConfig.from_toml(cfg)
+        # --seed beats TRAINING_SEED, which from_toml puts ahead of the file.
+        config.seed = args.seed
+    return config
 
 
 def main() -> int:

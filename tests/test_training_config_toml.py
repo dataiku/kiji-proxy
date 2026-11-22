@@ -84,3 +84,33 @@ def test_model_initialization_is_seeded(tmp_path, monkeypatch):
 
     assert torch.equal(init_weights(42, 1), init_weights(42, 2))
     assert not torch.equal(init_weights(42, 1), init_weights(13, 1))
+
+
+def _load_train_tpu():
+    import importlib.util
+
+    path = REPO_ROOT / "model/flows/experiments/train_tpu.py"
+    spec = importlib.util.spec_from_file_location("train_tpu_under_test", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_train_tpu_seed_flag_beats_training_seed_env(tmp_path, monkeypatch):
+    import argparse
+
+    train_tpu = _load_train_tpu()
+    monkeypatch.setenv("TRAINING_SEED", "13")
+
+    def args(seed):
+        return argparse.Namespace(
+            config=str(MIX_V4),
+            output_dir=str(tmp_path),
+            num_epochs=None,
+            max_eval_samples=None,
+            seed=seed,
+        )
+
+    assert train_tpu.build_config(args(7)).seed == 7
+    # Without the flag the environment still overrides the file.
+    assert train_tpu.build_config(args(None)).seed == 13
