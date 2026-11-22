@@ -406,11 +406,15 @@ func streamSSEResponse(conn net.Conn, resp *http.Response, codec streamCodec) er
 
 // codecForProvider selects the SSE codec matching the upstream provider's stream
 // grammar. OpenAI (incl. ChatGPT-login Codex on chatgpt.com) speaks the
-// Responses-API event shape; everything else uses the Anthropic grammar, which
-// is also the safe default.
+// Responses-API event shape, and OpenAI-compatible providers (Mistral, Custom)
+// stream chat.completion.chunk events that the same codec restores; everything
+// else uses the Anthropic grammar, which is also the safe default.
 func codecForProvider(provider *providers.Provider, mapping map[string]string) streamCodec {
-	if provider != nil && (*provider).GetType() == providers.ProviderTypeOpenAI {
-		return newOpenAICodec(mapping)
+	if provider != nil {
+		switch (*provider).GetType() {
+		case providers.ProviderTypeOpenAI, providers.ProviderTypeMistral, providers.ProviderTypeCustom:
+			return newOpenAICodec(mapping)
+		}
 	}
 	return newAnthropicCodec(mapping)
 }
