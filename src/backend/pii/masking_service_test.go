@@ -247,11 +247,127 @@ func TestMaskText_SweepDoesNotRemaskInsideDummy(t *testing.T) {
 // is a textual prefix of an original repeated elsewhere must not shield that
 // copy; only the span actually placed is protected.
 func TestSweepOutsideDummies_ShortDummyPrefixOfOriginalStillMasked(t *testing.T) {
-	sweeps := []struct{ original, masked string }{{"1234567", "12"}}
+	sweeps := []sweep{{original: "1234567", masked: "12"}}
 	// "12" at [0,2) is the placed dummy; the later "1234567" is a leftover copy.
 	got := sweepOutsideDummies("12 and 1234567", [][2]int{{0, 2}}, sweeps)
 	if want := "12 and 12"; got != want {
 		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+// TestSweepOutsideDummies_MatchMayNotCrossPlacedSpan: an original that starts
+// outside a dummy and ends inside it must not be swept. "123" plus the dummy
+// "456" reads as "123456", and taking that match deletes the dummy.
+func TestSweepOutsideDummies_MatchMayNotCrossPlacedSpan(t *testing.T) {
+	got := sweepOutsideDummies("123456 y 123456", [][2]int{{3, 6}}, []sweep{
+		{original: "123456", masked: "ZZZ"},
+	})
+	if want := "123456 y ZZZ"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+// TestSweepOutsideDummies_ShorterOriginalFitsBeforeSpan: when the longest
+// original overlaps the next dummy, a shorter one that fits in the gap is
+// still replaced.
+func TestSweepOutsideDummies_ShorterOriginalFitsBeforeSpan(t *testing.T) {
+	got := sweepOutsideDummies("PRE456 and QQQ", [][2]int{{3, 6}}, []sweep{
+		{original: "PRE456", masked: "ZZZZZZ"},
+		{original: "PRE", masked: "QQQ"},
+	})
+	if want := "QQQ456 and QQQ"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+// TestMaskText_ShortDummyPrefixStillSweepsDuplicate is the prefix case entered
+// through MaskText, so a span recorded by the positional loop is what protects
+// the dummy (not a span the test hands to the helper).
+func TestMaskText_ShortDummyPrefixStillSweepsDuplicate(t *testing.T) {
+	text := "id 1234567; id 1234567"
+	svc := newTestMaskingService(t, []detectors.Entity{entityAt(t, text, "1234567", "ACCOUNT")})
+	pinMapping(t, svc, "1234567", "12", "ACCOUNT")
+
+	result := mustMaskText(t, svc, text, "[test]")
+	if want := "id 12; id 12"; result.MaskedText != want {
+		t.Errorf("got %q, want %q", result.MaskedText, want)
+	}
+}
+
+// TestMaskText_SweepDoesNotEatDummyThatCompletesOriginal: valid, non-overlapping
+// entities. The building-number dummy "456" completes the longer original
+// "PRE456". The sweep must keep that dummy and still mask the other copies.
+func TestMaskText_SweepDoesNotEatDummyThatCompletesOriginal(t *testing.T) {
+	text := "PRE999 and PRE and PRE456"
+	pre := strings.Index(text, " and PRE and ") + len(" and ")
+	svc := newTestMaskingService(t, []detectors.Entity{
+		entityAt(t, text, "999", "BUILDING"),
+		entity("PRE", "CODE", pre, pre+len("PRE")),
+		entityAt(t, text, "PRE456", "ID"),
+	})
+	pinMapping(t, svc, "999", "456", "BUILDING")
+	pinMapping(t, svc, "PRE", "QQQ", "CODE")
+	pinMapping(t, svc, "PRE456", "ZZZZZZ", "ID")
+
+	result := mustMaskText(t, svc, text, "[test]")
+	if want := "QQQ456 and QQQ and ZZZZZZ"; result.MaskedText != want {
+		t.Fatalf("got %q, want %q", result.MaskedText, want)
+	}
+	if restored := svc.RestorePII(result.MaskedText, result.MaskedToOriginal); restored != text {
+		t.Errorf("RestorePII = %q, want %q", restored, text)
+	}
+}
+
+// TestMaskText_InvalidIndexDoesNotCutOrShiftPlacedDummy: with unusable offsets
+// the fallback search can land inside a dummy already placed, or to its right.
+// Cutting that dummy, or shifting every span by the later edit, lets the sweep
+// re-mask inside it.
+func TestMaskText_InvalidIndexDoesNotCutOrShiftPlacedDummy(t *testing.T) {
+	text := "LONGWORD ALPHA"
+	svc := newTestMaskingService(t, []detectors.Entity{
+		entity("LONGWORD", "ORG", 100, 200),
+		entity("ALPHA", "CODE", -1, 0),
+	})
+	pinMapping(t, svc, "LONGWORD", "ALPHA", "ORG")
+	pinMapping(t, svc, "ALPHA", "BETA!", "CODE")
+
+	result := mustMaskText(t, svc, text, "[test]")
+	if want := "ALPHA BETA!"; result.MaskedText != want {
+		t.Fatalf("got %q, want %q", result.MaskedText, want)
+	}
+	if result.MaskedToOriginal["ALPHA"] != "LONGWORD" {
+		t.Fatalf("dummy ALPHA maps to %q, want LONGWORD (%v)", result.MaskedToOriginal["ALPHA"], result.MaskedToOriginal)
+	}
+}
+
+// TestMaskText_IndexEditDoesNotMoveSpansToItsLeft: a later fallback match sits
+// to the right of a dummy. Shifting that dummy's span by the edit uncovers an
+// original embedded in it ("ALPHA" inside "ZZZALPHA"), and the sweep re-masks it.
+func TestMaskText_IndexEditDoesNotMoveSpansToItsLeft(t *testing.T) {
+	text := "WIDEWORD MIDDLX ALPHA"
+	svc := newTestMaskingService(t, []detectors.Entity{
+		entity("WIDEWORD", "ORG", 300, 400),
+		entity("MIDDLX", "CODE", 200, 300),
+		entity("ALPHA", "CODE", -1, 0),
+	})
+	pinMapping(t, svc, "WIDEWORD", "ZZZALPHA", "ORG")
+	pinMapping(t, svc, "MIDDLX", "B", "CODE")
+	pinMapping(t, svc, "ALPHA", "QQ", "CODE")
+
+	result := mustMaskText(t, svc, text, "[test]")
+	if want := "ZZZALPHA B QQ"; result.MaskedText != want {
+		t.Fatalf("got %q, want %q (mapping %v)", result.MaskedText, want, result.MaskedToOriginal)
+	}
+}
+
+func pinMapping(t *testing.T, svc *MaskingService, original, dummy, label string) {
+	t.Helper()
+	got, err := svc.mapping.AddMapping(context.Background(), original, dummy, label, 0.9)
+	if err != nil {
+		t.Fatalf("pin %q -> %q: %v", original, dummy, err)
+	}
+	if got != dummy {
+		t.Fatalf("pin %q stored %q, want %q", original, got, dummy)
 	}
 }
 
