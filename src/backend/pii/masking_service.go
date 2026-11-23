@@ -172,6 +172,9 @@ func (r *MaskingRequest) MaskText(text string, logPrefix string) MaskedResult {
 		}
 	}
 
+	// Byte spans [start, end) of the dummies placed below, in maskedText coordinates.
+	var placedSpans [][2]int
+
 	// Replace PII with masked text and create mapping
 	// Entities are sorted by StartPos descending, so replacing from end to start
 	// preserves earlier byte offsets.
@@ -222,11 +225,20 @@ func (r *MaskingRequest) MaskText(text string, logPrefix string) MaskedResult {
 		// (e.g., a single letter "s" from a possessive suffix)
 		start := entity.StartPos
 		end := entity.EndPos
-		if start >= 0 && end <= len(maskedText) && start < end {
-			maskedText = maskedText[:start] + maskedEntityText + maskedText[end:]
-		} else {
+		if start < 0 || end > len(maskedText) || start >= end {
 			// Fallback to string replacement if positions are invalid
-			maskedText = strings.Replace(maskedText, originalText, maskedEntityText, 1)
+			start = strings.Index(maskedText, originalText)
+			end = start + len(originalText)
+		}
+		if start >= 0 {
+			maskedText = maskedText[:start] + maskedEntityText + maskedText[end:]
+			// Everything already placed lies after start: shift it by the length change.
+			delta := len(maskedEntityText) - (end - start)
+			for k := range placedSpans {
+				placedSpans[k][0] += delta
+				placedSpans[k][1] += delta
+			}
+			placedSpans = append(placedSpans, [2]int{start, start + len(maskedEntityText)})
 		}
 	}
 
@@ -236,25 +248,64 @@ func (r *MaskingRequest) MaskText(text string, logPrefix string) MaskedResult {
 	// they leak to the upstream provider. Replace longest-first so a short
 	// string (e.g. "Tim") cannot clobber a longer one it's a substring of
 	// (e.g. "Timothy").
-	type sweep struct{ original, masked string }
-	sweeps := make([]sweep, 0, len(maskedToOriginal))
+	sweeps := make([]struct{ original, masked string }, 0, len(maskedToOriginal))
 	for masked, original := range maskedToOriginal {
 		if len(original) >= minSweepLen {
-			sweeps = append(sweeps, sweep{original, masked})
+			sweeps = append(sweeps, struct{ original, masked string }{original, masked})
 		}
 	}
 	sort.Slice(sweeps, func(i, j int) bool {
 		return len(sweeps[i].original) > len(sweeps[j].original)
 	})
-	for _, s := range sweeps {
-		maskedText = strings.ReplaceAll(maskedText, s.original, s.masked)
-	}
+	// Never sweep inside a dummy we just placed: a dummy can contain an
+	// original (e.g. "Ltd" inside "Prime Pty Ltd"), and re-masking there
+	// produces text that restoration cannot undo. Only the spans placed above
+	// are protected, not every textual match of a dummy, so a short dummy that
+	// happens to prefix an original elsewhere in the text cannot hide it.
+	maskedText = sweepOutsideDummies(maskedText, placedSpans, sweeps)
 
 	return MaskedResult{
 		MaskedText:       maskedText,
 		MaskedToOriginal: maskedToOriginal,
 		Entities:         entities,
 	}
+}
+
+// sweepOutsideDummies replaces every occurrence of each sweep's original in
+// text with its dummy, except inside the byte spans in placed (the dummies
+// already positioned). sweeps must be ordered longest original first.
+func sweepOutsideDummies(text string, placed [][2]int, sweeps []struct{ original, masked string }) string {
+	spans := append([][2]int(nil), placed...)
+	sort.Slice(spans, func(i, j int) bool { return spans[i][0] < spans[j][0] })
+
+	var b strings.Builder
+	b.Grow(len(text))
+	next := 0
+	for i := 0; i < len(text); {
+		for next < len(spans) && spans[next][1] <= i {
+			next++
+		}
+		if next < len(spans) && i >= spans[next][0] {
+			b.WriteString(text[i:spans[next][1]])
+			i = spans[next][1]
+			continue
+		}
+		matched := false
+		for _, sw := range sweeps {
+			if strings.HasPrefix(text[i:], sw.original) {
+				b.WriteString(sw.masked)
+				i += len(sw.original)
+				matched = true
+				break
+			}
+		}
+		if matched {
+			continue
+		}
+		b.WriteByte(text[i])
+		i++
+	}
+	return b.String()
 }
 
 // filterDisabledEntities removes entities whose base label is in disabled

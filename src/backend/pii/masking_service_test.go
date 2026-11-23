@@ -219,6 +219,42 @@ func TestMaskText_RepeatedIdenticalPII_SweepsAllOccurrences(t *testing.T) {
 	}
 }
 
+// TestMaskText_SweepDoesNotRemaskInsideDummy: the generic placeholder for an
+// unknown label contains "REDACTED". When "REDACTED" is itself the original
+// PII, the duplicate sweep must not re-mask the copy inside the dummy, or
+// restoration cannot recover the text (issue #691).
+func TestMaskText_SweepDoesNotRemaskInsideDummy(t *testing.T) {
+	text := "Code REDACTED and again REDACTED here."
+	entities := []detectors.Entity{entityAt(t, text, "REDACTED", "SOMETHINGELSE")}
+	svc := newTestMaskingService(t, entities)
+
+	result := mustMaskText(t, svc, text, "[test]")
+
+	if len(result.MaskedToOriginal) != 1 {
+		t.Fatalf("expected one mapping entry, got %v", result.MaskedToOriginal)
+	}
+	var dummy string
+	for masked := range result.MaskedToOriginal {
+		dummy = masked
+	}
+	want := "Code " + dummy + " and again " + dummy + " here."
+	if result.MaskedText != want {
+		t.Errorf("sweep re-masked inside a dummy:\n got %q\nwant %q", result.MaskedText, want)
+	}
+}
+
+// TestSweepOutsideDummies_ShortDummyPrefixOfOriginalStillMasked: a dummy that
+// is a textual prefix of an original repeated elsewhere must not shield that
+// copy; only the span actually placed is protected.
+func TestSweepOutsideDummies_ShortDummyPrefixOfOriginalStillMasked(t *testing.T) {
+	sweeps := []struct{ original, masked string }{{"1234567", "12"}}
+	// "12" at [0,2) is the placed dummy; the later "1234567" is a leftover copy.
+	got := sweepOutsideDummies("12 and 1234567", [][2]int{{0, 2}}, sweeps)
+	if want := "12 and 12"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
 // TestMaskText_RepeatedIdenticalPII_SameDummyAcrossSession covers session-level
 // reuse: MaskText is called twice (as it would be across two different requests
 // hitting the same MaskingService), each time with a *fresh* detector result for
