@@ -1056,6 +1056,53 @@ func TestAnthropicProvider_CreateMaskedRequest(t *testing.T) {
 	})
 }
 
+func TestAnthropicProvider_CreateMaskedRequest_SystemPrompt(t *testing.T) {
+	p := NewAnthropicProvider("api.anthropic.com", "sk-test", nil)
+
+	t.Run("masks top-level string system prompt", func(t *testing.T) {
+		data := makeOpenAIRequest([]map[string]interface{}{
+			{"role": "user", "content": "Hi"},
+		})
+		data["system"] = "Hello John Doe"
+
+		mapping, entities, err := p.CreateMaskedRequest(data, replaceMaskPII)
+		if err != nil {
+			t.Fatalf("CreateMaskedRequest() error = %v", err)
+		}
+		if got := data["system"]; got != "Hello Jane Smith" {
+			t.Errorf("system = %q, want %q", got, "Hello Jane Smith")
+		}
+		if len(mapping) == 0 || len(*entities) == 0 {
+			t.Error("expected mapping and entities from system prompt")
+		}
+	})
+
+	t.Run("masks top-level system text blocks", func(t *testing.T) {
+		data := makeOpenAIRequest([]map[string]interface{}{
+			{"role": "user", "content": "Hi"},
+		})
+		data["system"] = []interface{}{
+			map[string]interface{}{"type": "text", "text": "Hello John Doe"},
+			map[string]interface{}{"type": "text", "text": "no pii here"},
+		}
+
+		mapping, _, err := p.CreateMaskedRequest(data, replaceMaskPII)
+		if err != nil {
+			t.Fatalf("CreateMaskedRequest() error = %v", err)
+		}
+		blocks := data["system"].([]interface{})
+		if got := blocks[0].(map[string]interface{})["text"]; got != "Hello Jane Smith" {
+			t.Errorf("system[0].text = %q, want %q", got, "Hello Jane Smith")
+		}
+		if got := blocks[1].(map[string]interface{})["text"]; got != "no pii here" {
+			t.Errorf("system[1].text = %q, want unchanged", got)
+		}
+		if len(mapping) == 0 {
+			t.Error("expected non-empty mapping")
+		}
+	})
+}
+
 func TestAnthropicProvider_RestoreMaskedResponse(t *testing.T) {
 	p := NewAnthropicProvider("api.anthropic.com", "sk-test", nil)
 
@@ -1214,6 +1261,33 @@ func TestGeminiProvider_CreateMaskedRequest(t *testing.T) {
 			t.Error("expected non-empty entities")
 		}
 	})
+}
+
+func TestGeminiProvider_CreateMaskedRequest_SystemInstruction(t *testing.T) {
+	p := NewGeminiProvider("generativelanguage.googleapis.com", "key", nil)
+
+	for _, key := range []string{"systemInstruction", "system_instruction"} {
+		t.Run("masks "+key, func(t *testing.T) {
+			data := makeGeminiRequest([]map[string]interface{}{
+				{"role": "user", "parts": []interface{}{map[string]interface{}{"text": "Hi"}}},
+			})
+			data[key] = map[string]interface{}{
+				"parts": []interface{}{map[string]interface{}{"text": "Hello John Doe"}},
+			}
+
+			mapping, entities, err := p.CreateMaskedRequest(data, replaceMaskPII)
+			if err != nil {
+				t.Fatalf("CreateMaskedRequest() error = %v", err)
+			}
+			parts := data[key].(map[string]interface{})["parts"].([]interface{})
+			if got := parts[0].(map[string]interface{})["text"]; got != "Hello Jane Smith" {
+				t.Errorf("%s text = %q, want %q", key, got, "Hello Jane Smith")
+			}
+			if len(mapping) == 0 || len(*entities) == 0 {
+				t.Error("expected mapping and entities from system instruction")
+			}
+		})
+	}
 }
 
 func TestGeminiProvider_RestoreMaskedResponse(t *testing.T) {
