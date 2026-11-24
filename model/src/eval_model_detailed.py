@@ -31,7 +31,7 @@ import torch
 import torch.nn.functional as F
 from absl import logging
 from safetensors import safe_open
-from transformers import AutoTokenizer
+from transformers import AutoConfig, AutoTokenizer
 
 # Add project root to path for imports
 project_root = Path(__file__).parent.parent
@@ -128,25 +128,17 @@ class DetailedPIIModelLoader:
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_path)
         logging.info("✅ Loaded tokenizer")
 
-        # Load model config to get base model name
+        # The model type alone cannot distinguish English and multilingual
+        # DeBERTa. Reconstruct the exact architecture from the saved config.
         config_path = Path(self.model_path) / "config.json"
-        model_type_defaults = {
-            "bert": "bert-base-cased",
-            "distilbert": "distilbert-base-cased",
-            "roberta": "roberta-base",
-            "deberta-v2": "microsoft/deberta-v3-base",
-        }
+        encoder_config = None
+        base_model_name = "microsoft/deberta-v3-base"
         if config_path.exists():
-            with config_path.open() as f:
-                model_config = json.load(f)
-            base_model_name = model_config.get("_name_or_path", "")
-            if not base_model_name or base_model_name in model_type_defaults:
-                model_type = model_config.get("model_type", "distilbert")
-                base_model_name = model_type_defaults.get(
-                    model_type, "microsoft/deberta-v3-base"
-                )
+            encoder_config = AutoConfig.from_pretrained(
+                self.model_path, local_files_only=True
+            )
+            base_model_name = self.model_path
         else:
-            base_model_name = "microsoft/deberta-v3-base"
             logging.warning(
                 "⚠️  config.json not found, using default: microsoft/deberta-v3-base"
             )
@@ -193,6 +185,7 @@ class DetailedPIIModelLoader:
             model_name=base_model_name,
             num_pii_labels=num_pii_labels,
             id2label_pii=self.pii_id2label,
+            encoder_config=encoder_config,
         )
 
         # Load model weights into the model
