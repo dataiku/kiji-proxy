@@ -72,6 +72,19 @@ func (rl *RateLimiter) CleanupOldVisitors() {
 	}()
 }
 
+// clientIP is the key for the rate limiter. r.RemoteAddr is "host:port", and
+// the port is the client's ephemeral source port, so using it whole gives
+// every new connection a fresh burst. A value that is not host:port (a bare
+// address, or a unix-socket name) is kept as-is. X-Forwarded-For is not read:
+// the server listens locally and a client can set that header itself.
+func clientIP(r *http.Request) string {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return host
+}
+
 // Server represents the HTTP server
 type Server struct {
 	piiSettingsMu           sync.Mutex
@@ -592,7 +605,7 @@ func (s *Server) corsHandler(w http.ResponseWriter, r *http.Request) {
 // logsHandler provides the logs endpoint for retrieving and clearing log entries
 func (s *Server) logsHandler(w http.ResponseWriter, r *http.Request) {
 	// Apply rate limiting
-	ip := r.RemoteAddr
+	ip := clientIP(r)
 	limiter := s.rateLimiter.GetLimiter(ip)
 	if !limiter.Allow() {
 		http.Error(w, "Rate limit exceeded. Please try again later.", http.StatusTooManyRequests)
@@ -625,7 +638,7 @@ func (s *Server) logsHandler(w http.ResponseWriter, r *http.Request) {
 // mappingsHandler provides the mappings endpoint for managing PII mappings
 func (s *Server) mappingsHandler(w http.ResponseWriter, r *http.Request) {
 	// Apply rate limiting
-	ip := r.RemoteAddr
+	ip := clientIP(r)
 	limiter := s.rateLimiter.GetLimiter(ip)
 	if !limiter.Allow() {
 		http.Error(w, "Rate limit exceeded. Please try again later.", http.StatusTooManyRequests)
@@ -663,7 +676,7 @@ func (s *Server) mappingsHandler(w http.ResponseWriter, r *http.Request) {
 // values back to the original PII. POST only; see Handler.HandleUnmask.
 func (s *Server) unmaskHandler(w http.ResponseWriter, r *http.Request) {
 	// Apply rate limiting
-	ip := r.RemoteAddr
+	ip := clientIP(r)
 	limiter := s.rateLimiter.GetLimiter(ip)
 	if !limiter.Allow() {
 		http.Error(w, "Rate limit exceeded. Please try again later.", http.StatusTooManyRequests)
@@ -693,7 +706,7 @@ func (s *Server) unmaskHandler(w http.ResponseWriter, r *http.Request) {
 // statsHandler provides the stats endpoint for retrieving statistics
 func (s *Server) statsHandler(w http.ResponseWriter, r *http.Request) {
 	// Apply rate limiting
-	ip := r.RemoteAddr
+	ip := clientIP(r)
 	limiter := s.rateLimiter.GetLimiter(ip)
 	if !limiter.Allow() {
 		http.Error(w, "Rate limit exceeded. Please try again later.", http.StatusTooManyRequests)
@@ -795,7 +808,7 @@ type PIICheckResponse struct {
 // handlePIICheck checks a message for PII and returns masked version with entities
 func (s *Server) handlePIICheck(w http.ResponseWriter, r *http.Request) {
 	// Apply rate limiting
-	ip := r.RemoteAddr
+	ip := clientIP(r)
 	limiter := s.rateLimiter.GetLimiter(ip)
 	if !limiter.Allow() {
 		http.Error(w, "Rate limit exceeded. Please try again later.", http.StatusTooManyRequests)
