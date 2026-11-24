@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/dataiku/kiji-proxy/src/backend/providers"
 )
 
 // --- restoreCore / splitSafe ---
@@ -651,5 +653,23 @@ func TestStreamSnapshotRestoredOnFlush(t *testing.T) {
 		if got := core.flushCarry(hold, jsonCtx); got != "Alice" {
 			t.Fatalf("request snapshot lost during flush: %q", got)
 		}
+	}
+}
+
+// Mistral and Custom providers stream OpenAI-style chat.completion.chunk
+// events, so they must use the OpenAI codec (which restores those chunks)
+// rather than the Anthropic passthrough codec.
+func TestCodecForProvider_OpenAICompatibleProvidersRestoreChatChunks(t *testing.T) {
+	var mistral providers.Provider = providers.NewMistralProvider("api.mistral.ai", "k", nil)
+	var custom providers.Provider = providers.NewCustomProvider("example.com", "k", nil)
+	for name, p := range map[string]providers.Provider{"mistral": mistral, "custom": custom} {
+		t.Run(name, func(t *testing.T) {
+			codec := codecForProvider(&p, map[string]string{"Nicole": "Priya"})
+			out := string(codec.transformEvent(sseLines(
+				`data: {"id":"c1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"Hi Nicole"}}]}` + "\n\n")))
+			if strings.Contains(out, "Nicole") || !strings.Contains(out, "Priya") {
+				t.Errorf("dummy value not restored for %s stream: %s", name, out)
+			}
+		})
 	}
 }
