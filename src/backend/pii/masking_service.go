@@ -172,6 +172,9 @@ func (r *MaskingRequest) MaskText(text string, logPrefix string) MaskedResult {
 		}
 	}
 
+	// Byte spans [start, end) of the dummies placed below, in maskedText coordinates.
+	var placedSpans [][2]int
+
 	// Replace PII with masked text and create mapping
 	// Entities are sorted by StartPos descending, so replacing from end to start
 	// preserves earlier byte offsets.
@@ -222,11 +225,18 @@ func (r *MaskingRequest) MaskText(text string, logPrefix string) MaskedResult {
 		// (e.g., a single letter "s" from a possessive suffix)
 		start := entity.StartPos
 		end := entity.EndPos
-		if start >= 0 && end <= len(maskedText) && start < end {
+		if start < 0 || end > len(maskedText) || start >= end || spanOverlaps(start, end, placedSpans) {
+			// Offsets are missing, or they would cut a dummy already placed.
+			// Take the next copy that sits entirely outside those spans.
+			start, end = indexOutsideSpans(maskedText, originalText, placedSpans)
+		}
+		if start >= 0 {
 			maskedText = maskedText[:start] + maskedEntityText + maskedText[end:]
-		} else {
-			// Fallback to string replacement if positions are invalid
-			maskedText = strings.Replace(maskedText, originalText, maskedEntityText, 1)
+			// Only spans that begin at or after this edit move. An Index hit can
+			// land to the right of a dummy; shifting that dummy uncovers it.
+			delta := len(maskedEntityText) - (end - start)
+			shiftSpansAfter(placedSpans, end, delta)
+			placedSpans = append(placedSpans, [2]int{start, start + len(maskedEntityText)})
 		}
 	}
 
@@ -236,24 +246,128 @@ func (r *MaskingRequest) MaskText(text string, logPrefix string) MaskedResult {
 	// they leak to the upstream provider. Replace longest-first so a short
 	// string (e.g. "Tim") cannot clobber a longer one it's a substring of
 	// (e.g. "Timothy").
-	type sweep struct{ original, masked string }
 	sweeps := make([]sweep, 0, len(maskedToOriginal))
 	for masked, original := range maskedToOriginal {
 		if len(original) >= minSweepLen {
-			sweeps = append(sweeps, sweep{original, masked})
+			sweeps = append(sweeps, sweep{original: original, masked: masked})
 		}
 	}
 	sort.Slice(sweeps, func(i, j int) bool {
 		return len(sweeps[i].original) > len(sweeps[j].original)
 	})
-	for _, s := range sweeps {
-		maskedText = strings.ReplaceAll(maskedText, s.original, s.masked)
-	}
+	// Never sweep inside a dummy we just placed: a dummy can contain an
+	// original (e.g. "Ltd" inside "Prime Pty Ltd"), and re-masking there
+	// produces text that restoration cannot undo. Only the spans placed above
+	// are protected, not every textual match of a dummy, so a short dummy that
+	// happens to prefix an original elsewhere in the text cannot hide it.
+	maskedText = sweepOutsideDummies(maskedText, placedSpans, sweeps)
 
 	return MaskedResult{
 		MaskedText:       maskedText,
 		MaskedToOriginal: maskedToOriginal,
 		Entities:         entities,
+	}
+}
+
+// sweep is one original PII string and the dummy that replaces copies of it
+// outside dummies already placed by position.
+type sweep struct {
+	original string
+	masked   string
+}
+
+// sweepOutsideDummies replaces every occurrence of each sweep's original in
+// text with its dummy, except inside the byte spans in placed (the dummies
+// already positioned). sweeps must be ordered longest original first.
+func sweepOutsideDummies(text string, placed [][2]int, sweeps []sweep) string {
+	spans := append([][2]int(nil), placed...)
+	sort.Slice(spans, func(i, j int) bool { return spans[i][0] < spans[j][0] })
+
+	var b strings.Builder
+	b.Grow(len(text))
+	next := 0
+	for i := 0; i < len(text); {
+		for next < len(spans) && spans[next][1] <= i {
+			next++
+		}
+		if next < len(spans) && i >= spans[next][0] {
+			b.WriteString(text[i:spans[next][1]])
+			i = spans[next][1]
+			continue
+		}
+		// A match must end before the next dummy. An original that starts
+		// outside a span and finishes inside it would delete that dummy
+		// ("123" + dummy "456" reads as "123456"). A shorter original that
+		// fits in the gap is still applied, because sweeps are longest-first.
+		limit := len(text)
+		if next < len(spans) {
+			limit = spans[next][0]
+		}
+		matched := false
+		for _, sw := range sweeps {
+			n := len(sw.original)
+			if n == 0 || i+n > limit {
+				continue
+			}
+			if strings.HasPrefix(text[i:], sw.original) {
+				b.WriteString(sw.masked)
+				i += n
+				matched = true
+				break
+			}
+		}
+		if matched {
+			continue
+		}
+		b.WriteByte(text[i])
+		i++
+	}
+	return b.String()
+}
+
+// spanOverlaps reports whether [start, end) cuts any placed dummy span.
+func spanOverlaps(start, end int, spans [][2]int) bool {
+	for _, sp := range spans {
+		if start < sp[1] && end > sp[0] {
+			return true
+		}
+	}
+	return false
+}
+
+// indexOutsideSpans returns the first [start, end) of original in text that
+// does not cut a placed dummy. The position-less fallback must not rewrite a
+// dummy that was already positioned, or restoration cannot undo it.
+func indexOutsideSpans(text, original string, spans [][2]int) (int, int) {
+	if original == "" {
+		return -1, -1
+	}
+	for from := 0; from <= len(text); {
+		rel := strings.Index(text[from:], original)
+		if rel < 0 {
+			return -1, -1
+		}
+		start := from + rel
+		end := start + len(original)
+		if !spanOverlaps(start, end, spans) {
+			return start, end
+		}
+		from = start + 1
+	}
+	return -1, -1
+}
+
+// shiftSpansAfter moves placed spans that begin at or after end by delta.
+// Spans that start earlier are to the left of this edit and keep their coordinates.
+func shiftSpansAfter(spans [][2]int, end, delta int) {
+	if delta == 0 {
+		return
+	}
+	for k := range spans {
+		if spans[k][0] >= end {
+			spans[k][0] += delta
+			spans[k][1] += delta
+		}
 	}
 }
 
