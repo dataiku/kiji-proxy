@@ -403,9 +403,19 @@ class _IdGen(_Gen):
     def ssn(self) -> str:
         while True:
             area = self.r.randint(1, 899)
-            if area != 666:
+            # 000, 666 and 900-999 are invalid SSN area numbers; 078 is the
+            # SSA's "dummy" area used in test data and must not look like a
+            # real person's number either.
+            if area not in (666, 678) and area < 900:
                 break
-        group, serial = self.r.randint(1, 99), self.r.randint(1, 9999)
+        while True:
+            group = self.r.randint(1, 99)
+            if group != 0:
+                break
+        while True:
+            serial = self.r.randint(1, 9999)
+            if serial != 0:
+                break
         sep = "-" if self.r.random() < 0.85 else self.pick([" ", ""])
         return f"{area:03d}{sep}{group:02d}{sep}{serial:04d}"
 
