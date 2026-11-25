@@ -127,6 +127,7 @@ def _is_event_date(before: str, value: str) -> bool:
     return year is None or int(year.group()) >= _MIN_EVENT_YEAR
 
 
+_STREET_TRAILING_NUM = re.compile(r"\b(?:Apt\.?|Suite|Unit|Flat| Bldg)\s*$", re.IGNORECASE)
 _STREET_THEN_NUMBER = re.compile(
     r"^(?P<street>.*\S)\s+(?P<num>\d+\s?[a-zA-Z]?(?:\s?[-/]\s?\d+\s?[a-zA-Z]?)?)$"
 )
@@ -163,6 +164,25 @@ def looks_german(text: str) -> bool:
 def split_street_address(text: str, start: int, end: int) -> list[tuple[int, int, str]]:
     """Split a "street + house number" span into STREET and BUILDINGNUM."""
     value = text[start:end]
+    # A trailing secondary unit ("Apt. 870") belongs to BUILDINGNUM, not STREET.
+    unit = re.search(r"\s+(Apt\.?|Suite|Unit|Flat)\s*(\d+\w?)\s*$", value, re.IGNORECASE)
+    if unit:
+        street_end = start + unit.start()
+        num_start = start + unit.start(2)
+        return [
+            (start, street_end, "STREET"),
+            (num_start, end, "BUILDINGNUM"),
+        ]
+    # "Flat 38I Natasha Mills": a leading secondary unit is part of the number.
+    leading = re.match(r"^(Flat|Apt\.?|Suite|Unit)\s+(\d+\w?)\s+(.*)$", value, re.IGNORECASE)
+    if leading and not leading.group(3)[0].isdigit():
+        num_start = start + leading.start(2)
+        num_end = start + leading.end(2)
+        street_start = start + leading.start(3)
+        return [
+            (num_start, num_end, "BUILDINGNUM"),
+            (street_start, end, "STREET"),
+        ]
     for pattern in (_STREET_THEN_NUMBER, _NUMBER_THEN_STREET):
         m = pattern.match(value)
         if m:
