@@ -110,7 +110,7 @@ _BIRTH_CUE = re.compile(
 _BIRTH_WORD = re.compile(r"geb\.|geboren|geburt|jahrgang|\bborn\b|birth", re.IGNORECASE)
 # A birth cue directly after a date ("03.04.2001 ... geboren").
 _BIRTH_CUE_AFTER = re.compile(
-    r"^\W{0,5}(geb\.|geboren|geburt\w*|zur\s+welt\s+gekommen)", re.IGNORECASE
+    r"(geb\.|geboren|geburt\w*|zur\s+welt\s+gekommen)", re.IGNORECASE
 )
 # An event word directly before the date ("bis zum", "am", "vom", "Datum:").
 _EVENT_CUE = re.compile(
