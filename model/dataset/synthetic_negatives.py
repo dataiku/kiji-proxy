@@ -428,7 +428,7 @@ GERMAN = Locale(
         "Richter|Klein|Wolf|Neumann|Schwarz|Zimmermann|Braun|Hofmann|Hartmann|Krüger|"
         "Lange|Werner|Lehmann|Köhler|Jäger|Graf|Vogel|Fuchs|Kaiser|Peters|Scholz|"
         "Möller|Brandt|Haas|Schuster|Yılmaz|Kaya|Demir|Şahin|Kowalski|Nowak|Wiśniewski|"
-        "Petrović|Rossi|Ferrari|Nguyen|Tran|Popescu|Ivanova|Müller-Lüdenscheidt|"
+        "Petrović|Rossi|Ferrari|Nguyen|Tran|Popescu|Ivanova|"
         "Schmidt-Rottluff|von Hagen|de Vries|Overbeck|Thießen|Bäumer|Großkopf|"
         "Kleinschmidt|Öztürk|Brückner|Weißenborn|Lührs|Janßen|Heß"
     ),
