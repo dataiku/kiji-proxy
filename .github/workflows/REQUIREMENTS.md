@@ -181,6 +181,8 @@ For Dependabot PRs to pass the `semantic-pr.yml` check, the PR title prefix (`ci
 
 `semantic-pr.yml` runs `.github/scripts/classify-pr-files.sh`, which categorizes changed files into: `ci`, `test`, `docs`, `chore`, `code`. A PR touching **3 or more** of those categories **fails the check**. Files matching no rule fall into `other` and are ignored for the count.
 
+Changesets (`.changeset/*`) are classified as `other`, and test files are not counted as a separate area when code is present — CONTRIBUTING requires tests alongside code, so a PR with source, its tests, and a changeset is one area, not three.
+
 Classification rules live in the script — update both the script and this doc together if you add new top-level directories.
 
 ---
