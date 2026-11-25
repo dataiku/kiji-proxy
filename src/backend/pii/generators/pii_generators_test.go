@@ -249,7 +249,6 @@ func TestTaxNumGenerator(t *testing.T) {
 }
 
 func TestUrlGenerator(t *testing.T) {
-	rng := getTestRand(42)
 	validDomains := []string{
 		"https://www.example.com", "https://www.example.org", "https://www.example.net",
 		"https://shop.test", "https://shop.invalid", "https://shop.example",

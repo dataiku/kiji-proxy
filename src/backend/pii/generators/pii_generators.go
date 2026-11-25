@@ -232,7 +232,6 @@ func UrlGenerator(rng *rand.Rand, original string) string {
 	}
 
 	domain := domains[rng.Intn(len(domains))]
-	tld := tlds[rng.Intn(len(tlds))]
 	path := paths[rng.Intn(len(paths))]
 
 	return fmt.Sprintf("https://%s%s", domain, path)
