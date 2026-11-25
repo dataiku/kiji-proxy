@@ -56,6 +56,32 @@ def test_openpii_birth_date_after_cue_is_dateofbirth():
     assert sample["country"] == "Germany"
 
 
+def test_openpii_birth_date_before_cue_is_dateofbirth():
+    row = _openpii(
+        "Herr Jonas Weber ist am 03.04.2001 in Köln geboren.",
+        [
+            ("GIVENNAME", "Jonas"),
+            ("SURNAME", "Weber"),
+            ("DATE", "03.04.2001"),
+        ],
+    )
+    sample = convert_openpii_row(row)
+    assert _labels(sample) == [
+        ("FIRSTNAME", "Jonas"),
+        ("SURNAME", "Weber"),
+        ("DATEOFBIRTH", "03.04.2001"),
+    ]
+
+
+def test_openpii_birth_date_before_wurde_geboren_is_dateofbirth():
+    row = _openpii(
+        "Das Kind wurde am 14.02.2012 in Berlin geboren.",
+        [("DATE", "14.02.2012")],
+    )
+    sample = convert_openpii_row(row)
+    assert _labels(sample) == [("DATEOFBIRTH", "14.02.2012")]
+
+
 def test_openpii_ambiguous_birth_date_row_is_skipped():
     row = _openpii(
         "Das Geburtsdatum des Auditors wird bis zum 12/05/2025 geprüft, Frau Graf.",
