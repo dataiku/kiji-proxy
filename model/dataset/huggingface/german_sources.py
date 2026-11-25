@@ -108,11 +108,16 @@ _BIRTH_CUE = re.compile(
 )
 # A birth word somewhere nearby, but not directly before the date: ambiguous.
 _BIRTH_WORD = re.compile(r"geb\.|geboren|geburt|jahrgang|\bborn\b|birth", re.IGNORECASE)
+# A birth cue directly after a date ("03.04.2001 ... geboren").
+_BIRTH_CUE_AFTER = re.compile(
+    r"^\W{0,5}(geb\.|geboren|geburt\w*|zur\s+welt\s+gekommen)", re.IGNORECASE
+)
 # An event word directly before the date ("bis zum", "am", "vom", "Datum:").
 _EVENT_CUE = re.compile(
     r"\b(bis|ab|seit|spätestens|zum|am|vom|den|datum|stand|termin|frist|datiert)\W{0,3}$",
     re.IGNORECASE,
 )
+_SENTENCE_END = re.compile(r"[.!?]")
 _YEAR = re.compile(r"(?<!\d)(19|20)\d{2}(?!\d)")
 # openpii fills date slots with random dates, so "bis zum 28/12/1943" is
 # common. An event date that old is more likely a misplaced birth date.
@@ -253,7 +258,11 @@ def convert_openpii_row(row: dict) -> dict | None:
         if label == "DATE":
             # Only text after the previous entity counts as this date's context.
             before = text[max(0, window_start) : start]
-            if _BIRTH_CUE.search(before[-35:]):
+            after = text[end : min(len(text), end + 40)]
+            sentence_end = _SENTENCE_END.search(after)
+            if sentence_end:
+                after = after[: sentence_end.start()]
+            if _BIRTH_CUE.search(before[-35:]) or _BIRTH_CUE_AFTER.search(after):
                 spans.append((start, end, "DATEOFBIRTH"))
             elif _BIRTH_WORD.search(before) or not _is_event_date(before, ent["value"]):
                 # May be a birth date (birth word nearby, no event word, or an
