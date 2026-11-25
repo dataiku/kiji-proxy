@@ -28,17 +28,20 @@ func TestEmailGenerator(t *testing.T) {
 		t.Errorf("EmailGenerator returned email without @: %s", result)
 	}
 
-	// Check that domain is reserved/test domain
-	validDomains := []string{"example.com", "example.org", "example.net", "test.com", "test.org", "test.net", "invalid.com", "invalid.org"}
-	hasValidDomain := false
-	for _, domain := range validDomains {
-		if strings.HasSuffix(result, domain) {
-			hasValidDomain = true
-			break
+	// Check that every generated address uses an RFC 2606/6761 reserved domain.
+	validDomains := []string{"example.com", "example.org", "example.net", "mail.test", "mail.invalid", "mail.example"}
+	for seed := int64(0); seed < 200; seed++ {
+		email := EmailGenerator(getTestRand(seed), "")
+		hasValidDomain := false
+		for _, domain := range validDomains {
+			if strings.HasSuffix(email, "@"+domain) {
+				hasValidDomain = true
+				break
+			}
 		}
-	}
-	if !hasValidDomain {
-		t.Errorf("EmailGenerator returned email with non-test domain: %s", result)
+		if !hasValidDomain {
+			t.Fatalf("EmailGenerator returned email with non-reserved domain: %s", email)
+		}
 	}
 }
 
@@ -247,20 +250,22 @@ func TestTaxNumGenerator(t *testing.T) {
 
 func TestUrlGenerator(t *testing.T) {
 	rng := getTestRand(42)
-	result := UrlGenerator(rng, "")
-
-	// Check that result is a valid URL
-	if !strings.HasPrefix(result, "https://www.") {
-		t.Errorf("UrlGenerator returned URL without https://www. prefix: %s", result)
+	validDomains := []string{
+		"https://www.example.com", "https://www.example.org", "https://www.example.net",
+		"https://shop.test", "https://shop.invalid", "https://shop.example",
 	}
-
-	// Check that it uses reserved domains
-	hasReservedDomain := strings.Contains(result, "example.") ||
-		strings.Contains(result, "test.") ||
-		strings.Contains(result, "invalid.") ||
-		strings.Contains(result, "localhost.")
-	if !hasReservedDomain {
-		t.Errorf("UrlGenerator returned URL with non-reserved domain: %s", result)
+	for seed := int64(0); seed < 200; seed++ {
+		result := UrlGenerator(getTestRand(seed), "")
+		matched := false
+		for _, domain := range validDomains {
+			if strings.HasPrefix(result, domain) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			t.Fatalf("UrlGenerator returned non-reserved domain: %s", result)
+		}
 	}
 }
 
