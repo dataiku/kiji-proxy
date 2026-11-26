@@ -30,14 +30,11 @@ while IFS= read -r file; do
     # Tests
     *_test.go|*_test.ts|*_test.js|*.test.ts|*.test.js|*.test.tsx|*.spec.*|tests/*|__tests__/*)
       cat="test" ;;
-    # Changesets accompany code changes; ignore them like "other" below.
-    .changeset/*)
-      cat="other" ;;
     # Documentation
     docs/*|*.md|LICENSE*)
       cat="docs" ;;
     # Dependencies / config (chore)
-    go.mod|go.sum|*/package.json|package.json|*/package-lock.json|package-lock.json|pyproject.toml|.gitignore|.gitattributes|.eslintrc*|.prettierrc*|tsconfig.json|renovate.json|.nvmrc)
+    go.mod|go.sum|*/package.json|package.json|*/package-lock.json|package-lock.json|pyproject.toml|.changeset/*|.gitignore|.gitattributes|.eslintrc*|.prettierrc*|tsconfig.json|renovate.json|.nvmrc)
       cat="chore" ;;
     # Build / tooling (chore)
     Makefile|src/scripts/*|electron-builder.yml)
@@ -54,12 +51,6 @@ while IFS= read -r file; do
   categories[$cat]=1
   category_files[$cat]="${category_files[$cat]:-}  - $file\n"
 done <<< "$FILES"
-
-# Tests accompany code changes by convention (CONTRIBUTING requires them),
-# so don't count them as a separate area when code is present.
-if [[ -n "${categories[code]:-}" ]]; then
-  unset 'categories[test]' 2>/dev/null || true
-fi
 
 # Remove "other" from the count — it shouldn't trigger a mixed warning
 unset 'categories[other]' 2>/dev/null || true
