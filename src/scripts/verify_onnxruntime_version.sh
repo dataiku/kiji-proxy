@@ -41,11 +41,14 @@ else
     fi
 fi
 
-wrapper_version="${ONNXRUNTIME_GO_VERSION:-$(go list -m -f '{{.Version}}' github.com/yalue/onnxruntime_go)}"
+wrapper_module=github.com/yalue/onnxruntime_go
+wrapper_version="${ONNXRUNTIME_GO_VERSION:-$(go list -m -f '{{.Version}}' "$wrapper_module")}"
 if [ -n "${ONNXRUNTIME_GO_HEADER:-}" ]; then
     header="$ONNXRUNTIME_GO_HEADER"
 else
-    wrapper_dir="$(go list -m -f '{{.Dir}}' github.com/yalue/onnxruntime_go)"
+    # A fresh CI job has the module's version in go.mod but may have no sources in GOMODCACHE.
+    go mod download "$wrapper_module"
+    wrapper_dir="$(go list -m -f '{{.Dir}}' "$wrapper_module")"
     header="$wrapper_dir/onnxruntime_c_api.h"
 fi
 
