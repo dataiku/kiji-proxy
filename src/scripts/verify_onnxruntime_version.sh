@@ -10,9 +10,14 @@ cd "$PROJECT_ROOT"
 
 # Live configuration must derive the native runtime version from the manifest.
 # Historical release notes are intentionally excluded.
+version_pattern='[0-9]+\.[0-9]+\.[0-9]+'
 if hard_coded_pins="$(
     git grep -niE \
-        'onnx(_?runtime)?[^[:space:]]*.*v?[0-9]+\.[0-9]+\.[0-9]+' \
+        -e "(^|[^[:alnum:]_])ONNX(RUNTIME)?_VERSION[[:space:]]*[:?+]?=[[:space:]]*['\"]?v?$version_pattern" \
+        -e "onnxruntime[[:space:]]*==[[:space:]]*$version_pattern" \
+        -e "libonnxruntime(\.so\.$version_pattern|\.$version_pattern\.dylib)" \
+        -e "onnxruntime/(releases/download|archive)/v?$version_pattern" \
+        -e "onnxruntime-(linux|osx|win)-[[:alnum:]_]+-$version_pattern" \
         -- \
         Makefile \
         docs \
@@ -23,12 +28,17 @@ if hard_coded_pins="$(
         .github/workflows \
         ':(exclude)src/frontend/CHANGELOG.md' \
         ':(exclude)src/scripts/test_onnxruntime_version.sh' \
-        ':(exclude)src/scripts/verify_onnxruntime_version.sh' \
-        2>/dev/null
-)" && [ -n "$hard_coded_pins" ]; then
+        ':(exclude)src/scripts/verify_onnxruntime_version.sh'
+)"; then
     echo "Hard-coded ONNX Runtime version found outside .onnxruntime-version:" >&2
     printf '%s\n' "$hard_coded_pins" >&2
     exit 1
+else
+    grep_status=$?
+    # Git grep exits 1 when there are no matches. Any other error is a failed scan.
+    if [ "$grep_status" -ne 1 ]; then
+        exit "$grep_status"
+    fi
 fi
 
 wrapper_version="${ONNXRUNTIME_GO_VERSION:-$(go list -m -f '{{.Version}}' github.com/yalue/onnxruntime_go)}"

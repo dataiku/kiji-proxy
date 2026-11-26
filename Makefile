@@ -232,7 +232,7 @@ setup-onnx: ## Set up ONNX Runtime library for development
 			uv venv --python 3.13; \
 		fi; \
 		uv pip install --quiet onnxruntime==$(ONNXRUNTIME_VERSION); \
-		ONNX_LIB=$$(find .venv -name "libonnxruntime*.dylib" | head -1); \
+		ONNX_LIB=$$(find .venv -name "$(ONNXRUNTIME_DARWIN_LIBRARY)" | head -1); \
 		if [ -n "$$ONNX_LIB" ]; then \
 			cp "$$ONNX_LIB" build/$(ONNXRUNTIME_DARWIN_LIBRARY); \
 			echo "$(GREEN)✅ ONNX library installed$(NC)"; \

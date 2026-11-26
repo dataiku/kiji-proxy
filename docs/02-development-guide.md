@@ -121,7 +121,7 @@ ONNX_VERSION="$(./src/scripts/onnxruntime-version.sh)"
 uv pip install "onnxruntime==${ONNX_VERSION}"
 
 # Find and copy library (macOS)
-LIB_PATH=$(find .venv -name "libonnxruntime*.dylib" | head -1)
+LIB_PATH=$(find .venv -name "libonnxruntime.${ONNX_VERSION}.dylib" | head -1)
 cp "$LIB_PATH" "./build/libonnxruntime.${ONNX_VERSION}.dylib"
 ln -sf "libonnxruntime.${ONNX_VERSION}.dylib" build/libonnxruntime.dylib
 
@@ -143,7 +143,7 @@ ONNX_VERSION="$(./src/scripts/onnxruntime-version.sh)"
 uv pip install "onnxruntime==${ONNX_VERSION}"
 
 # Copy library (macOS)
-LIB_PATH=$(find .venv -name "libonnxruntime*.dylib" | head -1)
+LIB_PATH=$(find .venv -name "libonnxruntime.${ONNX_VERSION}.dylib" | head -1)
 cp "$LIB_PATH" "./build/libonnxruntime.${ONNX_VERSION}.dylib"
 ln -sf "libonnxruntime.${ONNX_VERSION}.dylib" build/libonnxruntime.dylib
 

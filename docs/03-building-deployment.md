@@ -158,10 +158,10 @@ uv pip install "onnxruntime==${ONNX_VERSION}"
 
 ```bash
 # Find library in Python environment
-LIB_PATH=$(find .venv -name "libonnxruntime*.dylib" | head -1)
+ONNX_VERSION="$(./src/scripts/onnxruntime-version.sh)"
+LIB_PATH=$(find .venv -name "libonnxruntime.${ONNX_VERSION}.dylib" | head -1)
 
 # Copy to build directory
-ONNX_VERSION="$(./src/scripts/onnxruntime-version.sh)"
 cp "$LIB_PATH" "build/libonnxruntime.${ONNX_VERSION}.dylib"
 ln -sf "libonnxruntime.${ONNX_VERSION}.dylib" build/libonnxruntime.dylib
 ```
@@ -714,7 +714,9 @@ ONNX_VERSION="$(./src/scripts/onnxruntime-version.sh)"
 uv pip install "onnxruntime==${ONNX_VERSION}"
 
 # Find and copy
-find .venv -name "libonnxruntime*.dylib" -exec cp {} build/ \;
+LIB_PATH=$(find .venv -name "libonnxruntime.${ONNX_VERSION}.dylib" | head -1)
+cp "$LIB_PATH" "build/libonnxruntime.${ONNX_VERSION}.dylib"
+ln -sf "libonnxruntime.${ONNX_VERSION}.dylib" build/libonnxruntime.dylib
 ```
 
 **Linux:**
@@ -801,7 +803,7 @@ export LD_LIBRARY_PATH=/path/to/lib:$LD_LIBRARY_PATH
 ./bin/kiji-proxy
 
 # Or install system-wide
-sudo cp lib/libonnxruntime.so /usr/local/lib/
+sudo cp -a lib/libonnxruntime.so* /usr/local/lib/
 sudo ldconfig
 ```
 

@@ -88,7 +88,7 @@ if [ -f "./build/${ONNX_DARWIN_LIBRARY}" ]; then
     echo "✅ ONNX Runtime library already exists (using cache)"
 else
     # Find and copy ONNX Runtime library
-    ONNX_LIB=$(find .venv -name "libonnxruntime*.dylib" | head -1)
+    ONNX_LIB=$(find .venv -name "$ONNX_DARWIN_LIBRARY" | head -1)
     if [ -n "$ONNX_LIB" ]; then
         cp "$ONNX_LIB" "./build/${ONNX_DARWIN_LIBRARY}"
         echo "✅ ONNX Runtime library copied from Python environment"

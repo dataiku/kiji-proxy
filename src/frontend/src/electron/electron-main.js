@@ -319,23 +319,6 @@ const launchGoBinary = () => {
     projectRoot,
   ]);
 
-  // Also try to find in Python venv
-  if (fs.existsSync(path.join(projectRoot, ".venv"))) {
-    const venvLib = path.join(
-      projectRoot,
-      ".venv",
-      "lib",
-      "python3.13",
-      "site-packages",
-      "onnxruntime",
-      "capi",
-      "libonnxruntime.dylib"
-    );
-    if (fs.existsSync(venvLib)) {
-      onnxPaths.unshift(venvLib); // Check venv first
-    }
-  }
-
   let foundOnnxLib = null;
   for (const libPath of onnxPaths) {
     if (fs.existsSync(libPath)) {
