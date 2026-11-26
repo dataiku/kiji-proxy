@@ -190,6 +190,13 @@ def test_synthetic_pools_avoid_probe_names(language):
     pools = set(loc.first_names) | set(loc.surnames) | set(loc.streets)
     pools |= {city for _, city in loc.cities}
     assert not pools & PROBE_NAMES
+    # A compound value such as "Müller-Lüdenscheidt" still leaks the probe
+    # name "Müller" as a whole word into generated SURNAME spans.
+    for probe in PROBE_NAMES:
+        for value in pools:
+            assert not re.search(rf"(?<![\w-]){re.escape(probe)}(?![\w-])", value), (
+                f"{probe!r} leaks through pool value {value!r}"
+            )
 
 
 @pytest.mark.parametrize("language", LANGUAGES)
