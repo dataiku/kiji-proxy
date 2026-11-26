@@ -7,6 +7,7 @@ import pytest
 from model.dataset.huggingface.german_sources import (
     convert_nym_row,
     convert_openpii_row,
+    split_street_address,
 )
 from model.dataset.label_utils import LabelUtils
 from model.dataset.synthetic_negatives import (
@@ -35,6 +36,20 @@ def _openpii(text: str, ents: list[tuple[str, str]], region: str = "DE") -> dict
         "language": "de",
         "region": region,
     }
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        ("27884 Gaines Tunnel Apt. 870", [("27884 Gaines Tunnel", "STREET"), ("870", "BUILDINGNUM")]),
+        ("Flat 38I Natasha Mills", [("38I", "BUILDINGNUM"), ("Natasha Mills", "STREET")]),
+        ("Hauptstraße 12", [("Hauptstraße", "STREET"), ("12", "BUILDINGNUM")]),
+        ("12 Hauptstraße", [("12", "BUILDINGNUM"), ("Hauptstraße", "STREET")]),
+    ],
+)
+def test_split_street_address_handles_secondary_unit_shapes(value, expected):
+    spans = split_street_address(value, 0, len(value))
+    assert [(value[a:b], label) for a, b, label in spans] == expected
 
 
 def test_openpii_birth_date_after_cue_is_dateofbirth():
