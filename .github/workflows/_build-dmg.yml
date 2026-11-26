@@ -74,6 +74,10 @@ jobs:
         id: deps
         uses: ./.github/actions/extract-tokenizers-version
 
+      - name: Extract ONNX Runtime version
+        id: onnx
+        uses: ./.github/actions/extract-onnxruntime-version
+
       - name: Cache LFS objects
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
@@ -92,7 +96,7 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: build/libonnxruntime.*.dylib
-          key: ${{ runner.os }}-onnx-1.24.2
+          key: ${{ runner.os }}-onnx-${{ steps.onnx.outputs.version }}
           restore-keys: |
             ${{ runner.os }}-onnx-
 
@@ -106,7 +110,7 @@ jobs:
       - name: Install Python Dependencies
         run: |
           uv venv --python 3.13
-          uv pip install onnxruntime==1.24.2
+          uv pip install "onnxruntime==${{ steps.onnx.outputs.version }}"
 
       - name: Install Root Dependencies
         run: npm ci
