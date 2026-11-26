@@ -30,7 +30,7 @@ func pickExcluding(rng *rand.Rand, choices []string, original string) string {
 // EmailGenerator generates dummy email addresses
 func EmailGenerator(rng *rand.Rand, original string) string {
 	// RFC 2606 / RFC 6761 reserved domains only
-	domains := []string{"example.com", "example.org", "example.net", "test.com", "test.org", "test.net", "invalid.com", "invalid.org"}
+	domains := []string{"example.com", "example.org", "example.net", "mail.test", "mail.invalid", "mail.example"}
 
 	firstName := emailFirstNames[rng.Intn(len(emailFirstNames))]
 	lastName := emailSurnames[rng.Intn(len(emailSurnames))]
@@ -224,8 +224,7 @@ func TaxNumGenerator(rng *rand.Rand, original string) string {
 // UrlGenerator generates dummy URLs
 func UrlGenerator(rng *rand.Rand, original string) string {
 	// RFC 2606 / RFC 6761 reserved domains only
-	domains := []string{"example", "test", "invalid", "localhost"}
-	tlds := []string{"com", "org", "net", "edu", "gov", "info", "biz", "co", "io", "dev"}
+	domains := []string{"www.example.com", "www.example.org", "www.example.net", "shop.test", "shop.invalid", "shop.example"}
 	paths := []string{
 		"", "/page", "/info", "/about", "/contact", "/data",
 		"/home", "/products", "/services", "/support", "/help",
@@ -233,10 +232,9 @@ func UrlGenerator(rng *rand.Rand, original string) string {
 	}
 
 	domain := domains[rng.Intn(len(domains))]
-	tld := tlds[rng.Intn(len(tlds))]
 	path := paths[rng.Intn(len(paths))]
 
-	return fmt.Sprintf("https://www.%s.%s%s", domain, tld, path)
+	return fmt.Sprintf("https://%s%s", domain, path)
 }
 
 // CompanyNameGenerator generates dummy company names
