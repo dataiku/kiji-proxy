@@ -51,9 +51,7 @@ func (p *MistralProvider) ExtractRequestText(data map[string]interface{}) (strin
 		if !ok {
 			continue
 		}
-		if content, ok := msgMap["content"].(string); ok {
-			result.WriteString(content + "\n")
-		}
+		writeChatContentText(&result, msgMap["content"])
 	}
 	return result.String(), nil
 }
@@ -96,20 +94,7 @@ func (p *MistralProvider) CreateMaskedRequest(maskedRequest map[string]interface
 		if !ok {
 			continue
 		}
-		content, ok := msgMap["content"].(string)
-		if !ok {
-			continue
-		}
-
-		// Mask PII in this message's content and update message content with masked text
-		maskedText, _maskedToOriginal, _entities := maskPIIInText(content, "[MaskedRequest]")
-		msgMap["content"] = maskedText
-
-		// Collect entities and mappings
-		entities = append(entities, _entities...)
-		for k, v := range _maskedToOriginal {
-			maskedToOriginal[k] = v
-		}
+		maskChatMessageContent(msgMap, maskPIIInText, maskedToOriginal, &entities)
 	}
 
 	return maskedToOriginal, &entities, nil
