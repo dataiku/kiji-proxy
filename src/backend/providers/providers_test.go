@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 
 	pii "github.com/dataiku/kiji-proxy/src/backend/pii/detectors"
@@ -1572,6 +1573,55 @@ func TestProviders_GetProviderFromPath(t *testing.T) {
 			t.Error("provider field should be stripped from body")
 		}
 	})
+}
+
+// Chat Completions style `content` may be an array of typed parts; the text
+// parts must be masked and extracted like plain string content.
+func TestChatProviders_ContentParts(t *testing.T) {
+	providers := map[string]Provider{
+		"openai":  NewOpenAIProvider("api.openai.com", "sk-test", nil),
+		"mistral": NewMistralProvider("api.mistral.ai", "key", nil),
+		"custom":  NewCustomProvider("custom.example.com", "key", nil),
+	}
+	mask := func(text string, _ string) (string, map[string]string, []pii.Entity) {
+		masked := strings.ReplaceAll(text, "jane@example.com", "masked@example.com")
+		if masked == text {
+			return text, nil, nil
+		}
+		return masked, map[string]string{"masked@example.com": "jane@example.com"}, []pii.Entity{{Text: "jane@example.com"}}
+	}
+
+	for name, p := range providers {
+		t.Run(name, func(t *testing.T) {
+			imagePart := map[string]interface{}{"type": "image_url", "image_url": "https://example.com/a.png"}
+			textPart := map[string]interface{}{"type": "text", "text": "mail jane@example.com"}
+			data := makeOpenAIRequest([]map[string]interface{}{
+				{"role": "user", "content": []interface{}{textPart, imagePart}},
+			})
+
+			got, err := p.ExtractRequestText(data)
+			if err != nil {
+				t.Fatalf("ExtractRequestText() error = %v", err)
+			}
+			if want := "mail jane@example.com\n"; got != want {
+				t.Errorf("ExtractRequestText() = %q, want %q", got, want)
+			}
+
+			mapping, entities, err := p.CreateMaskedRequest(data, mask)
+			if err != nil {
+				t.Fatalf("CreateMaskedRequest() error = %v", err)
+			}
+			if textPart["text"] != "mail masked@example.com" {
+				t.Errorf("text part = %q, want it masked", textPart["text"])
+			}
+			if imagePart["image_url"] != "https://example.com/a.png" {
+				t.Errorf("image part changed: %v", imagePart)
+			}
+			if mapping["masked@example.com"] != "jane@example.com" || len(*entities) != 1 {
+				t.Errorf("mapping = %v, entities = %v", mapping, *entities)
+			}
+		})
+	}
 }
 
 func TestProviders_GetProviderFromHost(t *testing.T) {

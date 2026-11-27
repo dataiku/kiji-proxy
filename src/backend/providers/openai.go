@@ -278,9 +278,7 @@ func (p *OpenAIProvider) ExtractRequestText(data map[string]interface{}) (string
 		if !ok {
 			continue
 		}
-		if content, ok := msgMap["content"].(string); ok {
-			result.WriteString(content + "\n")
-		}
+		writeChatContentText(&result, msgMap["content"])
 	}
 	return result.String(), nil
 }
@@ -405,23 +403,57 @@ func (p *OpenAIProvider) CreateMaskedRequest(maskedRequest map[string]interface{
 		if !ok {
 			continue
 		}
-		content, ok := msgMap["content"].(string)
-		if !ok {
-			continue
-		}
-
-		// Mask PII in this message's content and update message content with masked text
-		maskedText, _maskedToOriginal, _entities := maskPIIInText(content, "[MaskedRequest]")
-		msgMap["content"] = maskedText
-
-		// Collect entities and mappings
-		entities = append(entities, _entities...)
-		for k, v := range _maskedToOriginal {
-			maskedToOriginal[k] = v
-		}
+		maskChatMessageContent(msgMap, maskPIIInText, maskedToOriginal, &entities)
 	}
 
 	return maskedToOriginal, &entities, nil
+}
+
+// writeChatContentText appends the text of a Chat Completions style message
+// `content`, which is either a plain string or an array of typed content parts.
+func writeChatContentText(result *strings.Builder, content interface{}) {
+	switch c := content.(type) {
+	case string:
+		result.WriteString(c + "\n")
+	case []interface{}:
+		for _, part := range c {
+			partMap, ok := part.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			if text, ok := partMap["text"].(string); ok {
+				result.WriteString(text + "\n")
+			}
+		}
+	}
+}
+
+// maskChatMessageContent masks PII in a Chat Completions style message, in
+// place. Non-text content parts (images, audio, files) are left untouched.
+func maskChatMessageContent(msgMap map[string]interface{}, maskPIIInText maskPIIInTextType, maskedToOriginal map[string]string, entities *[]pii.Entity) {
+	mask := func(text string) string {
+		maskedText, m, ents := maskPIIInText(text, "[MaskedRequest]")
+		*entities = append(*entities, ents...)
+		for k, v := range m {
+			maskedToOriginal[k] = v
+		}
+		return maskedText
+	}
+
+	switch content := msgMap["content"].(type) {
+	case string:
+		msgMap["content"] = mask(content)
+	case []interface{}:
+		for _, part := range content {
+			partMap, ok := part.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			if text, ok := partMap["text"].(string); ok {
+				partMap["text"] = mask(text)
+			}
+		}
+	}
 }
 
 // createMaskedResponsesRequest walks the Responses-API request shape: a string
