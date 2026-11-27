@@ -422,8 +422,10 @@ class DatasetProcessor:
         with different PII values filled in) always land on the same side, so
         validation does not score templates the model was trained on.
 
-        ``max_eval_samples`` caps the random sample; rows over the cap stay in
-        training.
+        When ``max_eval_samples`` is above 0 it caps the whole validation set,
+        top-up included; rows over the cap stay in training. The exception is a
+        stratum whose groups are all bigger than its share: it still gets its
+        smallest group.
         """
         if not formatted_samples:
             return [], []
@@ -539,8 +541,11 @@ class DatasetProcessor:
         """Move rows into validation for labels below 80% of their fair share.
 
         A label's fair share is its row count times the validation fraction.
-        At most half of a label's rows go to validation, so training keeps the
-        other half. Changes ``val_indices`` in place; returns the rows added.
+        A group is only moved if every label in it keeps at least half of its
+        rows in training and the validation set stays within
+        ``max_eval_samples``. Groups are never split, so a label may get no
+        validation rows. Changes ``val_indices`` in place; returns the rows
+        added.
         """
         num_samples = len(formatted_samples)
         fraction = len(val_indices) / num_samples
@@ -554,6 +559,7 @@ class DatasetProcessor:
 
         candidates = [unit for unit in units if unit[0] not in val_indices]
         rng.shuffle(candidates)
+        cap = self.config.max_eval_samples
         added = 0
         for label in sorted(label_rows, key=lambda lab: (label_rows[lab], lab)):
             minimum = min(
@@ -567,9 +573,18 @@ class DatasetProcessor:
                     label in sample_labels[idx] for idx in unit
                 ):
                     continue
+                if cap > 0 and len(val_indices) + len(unit) > cap:
+                    continue
+                unit_label_rows: Counter = Counter()
                 for idx in unit:
-                    val_indices.add(idx)
-                    val_label_rows.update(sample_labels[idx])
+                    unit_label_rows.update(sample_labels[idx])
+                if any(
+                    val_label_rows[lab] + count > label_rows[lab] // 2
+                    for lab, count in unit_label_rows.items()
+                ):
+                    continue
+                val_indices.update(unit)
+                val_label_rows.update(unit_label_rows)
                 added += len(unit)
 
         covered = sum(1 for label in label_rows if val_label_rows[label] > 0)
@@ -578,6 +593,12 @@ class DatasetProcessor:
             covered,
             len(label_rows),
         )
+        uncovered = sorted(lab for lab in label_rows if val_label_rows[lab] == 0)
+        if uncovered:
+            logging.warning(
+                "No validation rows for: %s (no template group fits the limits)",
+                ", ".join(uncovered),
+            )
         return added
 
     def prepare_datasets(

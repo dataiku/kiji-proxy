@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import random
 from collections import Counter
 
 from model.src.config import TrainingConfig
@@ -72,8 +73,8 @@ def test_eval_cap_moves_extra_rows_to_training(tmp_path):
     processor = _processor(tmp_path, eval_size_ratio=0.1, max_eval_samples=30, seed=42)
     train, val = processor._split_train_validation(rows, strata)
 
-    # 30 stratified rows, plus at most a few for the rare label.
-    assert 30 <= len(val) <= 33
+    # The cap covers the whole validation set, rare-label top-up included.
+    assert len(val) == 30
     assert len(train) == len(rows) - len(val)
 
 
@@ -144,3 +145,46 @@ def test_a_stratum_of_only_big_groups_still_gets_one_group(tmp_path):
     train, val = processor._split_train_validation(rows, strata, groups)
     assert sum(1 for r in val if r["id"] >= 360) == 40
     assert len(train) + len(val) == 400
+
+
+def test_top_up_never_empties_a_label_confined_to_one_group(tmp_path, caplog):
+    # IBAN only exists in one 10-row template group.
+    rows = [{"id": i, "types": {"IBAN"} if i < 10 else set()} for i in range(1000)]
+    groups = ["iban-template" if i < 10 else i for i in range(1000)]
+    for seed in (0, 1, 42):
+        caplog.clear()
+        processor = _processor(tmp_path, eval_size_ratio=0.1, seed=seed)
+        with caplog.at_level("WARNING"):
+            train, _ = processor._split_train_validation(rows, None, groups)
+        iban_in_train = sum("IBAN" in r["types"] for r in train)
+        assert iban_in_train == 10, seed
+        assert "No validation rows for: IBAN" in caplog.text
+
+
+def test_top_up_checks_every_label_in_a_group(tmp_path):
+    processor = _processor(tmp_path)
+    # Row 0 is in validation already. The only group that could cover PHONE
+    # beyond it also holds every IBAN row.
+    rows = [{"types": set()} for _ in range(20)]
+    rows[1] = rows[2] = {"types": {"PHONE", "IBAN"}}
+    for i in range(3, 9):
+        rows[i] = {"types": {"PHONE"}}
+    units = [[0], [1, 2]] + [[i] for i in range(9, 20)] + [list(range(3, 9))]
+    val_indices = {0}
+
+    added = processor._top_up_rare_labels(rows, val_indices, units, random.Random(0))
+
+    assert added == 0
+    assert val_indices == {0}
+
+
+def test_top_up_respects_the_eval_cap(tmp_path):
+    # IBAN is spread over two 10-row groups, but the cap is already used up.
+    rows = [{"id": i, "types": {"IBAN"} if i < 20 else set()} for i in range(1000)]
+    groups = [f"iban-{i // 10}" if i < 20 else i for i in range(1000)]
+    for seed in range(20):
+        processor = _processor(
+            tmp_path, eval_size_ratio=0.1, max_eval_samples=100, seed=seed
+        )
+        _, val = processor._split_train_validation(rows, None, groups)
+        assert len(val) <= 100, seed

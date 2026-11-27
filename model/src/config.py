@@ -124,7 +124,7 @@ class TrainingConfig:
 
     # Dataset settings
     eval_size_ratio: float = 0.1  # Validation set size as ratio of training
-    max_eval_samples: int = 0  # Cap eval set size; rows over it train (0 = no cap)
+    max_eval_samples: int = 0  # Cap on the whole eval set (0 = no cap)
     balanced_validation_split: bool = True
     max_sequence_length: int = 512
     # Pad each batch up to the next multiple of pad_bucket_size (capped at
