@@ -140,11 +140,12 @@ type Config struct {
 	ONNXModelDirectory        string // Explicit override; takes precedence over ModelVariant.
 	UIPath                    string
 	// ListenHost restricts the TCP listeners (API, transparent proxy, PAC) to one
-	// interface, e.g. "127.0.0.1". Empty means all interfaces (the historical
-	// default, needed for Docker/server deploys). Set via KIJI_LISTEN_HOST; the
-	// desktop app sets it to loopback so a port collision fails with
-	// "address already in use" instead of silently sharing the port with another
-	// process bound to 127.0.0.1.
+	// interface, e.g. "192.168.1.10". Empty means all interfaces (the historical
+	// default, needed for Docker/server deploys). A loopback value ("127.0.0.1",
+	// "localhost" or "::1") means both 127.0.0.1 and [::1]. Set via
+	// KIJI_LISTEN_HOST; the desktop app sets it to loopback so a port collision
+	// fails with "address already in use" instead of silently sharing the port
+	// with another process bound to 127.0.0.1.
 	ListenHost string
 	// ServeUI controls whether the embedded web UI is served on "/". Defaults to
 	// true; set the KIJI_SERVE_UI=false env var for an API-only (headless) server.

@@ -19,10 +19,10 @@ const isDev = process.env.NODE_ENV === "development";
 // `make electron` runs in development mode but serves the built dist via :8080.
 const useDevServer = process.env.ELECTRON_DEV_SERVER === "true";
 
-// The Go backend binds loopback IPv4 only (KIJI_LISTEN_HOST, see launchGoBinary).
-// Pin Chromium's resolution of "localhost" to 127.0.0.1 so the UI, net.fetch and
-// net.request always reach that listener. Without this, "localhost" resolves to
-// ::1 first, where a different process could be answering on the same port.
+// The Go backend binds loopback only, on 127.0.0.1 and [::1] (KIJI_LISTEN_HOST,
+// see launchGoBinary). Pin Chromium's resolution of "localhost" to 127.0.0.1 so
+// the UI, net.fetch and net.request skip a failed IPv6 attempt and always reach
+// the IPv4 listener.
 // Mapping the resolver (rather than rewriting URLs to 127.0.0.1) keeps the
 // renderer origin at http://localhost:8080, so localStorage (UI language,
 // playground profile) survives.

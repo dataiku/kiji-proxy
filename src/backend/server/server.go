@@ -122,7 +122,7 @@ func NewServer(cfg *config.Config, version string) (*Server, error) {
 	var pacServer *proxy.PACServer
 	var systemProxyManager *proxy.SystemProxyManager
 	if cfg.Proxy.TransparentEnabled && cfg.Proxy.EnablePAC {
-		pacServer = proxy.NewPACServer(cfg.Providers.GetInterceptDomains(), cfg.Proxy.ProxyPort, cfg.ListenHost)
+		pacServer = proxy.NewPACServer(cfg.Providers.GetInterceptDomains(), cfg.Proxy.ProxyPort, cfg.ListenHost, listenTCP)
 		systemProxyManager = proxy.NewSystemProxyManager("http://127.0.0.1:9090/proxy.pac")
 	}
 
@@ -170,7 +170,7 @@ func NewServerWithEmbedded(cfg *config.Config, uiFS, modelFS fs.FS, version stri
 	var pacServer *proxy.PACServer
 	var systemProxyManager *proxy.SystemProxyManager
 	if cfg.Proxy.TransparentEnabled && cfg.Proxy.EnablePAC {
-		pacServer = proxy.NewPACServer(cfg.Providers.GetInterceptDomains(), cfg.Proxy.ProxyPort, cfg.ListenHost)
+		pacServer = proxy.NewPACServer(cfg.Providers.GetInterceptDomains(), cfg.Proxy.ProxyPort, cfg.ListenHost, listenTCP)
 		systemProxyManager = proxy.NewSystemProxyManager("http://127.0.0.1:9090/proxy.pac")
 	}
 
