@@ -783,10 +783,12 @@ to `127.0.0.1` then reach that other process instead (symptom: unexpected 404s
 such as `{"error":{"code":"not_found","message":"no such route"}}`). Set
 `KIJI_LISTEN_HOST=127.0.0.1` to bind loopback only, so a collision fails at
 startup with `bind: address already in use`. The desktop app sets this
-automatically. With a loopback host the API and transparent proxy listeners
-also refuse to start when another process holds the port on `[::1]` (where
-`localhost` may resolve) or, on macOS, on `0.0.0.0` or `[::]`, because a
-`127.0.0.1` bind alone would succeed next to those.
+automatically. A loopback host (`127.0.0.1`, `localhost` or `::1`) always means
+both loopback addresses: the API, transparent proxy and PAC listeners bind
+`127.0.0.1` and `[::1]` (only `127.0.0.1` if IPv6 is unavailable), so clients
+reach Kiji whichever address `localhost` resolves to. They refuse to start when
+another process holds the port on either address or, on macOS, on `0.0.0.0` or
+`[::]`, because a loopback bind alone would succeed next to those.
 
 ## Adding a New LLM Provider
 

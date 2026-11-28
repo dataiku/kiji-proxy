@@ -15,6 +15,7 @@ import (
 type PACServer struct {
 	port             string
 	listenHost       string
+	listen           func(host, port string) (net.Listener, error)
 	interceptDomains []string
 	proxyPort        string
 	server           *http.Server
@@ -22,11 +23,18 @@ type PACServer struct {
 }
 
 // NewPACServer creates a new PAC server instance. listenHost restricts the
-// listener to one interface ("" = all interfaces).
-func NewPACServer(interceptDomains []string, proxyPort string, listenHost string) *PACServer {
+// listener to one interface ("" = all interfaces). listen binds the TCP port;
+// nil means a plain net.Listen on listenHost.
+func NewPACServer(interceptDomains []string, proxyPort string, listenHost string, listen func(host, port string) (net.Listener, error)) *PACServer {
+	if listen == nil {
+		listen = func(host, port string) (net.Listener, error) {
+			return net.Listen("tcp", config.JoinListenAddr(host, port))
+		}
+	}
 	return &PACServer{
 		port:             "9090",
 		listenHost:       listenHost,
+		listen:           listen,
 		interceptDomains: interceptDomains,
 		proxyPort:        proxyPort,
 	}
@@ -44,7 +52,7 @@ func (p *PACServer) Start() error {
 // Listen binds the PAC server's TCP port without serving yet, so callers can
 // confirm the port is ours before pointing the system proxy at it.
 func (p *PACServer) Listen() (net.Listener, error) {
-	listener, err := net.Listen("tcp", config.JoinListenAddr(p.listenHost, p.port))
+	listener, err := p.listen(p.listenHost, p.port)
 	if err != nil {
 		return nil, err
 	}

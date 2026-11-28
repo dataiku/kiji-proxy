@@ -10,7 +10,6 @@ import (
 // port on 0.0.0.0 or [::] (including dual-stack "*"), so probe those too.
 // (On Linux the 127.0.0.1 bind itself fails in that case.)
 var loopbackCollisionProbes = []func(port string) error{
-	probeIPv6Loopback,
 	func(port string) error { return probeWildcard(syscall.AF_INET, port) },
 	func(port string) error { return probeWildcard(syscall.AF_INET6, port) },
 }

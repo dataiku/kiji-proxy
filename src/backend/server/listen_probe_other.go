@@ -2,8 +2,6 @@
 
 package server
 
-// Elsewhere a 127.0.0.1 bind already fails against wildcard holders; only a
-// holder on [::1] (which "localhost" may resolve to) needs a separate check.
-var loopbackCollisionProbes = []func(port string) error{
-	probeIPv6Loopback,
-}
+// Elsewhere the 127.0.0.1 and [::1] binds themselves fail against wildcard
+// holders and holders on either loopback address, so no extra probes are needed.
+var loopbackCollisionProbes []func(port string) error
